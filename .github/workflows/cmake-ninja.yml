@@ -76,7 +76,7 @@ jobs:
         echo 'export FC="'${GCC_DIR}'/bin/gfortran"' >> ~/.bashrc
         CFLAGS='-march=generic -mtune=generic -O3 -pipe'
         echo 'CHOST="x86_64-pc-linux-gnu"' >> ~/.bashrc
-        echo 'CFLAGS="'${CFLAGS}'"'' >> ~/.bashrc
+        echo 'CFLAGS="'${CFLAGS}'"' >> ~/.bashrc
         echo 'CXXFLAGS="'${CFLAGS}'"' >> ~/.bashrc
         #ls -la ${GCC_DIR}'/lib'
         #ls -la ${GCC_DIR}'/lib64'
