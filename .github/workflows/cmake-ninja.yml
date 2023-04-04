@@ -25,7 +25,7 @@ jobs:
         yum -y install git
         git --version
 
-    - name: Checkout code
+    - name: Checkout piclas including the .git directory
       uses: actions/checkout@v3
       with:
         fetch-depth: 0
@@ -62,7 +62,7 @@ jobs:
         gcc --version
 
     - name: Configure CMake
-      shell: bash
+      #shell: bash
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: |
