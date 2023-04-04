@@ -97,8 +97,8 @@ jobs:
         make -j && make install
         # Check
         echo "======================================================================="
-        MPI_DIR=$(dirname $(dirname $(which mpirun)))
-        echo ${MPI_DIR}
+        #MPI_DIR=$(dirname $(dirname $(which mpirun)))
+        #echo ${MPI_DIR}
         MPI_DIR='/opt/openmpi/4.1.0'
         echo ${MPI_DIR}
         echo 'export MPI_DIR="'${GCC_DIR}'"' >> ~/.bashrc
@@ -143,7 +143,7 @@ jobs:
         #which gcc
         #gcc --version
         source ~/.bashrc
-        cmake -G Ninja -B build_DSMC -DPICLAS_TIMEDISCMETHOD=DSMC -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=ON -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+        cmake -G Ninja -B build_DSMC -DPICLAS_TIMEDISCMETHOD=DSMC -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
     - name: Build
       shell: bash
