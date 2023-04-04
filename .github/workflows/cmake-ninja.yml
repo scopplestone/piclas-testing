@@ -66,8 +66,11 @@ jobs:
         TEST=$(which gcc)
         echo ${TEST}
         GCC_DIR=$(dirname ${TEST})
+        GCC_DIR=$(dirname ${GCC_DIR})
         #echo "GCC_DIR=$(dirname $(gcc --version))" >> $GITHUB_ENV
         echo "GCC_DIR="${GCC_DIR}
+        TEST=$(dirname $(dirname $(which gcc)))
+        echo "GCC_DIR="${TEST}
         echo "======================================================================="
         GCC_DIR='/opt/rh/devtoolset-7/root/usr'
         echo ${GCC_DIR}
