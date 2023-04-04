@@ -49,6 +49,8 @@ jobs:
         curl -L -O https://github.com/ninja-build/ninja/releases/download/v1.11.1/ninja-linux.zip
         unzip ninja-linux.zip
         mv ./ninja /usr/bin
+        curl -L -O https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+        chmod +x linuxdeploy-x86_64.AppImage
 
     - name: Install GNU GCC 8
       run: |
@@ -105,8 +107,6 @@ jobs:
         echo 'export PATH="'${GCC_DIR}'/bin:$PATH"' >> ~/.bashrc
         echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
         echo "======================================================================="
-        which mpirun
-        mpirun --version
         cat ~/.bashrc
         echo "======================================================================="
 
@@ -149,12 +149,6 @@ jobs:
       shell: bash
       # Build your program with the given configuration
       run: cmake --build build_DSMC
-
-    - name: Install AppImage
-      shell: bash
-      run: |
-        curl -L -O https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-        chmod +x linuxdeploy-x86_64.AppImage
 
     - name: Create piclas AppImage
       shell: bash
