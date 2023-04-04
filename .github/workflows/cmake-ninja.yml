@@ -66,10 +66,12 @@ jobs:
         GCC_DIR='/opt/rh/devtoolset-7/root/usr'
         echo ${GCC_DIR}
         echo 'export PATH="'${GCC_DIR}'/bin:$PATH"' >> ~/.bashrc
+        echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
         echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib64:$LD_LIBRARY_PATH"' >> ~/.bashrc
         echo 'export CC="'${GCC_DIR}'/bin/gcc"' >> ~/.bashrc
         echo 'export CXX="'${GCC_DIR}'/bin/g++"' >> ~/.bashrc
         echo 'export FC="'${GCC_DIR}'/bin/gfortran"' >> ~/.bashrc
+        ls -la ${GCC_DIR}'/lib'
         ls -la ${GCC_DIR}'/lib64'
         cat ~/.bashrc
 
