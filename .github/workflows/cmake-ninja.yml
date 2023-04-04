@@ -135,7 +135,7 @@ jobs:
         #curl -L -O https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
         #chmod +x linuxdeploy-x86_64.AppImage
         #tree AppDir
-        ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas2vtk.desktop
+        ./../linuxdeploy-x86_64.AppImage --executable AppDir/usr/bin/piclas2vtk --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas2vtk.desktop
 
     - name: Set env
       run: |
