@@ -50,20 +50,17 @@ jobs:
         unzip ninja-linux.zip
         mv ./ninja /usr/bin
 
-    - name: Install GNU GCC 7
+    - name: Install GNU GCC 8
       run: |
-        #which gcc
-        #gcc --version
         yum install -y centos-release-scl
-        yum install -y devtoolset-7-gcc*
-        source /opt/rh/devtoolset-7/enable
-        scl enable devtoolset-7 bash
+        yum install -y devtoolset-8-gcc*
+        source /opt/rh/devtoolset-8/enable
+        scl enable devtoolset-8 bash
         which gcc
         echo 'source /opt/rh/devtoolset-7/enable' >> ~/.bashrc
         echo 'scl enable devtoolset-7 bash' >> ~/.bashrc
         #GCC_DIR='/opt/rh/devtoolset-7/root/usr'
         GCC_DIR=$(dirname $(dirname $(which gcc)))
-        #echo ${GCC_DIR}
         echo 'export PATH="'${GCC_DIR}'/bin:$PATH"' >> ~/.bashrc
         echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
         echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib64:$LD_LIBRARY_PATH"' >> ~/.bashrc
@@ -78,8 +75,6 @@ jobs:
         echo 'CHOST="x86_64-pc-linux-gnu"' >> ~/.bashrc
         echo 'CFLAGS="'${CFLAGS}'"' >> ~/.bashrc
         echo 'CXXFLAGS="'${CFLAGS}'"' >> ~/.bashrc
-        #ls -la ${GCC_DIR}'/lib'
-        #ls -la ${GCC_DIR}'/lib64'
         echo "======================================================================="
         gcc --version
         cat ~/.bashrc
