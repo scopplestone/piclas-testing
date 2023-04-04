@@ -57,9 +57,9 @@ jobs:
         source /opt/rh/devtoolset-8/enable
         scl enable devtoolset-8 bash
         which gcc
-        echo 'source /opt/rh/devtoolset-7/enable' >> ~/.bashrc
-        echo 'scl enable devtoolset-7 bash' >> ~/.bashrc
-        #GCC_DIR='/opt/rh/devtoolset-7/root/usr'
+        echo 'source /opt/rh/devtoolset-8/enable' >> ~/.bashrc
+        echo 'scl enable devtoolset-8 bash' >> ~/.bashrc
+        #GCC_DIR='/opt/rh/devtoolset-8/root/usr'
         GCC_DIR=$(dirname $(dirname $(which gcc)))
         echo 'export PATH="'${GCC_DIR}'/bin:$PATH"' >> ~/.bashrc
         echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
@@ -88,8 +88,8 @@ jobs:
       run: |
         #which gcc
         #gcc --version
-        #source /opt/rh/devtoolset-7/enable
-        #scl enable devtoolset-7 bash
+        #source /opt/rh/devtoolset-8/enable
+        #scl enable devtoolset-8 bash
         #which gcc
         #gcc --version
         source ~/.bashrc
