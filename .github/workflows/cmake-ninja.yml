@@ -80,6 +80,15 @@ jobs:
         cat ~/.bashrc
         echo "======================================================================="
 
+    - name: Install GNU GCC 8
+      run: |
+        yum install -y centos-release-scl
+        yum install -y openmpi-devtoolset-8-runtime
+        #source /opt/rh/devtoolset-8/enable
+        #scl enable devtoolset-8 bash
+        #which gcc
+        which mpirun
+
 
     - name: Configure CMake
       shell: bash
