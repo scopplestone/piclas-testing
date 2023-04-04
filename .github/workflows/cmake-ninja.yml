@@ -59,12 +59,11 @@ jobs:
         source /opt/rh/devtoolset-7/enable
         scl enable devtoolset-7 bash
         which gcc
-        gcc --version
         echo 'source /opt/rh/devtoolset-7/enable' >> ~/.bashrc
         echo 'scl enable devtoolset-7 bash' >> ~/.bashrc
         #GCC_DIR='/opt/rh/devtoolset-7/root/usr'
         GCC_DIR=$(dirname $(dirname $(which gcc)))
-        echo ${GCC_DIR}
+        #echo ${GCC_DIR}
         echo 'export PATH="'${GCC_DIR}'/bin:$PATH"' >> ~/.bashrc
         echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
         echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib64:$LD_LIBRARY_PATH"' >> ~/.bashrc
@@ -78,6 +77,7 @@ jobs:
         #ls -la ${GCC_DIR}'/lib'
         #ls -la ${GCC_DIR}'/lib64'
         echo "======================================================================="
+        gcc --version
         cat ~/.bashrc
         echo "======================================================================="
 
