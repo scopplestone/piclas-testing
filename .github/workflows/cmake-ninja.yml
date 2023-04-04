@@ -93,10 +93,14 @@ jobs:
         wget https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.0.tar.gz
         tar -xvf openmpi-4.1.0.tar.gz
         cd openmpi-4.1.0
-        ./configure --enable-static --disable-dlopen enable-mpi1-compatibilityprefix=/opt/openmpi/4.1.0/gcc/9.3.1
+        ./configure --enable-static --disable-dlopen --enable-mpi1-compatibility --prefix=/opt/openmpi/4.1.0
         make -j && make install
         # Check
         MPI_DIR=$(dirname $(dirname $(which mpirun)))
+        echo "======================================================================="
+        echo ${MPI_DIR}
+        MPI_DIR='/opt/openmpi/4.1.0'
+        echo ${MPI_DIR}
         echo 'export MPI_DIR="'${GCC_DIR}'"' >> ~/.bashrc
         echo 'export PATH="'${GCC_DIR}'/bin:$PATH"' >> ~/.bashrc
         echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
