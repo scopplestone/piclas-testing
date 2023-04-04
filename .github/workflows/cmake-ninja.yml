@@ -102,26 +102,28 @@ jobs:
         #MPI_DIR=$(dirname $(dirname $(which mpirun)))
         #echo ${MPI_DIR}
         MPI_DIR='/opt/openmpi/4.1.0'
+        echo 'MPI_DIR="'${MPI_DIR}'"' >> $GITHUB_ENV
         echo ${MPI_DIR}
-        echo 'export MPI_DIR="'${GCC_DIR}'"' >> ~/.bashrc
-        echo 'export PATH="'${GCC_DIR}'/bin:$PATH"' >> ~/.bashrc
-        echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
+        echo 'export MPI_DIR="'${MPI_DIR}'"' >> ~/.bashrc
+        echo 'export PATH="'${MPI_DIR}'/bin:$PATH"' >> ~/.bashrc
+        echo 'export LD_LIBRARY_PATH="'${MPI_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
         echo "======================================================================="
         cat ~/.bashrc
         echo "======================================================================="
 
-    - name: Install HDF5 1.12.0
+    - name: Install HDF5 1.12.2
       run: |
         source ~/.bashrc
         wget https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.2/src/hdf5-1.12.2.tar.gz
-        tar -xvf hdf5-1.12.0.tar.gz
-        cd hdf5-1.12.0
-        ./configure --prefix=/opt/hdf5/1.12.0 --with-pic --enable-fortran --enable-parallel
+        tar -xvf hdf5-1.12.2.tar.gz
+        cd hdf5-1.12.2
+        ./configure --prefix=/opt/hdf5/1.12.2 --with-pic --enable-fortran --enable-parallel
         make -j && make install
         # Check
         echo "======================================================================="
-        HDF5_DIR='/opt/hdf5/1.12.0'
+        HDF5_DIR='/opt/hdf5/1.12.2'
         echo ${HDF5_DIR}
+        echo 'HDF5_DIR="'${HDF5_DIR}'"' >> $GITHUB_ENV
         echo 'export HDF5_DIR="'${HDF5_DIR}'"' >> ~/.bashrc
         echo 'export HDF5_ROOT="'${HDF5_DIR}'"' >> ~/.bashrc
         echo 'export PATH="'${HDF5_DIR}'/include:$PATH"' >> ~/.bashrc
@@ -131,24 +133,52 @@ jobs:
         cat ~/.bashrc
         echo "======================================================================="
 
-    - name: Configure CMake
+    - name: Install PETSc 3.18.4
+      run: |
+        PETSCVERSION='3.18.4'
+        source ~/.bashrc
+        wget https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-${PETSCVERSION}.tar.gz
+        tar -xvf petsc-${PETSCVERSION}.tar.gz
+        cd petsc-${PETSCVERSION}
+        ./configure PETSC_ARCH=arch-linux --prefix=/opt/petsc/${PETSCVERSION} --with-mpi-dir=${MPI_DIR} --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native' --download-hypre --download-mumps --download-scalapack --download-fblaslapack=1
+        make -j && make install
+        # Check
+        echo "======================================================================="
+        PETSC_DIR='/opt/petsc/'${PETSCVERSION}
+        echo ${PETSC_DIR}
+        echo 'export PETSC_DIR="'${PETSC_DIR}'"' >> ~/.bashrc
+        echo 'export PATH="'${PETSC_DIR}'/bin:$PATH"' >> ~/.bashrc
+        echo 'export LD_LIBRARY_PATH="'${PETSC_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
+        echo 'export PETSC_ARCH=' >> ~/.bashrc
+        echo "======================================================================="
+        cat ~/.bashrc
+        echo "======================================================================="
+
+    - name: Configure CMake Piclas DSMC
       shell: bash
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: |
-        #which gcc
-        #gcc --version
-        #source /opt/rh/devtoolset-8/enable
-        #scl enable devtoolset-8 bash
-        #which gcc
-        #gcc --version
         source ~/.bashrc
         cmake -G Ninja -B build_DSMC -DPICLAS_TIMEDISCMETHOD=DSMC -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
-    - name: Build
+    - name: Build Piclas DSMC
       shell: bash
       # Build your program with the given configuration
       run: cmake --build build_DSMC
+
+    - name: Configure CMake Piclas Poisson Leapfrog
+      shell: bash
+      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      run: |
+        source ~/.bashrc
+        cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+
+    - name: Build Piclas Poisson Leapfrog
+      shell: bash
+      # Build your program with the given configuration
+      run: cmake --build build_poisson_leapfrog
 
     - name: Create piclas AppImage
       shell: bash
