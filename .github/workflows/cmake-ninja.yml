@@ -139,8 +139,13 @@ jobs:
 
     - name: Set env
       run: |
+        echo "======================================================================="
+        echo "build_DSMC"
         ls -la build_DSMC
+        echo "======================================================================="
+        echo "build_DSMC/bin"
         ls -la build_DSMC/bin
+        echo "======================================================================="
         echo "PICLAS_BINARYPATH_DMSC=$(ls build_DSMC/piclas-*x86_64.AppImage)" >> $GITHUB_ENV
         echo "PICLAS_BINARYNAME_DSMC=$(basename $(ls build_DSMC/piclas-*x86_64.AppImage))" >> $GITHUB_ENV
         echo "PICLAS2VTK_BINARYPATH_DMSC=$(ls build_DSMC/piclas2vtk*x86_64.AppImage)" >> $GITHUB_ENV
@@ -164,7 +169,7 @@ jobs:
         mkdir artifacts
         mkdir assets
         cp ${PICLAS_BINARYPATH_DMSC} .
-        cp ${PICLAS2VTK_BINARYPATH_DMSC} .
+        #cp ${PICLAS2VTK_BINARYPATH_DMSC} .
         7z a assets/piclas-linux64.zip ${PICLAS_BINARYNAME_DSMC} ${PICLAS2VTK_BINARYNAME_DSMC}
         mv ${PICLAS_BINARYNAME_DSMC} ${PICLAS2VTK_BINARYNAME_DSMC} artifacts/.
 
