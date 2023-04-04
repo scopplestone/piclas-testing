@@ -42,7 +42,7 @@ jobs:
         rpm -U --quiet p7zip-16.02-20.el7.x86_64.rpm
         rpm -U --quiet p7zip-plugins-16.02-20.el7.x86_64.rpm
         yum install -y epel-release
-        yum install -y make libasan gcc-gfortran gcc-c++ unzip openblas-devel lapack-devel zlib-devel tree fuse-sshfs fuse-libs file openmpi-devel
+        yum install -y make libasan gcc-gfortran gcc-c++ unzip openblas-devel lapack-devel zlib-devel tree fuse-sshfs fuse-libs file openmpi-devel wget
         groupadd fuse
         user="$(whoami)"
         usermod -a -G fuse "$user"
@@ -88,6 +88,7 @@ jobs:
         #scl enable devtoolset-8 bash
         #which gcc
         #which mpirun
+        source ~/.bashrc
         yum install -y rdma-core-devel
         wget https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.0.tar.gz
         tar -xvf openmpi-4.1.0.tar.gz
@@ -95,8 +96,23 @@ jobs:
         ./configure --enable-static --disable-dlopen enable-mpi1-compatibilityprefix=/opt/openmpi/4.1.0/gcc/9.3.1
         make -j && make install
         # Check
+        MPI_DIR=$(dirname $(dirname $(which mpirun)))
+        echo 'export MPI_DIR="'${GCC_DIR}'"' >> ~/.bashrc
+        echo 'export PATH="'${GCC_DIR}'/bin:$PATH"' >> ~/.bashrc
+        echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
+        echo "======================================================================="
         which mpirun
+        gcc --version
+        cat ~/.bashrc
+        echo "======================================================================="
 
+    - name: Install HDF5 1.12.0
+      run: |
+        source ~/.bashrc
+        tar -xvf hdf5-1.12.0.tar.gz
+        cd hdf5-1.12.0
+        ./configure --prefix=/opt/hdf5/1.12.0/gcc/9.3.1/openmpi/4.1.0 --with-pic --enable-fortran --enable-parallel
+        make -j && make install
 
     - name: Configure CMake
       shell: bash
@@ -110,7 +126,7 @@ jobs:
         #which gcc
         #gcc --version
         source ~/.bashrc
-        cmake -G Ninja -B build_DSMC -DPICLAS_TIMEDISCMETHOD=DSMC -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=OFF -DLIBS_BUILD_HDF5=ON -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+        cmake -G Ninja -B build_DSMC -DPICLAS_TIMEDISCMETHOD=DSMC -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=ON -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
     - name: Build
       shell: bash
