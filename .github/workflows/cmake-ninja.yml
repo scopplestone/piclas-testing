@@ -62,9 +62,10 @@ jobs:
         gcc --version
         echo 'source /opt/rh/devtoolset-7/enable' >> ~/.bashrc
         echo 'scl enable devtoolset-7 bash' >> ~/.bashrc
-        GCC_DIR=$(dirname $(gcc --version))
+        #GCC_DIR=$(dirname $(gcc --version))
+        GCC_DIR='/opt/rh/devtoolset-7/root/usr'
         echo ${GCC_DIR}
-        echo 'export PATH="'${GCC_DIR}':$PATH"' >> ~/.bashrc
+        echo 'export PATH="'${GCC_DIR}'/bin:$PATH"' >> ~/.bashrc
         cat ~/.bashrc
 
 
