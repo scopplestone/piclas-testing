@@ -117,7 +117,7 @@ jobs:
         wget https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.2/src/hdf5-1.12.2.tar.gz
         tar -xvf hdf5-1.12.2.tar.gz
         cd hdf5-1.12.2
-        ./configure --prefix=/opt/hdf5/1.12.2 --with-pic --enable-fortran --enable-parallel
+        ./configure --prefix=/opt/hdf5/1.12.2 --with-pic --enable-fortran --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort)
         make -j && make install
         # Check
         echo "======================================================================="
