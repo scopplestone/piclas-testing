@@ -140,7 +140,21 @@ jobs:
         wget --no-check-certificate https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-${PETSCVERSION}.tar.gz
         tar -xvf petsc-${PETSCVERSION}.tar.gz
         cd petsc-${PETSCVERSION}
-        ./configure --with-cc=$(which mpicc --with-cxx=$(which mpicxx) --with-fc=$(which mpifort) PETSC_ARCH=arch-linux --prefix=/opt/petsc/${PETSCVERSION} --with-mpi-dir=${MPI_DIR} --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native' --download-hypre --download-mumps --download-scalapack --download-fblaslapack=1
+        ./configure \
+          --with-cc=$(which mpicc) \
+          --with-cxx=$(which mpicxx) \
+          --with-fc=$(which mpifort) \
+          PETSC_ARCH=arch-linux \
+          --prefix=/opt/petsc/${PETSCVERSION} \
+          --with-mpi-dir=${MPI_DIR} \
+          --with-debugging=0 \
+          COPTFLAGS='-O3 -march=native -mtune=native' \
+          CXXOPTFLAGS='-O3 -march=native -mtune=native' \
+          FOPTFLAGS='-O3 -march=native -mtune=native' \
+          --download-hypre \
+          --download-mumps \
+          --download-scalapack \
+          --download-fblaslapack=1
         make -j && make install
         # Check
         echo "======================================================================="
