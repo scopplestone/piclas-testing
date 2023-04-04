@@ -96,8 +96,8 @@ jobs:
         ./configure --enable-static --disable-dlopen --enable-mpi1-compatibility --prefix=/opt/openmpi/4.1.0
         make -j && make install
         # Check
-        MPI_DIR=$(dirname $(dirname $(which mpirun)))
         echo "======================================================================="
+        MPI_DIR=$(dirname $(dirname $(which mpirun)))
         echo ${MPI_DIR}
         MPI_DIR='/opt/openmpi/4.1.0'
         echo ${MPI_DIR}
@@ -106,7 +106,7 @@ jobs:
         echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
         echo "======================================================================="
         which mpirun
-        gcc --version
+        mpirun --version
         cat ~/.bashrc
         echo "======================================================================="
 
@@ -116,8 +116,20 @@ jobs:
         wget https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.2/src/hdf5-1.12.2.tar.gz
         tar -xvf hdf5-1.12.0.tar.gz
         cd hdf5-1.12.0
-        ./configure --prefix=/opt/hdf5/1.12.0/gcc/9.3.1/openmpi/4.1.0 --with-pic --enable-fortran --enable-parallel
+        ./configure --prefix=/opt/hdf5/1.12.0 --with-pic --enable-fortran --enable-parallel
         make -j && make install
+        # Check
+        echo "======================================================================="
+        HDF5_DIR='/opt/hdf5/1.12.0'
+        echo ${HDF5_DIR}
+        echo 'export HDF5_DIR="'${HDF5_DIR}'"' >> ~/.bashrc
+        echo 'export HDF5_ROOT="'${HDF5_DIR}'"' >> ~/.bashrc
+        echo 'export PATH="'${HDF5_DIR}'/include:$PATH"' >> ~/.bashrc
+        echo 'export PATH="'${HDF5_DIR}'/bin:$PATH"' >> ~/.bashrc
+        echo 'export LD_LIBRARY_PATH="'${HDF5_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
+        echo "======================================================================="
+        cat ~/.bashrc
+        echo "======================================================================="
 
     - name: Configure CMake
       shell: bash
