@@ -137,7 +137,7 @@ jobs:
       run: |
         PETSCVERSION='3.18.4'
         source ~/.bashrc
-        wget https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-${PETSCVERSION}.tar.gz
+        wget --no-check-certificate https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-${PETSCVERSION}.tar.gz
         tar -xvf petsc-${PETSCVERSION}.tar.gz
         cd petsc-${PETSCVERSION}
         ./configure PETSC_ARCH=arch-linux --prefix=/opt/petsc/${PETSCVERSION} --with-mpi-dir=${MPI_DIR} --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native' --download-hypre --download-mumps --download-scalapack --download-fblaslapack=1
