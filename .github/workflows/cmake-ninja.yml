@@ -79,9 +79,6 @@ jobs:
         #ls -la ${GCC_DIR}'/lib64'
         echo "======================================================================="
         cat ~/.bashrc
-        ls -la
-        echo "-----------------------------------------------------------------------"
-        ls -la .github/workflows
         echo "======================================================================="
 
 
@@ -125,8 +122,25 @@ jobs:
         #tree AppDir
         ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas.desktop
 
+        # - name: Create piclas2vtk AppImage
+        #   shell: bash
+        #   run: |
+        #     echo "======================================================================="
+        #     ls -la build_DSMC/bin
+        #     echo "======================================================================="
+        #     cd build_DSMC
+        #     DESTDIR=AppDir ninja install
+        #     mkdir -p AppDir/usr/share/icons
+        #     cp ../docs/logo.png AppDir/usr/share/icons/piclas2vtk.png
+        #     #curl -L -O https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+        #     #chmod +x linuxdeploy-x86_64.AppImage
+        #     #tree AppDir
+        #     ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas2vtk.desktop
+
     - name: Set env
       run: |
+        ls -la build_DSMC
+        ls -la build_DSMC/bin
         echo "PICLAS_BINARYPATH_DMSC=$(ls build_DSMC/piclas*x86_64.AppImage)" >> $GITHUB_ENV
         echo "PICLAS_BINARYNAME_DSMC=$(basename $(ls build_DSMC/piclas*x86_64.AppImage))" >> $GITHUB_ENV
 
