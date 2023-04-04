@@ -84,12 +84,6 @@ jobs:
 
     - name: Install OpenMPI 4.1.0
       run: |
-        #yum install -y centos-release-scl
-        #yum install -y openmpi-devtoolset-8-runtime
-        #source /opt/rh/devtoolset-8/enable
-        #scl enable devtoolset-8 bash
-        #which gcc
-        #which mpirun
         source ~/.bashrc
         yum install -y rdma-core-devel
         wget https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.0.tar.gz
@@ -97,10 +91,7 @@ jobs:
         cd openmpi-4.1.0
         ./configure --enable-static --disable-dlopen --enable-mpi1-compatibility --prefix=/opt/openmpi/4.1.0
         make -j && make install
-        # Check
         echo "======================================================================="
-        #MPI_DIR=$(dirname $(dirname $(which mpirun)))
-        #echo ${MPI_DIR}
         MPI_DIR='/opt/openmpi/4.1.0'
         echo 'MPI_DIR="'${MPI_DIR}'"' >> $GITHUB_ENV
         echo ${MPI_DIR}
@@ -119,7 +110,6 @@ jobs:
         cd hdf5-1.12.2
         ./configure --prefix=/opt/hdf5/1.12.2 --with-pic --enable-fortran --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort)
         make -j && make install
-        # Check
         echo "======================================================================="
         HDF5_DIR='/opt/hdf5/1.12.2'
         echo ${HDF5_DIR}
@@ -156,7 +146,6 @@ jobs:
           --download-scalapack \
           --download-fblaslapack=1
         make -j && make install
-        # Check
         echo "======================================================================="
         PETSC_DIR='/opt/petsc/'${PETSCVERSION}
         echo ${PETSC_DIR}
@@ -178,7 +167,6 @@ jobs:
 
     - name: Build Piclas DSMC
       shell: bash
-      # Build your program with the given configuration
       run: cmake --build build_DSMC
 
     - name: Configure CMake Piclas Poisson Leapfrog
@@ -191,7 +179,6 @@ jobs:
 
     - name: Build Piclas Poisson Leapfrog
       shell: bash
-      # Build your program with the given configuration
       run: cmake --build build_poisson_leapfrog
 
     - name: Create piclas AppImage
@@ -204,9 +191,6 @@ jobs:
         DESTDIR=AppDir ninja install
         mkdir -p AppDir/usr/share/icons
         cp ../docs/logo.png AppDir/usr/share/icons/piclas.png
-        #curl -L -O https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-        #chmod +x linuxdeploy-x86_64.AppImage
-        #tree AppDir
         ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas.desktop
 
     - name: Create piclas2vtk AppImage
@@ -219,9 +203,6 @@ jobs:
         DESTDIR=AppDir ninja install
         mkdir -p AppDir/usr/share/icons
         cp ../docs/logo.png AppDir/usr/share/icons/piclas2vtk.png
-        #curl -L -O https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-        #chmod +x linuxdeploy-x86_64.AppImage
-        #tree AppDir
         ./../linuxdeploy-x86_64.AppImage --executable bin/piclas2vtk --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas2vtk.desktop
 
     - name: Set env
