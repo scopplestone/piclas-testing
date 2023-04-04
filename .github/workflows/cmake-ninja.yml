@@ -50,12 +50,13 @@ jobs:
         unzip ninja-linux.zip
         mv ./ninja /usr/bin
 
-    - name: Install GNU GCC
+    - name: Install GNU GCC 7
       run: |
         which gcc
         gcc --version
         yum install -y centos-release-scl
         yum install -y devtoolset-7-gcc*
+        source /opt/rh/devtoolset-7/enable
         scl enable devtoolset-7 bash
         which gcc
         gcc --version
