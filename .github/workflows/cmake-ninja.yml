@@ -50,6 +50,16 @@ jobs:
         unzip ninja-linux.zip
         mv ./ninja /usr/bin
 
+    - name: Install GNU GCC
+      run: |
+        which gcc
+        gcc --version
+        yum install -y centos-release-scl
+        yum install -y devtoolset-7-gcc*
+        scl enable devtoolset-7 bash
+        which gcc
+        gcc --version
+
     - name: Configure CMake
       shell: bash
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
