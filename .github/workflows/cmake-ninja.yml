@@ -63,7 +63,7 @@ jobs:
         echo 'source /opt/rh/devtoolset-7/enable' >> ~/.bashrc
         echo 'scl enable devtoolset-7 bash' >> ~/.bashrc
         echo "======================================================================="
-        TEST=$(gcc --version)
+        TEST=$(which gcc)
         echo ${TEST}
         GCC_DIR=$(dirname ${TEST})
         #echo "GCC_DIR=$(dirname $(gcc --version))" >> $GITHUB_ENV
