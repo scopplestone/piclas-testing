@@ -52,8 +52,8 @@ jobs:
 
     - name: Install GNU GCC 7
       run: |
-        which gcc
-        gcc --version
+        #which gcc
+        #gcc --version
         yum install -y centos-release-scl
         yum install -y devtoolset-7-gcc*
         source /opt/rh/devtoolset-7/enable
@@ -62,17 +62,8 @@ jobs:
         gcc --version
         echo 'source /opt/rh/devtoolset-7/enable' >> ~/.bashrc
         echo 'scl enable devtoolset-7 bash' >> ~/.bashrc
-        echo "======================================================================="
-        TEST=$(which gcc)
-        echo ${TEST}
-        GCC_DIR=$(dirname ${TEST})
-        GCC_DIR=$(dirname ${GCC_DIR})
-        #echo "GCC_DIR=$(dirname $(gcc --version))" >> $GITHUB_ENV
-        echo "GCC_DIR="${GCC_DIR}
-        TEST=$(dirname $(dirname $(which gcc)))
-        echo "GCC_DIR="${TEST}
-        echo "======================================================================="
-        GCC_DIR='/opt/rh/devtoolset-7/root/usr'
+        #GCC_DIR='/opt/rh/devtoolset-7/root/usr'
+        GCC_DIR=$(dirname $(dirname $(which gcc)))
         echo ${GCC_DIR}
         echo 'export PATH="'${GCC_DIR}'/bin:$PATH"' >> ~/.bashrc
         echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
@@ -84,9 +75,14 @@ jobs:
         echo 'export F90="'${GCC_DIR}'/bin/gfortran"' >> ~/.bashrc
         echo 'export CXX="'${GCC_DIR}'/bin/g++"' >> ~/.bashrc
         echo 'export FC="'${GCC_DIR}'/bin/gfortran"' >> ~/.bashrc
-        ls -la ${GCC_DIR}'/lib'
-        ls -la ${GCC_DIR}'/lib64'
+        #ls -la ${GCC_DIR}'/lib'
+        #ls -la ${GCC_DIR}'/lib64'
+        echo "======================================================================="
         cat ~/.bashrc
+        ls -la
+        echo "-----------------------------------------------------------------------"
+        ls -la .github/workflows
+        echo "======================================================================="
 
 
     - name: Configure CMake
@@ -108,7 +104,7 @@ jobs:
       # Build your program with the given configuration
       run: cmake --build build_DSMC
 
-    - name: Create AppImage
+    - name: Create piclas AppImage
       shell: bash
       run: |
         echo "======================================================================="
@@ -121,18 +117,18 @@ jobs:
         curl -L -O https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
         chmod +x linuxdeploy-x86_64.AppImage
         tree AppDir
-        ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=../piclas.desktop
+        ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas.desktop
 
     - name: Set env
       run: |
-        echo "BINARYPATH=$(ls build_DSMC/piclas*x86_64.AppImage)" >> $GITHUB_ENV
-        echo "BINARYNAME=$(basename $(ls build_DSMC/piclas*x86_64.AppImage))" >> $GITHUB_ENV
+        echo "PICLAS_BINARYPATH_DMSC=$(ls build_DSMC/piclas*x86_64.AppImage)" >> $GITHUB_ENV
+        echo "PICLAS_BINARYNAME_DSMC=$(basename $(ls build_DSMC/piclas*x86_64.AppImage))" >> $GITHUB_ENV
 
     - name: Check file existence
       id: check_files
       uses: andstor/file-existence-action@v2
       with:
-        files: "${{ env.BINARYPATH }}"
+        files: "${{ env.PICLAS_BINARYPATH_DMSC }}"
 
     - name: Fail if binary does not exist
       if: steps.check_files.outputs.files_exists == 'false'
@@ -145,14 +141,14 @@ jobs:
       run: |
         mkdir artifacts
         mkdir assets
-        cp ${BINARYPATH} .
-        7z a assets/piclas-linux64.zip ${BINARYNAME}
-        mv ${BINARYNAME} artifacts/.
+        cp ${PICLAS_BINARYPATH_DMSC} .
+        7z a assets/piclas-linux64.zip ${PICLAS_BINARYNAME_DSMC}
+        mv ${PICLAS_BINARYNAME_DSMC} artifacts/.
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: piclas-binary-v3.0.0
+        name: piclas-binaries-v3.0.0
         path: artifacts
 
     - name: Upload release asset
