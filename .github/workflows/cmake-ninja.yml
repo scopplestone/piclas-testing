@@ -130,10 +130,10 @@ jobs:
         wget --no-check-certificate https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-${PETSCVERSION}.tar.gz
         tar -xvf petsc-${PETSCVERSION}.tar.gz
         cd petsc-${PETSCVERSION}
+          #--with-cc=$(which mpicc) \
+          #--with-cxx=$(which mpicxx) \
+          #--with-fc=$(which mpifort) \
         ./configure \
-          --with-cc=$(which mpicc) \
-          --with-cxx=$(which mpicxx) \
-          --with-fc=$(which mpifort) \
           PETSC_ARCH=arch-linux \
           --prefix=/opt/petsc/${PETSCVERSION} \
           --with-mpi-dir=${MPI_DIR} \
