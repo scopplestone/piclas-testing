@@ -235,7 +235,7 @@ jobs:
           sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
           sed -i -e "s/Exec=.*/Exec=${PROG}/" ${PROG}.desktop
           sed -i -e "s/Icon=.*/Icon=${PROG}/" ${PROG}.desktop
-          ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
+          ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
         done
 
         # Check folder contents
