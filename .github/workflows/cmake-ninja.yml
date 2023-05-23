@@ -20,6 +20,7 @@ jobs:
 
     steps:
     - name: Install GIT
+      shell: bash
       run: |
         yum -y install https://packages.endpointdev.com/rhel/7/os/x86_64/endpoint-repo.x86_64.rpm
         yum -y install git
@@ -31,6 +32,7 @@ jobs:
         fetch-depth: 0
 
     - name: Dependencies
+      shell: bash
       run: |
         git config --global --add safe.directory '*'
         git status
@@ -53,6 +55,7 @@ jobs:
         chmod +x linuxdeploy-x86_64.AppImage
 
     - name: Install GNU GCC 8
+      shell: bash
       run: |
         yum install -y centos-release-scl
         yum install -y devtoolset-8-gcc*
@@ -83,6 +86,7 @@ jobs:
         echo "======================================================================="
 
     - name: Install OpenMPI 4.1.0
+      shell: bash
       run: |
         source ~/.bashrc
         yum install -y rdma-core-devel
@@ -103,6 +107,7 @@ jobs:
         echo "======================================================================="
 
     - name: Install HDF5 1.12.2
+      shell: bash
       run: |
         source ~/.bashrc
         wget https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.2/src/hdf5-1.12.2.tar.gz
@@ -186,7 +191,7 @@ jobs:
         source ~/.bashrc
         cmake --build build_poisson_leapfrog
 
-    - name: Create piclas AppImage
+    - name: Create AppImages
       shell: bash
       run: |
         source ~/.bashrc
@@ -194,25 +199,51 @@ jobs:
         ls -la build_DSMC/bin
         echo "======================================================================="
         cd build_DSMC
-        DESTDIR=AppDir ninja install
-        mkdir -p AppDir/usr/share/icons
-        cp ../docs/logo.png AppDir/usr/share/icons/piclas.png
-        ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas.desktop
 
-    - name: Create piclas2vtk AppImage
-      shell: bash
-      run: |
-        source ~/.bashrc
-        echo "======================================================================="
-        ls -la build_DSMC/bin
-        echo "======================================================================="
-        cd build_DSMC
-        rm -rf AppDir
-        DESTDIR=AppDir ninja install
-        mkdir -p AppDir/usr/share/icons
-        cp ../docs/logo.png AppDir/usr/share/icons/piclas2vtk.png
-        #./../linuxdeploy-x86_64.AppImage --executable bin/piclas2vtk --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas2vtk.desktop
-        ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas2vtk.desktop
+        # Declare an array of strings
+        declare -a PROGS=("piclas2vtk" "piclas" "superb")
+
+        # Iterate the string array
+        for PROG in ${PROGS[@]}; do
+          rm -rf AppDir
+          DESTDIR=AppDir ninja install
+          mkdir -p AppDir/usr/share/icons
+          cp ../docs/logo.png AppDir/usr/share/icons/${PROG}.png
+          cp ../.github/workflows/piclas.desktop .
+          mv piclas.desktop ${PROG}.desktop
+          sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
+          sed -i -e "s/Exec=.*/Exec=${PROG}/" ${PROG}.desktop
+          sed -i -e "s/Icon=.*/Icon=${PROG}/" ${PROG}.desktop
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
+        done
+
+#   - name: Create piclas AppImage
+#     shell: bash
+#     run: |
+#       source ~/.bashrc
+#       echo "======================================================================="
+#       ls -la build_DSMC/bin
+#       echo "======================================================================="
+#       cd build_DSMC
+#       DESTDIR=AppDir ninja install
+#       mkdir -p AppDir/usr/share/icons
+#       cp ../docs/logo.png AppDir/usr/share/icons/piclas.png
+#       ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas.desktop
+
+#   - name: Create piclas2vtk AppImage
+#     shell: bash
+#     run: |
+#       source ~/.bashrc
+#       echo "======================================================================="
+#       ls -la build_DSMC/bin
+#       echo "======================================================================="
+#       cd build_DSMC
+#       rm -rf AppDir
+#       DESTDIR=AppDir ninja install
+#       mkdir -p AppDir/usr/share/icons
+#       cp ../docs/logo.png AppDir/usr/share/icons/piclas2vtk.png
+#       #./../linuxdeploy-x86_64.AppImage --executable bin/piclas2vtk --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas2vtk.desktop
+#       ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas2vtk.desktop
 
     - name: Set env
       shell: bash
