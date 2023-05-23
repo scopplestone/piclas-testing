@@ -107,7 +107,6 @@ jobs:
         echo "======================================================================="
 
     - name: Install OpenMPI 4.1.0
-      shell: bash
       run: |
         source ~/.bashrc
         yum install -y rdma-core-devel
@@ -128,7 +127,6 @@ jobs:
         echo "======================================================================="
 
     - name: Install HDF5 1.12.2
-      shell: bash
       run: |
         source ~/.bashrc
         wget https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.2/src/hdf5-1.12.2.tar.gz
