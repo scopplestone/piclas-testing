@@ -123,39 +123,39 @@ jobs:
         cat ~/.bashrc
         echo "======================================================================="
 
-    - name: Install PETSc 3.18.4
-      run: |
-        PETSCVERSION='3.18.4'
-        source ~/.bashrc
-        wget --no-check-certificate https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-${PETSCVERSION}.tar.gz
-        tar -xvf petsc-${PETSCVERSION}.tar.gz
-        cd petsc-${PETSCVERSION}
-          #--with-cc=$(which mpicc) \
-          #--with-cxx=$(which mpicxx) \
-          #--with-fc=$(which mpifort) \
-        ./configure \
-          PETSC_ARCH=arch-linux \
-          --prefix=/opt/petsc/${PETSCVERSION} \
-          --with-mpi-dir=${MPI_DIR} \
-          --with-debugging=0 \
-          COPTFLAGS='-O3 -march=native -mtune=native' \
-          CXXOPTFLAGS='-O3 -march=native -mtune=native' \
-          FOPTFLAGS='-O3 -march=native -mtune=native' \
-          --download-hypre \
-          --download-mumps \
-          --download-scalapack \
-          --download-fblaslapack=1
-        make -j && make install
-        echo "======================================================================="
-        PETSC_DIR='/opt/petsc/'${PETSCVERSION}
-        echo ${PETSC_DIR}
-        echo 'export PETSC_DIR="'${PETSC_DIR}'"' >> ~/.bashrc
-        echo 'export PATH="'${PETSC_DIR}'/bin:$PATH"' >> ~/.bashrc
-        echo 'export LD_LIBRARY_PATH="'${PETSC_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
-        echo 'export PETSC_ARCH=' >> ~/.bashrc
-        echo "======================================================================="
-        cat ~/.bashrc
-        echo "======================================================================="
+#   - name: Install PETSc 3.18.4
+#     run: |
+#       PETSCVERSION='3.18.4'
+#       source ~/.bashrc
+#       wget --no-check-certificate https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-${PETSCVERSION}.tar.gz
+#       tar -xvf petsc-${PETSCVERSION}.tar.gz
+#       cd petsc-${PETSCVERSION}
+#         #--with-cc=$(which mpicc) \
+#         #--with-cxx=$(which mpicxx) \
+#         #--with-fc=$(which mpifort) \
+#       ./configure \
+#         PETSC_ARCH=arch-linux \
+#         --prefix=/opt/petsc/${PETSCVERSION} \
+#         --with-mpi-dir=${MPI_DIR} \
+#         --with-debugging=0 \
+#         COPTFLAGS='-O3 -march=native -mtune=native' \
+#         CXXOPTFLAGS='-O3 -march=native -mtune=native' \
+#         FOPTFLAGS='-O3 -march=native -mtune=native' \
+#         --download-hypre \
+#         --download-mumps \
+#         --download-scalapack \
+#         --download-fblaslapack=1
+#       make -j && make install
+#       echo "======================================================================="
+#       PETSC_DIR='/opt/petsc/'${PETSCVERSION}
+#       echo ${PETSC_DIR}
+#       echo 'export PETSC_DIR="'${PETSC_DIR}'"' >> ~/.bashrc
+#       echo 'export PATH="'${PETSC_DIR}'/bin:$PATH"' >> ~/.bashrc
+#       echo 'export LD_LIBRARY_PATH="'${PETSC_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
+#       echo 'export PETSC_ARCH=' >> ~/.bashrc
+#       echo "======================================================================="
+#       cat ~/.bashrc
+#       echo "======================================================================="
 
     - name: Configure CMake Piclas DSMC
       shell: bash
@@ -177,7 +177,8 @@ jobs:
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: |
         source ~/.bashrc
-        cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+        #cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+        cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=OFF -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
     - name: Build Piclas Poisson Leapfrog
       shell: bash
@@ -206,12 +207,15 @@ jobs:
         ls -la build_DSMC/bin
         echo "======================================================================="
         cd build_DSMC
+        rm -rf AppDir
         DESTDIR=AppDir ninja install
         mkdir -p AppDir/usr/share/icons
         cp ../docs/logo.png AppDir/usr/share/icons/piclas2vtk.png
-        ./../linuxdeploy-x86_64.AppImage --executable bin/piclas2vtk --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas2vtk.desktop
+        #./../linuxdeploy-x86_64.AppImage --executable bin/piclas2vtk --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas2vtk.desktop
+        ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=../.github/workflows/piclas2vtk.desktop
 
     - name: Set env
+      shell: bash
       run: |
         echo "======================================================================="
         echo "build_DSMC"
@@ -239,13 +243,16 @@ jobs:
           core.setFailed('no binary found under build_DSMC/piclas*x86_64.AppImage.')
 
     - name: Create archives
+      shell: bash
       run: |
         mkdir artifacts
         mkdir assets
         cp ${PICLAS_BINARYPATH_DMSC} .
         #cp ${PICLAS2VTK_BINARYPATH_DMSC} .
         7z a assets/piclas-linux64.zip ${PICLAS_BINARYNAME_DSMC} ${PICLAS2VTK_BINARYNAME_DSMC}
+        ls -la assets
         mv ${PICLAS_BINARYNAME_DSMC} ${PICLAS2VTK_BINARYNAME_DSMC} artifacts/.
+        ls -la artifacts
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v3
