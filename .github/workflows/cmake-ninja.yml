@@ -18,6 +18,20 @@ jobs:
       image: centos:7
       options: --privileged
 
+    - name: Test loops
+      shell: bash
+      run: |
+        echo "======================================================================="
+        echo "HELLOOOOOOO"
+        echo "======================================================================="
+        # Declare an array of strings
+        declare -a PROGS=("piclas2vtk" "piclas" "superb")
+
+        # Iterate the string array
+        for PROG in ${PROGS[@]}; do
+          echo "${PROG}"
+        done
+
     steps:
     - name: Install GIT
       shell: bash
