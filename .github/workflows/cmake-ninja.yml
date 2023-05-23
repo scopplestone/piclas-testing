@@ -303,7 +303,7 @@ jobs:
         mkdir artifacts
         mkdir assets
         cp ${PICLAS_BINARYPATH_DMSC} .
-        #cp ${PICLAS2VTK_BINARYPATH_DMSC} .
+        cp ${PICLAS2VTK_BINARYPATH_DMSC} .
         7z a assets/piclas-linux64.zip ${PICLAS_BINARYNAME_DSMC} ${PICLAS2VTK_BINARYNAME_DSMC}
         ls -la assets
         mv ${PICLAS_BINARYNAME_DSMC} ${PICLAS2VTK_BINARYNAME_DSMC} build_DSMC/superB*x86_64.AppImage artifacts/.
