@@ -28,9 +28,15 @@ jobs:
         # Declare an array of strings
         declare -a PROGS=("piclas2vtk" "piclas" "superb")
 
+        echo "Name=piclas" > piclasX.desktop
+        cat piclasX.desktop
+        echo "======================================================================="
         # Iterate the string array
         for PROG in ${PROGS[@]}; do
           echo "${PROG}"
+          cp piclasX.desktop ${PROG}.desktop
+          sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
+          cat ${PROG}.desktop
         done
 
     - name: Install GIT
