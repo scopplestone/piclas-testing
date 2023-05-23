@@ -230,8 +230,8 @@ jobs:
           DESTDIR=AppDir ninja install
           mkdir -p AppDir/usr/share/icons
           cp ../docs/logo.png AppDir/usr/share/icons/${PROG}.png
-          cp ../.github/workflows/piclas.desktop .
-          mv piclas.desktop ${PROG}.desktop
+          cp ../.github/workflows/piclas.desktop template.desktop
+          mv template.desktop ${PROG}.desktop
           sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
           sed -i -e "s/Exec=.*/Exec=${PROG}/" ${PROG}.desktop
           sed -i -e "s/Icon=.*/Icon=${PROG}/" ${PROG}.desktop
@@ -306,7 +306,10 @@ jobs:
         cp ${PICLAS2VTK_BINARYPATH_DMSC} .
         7z a assets/piclas-linux64.zip ${PICLAS_BINARYNAME_DSMC} ${PICLAS2VTK_BINARYNAME_DSMC}
         ls -la assets
-        mv ${PICLAS_BINARYNAME_DSMC} ${PICLAS2VTK_BINARYNAME_DSMC} build_DSMC/superB*x86_64.AppImage artifacts/.
+        mv ${PICLAS_BINARYNAME_DSMC} artifacts/piclasDSMC
+        mv ${PICLAS2VTK_BINARYNAME_DSMC} artifacts/piclas2vtk
+        mv build_DSMC/superB*x86_64.AppImage artifacts/superB
+        #mv ${PICLAS_BINARYNAME_DSMC} ${PICLAS2VTK_BINARYNAME_DSMC} build_DSMC/superB*x86_64.AppImage artifacts/.
         ls -la artifacts
 
     - name: Upload artifacts
