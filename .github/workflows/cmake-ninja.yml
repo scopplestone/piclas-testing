@@ -26,7 +26,7 @@ jobs:
         echo "HELLOOOOOOO"
         echo "======================================================================="
         # Declare an array of strings
-        declare -a PROGS=("piclas2vtk" "piclas" "superb")
+        declare -a PROGS=("piclas2vtk" "piclas" "superB")
 
         echo "Name=piclas" > piclasX.desktop
         cat piclasX.desktop
@@ -37,6 +37,7 @@ jobs:
           cp piclasX.desktop ${PROG}.desktop
           sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
           cat ${PROG}.desktop
+        echo "-----------------------------------------------------------------------"
         done
 
     - name: Install GIT
@@ -221,7 +222,7 @@ jobs:
         cd build_DSMC
 
         # Declare an array of strings
-        declare -a PROGS=("piclas2vtk" "piclas" "superb")
+        declare -a PROGS=("piclas2vtk" "piclas" "superB")
 
         # Iterate the string array
         for PROG in ${PROGS[@]}; do
@@ -236,6 +237,9 @@ jobs:
           sed -i -e "s/Icon=.*/Icon=${PROG}/" ${PROG}.desktop
           ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
         done
+
+        # Check folder contents
+        ls -la
 
 #   - name: Create piclas AppImage
 #     shell: bash
@@ -302,7 +306,7 @@ jobs:
         #cp ${PICLAS2VTK_BINARYPATH_DMSC} .
         7z a assets/piclas-linux64.zip ${PICLAS_BINARYNAME_DSMC} ${PICLAS2VTK_BINARYNAME_DSMC}
         ls -la assets
-        mv ${PICLAS_BINARYNAME_DSMC} ${PICLAS2VTK_BINARYNAME_DSMC} artifacts/.
+        mv ${PICLAS_BINARYNAME_DSMC} ${PICLAS2VTK_BINARYNAME_DSMC} build_DSMC/superB*x86_64.AppImage artifacts/.
         ls -la artifacts
 
     - name: Upload artifacts
