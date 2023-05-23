@@ -18,6 +18,7 @@ jobs:
       image: centos:7
       options: --privileged
 
+    steps:
     - name: Test loops
       shell: bash
       run: |
@@ -32,7 +33,6 @@ jobs:
           echo "${PROG}"
         done
 
-    steps:
     - name: Install GIT
       shell: bash
       run: |
