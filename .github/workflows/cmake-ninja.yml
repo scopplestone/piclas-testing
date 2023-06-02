@@ -134,7 +134,7 @@ jobs:
         tar -xvf hdf5-1.12.2.tar.gz
         cd hdf5-1.12.2
         #./configure --prefix=/opt/hdf5/1.12.2 --with-pic --enable-fortran --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort)
-        ./configure --enable-debug --prefix=/opt/hdf5/1.12.2 --with-pic --enable-fortran --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort)
+        ./configure --enable-build-mode=debug --prefix=/opt/hdf5/1.12.2 --with-pic --enable-fortran --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort)
         make -j && make install
         echo "======================================================================="
         HDF5_DIR='/opt/hdf5/1.12.2'
