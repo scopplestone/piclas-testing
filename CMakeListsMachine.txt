@@ -156,7 +156,8 @@ ELSE()
   MESSAGE(STATUS "Compiling on a generic machine")
   # Set compiler target architecture
   IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang" )
-    SET(PICLAS_INSTRUCTION "-march=native")
+    #SET(PICLAS_INSTRUCTION "-march=native")
+    SET(PICLAS_INSTRUCTION "-mtune=generic")
   ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
     SET(PICLAS_INSTRUCTION "-xHost")
   ENDIF()
@@ -188,7 +189,9 @@ IF(NOT Fortran2003Check)
   MESSAGE(FATAL_ERROR "Failed to compile basic Fortran2003 programm! Please ensure your compiler is up-to-date!")
 ENDIF()
 
-MESSAGE(STATUS "Compiling with [${CMAKE_Fortran_COMPILER_ID}] (v${CMAKE_Fortran_COMPILER_VERSION}) fortran compiler using [${PICLAS_INSTRUCTION}] instruction")
+IF (CMAKE_BUILD_TYPE MATCHES "Nitro" OR CMAKE_BUILD_TYPE MATCHES "Release" OR CMAKE_BUILD_TYPE MATCHES "Profile")
+  MESSAGE(STATUS "Compiling with [${CMAKE_Fortran_COMPILER_ID}] (v${CMAKE_Fortran_COMPILER_VERSION}) fortran compiler using [${PICLAS_INSTRUCTION}] instruction")
+ENDIF()
 
 # =========================================================================
 # COMPILER FLAGS
