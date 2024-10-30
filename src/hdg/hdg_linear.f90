@@ -72,6 +72,7 @@ USE MOD_MPI                ,ONLY: Mask_MPIsides
 USE MOD_Globals_Vars       ,ONLY: ElementaryCharge,eps0
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_HDG_Tools          ,ONLY: CG_solver,DisplayConvergence
+USE MOD_Interpolation_Vars ,ONLY: N_inter
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -110,6 +111,7 @@ REAL                 :: Smatloc(nGP_face(NMax),nGP_face(NMax))
 #if USE_PETSC
 INTEGER              :: iUniqueFPCBC
 #endif /*USE_PETSC*/
+REAL                 :: src
 !===================================================================================================================================
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart) ! Start time measurement
@@ -278,6 +280,17 @@ END DO !ivar
 DO BCsideID=1,nNeumannBCSides
   SideID=NeumannBC(BCsideID)
   HDG_Surf_N(SideID)%RHS_face(:,:) = HDG_Surf_N(SideID)%RHS_face(:,:) + HDG_Surf_N(SideID)%qn_face(:,:)
+END DO
+
+! Add Distributed Capacitance BC
+DO BCsideID=1,nDistriCapBCsides
+  SideID=DistriCapBC(BCsideID)
+  Nloc = N_SurfMesh(SideID)%NSide
+  DO q=0,Nloc; DO p=0,Nloc
+    r=q*(Nloc+1) + p+1
+    src = N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q) * eps0*DCPermittivity*DCBiasVoltage/DCThickness
+    HDG_Surf_N(SideID)%RHS_face(1,r) = HDG_Surf_N(SideID)%RHS_face(1,r) + src
+  END DO; END DO !p,q
 END DO
 
 #if USE_PETSC

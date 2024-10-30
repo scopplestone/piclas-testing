@@ -77,6 +77,8 @@ USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #endif /*defined(PARTICLES)*/
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
 USE MOD_DG_Vars            ,ONLY: DG_Elems_slave,DG_Elems_master
+USE MOD_Mesh_Vars          ,ONLY: BoundaryType,BC
+USE MOD_Globals_Vars       ,ONLY: eps0
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -97,6 +99,8 @@ REAL                 :: Ktilde(3,3)
 REAL                 :: Stmp1(nGP_vol(Nmax),nGP_face(Nmax)), Stmp2(nGP_face(Nmax),nGP_face(Nmax))
 INTEGER              :: idx(3),jdx(3),gdx(3)
 REAL                 :: time0, time
+REAL                 :: fac
+INTEGER              :: BCType
 !===================================================================================================================================
 
 IF(DoDisplayIter)THEN
@@ -303,10 +307,18 @@ DO iElem=1,PP_nElems
       iSide = SideID(jLocSide)
       ! TODO NSideMin - SurfElemMin
       NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+      ! TODO DC
+      fac = Tau(ielem)
+      IF (BC(iSide).GT.0)THEN
+        BCType = BoundaryType(BC(iSide),BC_TYPE)
+        IF (BCType.EQ.30) THEN ! Distributed Capacitance
+          fac = (Tau(iElem) + eps0 * DCPermittivity / DCThickness)
+        END IF
+      END IF
       IF(Nloc.EQ.NSideMax)THEN
-        Fdiag_i = - Tau(ielem)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(iSide)%SurfElem(p,q)
+        Fdiag_i = - fac*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(iSide)%SurfElem(p,q)
       ELSE
-        Fdiag_i = - Tau(ielem)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(iSide)%SurfElemMin(p,q)
+        Fdiag_i = - fac*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(iSide)%SurfElemMin(p,q)
       END IF
       HDG_Vol_N(iElem)%Smat(i,i,jLocSide,jLocSide) = HDG_Vol_N(iElem)%Smat(i,i,jLocSide,jLocSide) -Fdiag_i
     END DO; END DO !p,q

@@ -84,8 +84,11 @@ CALL prms%CreateIntOption(    'HDGSkip'                ,'Number of time step ite
 CALL prms%CreateIntOption(    'HDGSkipInit'            ,'Number of time step iterations until the HDG solver is called (i.e. all intermediate calls are skipped) while time < HDGSkip_t0 (if HDGSkip > 0)', '0')
 CALL prms%CreateRealOption(   'HDGSkip_t0'             ,'Time during which HDGSkipInit is used instead of HDGSkip (if HDGSkip > 0)', '0.')
 CALL prms%CreateLogicalOption('HDGDisplayConvergence'  ,'Display divergence criteria: Iterations, RunTime and Residual', '.FALSE.')
-CALL prms%CreateRealArrayOption( 'EPC-Resistance'      , 'Vector (length corresponds to the number of EPC boundaries) with the resistance for each EPC in Ohm', no=0)
+CALL prms%CreateRealArrayOption( 'EPC-Resistance'      ,'Vector (length corresponds to the number of EPC boundaries) with the resistance for each EPC in Ohm', no=0)
 CALL prms%CreateLogicalOption('HDGNSideMin'            ,'Use the minimum polynomial degree at the sides for the HDG solver', '.FALSE.')
+CALL prms%CreateRealOption(   'DC-BiasVoltage'         ,'Distributed Capacitance bias voltage', '0.0')
+CALL prms%CreateRealOption(   'DC-Permittivity'        ,'Distributed Capacitance relative permittivity (eps_r)', '1.0')
+CALL prms%CreateRealOption(   'DC-Thickness'           ,'Distributed Capacitance thickness', '1.0')
 #if defined(PARTICLES)
 CALL prms%CreateLogicalOption(  'UseBiasVoltage'              , 'Activate usage of bias voltage adjustment (for specific boundaries only)', '.FALSE.')
 CALL prms%CreateIntOption(      'BiasVoltage-NPartBoundaries' , 'Number of particle boundaries where the total ion excess is to be calculated for bias voltage model')
@@ -397,6 +400,7 @@ END IF !mortarMesh
 nDirichletBCsides=0
 nNeumannBCsides  =0
 nConductorBCsides=0
+nDistriCapBCsides=0
 DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
@@ -407,6 +411,9 @@ DO SideID=1,nBCSides
     nNeumannBCsides=nNeumannBCsides+1
   CASE(20) ! Conductor: Floating Boundary Condition (FPC)
     nConductorBCsides=nConductorBCsides+1
+  CASE(30) ! Distributed Capacitance
+    ! TODO DC
+    nDistriCapBCsides=nDistriCapBCsides+1
   CASE DEFAULT ! unknown BCType
     CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
   END SELECT ! BCType
@@ -426,6 +433,13 @@ CALL InitEPC()
 ! BCType: 52,X for bias voltage + cos(wt) function + coupled power adjustment (for AC and not DC in this case)
 CALL InitBV()
 #endif /*defined(PARTICLES)*/
+
+IF(nDistriCapBCsides.GT.0)THEN
+  ! Read stuff like thickness, permittivity and bias voltage
+  DCThickness = GETREAL('DC-Thickness')
+  DCPermittivity = GETREAL('DC-Permittivity')
+  DCBiasVoltage = GETREAL('DC-BiasVoltage')
+END IF
 
 ! 8. BCs the second...
 ! Get the global number of Dirichlet boundaries. If there are none, the potential of a single DOF must be set.
@@ -450,12 +464,14 @@ IF(nNeumannBCsides  .GT.0)THEN
   ALLOCATE(NeumannBC(nNeumannBCsides))
 END IF
 IF(nConductorBCsides.GT.0)ALLOCATE(ConductorBC(nConductorBCsides))
+IF(nDistriCapBCsides.GT.0)ALLOCATE(DistriCapBC(nDistriCapBCsides))
 #if (PP_nVar!=1)
   IF(nDirichletBCsides.GT.0)ALLOCATE(qn_face_MagStat(PP_nVar, nGP_face(PP_N),nDirichletBCsides))
 #endif
 nDirichletBCsides=0
 nNeumannBCsides  =0
 nConductorBCsides=0
+nDistriCapBCsides=0
 DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
@@ -471,6 +487,10 @@ DO SideID=1,nBCSides
     nConductorBCsides=nConductorBCsides+1
     ConductorBC(nConductorBCsides)=SideID
     MaskedSide(SideID)=2
+  CASE(30) ! Distributed Capacitance
+    ! TODO DC
+    nDistriCapBCsides=nDistriCapBCsides+1
+    DistriCapBC(nDistriCapBCsides)=SideID
   CASE DEFAULT ! unknown BCType
     CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
   END SELECT ! BCType
@@ -2271,6 +2291,7 @@ SDEALLOCATE(FPC%Group)
 SDEALLOCATE(FPC%BCState)
 SDEALLOCATE(FPC%VoltageProc)
 SDEALLOCATE(FPC%ChargeProc)
+SDEALLOCATE(DistriCapBC)
 #if USE_MPI
 DO iBC = 1, FPC%nUniqueFPCBounds
   IF(FPC%COMM(iBC)%UNICATOR.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(FPC%COMM(iBC)%UNICATOR,iERROR)
