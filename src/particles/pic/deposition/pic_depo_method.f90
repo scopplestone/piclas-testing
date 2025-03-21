@@ -417,7 +417,7 @@ INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 ! LOCAL VARIABLES
 REAL               :: Charge, TSource(1:4), PartDistDepo(8), DistSum
 REAL               :: alpha1, alpha2, alpha3, TempPartPos(1:3)
-INTEGER            :: kk, ll, mm, iPart, iElem, jNode, jGlobNode, Nloc
+INTEGER            :: kk, ll, mm, iPart, iElem, jNode, jGlobNode, Nloc, ElemID
 INTEGER            :: NodeID(1:8), iNode, globalNode
 LOGICAL            :: SucRefPos
 #if !((USE_HDG) && (PP_nVar==1))
@@ -432,7 +432,7 @@ REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
 INTEGER            :: iProc
-INTEGER            :: RecvRequest(1:nNodeRecvExchangeProcs),SendRequest(1:nNodeSendExchangeProcs)
+TYPE(MPI_Request)  :: RecvRequest(1:nNodeRecvExchangeProcs),SendRequest(1:nNodeSendExchangeProcs)
 !INTEGER            :: MessageSize
 #endif
 REAL               :: norm
@@ -595,11 +595,11 @@ END DO
 CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 DO iProc = 1, nNodeSendExchangeProcs
-  CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+  CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 DO iProc = 1, nNodeRecvExchangeProcs
-  CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+  CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 #if defined(MEASURE_MPI_WAIT)
@@ -642,11 +642,11 @@ IF(doCalculateCurrentDensity)THEN
   CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
   DO iProc = 1, nNodeSendExchangeProcs
-    CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+    CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END DO
   DO iProc = 1, nNodeRecvExchangeProcs
-    CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+    CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END DO
 #if defined(MEASURE_MPI_WAIT)
@@ -709,7 +709,8 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 ! Interpolate node source values to volume polynomial
 DO iElem = 1, nElems
   ! Get UniqueNodeID from NonUniqueNodeID = ElemNodeID_Shared(:,GetCNElemID(iElem))
-  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+  ElemID = iElem+offsetElem
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(ElemID)))
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   DO kk = 0, Nloc
     DO ll = 0, Nloc
@@ -788,7 +789,7 @@ LOGICAL, PARAMETER :: doCalculateCurrentDensity=.TRUE.
 LOGICAL            :: doCalculateCurrentDensity
 INTEGER            :: SourceDim
 #endif
-INTEGER            :: iPart,iElem, iDim
+INTEGER            :: iPart,iElem,iDim,CNElemID
 !===================================================================================================================================
 
 #if USE_LOADBALANCE
@@ -833,8 +834,8 @@ END DO
 
 DO iElem=1, nElems
   !PartSource(SourceDim:4,:,:,:,iElem) = PartSource(SourceDim:4,:,:,:,iElem) / ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
-  PS_N(iElem)%PartSource(SourceDim:4,:,:,:) = PS_N(iElem)%PartSource(SourceDim:4,:,:,:) &
-                                            / ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+  CNElemID = GetCNElemID(iElem+offSetElem)
+  PS_N(iElem)%PartSource(SourceDim:4,:,:,:) = PS_N(iElem)%PartSource(SourceDim:4,:,:,:) / ElemVolume_Shared(CNElemID)
 END DO
 
 #if USE_LOADBALANCE
@@ -871,6 +872,9 @@ USE MOD_Part_Tools                  ,ONLY: isDepositParticle
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars           ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBPauseTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -890,6 +894,9 @@ INTEGER            :: iElem,iProc,locElem, globElem, offSetDof, i,j,k,r, Nloc
 INTEGER(KIND=8)    :: CounterStart,CounterEnd
 REAL(KIND=8)       :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
+#if USE_LOADBALANCE
+REAL               :: tLBStart ! load balance
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 IF (PRESENT(stage_opt)) THEN
   stage = stage_opt
@@ -903,6 +910,10 @@ IF ((stage.EQ.0).OR.(stage.EQ.1)) THEN
     ShapeMapping(iProc)%SendBuffer = 0.
   END DO
 #endif
+
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 
   DO iPart=1,PDM%ParticleVecLength
     ! Check if particle is inside the domain
@@ -918,6 +929,11 @@ IF ((stage.EQ.0).OR.(stage.EQ.1)) THEN
     ! Fill PartSourceProc and deposit charge in local part of PartSource(CNElem(1:nElems + offset))
     CALL calcSfSource(4,Charge,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
   END DO
+
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_DEPO_SF,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
 #if USE_MPI
   ! Communication
   ! 1 of 2: Inner-Node Communication

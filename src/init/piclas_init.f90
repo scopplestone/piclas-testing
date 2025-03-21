@@ -74,6 +74,7 @@ USE MOD_DG                   ,ONLY: InitDG
 USE MOD_Mortar               ,ONLY: InitMortar
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if ! (USE_HDG)
+USE MOD_Equation             ,ONLY: InitRefState
 USE MOD_PML                  ,ONLY: InitPML
 #if USE_MPI
 USE MOD_DG                   ,ONLY: InitDGExchange
@@ -97,6 +98,7 @@ USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
 #endif
 #if USE_HDG
 USE MOD_HDG                  ,ONLY: InitHDG
+USE MOD_Equation             ,ONLY: InitRefState,InitChiTens
 #endif
 #if (PP_TimeDiscMethod==600)
 USE MOD_RadiationTrans_Init        ,ONLY: InitRadiationTransport
@@ -134,6 +136,9 @@ useDSMC=GETLOGICAL('UseDSMC')
 
 CALL InitSymmetry()
 
+#if !(PP_TimeDiscMethod==4) && !(PP_TimeDiscMethod==300) && !(PP_TimeDiscMethod==400)
+CALL InitEquation() ! is required in InitMortar() and InitMesh()
+#endif
 ! Initialization
 IF(IsLoadBalance)THEN
   DoRestart=.TRUE.
@@ -157,9 +162,6 @@ CALL InitMesh(2)
 #if USE_MPI
 CALL InitMPIvars()
 #endif /*USE_MPI*/
-#if !(PP_TimeDiscMethod==4) && !(PP_TimeDiscMethod==300) && !(PP_TimeDiscMethod==400)
-CALL InitEquation()
-#endif
 CALL InitBC()
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if !(USE_HDG)
@@ -167,6 +169,10 @@ CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing l
 #if USE_MPI
 CALL InitDGExchange()
 #endif /*USE_MPI*/
+CALL InitRefState()
+#else
+CALL InitRefState()
+CALL InitChiTens()
 #endif /*!USE_HDG*/
 CALL InitDielectric() ! Dielectric media
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
@@ -236,6 +242,9 @@ USE MOD_RecordPoints_Vars          ,ONLY: RP_Data
 #if USE_MPI
 USE MOD_MPI                        ,ONLY: FinalizeMPI
 USE MOD_MPI_Shared                 ,ONLY: FinalizeMPIShared
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_MPI                        ,ONLY: OutputMPIW8Time
+#endif /*defined(MEASURE_MPI_WAIT)*/
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_RayTracing_Init            ,ONLY: FinalizeRayTracing
@@ -268,9 +277,6 @@ USE MOD_PIC_Vars                   ,ONLY: PICInitIsDone
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: FinalizeParticleMPI
 USE MOD_Particle_MPI_Vars          ,ONLY: ParticleMPIInitisdone
-#if defined(MEASURE_MPI_WAIT)
-USE MOD_MPI                        ,ONLY: OutputMPIW8Time
-#endif /*defined(MEASURE_MPI_WAIT)*/
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 USE MOD_IO_HDF5                    ,ONLY: FinalizeElemData,ElementOut,ElementOutRay

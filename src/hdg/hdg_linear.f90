@@ -59,7 +59,8 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #if USE_PETSC
 USE PETSc
-USE MOD_Mesh_Vars          ,ONLY: SideToElem
+USE MOD_Mesh_Vars          ,ONLY: SideToElem,nGlobalMortarSides
+USE MOD_HDG_Vars_PETSc
 #if USE_MPI
 USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_MPI_Vars
@@ -72,7 +73,7 @@ USE MOD_MPI                ,ONLY: Mask_MPIsides
 USE MOD_Globals_Vars       ,ONLY: ElementaryCharge,eps0
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_HDG_Tools          ,ONLY: CG_solver,DisplayConvergence
-USE MOD_Interpolation_Vars ,ONLY: N_inter
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -104,14 +105,13 @@ PetscReal            :: petscnorm
 INTEGER              :: ElemID,iBCSide,PETScLocalID
 INTEGER              :: DOF_start, DOF_stop
 REAL                 :: timeStartPiclas,timeEndPiclas
-REAL                 :: RHS_conductor(nGP_face(NMax))
 INTEGER              :: jLocSide
 REAL                 :: Smatloc(nGP_face(NMax),nGP_face(NMax))
-#endif
-#if USE_PETSC
 INTEGER              :: iUniqueFPCBC
 #endif /*USE_PETSC*/
 REAL                 :: src
+INTEGER              :: iMortar, iType
+INTEGER              :: iGP, jGP, ip, iq, jp, jq
 !===================================================================================================================================
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart) ! Start time measurement
@@ -264,14 +264,11 @@ DO iVar = 1, PP_nVar
                           rtmp(1:nGP_face(Nloc)),1,0.,& ! 1: add to RHS_face, 0: set value
                           RHS_facetmp(1:nGP_face(Nloc)),1)
 
-      ! TODO NSideMin - LOW/HIGH
       NSide = N_SurfMesh(SideID)%NSide
-      IF(Nloc.EQ.NSide)THEN
-        HDG_Surf_N(SideID)%RHS_face(iVar,:) = HDG_Surf_N(SideID)%RHS_face(iVar,:) + RHS_facetmp(1:nGP_face(Nloc))
-      ELSE
+      IF(Nloc.NE.NSide)THEN
         CALL ChangeBasis2D(1, Nloc, NSide, TRANSPOSE(PREF_VDM(NSide,Nloc)%Vdm) , RHS_facetmp(1:nGP_face(Nloc)), RHS_facetmp(1:nGP_face(NSide)))
-        HDG_Surf_N(SideID)%RHS_face(iVar,:) = HDG_Surf_N(SideID)%RHS_face(iVar,:) + RHS_facetmp(1:nGP_face(NSide))
       END IF ! Nloc.NE.NSide
+      HDG_Surf_N(SideID)%RHS_face(iVar,:) = HDG_Surf_N(SideID)%RHS_face(iVar,:) + RHS_facetmp(1:nGP_face(NSide))
     END DO
   END DO !iElem
 END DO !ivar
@@ -307,7 +304,6 @@ DO iBCSide=1,nDirichletBCSides
     IF(MaskedSide(SideID).GT.0) CYCLE
 
     ! TODO PETSC P-Adaption - Improvement: Store V^T * S * V in Smat
-    ! TODO PETSC P-Adaption: ij vs ji
     Smatloc(1:nGP_face(jNloc),1:nGP_face(jNloc)) = HDG_Vol_N(ElemID)%Smat(:,:,iLocSide,jLocSide)
     ! 1. S_{Ij} = (V^T)_{Ii} * S_{ij}
     IF(jNloc.NE.iNloc)THEN
@@ -358,13 +354,12 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 ! SOLVE
 
 #if USE_PETSC
+TimeStartPiclas=PICLASTIME()
 ! Fill right hand side
 PetscCallA(VecZeroEntries(PETScRHS,ierr))
-TimeStartPiclas=PICLASTIME()
 DO SideID=1,nSides
   IF(MaskedSide(SideID).GT.0) CYCLE
 
-  ! TODO Create a function to map localToGlobalDOFs
   Nloc = N_SurfMesh(SideID)%NSide
   DO i=1,nGP_face(Nloc)
     DOFindices(i) = i + OffsetGlobalPETScDOF(SideID) - 1
@@ -373,7 +368,6 @@ DO SideID=1,nSides
   PetscCallA(VecSetValues(PETScRHS,nGP_face(Nloc),DOFindices(1:nGP_face(Nloc)),HDG_Surf_N(SideID)%RHS_face(1,:),ADD_VALUES,ierr))
 END DO
 
-! TODO We had to use ADD_VALUES when filling the RHS. Maybe loop over sideID=1,nSides-nSides_YOUR?
 PetscCallA(VecAssemblyBegin(PETScRHS,ierr))
 PetscCallA(VecAssemblyEnd(PETScRHS,ierr))
 
@@ -413,9 +407,18 @@ PetscCallA(KSPGetResidualNorm(PETScSolver,petscnorm,ierr))
 ! -11: KSP_DIVERGED_PC_FAILED      -> It was not possible to build or use the requested preconditioner
 ! -11: KSP_DIVERGED_PCSETUP_FAILED_DEPRECATED
 IF(reason.LT.0)THEN
-  SWRITE(*,*) 'Attention: PETSc not converged! Reason: ', reason
+  CALL WarningMemusage(Mode=1,Threshold=5.0)
+  !  View solver converged reason
+  PetscCallA(KSPConvergedReasonView(PETScSolver,PETSC_VIEWER_STDOUT_WORLD,ierr))
+  !  View solver info
+  PetscCallA(KSPView(PETScSolver,PETSC_VIEWER_STDOUT_WORLD,ierr))
+  CALL abort(__STAMP__,'ERROR: PETSc not converged!')
 END IF
-IF(MPIroot) CALL DisplayConvergence(TimeEndPiclas-TimeStartPiclas, iterations, petscnorm)
+
+IF(MPIroot) THEN
+  PETScFieldTime = TimeEndPiclas-TimeStartPiclas
+  CALL DisplayConvergence(PETScFieldTime, iterations, petscnorm)
+END IF
 
 ! Fill element local lambda for post processing
 ! Get the local DOF subarray
@@ -428,8 +431,18 @@ DO SideID=1,nSides
   Nloc = N_SurfMesh(SideID)%NSide
   DOF_start = 1 + DOF_stop
   DOF_stop = DOF_start + nGP_face(Nloc) - 1
-  ! MORTARS: All Mortar stuff (BigToSmall, ...) is done when solving the system!
-  HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer(DOF_start:DOF_stop)
+  IF(nGlobalMortarSides.LE.0)THEN ! No Mortars in mesh
+    HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer(DOF_start:DOF_stop)
+  ELSE ! Mortars are present
+    IF(SmallMortarInfo(SideID).EQ.0) THEN
+      HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer(DOF_start:DOF_stop)
+    ELSE
+      ! lambda_small = M * lambda_big
+      iType = SmallMortarType(1,SideID)
+      iMortar = SmallMortarType(2,SideID)
+      HDG_Surf_N(SideID)%lambda(1,:) = MATMUL(N_Inter(Nloc)%IntMatMortar(:,:,iMortar,iType),lambda_pointer(DOF_start:DOF_stop))
+    END IF
+  END IF ! nGlobalMortarSides.GT.0
 END DO
 
 ! Fill Conductor lambda
@@ -469,12 +482,10 @@ PetscCallA(VecRestoreArrayReadF90(PETScSolutionLocal,lambda_pointer,ierr))
     ! for post-proc
     DO iLocSide=1,6
       SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-      ! TODO NSideMin - LOW/HIGH
       NSide = N_SurfMesh(SideID)%NSide
       IF(Nloc.EQ.NSide)THEN
         lambdatmp(1:nGP_face(Nloc)) = HDG_Surf_N(SideID)%lambda(iVar,:)
       ELSE
-        ! From low to high
         CALL ChangeBasis2D(1, NSide, Nloc, PREF_VDM(NSide,Nloc)%Vdm , HDG_Surf_N(SideID)%lambda(iVar,1:nGP_face(NSide)), lambdatmp(1:nGP_face(Nloc)))
       END IF ! Nloc.EQ.NSide
       CALL DGEMV('T',nGP_face(Nloc),nGP_vol(Nloc),1., &

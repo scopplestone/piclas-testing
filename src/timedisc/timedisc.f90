@@ -35,7 +35,7 @@ SUBROUTINE TimeDisc()
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,WallTime,ProjectName
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze
+USE MOD_TimeDisc_Vars          ,ONLY: time,tEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze,tStart
 USE MOD_TimeDisc_Vars          ,ONLY: time_start
 #if USE_LOADBALANCE
 USE MOD_TimeDisc_Vars          ,ONLY: dtWeight
@@ -54,9 +54,9 @@ USE MOD_Analyze                ,ONLY: PerformAnalyze
 USE MOD_Analyze_Vars           ,ONLY: Analyze_dt,iAnalyze,nSkipAnalyze,SkipAnalyzeWindow,SkipAnalyzeSwitchTime,nSkipAnalyzeSwitch
 USE MOD_Restart_Vars           ,ONLY: RestartTime,RestartWallTime
 USE MOD_HDF5_Output_State      ,ONLY: WriteStateToHDF5
-USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems
+USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems,nGlobalDOFs,NMaxGlobal,NMinGlobal
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
-USE MOD_RecordPoints           ,ONLY: WriteRPToHDF5!,RecordPoints
+USE MOD_RecordPoints           ,ONLY: WriteRP!,RecordPoints
 USE MOD_Restart_Vars           ,ONLY: DoRestart,FlushInitialState
 #if !(USE_HDG)
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
@@ -124,7 +124,6 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL            :: tStart                   !> simulation time at the beginning of the simulation
 REAL            :: tPreviousAnalyze         !> time of previous analyze.
                                             !> Used for Nextfile info written into previous file if greater tAnalyze
 REAL            :: tPreviousAverageAnalyze  !> time of previous Average analyze.
@@ -152,9 +151,11 @@ tZero = RestartTime
 
 ! write number of grid cells and dofs only once per computation
 SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#GridCells : ',REAL(nGlobalElems)
-SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#DOFs      : ',REAL(nGlobalElems*(PP_N+1)**3)
+SWRITE(UNIT_stdOut,'(A13,ES16.7,A,I0,A1,I0,A,I0,A1,I0)')'#DOFs      : ',REAL(nGlobalDOFs), &
+  '   |   polynomial degree min/max : ',NMinGlobal,'/',NMaxGlobal,                              &
+  '  |   #DOFs in each element min/max : ',(NMinGlobal+1)**3,'/',(NMaxGlobal+1)**3
 SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#Procs     : ',REAL(nProcessors)
-SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#DOFs/Proc : ',REAL(nGlobalElems*(PP_N+1)**3/nProcessors)
+SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#DOFs/Proc : ',REAL(nGlobalDOFs)/REAL(nProcessors)
 
 ! Write the state at time=0, i.e. the initial condition
 
@@ -381,12 +382,16 @@ DO !iter_t=0,MaxIter
       CALL FillParticleData() ! Fill the SFC-ordered particle arrays for LB or I/O
 #endif /*defined(PARTICLES)*/
       ! Write state to file
+#if USE_LOADBALANCE
+      CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze,ForceInitialLoadBalance)
+#else
       CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
+#endif
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tPreviousAverageAnalyze)
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
       ! Write recordpoints data to hdf5
-      IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
+      IF(RP_onProc) CALL WriteRP(tAnalyze,.TRUE.)
       tPreviousAnalyze        = tAnalyze
       tPreviousAverageAnalyze = tAnalyze
       SWRITE(UNIT_StdOut,'(132("-"))')
@@ -455,6 +460,7 @@ DO !iter_t=0,MaxIter
   GlobalNbrOfParticlesUpdated = .FALSE.
 #endif /*PARTICLES*/
 END DO ! iter_t
+
 END SUBROUTINE TimeDisc
 
 

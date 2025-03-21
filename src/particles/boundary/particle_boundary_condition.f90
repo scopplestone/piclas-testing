@@ -45,7 +45,7 @@ USE MOD_Globals                  ,ONLY: abort
 USE MOD_Mesh_Tools               ,ONLY: GetCNSideID
 USE MOD_Part_Operations          ,ONLY: RemoveParticle
 USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars            ,ONLY: PartSpecies,PDM,PEM
+USE MOD_Particle_Vars            ,ONLY: PartSpecies,PDM,PEM,Species
 USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod, TrackInfo, CountNbrOfLostParts, NbrOfLostParticles
 USE MOD_Part_Tools               ,ONLY: StoreLostParticleProperties
 USE MOD_Dielectric_vars          ,ONLY: DoDielectric,isDielectricElem
@@ -169,8 +169,14 @@ ASSOCIATE( iPartBound => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(2) ! PartBound%ReflectiveBC
   !-----------------------------------------------------------------------------------------------------------------------------------
-  ! Decide which interaction (specular/diffuse reflection, species swap, SEE)
-    CALL SurfaceModelling(iPart,SideID,ElemID,n_loc)
+    IF(Species(PartSpecies(iPart))%InterID.NE.100) THEN
+      ! Regular species
+      ! Decide which interaction (specular/diffuse reflection, species swap, SEE)
+      CALL SurfaceModelling(iPart,SideID,ElemID,n_loc)
+    ELSE
+      ! Granular species case
+      CALL PerfectReflection(iPart,SideID,n_loc,opt_Symmetry=.TRUE.)
+    END IF
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(3) ! PartBound%PeriodicBC
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -310,6 +316,7 @@ INTEGER,INTENT(INOUT),OPTIONAL  :: ElemID
 ! LOCAL VARIABLES
 LOGICAL                         :: ThroughSide, ParticleFound
 INTEGER                         :: iNeigh, RotSideID, newElemID, BCType, nLocSides, newSideID, iLocSide, locSideID, TriNum, NodeNum
+INTEGER                         :: newCNElemID
 REAL                            :: rot_alpha, rot_alpha_delta
 REAL                            :: LastPartPos_rotated(1:3), PartState_rotated(1:3), PartState_rot_tol(1:3)
 REAL                            :: Velo_old(1:3), Velo_oldAmbi(1:3), VeloRotRef_old(1:3)
@@ -372,6 +379,7 @@ RotSideID = SurfSide2RotPeriodicSide(GlobalSide2SurfSide(SURF_SIDEID,SideID))
 DO iNeigh=1,NumRotPeriodicNeigh(RotSideID)
   ! find rotational periodic elem through localization in all potential rotational periodic sides
   newElemID = RotPeriodicSideMapping(RotSideID,iNeigh)
+  newCNElemID = GetCNElemID(newElemID)
   IF(newElemID.EQ.-1) CALL abort(__STAMP__,' ERROR: Halo-rot-periodic side has no corresponding element.')
   ! Loop over the local sides of the element to only treat rot periodic BC sides
   nLocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,newElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,newElemID)
@@ -389,7 +397,7 @@ DO iNeigh=1,NumRotPeriodicNeigh(RotSideID)
     ! Calculate the determinant
     DO NodeNum = 1,4
       !--- A = vector from particle to node coords
-      A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,locSideID,GetCNElemID(newElemID))+1) - PartState(1:3,PartID)
+      A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,locSideID,newCNElemID)+1) - PartState(1:3,PartID)
     END DO
     !--- compute cross product for vector 1 and 3
     crossP(1:3) = CROSS(A(1:3,1),A(1:3,3))
@@ -509,7 +517,7 @@ INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 LOGICAL,INTENT(IN),OPTIONAL       :: IsInterPlanePart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: iSide, InterSideID, NumInterPlaneSides,NewElemID, neighPartBound, SpecID
+INTEGER                           :: iSide, InterSideID, NumInterPlaneSides,NewElemID, neighPartBound, SpecID, newCNElemID
 INTEGER                           :: BCType, nLocSides, newSideID, iLocSide, locSideID, TriNum, NodeNum
 REAL                              :: dtVar
 LOGICAL                           :: ParticleFound, DoCreateParticles, ThroughSide
@@ -744,6 +752,7 @@ NumInterPlaneSides = PartBound%nSidesOnInterPlane(neighPartBound)
 DO iSide = 1, NumInterPlaneSides
   InterSideID = InterPlaneSideMapping(neighPartBound,iSide)  ! GlobalSideID!
   NewElemID = SideInfo_Shared(SIDE_ELEMID,InterSideID)
+  newCNElemID = GetCNElemID(newElemID)
   IF(newElemID.EQ.-1) CALL abort(__STAMP__,' ERROR: Halo-inter-plane side has no corresponding element.')
   ! Loop over the local sides of the element to only treat interplane BC sides
   nLocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,newElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,newElemID)
@@ -761,7 +770,7 @@ DO iSide = 1, NumInterPlaneSides
     ! Calculate the determinant
     DO NodeNum = 1,4
       !--- A = vector from particle to node coords
-      A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,locSideID,GetCNElemID(newElemID))+1) - PartState(1:3,PartID)
+      A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,locSideID,newCNElemID)+1) - PartState(1:3,PartID)
     END DO
     !--- compute cross product for vector 1 and 3
     crossP(1:3) = CROSS(A(1:3,1),A(1:3,3))

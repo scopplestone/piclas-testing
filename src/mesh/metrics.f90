@@ -147,10 +147,12 @@ USE MOD_ReadInTools        ,ONLY: GETLOGICAL
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
-USE MOD_Mesh_Vars          ,ONLY: NGeo,wBaryCL_NGeo,XiCL_NGeo
+USE MOD_Mesh_Vars          ,ONLY: wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Basis              ,ONLY: BarycentricWeights,ChebyGaussLobNodesAndWeights
+#if USE_HDG
 USE MOD_Symmetry_Vars      ,ONLY: Symmetry
 USE MOD_Globals_Vars       ,ONLY: PI
+#endif /*USE_HDG*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -464,6 +466,9 @@ USE MOD_Mortar_Metrics, ONLY:Mortar_CalcSurfMetrics
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
 USE MOD_Interpolation_Vars ,ONLY: Nmax,NInfo!,PREF_VDM,N_Inter
 USE MOD_Mesh_Vars,          ONLY: SideToElem, offSetElem,N_VolMesh,N_VolMesh2
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)) && defined(maxwell)
+USE MOD_Equation_Vars      ,ONLY: DoExactFlux ! Required for skipping cycle because NormVec is then not built for loc.LT.NSideMax sides
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)) && defined(maxwell)*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -501,6 +506,10 @@ DO iLocSide=1,6
 
   ! TODO: maybe this has to be done differently between HDG and Maxwell
   IF(Nloc.LT.NSideMax)THEN
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)) && defined(maxwell)
+    ! Do not cycle here when exact flux is used because NormVec is then not built for loc.LT.NSideMax sides
+    IF(.NOT.DoExactFlux)&
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)) && defined(maxwell)*/
     CYCLE
   ELSE
     IF(DG_Elems_master(SideID).EQ.DG_Elems_slave(SideID).AND.(ElemToSide(E2S_FLIP,iLocSide,iElem).NE.0) ) CYCLE ! only master sides with flip=0
@@ -696,7 +705,9 @@ END SUBROUTINE CalcSurfMetrics
 SUBROUTINE SurfMetricsFromJa(Nloc,NormalDir,TangDir,NormalSign,Ja_Face,NormVec,TangVec1,TangVec2,SurfElem)
 ! MODULES
 USE MOD_Globals       ,ONLY: CROSS,abort
+#if USE_HDG
 USE MOD_Symmetry_Vars ,ONLY: Symmetry
+#endif /*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------

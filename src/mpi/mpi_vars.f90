@@ -17,6 +17,7 @@
 !===================================================================================================================================
 MODULE MOD_MPI_Vars
 #if USE_MPI
+USE mpi_f08
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -25,10 +26,10 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,ALLOCATABLE :: SendRequest_U(:),SendRequest_Flux(:)
-INTEGER,ALLOCATABLE :: SendRequest_U2(:),RecRequest_U2(:)
-INTEGER,ALLOCATABLE :: RecRequest_U(:),RecRequest_Flux(:)
-INTEGER,ALLOCATABLE :: SendRequest_Geo(:),RecRequest_Geo(:)
+TYPE(MPI_Request),ALLOCATABLE :: SendRequest_U(:),SendRequest_Flux(:)
+TYPE(MPI_Request),ALLOCATABLE :: SendRequest_U2(:),RecRequest_U2(:)
+TYPE(MPI_Request),ALLOCATABLE :: RecRequest_U(:),RecRequest_Flux(:)
+TYPE(MPI_Request),ALLOCATABLE :: SendRequest_Geo(:),RecRequest_Geo(:)
 INTEGER             :: iNbProc
 INTEGER             :: nSendVal,nRecVal,DataSizeSide
 INTEGER             :: SideID_start,SideID_end
@@ -46,12 +47,19 @@ INTEGER,ALLOCATABLE   :: OffsetMPISides_send(:,:),OffsetMPISides_rec(:,:)
 INTEGER,ALLOCATABLE   :: DataSizeSideSend(:,:),DataSizeSideRec(:,:)
 INTEGER,ALLOCATABLE   :: DataSizeSurfSendMax(:,:),DataSizeSurfRecMax(:,:)
 INTEGER,ALLOCATABLE   :: DataSizeSurfSendMin(:,:),DataSizeSurfRecMin(:,:)
+#if !(USE_HDG)
+INTEGER,ALLOCATABLE   ::  DataSizeSideSendMaster(:,:), DataSizeSideRecMaster(:,:) !< Master is only required for Maxwell (with Dielectric)
+#endif /*not USE_HDG*/
 
 TYPE tExchangeData
   REAL,ALLOCATABLE      :: FaceDataSendU(:,:)
   REAL,ALLOCATABLE      :: FaceDataRecvU(:,:)
   REAL,ALLOCATABLE      :: FaceDataSendFlux(:,:)
   REAL,ALLOCATABLE      :: FaceDataRecvFlux(:,:)
+#if !(USE_HDG)
+  REAL,ALLOCATABLE      :: FaceDataSendUMaster(:,:)
+  REAL,ALLOCATABLE      :: FaceDataRecvUMaster(:,:)
+#endif /*not USE_HDG*/
 END TYPE tExchangeData
 
 TYPE(tExchangeData), ALLOCATABLE :: DGExchange(:)

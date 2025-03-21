@@ -32,10 +32,12 @@ LOGICAL                       :: CalcReacRates                       !< Calculat
 LOGICAL                       :: CalcRelaxProb                       !< Calculate relaxation probabilities
 LOGICAL                       :: CalcEkin                            !< Compute the kinetic energy of each species
 LOGICAL                       :: CalcEtot                            !< Compute the total energy as sum of potential and kin eng
+LOGICAL                       :: CalcParticlePotentialEnergy         !< Compute the potential particle energy as sum(q_i*phi(x_i)), with electric potential phi at the position x_i and q_i as the electric charge of the i-th particle
 LOGICAL                       :: CalcEint(2)                         !< Compute the internal energy of each species [1: Calculate, 2: Output]
 LOGICAL                       :: CalcTemp(2)                         !< Computation of the temperature (trans, rot, vib, total)
 LOGICAL                       :: CalcCoupledPower                    !< Computation of the power that is coupled into plasma
 LOGICAL                       :: DisplayCoupledPower                 !< Display coupled power in UNIT_stdOut
+LOGICAL                       :: CalcGranularDragHeat                !< Computation of mean drag force and mean heatflux on all granular particles within the simulation
 REAL                          :: EDiff                               !< Difference in kinetic energy before and after the particle
                                                                      !< push (only charged particles)
 REAL                          :: PCoupl                              !< Power that is coupled into plasma in [W]
@@ -59,9 +61,6 @@ LOGICAL                       :: TrackParticlePosition               !< Track th
 INTEGER                       :: nSpecAnalyze                        !< Number of analyzed species 1 or nSpecies+1
 LOGICAL                       :: IsRestart                           !< Check if restart, add data to Database
 LOGICAL                       :: ChargeCalcDone                      !< Check flag
-LOGICAL                       :: CalcShapeEfficiency                 !< Efficiency of shape function
-CHARACTER(LEN=256)            :: CalcShapeEfficiencyMethod           !< Explanations in particle_analyze.f90
-INTEGER                       :: ShapeEfficiencyNumber               !< Explanations in particle_analyze.f90
 LOGICAL                       :: DoPartAnalyze                       !< perform analyze
 INTEGER(KIND=8)               :: PartAnalyzeStep                     !< Analyze is performed each Nth time step
 INTEGER,ALLOCATABLE           :: nPartIn(:)                          !< Number of entry and leaving particles
@@ -77,6 +76,7 @@ LOGICAL                       :: CalcElectronIonDensity              !< Compute 
 LOGICAL                       :: CalcElectronTemperature             !< Compute the electron temperature in each cell
 LOGICAL                       :: CalcElectronEnergy                  !< Compute the electron min/max/average energy in each cell
 LOGICAL                       :: CalcPlasmaParameter                 !< Compute the plasma parameter in each cell
+LOGICAL                       :: CalcNumPlasmaParameter              !< Compute the numerical plasma parameter in each cell (simulation particles per Debye length)
 !LOGICAL                       :: ElectronTemperatureIsMaxwell        ! Assumption of Maxwell-Boltzmann or undistributed electrons
 LOGICAL                       :: CalcPlasmaFrequency                 !< Compute the electron plasma frequency in each cell
 LOGICAL                       :: CalcCyclotronFrequency              !< Compute the electron cyclotron frequency in each cell
@@ -128,12 +128,15 @@ REAL,ALLOCATABLE              :: DebyeLengthCell(:)                  !< Debye le
 REAL,ALLOCATABLE              :: PICTimeStepCell(:)                  !< Approximated PIC Time Step due to plasma frequency (mean cell value)
 REAL,ALLOCATABLE              :: PICTimeStepCyclotronCell(:)         !< Approximated PIC Time Step due to cyclotron frequency (mean cell value)
 REAL,ALLOCATABLE              :: PlasmaParameterCell(:)              !< Plasma parameter (cell mean value)
+REAL,ALLOCATABLE              :: NumPlasmaParameterCell(:)           !< Simulation particles per Debye length (cell mean value)
 REAL,ALLOCATABLE              :: ElectronDensityCell(:)              !< Electron density (cell mean value)
+INTEGER,ALLOCATABLE           :: ElectronSimNumberCell(:)            !< Electron simulation particle number (cell mean value)
 REAL,ALLOCATABLE              :: IonDensityCell(:)                   !< Ion density (cell mean value)
 REAL,ALLOCATABLE              :: NeutralDensityCell(:)               !< Neutral density (cell mean value)
 REAL,ALLOCATABLE              :: ChargeNumberCell(:)                 !< Charge number (cell mean value)
 INTEGER,ALLOCATABLE           :: PICValidPlasmaCell(:)               !< Check that quasi-neutrality is above 0.5 and at least 20 particles are inside the element
 INTEGER                       :: PICValidPlasmaCellSum               !< Global number of elements that have quasi-neutrality above 0.5 and at least 20 particles are inside the element
+INTEGER                       :: NbrOfElemsWithElectrons(1:2)        !< Global number of elements that contain electrons (1) and also have <2700 eV max energy (approx 10 percent the speed of light)
 REAL,ALLOCATABLE              :: ElectronTemperatureCell(:)          !< Electron temperature (cell mean value)
 REAL,ALLOCATABLE              :: ElectronMinEnergyCell(:)            !< Electron minimum cell energy [eV]
 REAL,ALLOCATABLE              :: ElectronMaxEnergyCell(:)            !< Electron maximum cell energy [eV]

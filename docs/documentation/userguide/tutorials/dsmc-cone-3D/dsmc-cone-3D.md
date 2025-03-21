@@ -13,7 +13,7 @@ The general information needed to setup a DSMC simulation is given in the previo
 
 First, create a new file in gmsh: `70DegCone_3D.geo`. In general, the mesh can be generated using the GUI or by using the `.geo` script environment. In the GUI, the script can be edited via `Edit script` and loaded with `Reload script`. This tutorial focuses on the scripting approach.
 
-After opening the `.geo` script file, select the OpenCASCADE CAD kernel and open the provided `70DegCone_3D_model.step` file with the following commands:
+After opening the `.geo` script file, select **Geometry &rarr; Elementary entities &rarr; Set geometry kernel &rarr; OpenCASCADE** and open the provided `70DegCone_3D_model.step` file with the following commands:
 
     SetFactory("OpenCASCADE");
     v() = ShapeFromFile("70degCone_3D_model.step");
@@ -78,15 +78,14 @@ width: 600px
 
 For the general information on the setup of the DSMC simulation, please see the previous tutorial {ref}`sec:tutorial-dsmc-cone-2D`. In this tutorial, only the changes in the `parameter.ini` file for the 3D simulation compared to the 2D simulation are explained further.
 
-First, the mesh file name is adapted. The number of boundaries is reduced from five to four, as only one symmetrical boundary is used in this 3D simulation. The maximum particle number per processor is increased due to the changed simulation domain. Additionally, the octree is adapted to appropriate values for a 3D simulation.
+First, the mesh file name is adapted. The number of boundaries is reduced from five (6 with Gmsh) to four, as only one symmetrical boundary is used in this 3D simulation. The octree is adapted to appropriate values for a 3D simulation.
 
     MeshFile                        = 70degCone_3D_mesh.h5
     Part-nBounds                    = 4
-    Part-maxParticleNumber          = 1500000
     Particles-OctreePartNumNode     = 80
     Particles-OctreePartNumNodeMin  = 60
 
-Compared to the `parameter.ini` for the 2D simulation, the symmetrical boundaries, the commands for the 2D axisymmetric simulation and the radial weighting are deleted:
+Compared to the `parameter.ini` for the 2D simulation, the symmetrical boundaries, these commands for the 2D axisymmetric simulation and the radial weighting are deleted:
 
     Part-Boundary4-SourceName                   = SYMAXIS
     Part-Boundary4-Condition                    = symmetric_axis
@@ -94,10 +93,10 @@ Compared to the `parameter.ini` for the 2D simulation, the symmetrical boundarie
     Part-Boundary5-Condition                    = symmetric
     Particles-Symmetry-Order                    = 2
     Particles-Symmetry2DAxisymmetric            = T
-    Particles-RadialWeighting                   = T
-    Particles-RadialWeighting-PartScaleFactor   = 60
-    Particles-RadialWeighting-CloneMode         = 2
-    Particles-RadialWeighting-CloneDelay        = 5
+    Part-Weight-Type                            = T
+    Part-Weight-Radial-ScaleFactor              = 60
+    Part-Weight-CloneMode                       = 2
+    Part-Weight-CloneDelay                      = 5
 
 Instead, a new symmetrical boundary is added:
 

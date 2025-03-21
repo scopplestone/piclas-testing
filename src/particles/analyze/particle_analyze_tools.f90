@@ -33,7 +33,6 @@ END INTERFACE
 PUBLIC :: CalcNumPartsOfSpec
 PUBLIC :: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell,AllocateCalcElectronEnergy
 PUBLIC :: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
-PUBLIC :: CalcShapeEfficiencyR
 PUBLIC :: CalcKineticEnergy
 PUBLIC :: CalcKineticEnergyAndMaximum
 PUBLIC :: CalcNumberDensity
@@ -56,6 +55,7 @@ PUBLIC :: CalcCoupledPowerPart, CalcEelec
 PUBLIC :: CalcNumberDensityBGGasDistri
 #if USE_HDG
 PUBLIC :: CalculatePCouplElectricPotential
+PUBLIC :: CalculateParticlePotentialEnergy
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -168,7 +168,7 @@ SUBROUTINE AllocateElectronIonDensityCell()
 ! MODULES
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars ,ONLY: ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
+USE MOD_Particle_Analyze_Vars ,ONLY: ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell,ElectronSimNumberCell
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -184,6 +184,9 @@ IF(ALLOCATED(ElectronDensityCell)) RETURN
 ALLOCATE( ElectronDensityCell(1:PP_nElems) )
 ElectronDensityCell=0.0
 CALL AddToElemData(ElementOut,'ElectronDensityCell',RealArray=ElectronDensityCell(1:PP_nElems))
+! Required for the numerical plasma parameter (simulation particles per Debye length)
+ALLOCATE( ElectronSimNumberCell(1:PP_nElems) )
+ElectronSimNumberCell=0
 
 ! ions
 ALLOCATE( IonDensityCell(1:PP_nElems) )
@@ -265,17 +268,18 @@ END SUBROUTINE AllocateCalcElectronEnergy
 
 SUBROUTINE CalculatePartElemData()
 !===================================================================================================================================
-! use the plasma frequency per cell to estimate the pic time step
+!>
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPlasmaFrequency,CalcPICTimeStep,CalcElectronIonDensity,CalcPICTimeStepCyclotron
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronTemperature,CalcDebyeLength,CalcIonizationDegree,CalcPointsPerDebyeLength
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPlasmaParameter,CalcPICCFLCondition,CalcMaxPartDisplacement,CalcElectronEnergy
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcNumPlasmaParameter
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCyclotronFrequency
 #if USE_MPI
 USE MOD_Globals
-USE MOD_Particle_Analyze_Vars ,ONLY: PPDCellResolved,PICTimeCellResolved,PICValidPlasmaCellSum
+USE MOD_Particle_Analyze_Vars ,ONLY: PPDCellResolved,PICTimeCellResolved,PICValidPlasmaCellSum,NbrOfElemsWithElectrons
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -286,7 +290,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if USE_MPI
-INTEGER :: tmpArray(1:6)
+INTEGER, PARAMETER :: lenArray=8
+INTEGER :: tmpArray(1:lenArray)
 #endif /*USE_MPI*/
 !===================================================================================================================================
 
@@ -295,12 +300,18 @@ IF(CalcElectronIonDensity) CALL CalculateElectronIonDensityCell()
 
 ! Ionization degree: n_i / (n_i + n_n)
 ! ion density versus sum of ion and neutral density
+#if USE_MPI
+PICValidPlasmaCellSum = 0 ! nullify in case CalcIonizationDegree=F
+#endif /*USE_MPI*/
 IF(CalcIonizationDegree) CALL CalculateIonizationCell()
 
 ! electron temperature
 IF(CalcElectronTemperature) CALL CalculateElectronTemperatureCell()
 
 ! electron energies
+#if USE_MPI
+NbrOfElemsWithElectrons(:) = 0 ! nullify in case CalcElectronEnergy=F
+#endif /*USE_MPI*/
 IF(CalcElectronEnergy) CALL CalculateElectronEnergyCell()
 
 ! plasma frequency
@@ -318,6 +329,9 @@ IF(CalcDebyeLength) CALL CalculateDebyeLengthCell()
 ! Plasma parameter: 4/3 * pi * n_e * lambda_D^3
 IF(CalcPlasmaParameter) CALL CalculatePlasmaParameter()
 
+! Numerical plasma parameter: 4/3 * pi * Nsim_e / V * lambda_D^3
+IF(CalcNumPlasmaParameter) CALL CalculateNumericalPlasmaParameter()
+
 ! PIC time step (plasma frequency)
 IF(CalcPICTimeStep) CALL CalculatePICTimeStepCell()
 
@@ -333,7 +347,7 @@ IF(CalcMaxPartDisplacement) CALL CalculateMaxPartDisplacement()
 
 ! Communicate data
 #if USE_MPI
-IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep)THEN
+IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep.OR.CalcElectronEnergy)THEN
   tmpArray = 0
   IF(CalcPointsPerDebyeLength)THEN
     tmpArray(1) = PPDCellResolved(1)
@@ -341,26 +355,26 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep)THEN
     tmpArray(3) = PPDCellResolved(3)
     tmpArray(4) = PPDCellResolved(4)
   END IF ! CalcPointsPerDebyeLength
-  IF(CalcPICTimeStep)THEN
-    tmpArray(5) = PICTimeCellResolved
-  END IF ! CalcPICTimeStep
+  IF(CalcPICTimeStep) tmpArray(5) = PICTimeCellResolved
   tmpArray(6) = PICValidPlasmaCellSum
+  tmpArray(7) = NbrOfElemsWithElectrons(1)
+  tmpArray(8) = NbrOfElemsWithElectrons(2)
 
   ! Collect sum on MPIRoot
   IF(MPIRoot)THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE , tmpArray , 6 , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE , tmpArray , lenArray , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
     IF(CalcPointsPerDebyeLength)THEN
        PPDCellResolved(1) = tmpArray(1)
        PPDCellResolved(2) = tmpArray(2)
        PPDCellResolved(3) = tmpArray(3)
        PPDCellResolved(4) = tmpArray(4)
     END IF ! CalcPointsPerDebyeLength
-    IF(CalcPICTimeStep)THEN
-      PICTimeCellResolved = tmpArray(5)
-    END IF ! CalcPICTimeStep
-    PICValidPlasmaCellSum = tmpArray(6)
+    IF(CalcPICTimeStep) PICTimeCellResolved = tmpArray(5)
+    PICValidPlasmaCellSum   = tmpArray(6)
+    NbrOfElemsWithElectrons(1) = tmpArray(7)
+    NbrOfElemsWithElectrons(2) = tmpArray(8)
   ELSE
-    CALL MPI_REDUCE(tmpArray     , 0        , 6 , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
+    CALL MPI_REDUCE(tmpArray     , 0        , lenArray , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
   END IF ! MPIRoot
 END IF ! CalcPointsPerDebyeLength.OR.CalcPICTimeStep
 
@@ -376,10 +390,9 @@ SUBROUTINE CalculateElectronIonDensityCell()
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
-USE MOD_Particle_Analyze_Vars ,ONLY: ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
+USE MOD_Particle_Analyze_Vars ,ONLY: ElectronDensityCell,ElectronSimNumberCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
 USE MOD_Particle_Vars         ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF
 USE MOD_Preproc
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
@@ -396,7 +409,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iPart,iElem
+INTEGER :: iPart,iElem,CNElemID
 REAL    :: charge, MPF
 #if USE_HDG
 INTEGER :: RegionID
@@ -404,6 +417,7 @@ INTEGER :: RegionID
 !===================================================================================================================================
 ! nullify
 ElectronDensityCell=0.
+ElectronSimNumberCell=0
      IonDensityCell=0.
  NeutralDensityCell=0.
    ChargeNumberCell=0.
@@ -412,7 +426,7 @@ ElectronDensityCell=0.
 ! CAUTION: we need the number of all real particle instead of simulated particles
 DO iPart=1,PDM%ParticleVecLength
   IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+  IF(usevMPF) THEN
     MPF = GetParticleWeight(iPart)
   ELSE
     MPF = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor
@@ -420,13 +434,15 @@ DO iPart=1,PDM%ParticleVecLength
   ASSOCIATE ( &
     ElemID  => PEM%LocalElemID(iPart)                              )  ! Element ID
     ASSOCIATE ( &
-      n_e    => ElectronDensityCell(ElemID),& ! Electron density (cell average)
-      n_i    => IonDensityCell(ElemID)     ,& ! Ion density (cell average)
-      n_n    => NeutralDensityCell(ElemID) ,& ! Neutral density (cell average)
-      Z      => ChargeNumberCell(ElemID)   )  ! Charge number (cell average)
+      n_e    => ElectronDensityCell(ElemID),&   ! Electron density (cell average)
+      Nsim_e => ElectronSimNumberCell(ElemID),& ! Electron simulation particle number (cell average)
+      n_i    => IonDensityCell(ElemID)     ,&   ! Ion density (cell average)
+      n_n    => NeutralDensityCell(ElemID) ,&   ! Neutral density (cell average)
+      Z      => ChargeNumberCell(ElemID)   )    ! Charge number (cell average)
       charge = Species(PartSpecies(iPart))%ChargeIC/ElementaryCharge
       IF(PARTISELECTRON(iPart))THEN ! electrons
         n_e = n_e + MPF
+        Nsim_e = Nsim_e + 1
       ELSEIF(ABS(charge).GT.0.0)THEN ! ions (positive or negative)
         n_i = n_i + MPF
         Z   = Z   + charge*MPF
@@ -454,9 +470,10 @@ END IF
 
 ! loop over all elements and divide by volume
 DO iElem=1,PP_nElems
-  ElectronDensityCell(iElem)=ElectronDensityCell(iElem)/ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
-       IonDensityCell(iElem)=IonDensityCell(iElem)     /ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
-   NeutralDensityCell(iElem)=NeutralDensityCell(iElem) /ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+  CNElemID = GetCNElemID(iElem+offSetElem)
+  ElectronDensityCell(iElem)=ElectronDensityCell(iElem)/ElemVolume_Shared(CNElemID)
+       IonDensityCell(iElem)=IonDensityCell(iElem)     /ElemVolume_Shared(CNElemID)
+   NeutralDensityCell(iElem)=NeutralDensityCell(iElem) /ElemVolume_Shared(CNElemID)
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculateElectronIonDensityCell
@@ -472,7 +489,6 @@ USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars ,ONLY: ElectronTemperatureCell
 USE MOD_Particle_Vars         ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies,PartState
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
 USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
@@ -524,7 +540,7 @@ DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     IF(.NOT.PARTISELECTRON(iPart)) CYCLE  ! ignore anything that is not an electron
     ElemID            = PEM%LocalElemID(iPart)
-    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+    IF(usevMPF) THEN
       WeightingFactor = GetParticleWeight(iPart)
     ELSE
       WeightingFactor = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor
@@ -580,9 +596,8 @@ USE MOD_Globals
 USE MOD_Globals               ,ONLY: PARTISELECTRON
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass,Joule2eV
 USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars ,ONLY: ElectronMinEnergyCell,ElectronMaxEnergyCell,ElectronAverageEnergyCell
+USE MOD_Particle_Analyze_Vars ,ONLY: ElectronMinEnergyCell,ElectronMaxEnergyCell,ElectronAverageEnergyCell,NbrOfElemsWithElectrons
 USE MOD_Particle_Vars         ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
 USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
@@ -604,9 +619,10 @@ REAL    :: WeightingFactor
 INTEGER :: RegionID
 #endif /*USE_HDG*/
 !===================================================================================================================================
-ElectronMinEnergyCell     = HUGE(1.) ! Set zero before output to .h5 if unchanged (check if maximum is <= 0.)
-ElectronMaxEnergyCell     = 0.
-ElectronAverageEnergyCell = 0.
+ElectronMinEnergyCell      = HUGE(1.) ! Set zero before output to .h5 if unchanged (check if maximum is <= 0.)
+ElectronMaxEnergyCell      = 0.
+ElectronAverageEnergyCell  = 0.
+NbrOfElemsWithElectrons(:) = 0
 #if USE_HDG
 IF (UseBRElectronFluid) THEN ! check for BR electrons
   DO iElem=1,PP_nElems
@@ -629,7 +645,7 @@ ELSE
     IF(PDM%ParticleInside(iPart))THEN
       IF(.NOT.PARTISELECTRON(iPart)) CYCLE  ! ignore anything that is not an electron
       ElemID            = PEM%LocalElemID(iPart)
-      IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+      IF(usevMPF) THEN
         WeightingFactor = GetParticleWeight(iPart)
       ELSE
         WeightingFactor = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor
@@ -649,6 +665,8 @@ ELSE
       ElectronAverageEnergyCell(iElem) = ElectronAverageEnergyCell(iElem)/nElectronsPerCell(iElem)*Joule2eV
       ElectronMinEnergyCell(iElem)     = ElectronMinEnergyCell(iElem)*Joule2eV
       ElectronMaxEnergyCell(iElem)     = ElectronMaxEnergyCell(iElem)*Joule2eV
+      NbrOfElemsWithElectrons(1)       = NbrOfElemsWithElectrons(1) + 1 ! Count number of elements with electrons
+      IF(ElectronMaxEnergyCell(iElem).LT.2700.) NbrOfElemsWithElectrons(2) = NbrOfElemsWithElectrons(2) + 1 ! less than 10% of c
     ELSE
       ElectronMinEnergyCell(iElem) = 0. ! Set from HUGE(1.) to zero for output to .h5
     END IF ! nElectronsPerCell(iElem).GT.0.
@@ -659,165 +677,6 @@ END IF
 #endif /*USE_HDG*/
 
 END SUBROUTINE CalculateElectronEnergyCell
-
-
-SUBROUTINE CalcShapeEfficiencyR()
-!===================================================================================================================================
-! Initializes variables necessary for analyse subroutines
-!===================================================================================================================================
-! MODULES
-USE MOD_Particle_Analyze_Vars ,ONLY: CalcShapeEfficiencyMethod, ShapeEfficiencyNumber
-USE MOD_Mesh_Vars             ,ONLY: nElems, N_VolMesh
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
-USE MOD_PICDepo_Vars
-USE MOD_Particle_Vars
-USE MOD_Preproc
-#if USE_MPI
-USE MOD_Globals
-#endif
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                     :: NbrOfComps, NbrWithinRadius, NbrOfElems, NbrOfElemsWithinRadius
-REAL                     :: RandVal1
-LOGICAL                  :: chargedone(1:nElems), WITHIN
-INTEGER                  :: kmin, kmax, lmin, lmax, mmin, mmax
-INTEGER                  :: kk, ll, mm, ppp,m,l,k, i
-INTEGER                  :: ElemID
-REAL                     :: radius, deltax, deltay, deltaz
-!===================================================================================================================================
-
-NbrOfComps = 0.
-NbrOfElems = 0.
-NbrWithinRadius = 0.
-NbrOfElemsWithinRadius = 0.
-SELECT CASE(CalcShapeEfficiencyMethod)
-CASE('AllParts')
-  DO i=1,PDM%ParticleVecLength
-    IF (PDM%ParticleInside(i)) THEN
-      chargedone(:) = .FALSE.
-      !-- determine which background mesh cells (and interpolation points within) need to be considered
-      kmax = INT((PartState(1,i)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-      kmax = MIN(kmax,GEO%FIBGMimax)
-      kmin = INT((PartState(1,i)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-      kmin = MAX(kmin,GEO%FIBGMimin)
-      lmax = INT((PartState(2,i)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-      lmax = MIN(lmax,GEO%FIBGMjmax)
-      lmin = INT((PartState(2,i)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-      lmin = MAX(lmin,GEO%FIBGMjmin)
-      mmax = INT((PartState(3,i)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
-      mmax = MIN(mmax,GEO%FIBGMkmax)
-      mmin = INT((PartState(3,i)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
-      mmin = MAX(mmin,GEO%FIBGMkmin)
-      !-- go through all these cells
-      DO kk = kmin,kmax
-        DO ll = lmin, lmax
-          DO mm = mmin, mmax
-            !--- go through all mapped elements not done yet
-            DO ppp = 1,GEO%FIBGM(kk,ll,mm)%nElem
-              WITHIN=.FALSE.
-              ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
-              IF (.NOT.chargedone(ElemID)) THEN
-                NbrOfElems = NbrOfElems + 1.
-                !--- go through all gauss points
-                DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-                  NbrOfComps = NbrOfComps + 1.
-                  !-- calculate distance between gauss and particle
-                  deltax = PartState(1,i) - N_VolMesh(ElemID)%Elem_xGP(1,k,l,m)
-                  deltay = PartState(2,i) - N_VolMesh(ElemID)%Elem_xGP(2,k,l,m)
-                  deltaz = PartState(3,i) - N_VolMesh(ElemID)%Elem_xGP(3,k,l,m)
-                  radius = deltax * deltax + deltay * deltay + deltaz * deltaz
-                  IF (radius .LT. r2_sf) THEN
-                    WITHIN=.TRUE.
-                    NbrWithinRadius = NbrWithinRadius + 1.
-                  END IF
-                END DO; END DO; END DO
-                chargedone(ElemID) = .TRUE.
-              END IF
-              IF(WITHIN) NbrOfElemsWithinRadius = NbrOfElemsWithinRadius + 1.
-            END DO ! ppp
-          END DO ! mm
-        END DO ! ll
-      END DO ! kk
-    END IF ! inside
-  END DO ! i
-IF(NbrOfComps.GT.0.0)THEN
-#if USE_MPI
-  WRITE(*,*) 'ShapeEfficiency (Proc,%,%Elems)',myRank,100*NbrWithinRadius/NbrOfComps,100*NbrOfElemsWithinRadius/NbrOfElems
-  WRITE(*,*) 'ShapeEfficiency (Elems) for Proc',myRank,'is',100*NbrOfElemsWithinRadius/NbrOfElems,'%'
-#else
-  WRITE(*,*) 'ShapeEfficiency (%,%Elems)',100*NbrWithinRadius/NbrOfComps, 100*NbrOfElemsWithinRadius/NbrOfElems
-  WRITE(*,*) 'ShapeEfficiency (Elems) is',100*NbrOfElemsWithinRadius/NbrOfElems,'%'
-#endif
-END IF
-CASE('SomeParts')
-  DO i=1,PDM%ParticleVecLength
-    IF (PDM%ParticleInside(i)) THEN
-      CALL RANDOM_NUMBER(RandVal1)
-      IF(RandVal1.LT.REAL(ShapeEfficiencyNumber)/100)THEN
-        chargedone(:) = .FALSE.
-        !-- determine which background mesh cells (and interpolation points within) need to be considered
-        kmax = INT((PartState(1,i)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-        kmax = MIN(kmax,GEO%FIBGMimax)
-        kmin = INT((PartState(1,i)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-        kmin = MAX(kmin,GEO%FIBGMimin)
-        lmax = INT((PartState(2,i)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-        lmax = MIN(lmax,GEO%FIBGMjmax)
-        lmin = INT((PartState(2,i)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-        lmin = MAX(lmin,GEO%FIBGMjmin)
-        mmax = INT((PartState(3,i)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
-        mmax = MIN(mmax,GEO%FIBGMkmax)
-        mmin = INT((PartState(3,i)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
-        mmin = MAX(mmin,GEO%FIBGMkmin)
-        !-- go through all these cells
-        DO kk = kmin,kmax
-          DO ll = lmin, lmax
-            DO mm = mmin, mmax
-              !--- go through all mapped elements not done yet
-              DO ppp = 1,GEO%FIBGM(kk,ll,mm)%nElem
-              WITHIN=.FALSE.
-                ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
-                IF (.NOT.chargedone(ElemID)) THEN
-                  NbrOfElems = NbrOfElems + 1
-                  !--- go through all gauss points
-                  DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-                    NbrOfComps = NbrOfComps + 1
-                    !-- calculate distance between gauss and particle
-                    deltax = PartState(1,i) - N_VolMesh(ElemID)%Elem_xGP(1,k,l,m)
-                    deltay = PartState(2,i) - N_VolMesh(ElemID)%Elem_xGP(2,k,l,m)
-                    deltaz = PartState(3,i) - N_VolMesh(ElemID)%Elem_xGP(3,k,l,m)
-                    radius = deltax * deltax + deltay * deltay + deltaz * deltaz
-                    IF (radius .LT. r2_sf) THEN
-                      NbrWithinRadius = NbrWithinRadius + 1
-                      WITHIN=.TRUE.
-                    END IF
-                    END DO; END DO; END DO
-                    chargedone(ElemID) = .TRUE.
-                  END IF
-                  IF(WITHIN) NbrOfElemsWithinRadius = NbrOfElemsWithinRadius + 1
-                END DO ! ppp
-              END DO ! mm
-            END DO ! ll
-          END DO ! kk
-        END IF  ! RandVal
-      END IF ! inside
-  END DO ! i
-IF(NbrOfComps.GT.0)THEN
-#if USE_MPI
-  WRITE(*,*) 'ShapeEfficiency (Proc,%,%Elems)',myRank,100*NbrWithinRadius/NbrOfComps,100*NbrOfElemsWithinRadius/NbrOfElems
-  WRITE(*,*) 'ShapeEfficiency (Elems) for Proc',myRank,'is',100*NbrOfElemsWithinRadius/NbrOfElems,'%'
-#else
-  WRITE(*,*) 'ShapeEfficiency (%,%Elems)',100*NbrWithinRadius/NbrOfComps,100*NbrOfElemsWithinRadius/NbrOfElems
-  WRITE(*,*) 'ShapeEfficiency (Elems) is',100*NbrOfElemsWithinRadius/NbrOfElems,'%'
-#endif
-END IF
-END SELECT
-END SUBROUTINE CalcShapeEfficiencyR
 
 
 PPURE SUBROUTINE CalcKineticEnergy(Ekin)
@@ -833,7 +692,6 @@ USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, PEM
 USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 #if !(USE_HDG)
 USE MOD_PML_Vars              ,ONLY: DoPML,isPMLElem
 #endif /*USE_HDG*/
@@ -869,7 +727,7 @@ IF (nSpecAnalyze.GT.1) THEN
       partV2 = DOTPRODUCT(PartState(4:6,i))
       IF ( partV2 .LT. RelativisticLimit) THEN  ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 * Species(PartSpecies(i))%MassIC * partV2
-        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+        IF(usevMPF) THEN
           ! %MacroParticleFactor is included in the case of vMPF (also in combination with variable time step)
           Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * GetParticleWeight(i)
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
@@ -892,7 +750,7 @@ IF (nSpecAnalyze.GT.1) THEN
 #endif /*USE_DEBUG*/
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
-        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+        IF(usevMPF) THEN
           ! %MacroParticleFactor is included in the case of vMPF (also in combination with variable time step)
           Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * GetParticleWeight(i)
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
@@ -921,7 +779,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
       partV2 = DOTPRODUCT(PartState(4:6,i))
       IF ( partV2 .LT. RelativisticLimit) THEN  ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 *  Species(PartSpecies(i))%MassIC * partV2
-        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+        IF(usevMPF) THEN
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
@@ -940,7 +798,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
 #endif /*USE_DEBUG*/
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
-        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting)THEN
+        IF(usevMPF)THEN
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
@@ -966,7 +824,6 @@ USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, nSpec
 USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze,LaserInteractionEkinMaxRadius,LaserInteractionEkinMaxZPosMin
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 #if !(USE_HDG)
 USE MOD_PML_Vars              ,ONLY: DoPML,isPMLElem
 #endif /*USE_HDG*/
@@ -1006,8 +863,8 @@ IF (nSpecAnalyze.GT.1) THEN
       partV2 = DOTPRODUCT(PartState(4:6,i))
       IF ( partV2 .LT. RelativisticLimit) THEN  ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 * Species(PartSpecies(i))%MassIC * partV2
-        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-          ! %MacroParticleFactor is included in the case of RadialWeighting (also in combination with variable time step)
+        IF(usevMPF) THEN
+          ! %MacroParticleFactor is included in the case of particle weighting (also in combination with variable time step)
           Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * GetParticleWeight(i)
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
@@ -1019,7 +876,7 @@ IF (nSpecAnalyze.GT.1) THEN
         GammaFac = partV2*c2_inv
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
-        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+        IF(usevMPF) THEN
           Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * GetParticleWeight(i)
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
@@ -1051,7 +908,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
       partV2 = DOTPRODUCT(PartState(4:6,i))
       IF ( partV2 .LT. RelativisticLimit) THEN ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 *  Species(PartSpecies(i))%MassIC * partV2
-        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+        IF(usevMPF) THEN
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
@@ -1060,7 +917,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
         GammaFac = partV2*c2_inv
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
-        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting)THEN
+        IF(usevMPF)THEN
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
@@ -1079,6 +936,57 @@ END IF
 END SUBROUTINE CalcKineticEnergyAndMaximum
 
 
+#if USE_HDG
+SUBROUTINE CalculateParticlePotentialEnergy(EpotPart)
+!===================================================================================================================================
+! compute the potential energy of particles within a potential electric field
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Vars          ,ONLY: PartSpecies,Species,PDM,nSpecies,PEM,usevMPF
+USE MOD_Mesh_Vars              ,ONLY: offSetElem
+USE MOD_PICInterpolation_tools ,ONLY: GetInterpolatedPotentialPartPos
+USE MOD_part_tools             ,ONLY: GetParticleWeight
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                :: EpotPart(nSpecies)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iPart,iElem,iSpec
+REAL                            :: phi(1:1),MPF
+!===================================================================================================================================
+! Default values
+EpotPart =  0.
+! Loop over all particles
+DO iPart=1,PDM%ParticleVecLength
+  ! Check if particle is still inside the simulation domain
+  IF (PDM%ParticleInside(iPart)) THEN
+    ! Get species index of particle
+    iSpec = PartSpecies(iPart)
+    ! Get particle MPF
+    IF(usevMPF) THEN
+      MPF = GetParticleWeight(iPart)
+    ELSE
+      MPF = GetParticleWeight(iPart) * Species(iSpec)%MacroParticleFactor
+    END IF
+    ! Get local element index
+    iElem = PEM%LocalElemID(iPart)
+    ! Get the electric potential at the particle position
+    phi(1:1) = GetInterpolatedPotentialPartPos(iElem+offSetElem,iPart)
+    ! Calculate the potential energy of the particle
+    EpotPart(iSpec) = EpotPart(iSpec) + 0.5 * MPF * Species(iSpec)%ChargeIC * phi(1)
+  END IF ! PDM%ParticleInside(iPart)
+END DO ! iPart=1,PDM%ParticleVecLength
+
+END SUBROUTINE CalculateParticlePotentialEnergy
+#endif /*USE_HDG*/
+
+
 !===================================================================================================================================
 !> Computes the number density per species using the total mesh volume and if necessary particle weights
 !> Background gas density is saved as given in the input
@@ -1086,7 +994,7 @@ END SUBROUTINE CalcKineticEnergyAndMaximum
 PPURE SUBROUTINE CalcNumberDensity(NumSpec,NumDens)
 ! MODULES                                                                                                                          !
 USE MOD_Globals
-USE MOD_DSMC_Vars             ,ONLY: BGGas, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: BGGas
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_Particle_Vars         ,ONLY: Species,nSpecies,usevMPF
 USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume
@@ -1106,7 +1014,7 @@ INTEGER                           :: iSpec,bgSpec
 ! Only root does calculation
 IF(.NOT.MPIRoot) RETURN
 
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+IF(usevMPF) THEN
   NumDens(1:nSpecies) = NumSpec(1:nSpecies) / MeshVolume
 ELSE
   NumDens(1:nSpecies) = NumSpec(1:nSpecies) * Species(1:nSpecies)%MacroParticleFactor / MeshVolume
@@ -1150,7 +1058,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: iSpec,bgSpec,iElem
+INTEGER                           :: iSpec,bgSpec,iElem,CNElemID
 REAL                              :: DistriNumDens(1:BGGas%NumberOfSpecies)
 !===================================================================================================================================
 ! Initialize
@@ -1165,8 +1073,9 @@ DO iSpec = 1, nSpecies
     DistriNumDens(bgSpec) = 0.
     DO iElem = 1, nElems
       ! Calculate mass per element (divide by total mesh volume later on)
+      CNElemID = GetCNElemID(iElem+offSetElem)
       DistriNumDens(bgSpec) = DistriNumDens(bgSpec) &
-                            + BGGas%Distribution(bgSpec,7,iElem) * ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+                            + BGGas%Distribution(bgSpec,7,iElem) * ElemVolume_Shared(CNElemID)
     END DO ! iElem = 1, nElems
   END IF
 END DO
@@ -1402,7 +1311,6 @@ USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, PDM, nSpecies, usevMP
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1433,7 +1341,7 @@ DO iPart=1,PDM%ParticleVecLength
     EVib(iSpec) = EVib(iSpec) + PartStateIntEn(1,iPart) * GetParticleWeight(iPart)
     ERot(iSpec) = ERot(iSpec) + PartStateIntEn(2,iPart) * GetParticleWeight(iPart)
     IF (DSMC%ElectronicModel.GT.0) THEN
-      IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+      IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
         Eelec(iSpec) = Eelec(iSpec) + PartStateIntEn(3,iPart) * GetParticleWeight(iPart)
       END IF
     END IF
@@ -1483,15 +1391,15 @@ IF(MPIRoot)THEN
     END IF
     IF(DSMC%ElectronicModel.GT.0) THEN
       IF(NumSpecTemp.GT.0) THEN
-        IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+        IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
           IntTemp(iSpec,3) = CalcTelec(Eelec(iSpec)/NumSpecTemp,iSpec)
         END IF
       ELSE
         IntEn(iSpec,3) = 0.0
       END IF
     END IF
-    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-      ! MacroParticleFactor is included in the case of RadialWeighting (also in combination with variable time step)
+    IF(usevMPF) THEN
+      ! MacroParticleFactor is included in the case of particle weighting (also in combination with variable time step)
       IntEn(iSpec,1) = EVib(iSpec)
       IntEn(iSpec,2) = ERot(iSpec)
       IF(DSMC%ElectronicModel.GT.0) IntEn(iSpec,3) = Eelec(iSpec)
@@ -2870,7 +2778,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem
+INTEGER              :: iElem,CNElemID
 !===================================================================================================================================
 ! Nullify
 IonizationCell        = 0.
@@ -2896,7 +2804,8 @@ DO iElem=1,PP_nElems
       ! Set quasi neutrality between zero and unity depending on which density is larger
       ! Quasi neutrality holds, when n_e ~ Z_i*n_i (electron density approximately equal to ion density multiplied with charge number)
       ! 1.  Calculate Z_i*n_i (Charge density cell average)
-      Q = ChargeNumberCell(iElem) / ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+      CNElemID = GetCNElemID(iElem+offSetElem)
+      Q = ChargeNumberCell(iElem) / ElemVolume_Shared(CNElemID)
 
       ! 2.  Calculate the quasi neutrality parameter: should be near to 1 for quasi-neutrality
       IF(Q.GT.n_e)THEN
@@ -2959,6 +2868,70 @@ END DO ! iElem=1,PP_nElems
 END SUBROUTINE CalculatePlasmaParameter
 
 
+SUBROUTINE CalculateNumericalPlasmaParameter()
+!===================================================================================================================================
+! Calculate the numerical plasma parameter for each cell, giving the number of simulation particles (electrons) per Debye length
+! 3D: N_D = 4.0/3.0 * pi * N_e_sim / V * lambda_D**3
+! 2D: N_D = N_e_sim / (dx*dy) * lambda_D**2
+! 1D: N_D = N_e_sim / (dx) * lambda_D
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals_Vars          ,ONLY: PI
+USE MOD_Preproc
+USE MOD_Particle_Analyze_Vars ,ONLY: DebyeLengthCell,ElectronSimNumberCell,NumPlasmaParameterCell
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+USE MOD_Mesh_Vars             ,ONLY: offSetElem
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER              :: iElem,CNElemID
+REAL                 :: PIFac
+!===================================================================================================================================
+SELECT CASE(Symmetry%Order)
+CASE(1)
+  DO iElem=1,PP_nElems
+    CNElemID = GetCNElemID(iElem+offSetElem)
+    IF((DebyeLengthCell(iElem).GT.0.0).AND.(ElectronSimNumberCell(iElem).GT.0))THEN
+      NumPlasmaParameterCell(iElem) = REAL(ElectronSimNumberCell(iElem)) / ElemCharLengthX_Shared(CNElemID) &
+                                      * (DebyeLengthCell(iElem))
+    ELSE
+      NumPlasmaParameterCell(iElem) = 0.0
+    END IF
+  END DO ! iElem=1,PP_nElems
+CASE(2)
+  DO iElem=1,PP_nElems
+    CNElemID = GetCNElemID(iElem+offSetElem)
+    IF((DebyeLengthCell(iElem).GT.0.0).AND.(ElectronSimNumberCell(iElem).GT.0))THEN
+      NumPlasmaParameterCell(iElem) = REAL(ElectronSimNumberCell(iElem)) / (ElemCharLengthX_Shared(CNElemID) &
+                                      * ElemCharLengthY_Shared(CNElemID)) * (DebyeLengthCell(iElem)**2)
+    ELSE
+      NumPlasmaParameterCell(iElem) = 0.0
+    END IF
+  END DO ! iElem=1,PP_nElems
+CASE(3)
+  PIFac = (4.0/3.0) * PI
+  DO iElem=1,PP_nElems
+    CNElemID = GetCNElemID(iElem+offSetElem)
+    IF((DebyeLengthCell(iElem).GT.0.0).AND.(ElectronSimNumberCell(iElem).GT.0))THEN
+      NumPlasmaParameterCell(iElem) = PIFac * REAL(ElectronSimNumberCell(iElem)) / ElemVolume_Shared(CNElemID) &
+                                      * (DebyeLengthCell(iElem)**3)
+    ELSE
+      NumPlasmaParameterCell(iElem) = 0.0
+    END IF
+  END DO ! iElem=1,PP_nElems
+END SELECT
+
+END SUBROUTINE CalculateNumericalPlasmaParameter
+
+
 !===================================================================================================================================
 !> Determines the kinetic energy of a (charged) particle before and after the push, the difference is stored as the coupled power
 !===================================================================================================================================
@@ -2981,7 +2954,7 @@ CHARACTER(LEN=*),INTENT(IN)     :: mode                         !< Mode: 'before
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iElem, iSpec
+INTEGER                         :: iElem, iSpec, CNElemID
 !===================================================================================================================================
 
 IF(.NOT.isChargedParticle(iPart)) RETURN
@@ -2997,8 +2970,9 @@ CASE('after')
   PCouplAverage = PCouplAverage + EDiff
   iElem         = PEM%LocalElemID(iPart)
   iSpec         = PartSpecies(iPart)
+  CNElemID = GetCNElemID(iElem+offSetElem)
   PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) &
-    + EDiff/ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+    + EDiff/ElemVolume_Shared(CNElemID)
 END SELECT
 
 END SUBROUTINE CalcCoupledPowerPart

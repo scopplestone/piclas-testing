@@ -65,7 +65,7 @@ USE MOD_Mortar_Vars     ,ONLY: N_Mortar
 USE MOD_HDG_Vars        ,ONLY: MaskedSide,SmallMortarInfo,nGP_Face
 USE MOD_Mesh_Vars       ,ONLY: nSides,MortarType,MortarInfo
 #if USE_PETSC
-USE MOD_HDG_Vars        ,ONLY: SmallMortarType
+USE MOD_HDG_Vars_PETSc  ,ONLY: SmallMortarType
 #if USE_MPI
 USE MOD_MPI             ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
 USE MOD_MPI_Vars
@@ -122,7 +122,6 @@ DO SideID=1,nSides
     CALL abort(__STAMP__,'InitMortar_HDG: this case should not appear!!')
   END IF
   IF(SmallMortarInfo(SideID).NE.0) MaskedSide(SideID)=-1
-  !TODO SmallMortarInfo=-1 must be the same global side as the corresbonding =1
 END DO !SideID=1,nSides
 
 #if USE_PETSC

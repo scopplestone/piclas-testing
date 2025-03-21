@@ -102,7 +102,8 @@ USE MOD_HDG                ,ONLY: SynchronizeChargeOnFPC
 USE MOD_HDG_Vars           ,ONLY: UseFPC
 #endif /*USE_LOADBALANCE*/
 USE PETSc
-USE MOD_HDG_Vars           ,ONLY: PETScSolution,nPETScUniqueSides,OffsetGlobalPETScDOF,MaskedSide
+USE MOD_HDG_Vars           ,ONLY: MaskedSide
+USE MOD_HDG_Vars_PETSc     ,ONLY: PETScSolution,nPETScUniqueSides,OffsetGlobalPETScDOF
 #endif
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 #else /*USE_HDG*/
@@ -144,8 +145,9 @@ INTEGER                            :: NonUniqueGlobalSideID
 !INTEGER           :: checkRank
 #endif /*USE_LOADBALANCE*/
 #if USE_PETSC
-INTEGER                            :: PETScLocalID
 PetscErrorCode                     :: ierr
+INTEGER,ALLOCATABLE                :: DOFindices(:)
+INTEGER                            :: PETScDOFs(1:nGP_face(NMax))
 #endif
 #else /*! USE_HDG*/
 REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
@@ -161,15 +163,13 @@ INTEGER                            :: i,j,k
 #if defined(PARTICLES) || !(USE_HDG)
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 ! Custom data type
-INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
+INTEGER                            :: MPI_LENGTH(1)
+TYPE(MPI_Datatype)                 :: MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
 #endif /*defined(PARTICLES) || !(USE_HDG)*/
 REAL,ALLOCATABLE                   :: Uloc(:,:,:,:)
 INTEGER                            :: Nloc
-#if USE_PETSC
-INTEGER :: DOFindices(nGP_face(NMax))
-#endif /*USE_PETSC*/
 !===================================================================================================================================
 
 ! ===========================================================================
@@ -302,13 +302,17 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 #endif /*USE_MPI*/
 
 #if USE_PETSC
-  ! TODO PETSC P-Adaption - Restart
-  !DO PETScLocalID=1,nPETScUniqueSides
-  !  SideID=PETScLocalToSideID(PETScLocalID)
-  !  PetscCallA(VecSetValuesBlocked(PETScSolution,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr))
-  !END DO
-  !PetscCallA(VecAssemblyBegin(PETScSolution,ierr))
-  !PetscCallA(VecAssemblyEnd(PETScSolution,ierr))
+  ! TODO PETSC P-Adaption - Restart: This is also done later (l.670) Delete here?
+  DO SideID=1,nSides
+    IF(MaskedSide(SideID).NE.0) CYCLE ! Skip small mortar sides
+    Nloc = N_SurfMesh(SideID)%NSide
+    DO i=1,nGP_face(Nloc)
+      PETScDOFs(i) = OffsetGlobalPETScDOF(SideID) + i - 1
+    END DO
+    PetscCallA(VecSetValues(PETScSolution,nGP_face(Nloc),PETScDOFs(1:nGP_face(Nloc)),HDG_Surf_N(SideID)%lambda(1,:),INSERT_VALUES,ierr))
+  END DO
+  PetscCallA(VecAssemblyBegin(PETScSolution,ierr))
+  PetscCallA(VecAssemblyEnd(PETScSolution,ierr))
 #endif /*USE_PETSC*/
 
   ! VDL: Exchange PhiF during load balance to continue the time integration of the ODE
@@ -514,7 +518,7 @@ ELSE ! Normal restart
     !CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
     ! Read in state
 
-    SWRITE(UNIT_stdOut,'(A,I0,A,I0)')'Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
+    SWRITE(UNIT_stdOut,'(A,I0,A,I0)')' Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
 
 #if USE_HDG
     ! TODO: Do we need this for the HDG solver? It seems so ....
@@ -665,17 +669,18 @@ ELSE ! Normal restart
 
 #if USE_PETSC
       ! Write the lambda to the solution vector
+      ALLOCATE(DOFindices(nGP_face(NMax)))
       DO iSide=1,nSides
-        IF(MaskedSide(iSide).GT.0) CYCLE
-        ! TODO: Create a function to map localToGlobalDOFs
+        IF(MaskedSide(iSide).NE.0) CYCLE
         Nloc = N_SurfMesh(iSide)%NSide
         DO i=1,nGP_face(Nloc)
-          DOFindices(i) = i + OffsetGlobalPETScDOF(iSide) - 1
+          DOFindices(i) = OffsetGlobalPETScDOF(iSide) + i - 1
         END DO
         PetscCallA(VecSetValues(PETScSolution,nGP_face(Nloc),DOFindices(1:nGP_face(Nloc)),HDG_Surf_N(iSide)%lambda(1,:),INSERT_VALUES,ierr))
       END DO
       PetscCallA(VecAssemblyBegin(PETScSolution,ierr))
       PetscCallA(VecAssemblyEnd(PETScSolution,ierr))
+      DEALLOCATE(DOFindices)
 #endif
 
       ! RecomputeEFieldHDG() -> PostProcessGradientHDG(), which requires U_N(iElem)%U and HDG_Surf_N(iSide)%lambda
@@ -720,7 +725,7 @@ ELSE ! Normal restart
     END IF ! DoVirtualDielectricLayer
 
 #else /*not USE_HDG*/
-    ALLOCATE(U(1:nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
+    ALLOCATE(   U(1:nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
     ALLOCATE(Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
     CALL ReadArray('DG_Solution',5,(/nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
     DO iElem = 1, nElems
@@ -728,19 +733,25 @@ ELSE ! Normal restart
       IF(Nloc.EQ.N_Restart)THEN ! N is equal
         U_N(iElem)%U(1:nVar,0:Nres,0:Nres,0:Nres) = U(1:nVar,0:Nres,0:Nres,0:Nres,iElem)
       ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
-        CALL ChangeBasis3D(PP_nVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, U(1:nVar,0:Nres,0:Nres,0:Nres,iElem), U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
+        CALL ChangeBasis3D(PP_nVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, &
+                          U(1:nVar,0:Nres,0:Nres,0:Nres,iElem),                     &
+               U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
       ELSE ! N reduces
         !transform the slave side to the same degree as the master: switch to Legendre basis
-        CALL ChangeBasis3D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, U(1:nVar,0:Nres,0:Nres,0:Nres,iElem), Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
+        CALL ChangeBasis3D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, &
+                          U(1:nVar,0:Nres,0:Nres,0:Nres,iElem),                        &
+                       Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
         ! switch back to nodal basis
-        CALL ChangeBasis3D(PP_nVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:nVar,0:Nloc,0:Nloc,0:Nloc), U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
+        CALL ChangeBasis3D(PP_nVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, &
+                       Uloc(1:nVar,0:Nloc,0:Nloc,0:Nloc),              &
+               U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
       END IF ! Nloc.EQ.N_Restart
     END DO ! iElem = 1, nElems
     DEALLOCATE(U)
     DEALLOCATE(Uloc)
     IF(DoPML)THEN
-      ALLOCATE(U_local(PMLnVar,0:Nres,0:Nres,0:Nres,nElems))
-      ALLOCATE(Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
+      ALLOCATE(U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,nElems))
+      ALLOCATE(   Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
       CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),&
           OffsetElemTmp,5,RealArray=U_local)
       DO iPML=1,nPMLElems
@@ -749,12 +760,18 @@ ELSE ! Normal restart
         IF(Nloc.EQ.N_Restart)THEN ! N is equal
           U_N(iElem)%U2(1:PMLnVar,0:Nres,0:Nres,0:Nres) = U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem)
         ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
-          CALL ChangeBasis3D(PMLnVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem), U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+          CALL ChangeBasis3D(PMLnVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, &
+                   U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem),                     &
+             U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
         ELSE ! N reduces
           !transform the slave side to the same degree as the master: switch to Legendre basis
-          CALL ChangeBasis3D(PMLnVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem), Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
+          CALL ChangeBasis3D(PMLnVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, &
+                   U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem),                        &
+                      Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
           ! switch back to nodal basis
-          CALL ChangeBasis3D(PMLnVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc), U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+          CALL ChangeBasis3D(PMLnVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, &
+                      Uloc(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc),              &
+             U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
         END IF ! Nloc.EQ.N_Restart
       END DO ! iPML
       DEALLOCATE(U_local)

@@ -113,8 +113,6 @@ TYPE, PUBLIC :: SurfMesh
   REAL,ALLOCATABLE :: TangVec1(:,:,:)  !< tangential vector 1 for each side (1:3,0:N,0:N,nSides)
   REAL,ALLOCATABLE :: TangVec2(:,:,:)  !< tangential vector 3 for each side (1:3,0:N,0:N,nSides)
   REAL,ALLOCATABLE :: SurfElem(:,:)    !< surface area for each side        (    0:N,0:N,nSides)
-  ! TODO NSideMin - SurfElemMin : I think that we actually do not need to (and should) calculate SurfElemMin by projection.
-  ! When evaluating the integral, J is just evaluated at the Gauss points, so by interplation
   REAL,ALLOCATABLE :: SurfElemMin(:,:) !< surface area for each side        (    0:N,0:N,nSides)
 
   INTEGER          :: NSide
@@ -168,6 +166,8 @@ INTEGER,PARAMETER :: TangDirs(6)   = (/ 1 , 3 , 2 , 3 , 2 , 1 /) !< first tangen
 REAL   ,PARAMETER :: NormalSigns(6)= (/-1.,-1., 1., 1.,-1., 1./) !< normal vector sign for element local side
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER          :: nGlobalElems=0          !< number of elements in mesh
+INTEGER(KIND=8)  :: nGlobalDOFs=0           !< number of DOF in mesh (depends on the polynomial degree in each element)
+INTEGER          :: NMaxGlobal,NMinGlobal   !< global min/max polynomial degree that is actually present (not the theoretical limits)
 INTEGER          :: nElems=0                !< number of local elements
 INTEGER          :: offsetElem=0            !< for MPI, until now=0 Elems pointer array range: [offsetElem+1:offsetElem+nElems]
 INTEGER          :: nSides=0                !< =nInnerSides+nBCSides+nMPISides

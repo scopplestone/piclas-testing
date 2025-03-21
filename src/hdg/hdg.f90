@@ -55,7 +55,7 @@ CONTAINS
 
 #if USE_HDG
 !===================================================================================================================================
-!> Define parameters for HDG (Hubridized Discontinous Galerkin)
+!> Define parameters for HDG (Hybridized Discontinuous Galerkin)
 !===================================================================================================================================
 SUBROUTINE DefineParametersHDG()
 ! MODULES
@@ -139,12 +139,12 @@ USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 #if USE_PETSC
 USE PETSc
+USE MOD_HDG_Vars_PETSc
 USE MOD_Mesh_Vars             ,ONLY: nMPISides_YOUR
 #if USE_MPI
 USE MOD_MPI                   ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
 #endif /*USE_MPI*/
-USE MOD_Elem_Mat              ,ONLY: PETScFillSystemMatrix, PETScSetPrecond
-USE MOD_Mesh_Vars             ,ONLY: ElemToSide
+USE MOD_Elem_Mat              ,ONLY: PETScFillSystemMatrix
 #endif /*USE_PETSC*/
 USE MOD_Mesh_Vars             ,ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
@@ -162,10 +162,9 @@ REAL              :: D(0:Nmax,0:Nmax)
 INTEGER           :: nDirichletBCsidesGlobal
 #if USE_PETSC
 PetscErrorCode    :: ierr
+PetscInt          :: major,minor,subminor,release
 IS                :: PETScISLocal, PETScISGlobal
 INTEGER           :: iProc
-!INTEGER           :: nAffectedBlockSides
-INTEGER             :: iLocSide
 INTEGER             :: iLocalPETScDOF,iDOF
 INTEGER             :: OffsetCounter
 INTEGER,ALLOCATABLE :: localToGlobalPETScDOF(:)
@@ -175,8 +174,8 @@ INTEGER             :: PETScDOFOffsetsMPI(nProcessors)
 #endif
 INTEGER           :: locSide,nMortars
 INTEGER           :: MortarSideID,iMortar
-REAL              :: tmp(3,0:Nmax,0:Nmax)
 REAL              :: StartT,EndT
+CHARACTER(100)    :: hilf
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
    LBWRITE(*,*) "InitHDG already called."
@@ -216,7 +215,18 @@ END IF
 
 ! Read in CG parameters (also used for PETSc)
 #if USE_PETSC
-LBWRITE(UNIT_stdOut,'(A)') ' | Method for HDG solver: PETSc '
+PetscCallA(PetscGetVersionNumber(major,minor,subminor,release,ierr))
+#ifdef PETSC_HAVE_HYPRE
+hilf = '(built with Hypre and'
+#else
+hilf = '(built without Hypre and'
+#endif
+#ifdef PETSC_HAVE_MUMPS
+hilf = TRIM(hilf)//' with Mumps)'
+#else
+hilf = TRIM(hilf)//' without Mumps)'
+#endif
+LBWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') ' | Method for HDG solver: PETSc ',major,'.',minor,'.',subminor,' '//TRIM(hilf)
 #else
 LBWRITE(UNIT_stdOut,'(A)') ' | Method for HDG solver: CG '
 #endif /*USE_PETSC*/
@@ -329,7 +339,6 @@ END DO !iProc=1,nNBProcs
 
 ! -------------------------------------------------------------------------------------------------
 ! 3. Build SurfElemMin for all sides (including Mortar sides)
-! TODO NSideMin - SurfElemMin
 DO iSide = 1, nSides
   ! Get SurfElemMin
   NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
@@ -337,17 +346,8 @@ DO iSide = 1, nSides
   IF(NSideMax.EQ.NSideMin)THEN
     N_SurfMesh(iSide)%SurfElemMin(:,:) = N_SurfMesh(iSide)%SurfElem(:,:)
   ELSE
-    ! We just evaluate the SurfElem at the gauss points of the lower degree...
     CALL ChangeBasis2D(1,NSideMax,NSideMin,PREF_VDM(NSideMax,NSideMin)%Vdm,N_SurfMesh(iSide)%SurfElem(0:NSideMax,0:NSideMax), &
                                                                           N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
-
-    !!!! From high to low
-    !!!! Transform the slave side to the same degree as the master: switch to Legendre basis
-    !!!CALL ChangeBasis2D(1, NSideMax, NSideMax, N_Inter(NSideMax)%sVdm_Leg, N_SurfMesh(iSide)%SurfElem(0:NSideMax,0:NSideMax), &
-    !!!                                                                                                   tmp(1,0:NSideMax,0:NSideMax))
-    !!! !Switch back to nodal basis
-    !!!CALL ChangeBasis2D(1, NSideMin, NSideMin, N_Inter(NSideMin)%Vdm_Leg , tmp(1,0:NSideMin,0:NSideMin), &
-    !!!                                                                           N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
   END IF ! NSideMax.EQ.NSideMin
 END DO ! iSide = 1, nSides
 
@@ -357,6 +357,9 @@ HDGNonLinSolver = -1 ! init
 #if defined(PARTICLES)
 ! BR electron fluid model
 IF (BRNbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far -> non-linear HDG-sources!
+#if USE_PETSC
+  CALL CollectiveStop(__STAMP__,' HDG with BR electron fluid (non-linear HDG solver) is not implemented with PETSc')
+#endif /*USE_PETSC*/
   HDGNonLinSolver=GETINT('HDGNonLinSolver')
 
   IF (HDGNonLinSolver.EQ.1) THEN
@@ -453,7 +456,7 @@ END IF
 IF(nDirichletBCsidesGlobal.EQ.0) THEN
 #else
 IF(MPIroot .AND. (nDirichletBCsidesGlobal.EQ.0)) THEN
-#endif
+#endif /*USE_PETSC*/
   SetZeroPotentialDOF = .TRUE.
 ELSE
   SetZeroPotentialDOF = .FALSE.
@@ -575,14 +578,6 @@ DO SideID = 1, nSides
   NSide = N_SurfMesh(SideID)%NSide
   ALLOCATE(HDG_Surf_N(SideID)%lambda(PP_nVar,nGP_face(NSide)))
   HDG_Surf_N(SideID)%lambda=0.
-  ! TODO NSideMin - LambdaMax: It is actually the "other" polynomial degree, not necessarily the maximum
-  IF(UseNSideMin)THEN
-    NSideMax = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
-  ELSE
-    NSideMax = MIN(DG_Elems_master(SideID),DG_Elems_slave(SideID))
-  END IF
-  ALLOCATE(HDG_Surf_N(SideID)%lambdaMax(PP_nVar,nGP_face(NSideMax)))
-  HDG_Surf_N(SideID)%lambdaMax=0.
   ALLOCATE(HDG_Surf_N(SideID)%RHS_face(PP_nVar,nGP_face(NSide)))
   HDG_Surf_N(SideID)%RHS_face=0.
   ALLOCATE(HDG_Surf_N(SideID)%mv(PP_nVar,nGP_face(NSide)))
@@ -622,10 +617,9 @@ CALL BuildPrecond()
 
 ! 3.1) Create PETSc mappings to build the global system
 ! 3.1.1) Calculate nLocalPETScDOFs without nMPISides_YOUR to compute nGlobalPETScDOFs
-! MORTARS: Small mortar sides are added as PETScDOFs to the global system!
 nLocalPETScDOFs = 0
 DO SideID=1,nSides-nMPISides_YOUR
-  IF(MaskedSide(SideID).GT.0) CYCLE ! Skip Dirichlet sides (but keep small mortar sides)
+  IF(MaskedSide(SideID).NE.0) CYCLE ! Skip Dirichlet + small mortar sides
   nLocalPETScDOFs = nLocalPETScDOFs + nGP_face(N_SurfMesh(SideID)%NSide)
 END DO
 
@@ -648,15 +642,32 @@ END DO
 #endif
 ALLOCATE(OffsetGlobalPETScDOF(nSides))
 DO SideID=1,nSides-nMPISides_YOUR
-  IF(MaskedSide(SideID).GT.0) CYCLE
+  IF(MaskedSide(SideID).NE.0) CYCLE ! Skip Dirichlet + Small mortar sides
   OffsetGlobalPETScDOF(SideID) = OffsetCounter
   OffsetCounter = OffsetCounter + nGP_face(N_SurfMesh(SideID)%NSide)
 END DO
+
+! 3.1.3.1 Mortars: Small mortar sides have the same DOFs as the big side
+DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+  nMortars = MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+  locSide  = MortarType(2,MortarSideID)
+  DO iMortar = 1,nMortars
+    SideID = MortarInfo(MI_SIDEID,iMortar,locSide)
+    OffsetGlobalPETScDOF(SideID) = OffsetGlobalPETScDOF(MortarSideID)
+  END DO !iMortar
+END DO !MortarSideID
+
 #if USE_MPI
 CALL StartReceiveMPIDataInt(1,OffsetGlobalPETScDOF,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
 CALL StartSendMPIDataInt(   1,OffsetGlobalPETScDOF,1,nSides,SendRequest_U,SendID=1) ! Send MINE
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif
+
+! 3.1.3.5) Add All Small Mortar Sides to nLocalPETScDOFs
+DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+  nMortars = MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+  nLocalPETScDOFs = nLocalPETScDOFs + nGP_face(N_SurfMesh(MortarSideID)%NSide) * nMortars
+END DO !MortarSideID
 
 ! 3.1.4) Sum up YOUR sides for nLocalPETScDOFs
 ! The full nLocalPETScDOFs is used to compute the Scatter context
@@ -698,26 +709,15 @@ PetscCallA(MatCreate(PETSC_COMM_WORLD,PETScSystemMatrix,ierr))
 PetscCallA(MatSetSizes(PETScSystemMatrix,PETSC_DECIDE,PETSC_DECIDE,nGlobalPETScDOFs,nGlobalPETScDOFs,ierr))
 PetscCallA(MatSetType(PETScSystemMatrix,MATSBAIJ,ierr)) ! Symmetric sparse matrix
 ! Conservative guess for the number of nonzeros: With mortars at most 12 sides with Nmax.
-PetscCallA(MatSEQSBAIJSetPreallocation(PETScSystemMatrix,1,12 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
-PetscCallA(MatMPISBAIJSetPreallocation(PETScSystemMatrix,1,12 * nGP_face(NMax),PETSC_NULL_INTEGER,11 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatSEQSBAIJSetPreallocation(PETScSystemMatrix,1,22 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatMPISBAIJSetPreallocation(PETScSystemMatrix,1,22 * nGP_face(NMax),PETSC_NULL_INTEGER,22 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
 PetscCallA(MatZeroEntries(PETScSystemMatrix,ierr))
 PetscCallA(MatSetOption(PETScSystemMatrix,MAT_ROW_ORIENTED,PETSC_FALSE,ierr)) ! Column oriented for more convenient set up
 
 CALL PETScFillSystemMatrix()
 
 ! 3.2.2) Set up Solver
-PetscCallA(KSPCreate(PETSC_COMM_WORLD,PETScSolver,ierr))
-PetscCallA(KSPSetOperators(PETScSolver,PETScSystemMatrix,PETScSystemMatrix,ierr))
-IF(PrecondType.GE.10) THEN ! Exact Solver
-  PetscCallA(KSPSetType(PETScSolver,KSPPREONLY,ierr)) ! Exact solver
-ELSE ! Iterative Conjugate Gradient solver
-  PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
-  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
-  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
-  PetscCallA(KSPSetTolerances(PETScSolver,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
-END IF
-
-CALL PETScSetPrecond()
+CALL PETScSetSolver()
 
 ! 3.2.3) Set up RHS and solution vectors
 PetscCallA(VecCreate(PETSC_COMM_WORLD,PETScSolution,ierr))
@@ -750,6 +750,138 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitHDG
 
 
+#if USE_PETSC
+SUBROUTINE PETScSetSolver()
+!===================================================================================================================================
+!> Set the solver and/or preconditioner combination in PETSc
+!> Iterative solvers
+!>    1: CG + Block Jacobi
+!>    2: GMRES + BoomerAMG (with hypre) or Block Jacobi (built-in)
+!> Direct solvers
+!>    10: CHOLESKY (requires the MUMPS package to support the matrix type)
+!>    PCLU: Does not support the matrix type "sbaij" (MATSBAIJ)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_HDG_Vars
+USE PETSc
+USE MOD_HDG_Vars_PETSc
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+PetscErrorCode      :: ierr
+PC                  :: pc
+Mat                 :: F
+CHARACTER(LEN=100)  :: ksp_type, pc_type, mat_type
+!===================================================================================================================================
+PetscCallA(KSPCreate(PETSC_COMM_WORLD,PETScSolver,ierr))
+PetscCallA(KSPSetOperators(PETScSolver,PETScSystemMatrix,PETScSystemMatrix,ierr))
+
+PetscCallA(KSPGetPC(PETScSolver,pc,ierr))
+SELECT CASE(PrecondType)
+CASE(0)
+  ! ====== Iterative solver: Conjugate Gradient
+  PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
+  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
+  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  ! ===  Preconditioner: None
+  PetscCallA(PCSetType(pc,PCNONE,ierr))
+CASE(1)
+  ! ====== Iterative solver: Conjugate Gradient
+  PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
+  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
+  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,PETSC_DEFAULT_REAL,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  ! ===  Preconditioner: Block Jacobi
+  PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
+#ifdef PETSC_HAVE_HYPRE
+CASE(2)
+  PetscCallA(KSPSetType(PETScSolver,KSPCG, ierr))
+  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
+  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,1e-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  ! ===  Preconditioner: Incomplete factorization preconditioner
+  PetscCallA(PCHYPRESetType(pc,PCILU,ierr))
+CASE(3)
+  PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
+  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
+  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  ! ===  Preconditioner: matrix element based preconditioner, ParaSails is a parallel implementation of a sparse approximate
+  !      inverse preconditioner
+  PetscCallA(PCSetType(pc, PCHYPRE, ierr))
+  PetscCallA(PCHYPRESetType(pc, "parasails", ierr))
+#endif
+CASE(20)
+  ! ====== Iterative solver: GMRES
+  PetscCallA(KSPSetType(PETScSolver,KSPGMRES, ierr))
+  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
+  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,PETSC_DEFAULT_REAL,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+#ifdef PETSC_HAVE_HYPRE
+  ! ===  Preconditioner: BoomerAMG
+  PetscCallA(PCSetType(pc, PCHYPRE, ierr))
+  PetscCallA(PCHYPRESetType(pc, "boomeramg", ierr))
+  ! BoomerAMG options
+  ! Coarsening strategy: HMIS coarsening
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_coarsen_type", "HMIS", ierr))
+  ! Strong threshold for coarsening
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_strong_threshold", "0.5", ierr))
+  ! Maximum number of levels
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_max_levels", "25", ierr))
+  PetscCallA(PCSetFromOptions(pc,ierr))
+#else
+  ! ===  Preconditioner: Block Jacobi
+  PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
+#endif
+#ifdef PETSC_HAVE_MUMPS
+CASE(10)
+  ! ====== Direct solver: Cholesky
+  PetscCallA(KSPSetType(PETScSolver,KSPPREONLY,ierr))
+  PetscCallA(PCSetType(pc,PCCHOLESKY,ierr))
+  ! PETSc will most likely use MUMPS anyway
+  PetscCallA(PCFactorSetMatSolverType(pc,MATSOLVERMUMPS,ierr))
+  PetscCallA(PCFactorSetUpMatSolverType(pc,ierr))
+  ! We need to get the internal matrix to set its options
+  PetscCallA(PCFactorGetMatrix(pc,F,ierr))
+  ! Tell MUMPS matrix is SPD
+  PetscCallA(MatMumpsSetIcntl(F,7,2,ierr))
+  ! Memory handling
+  PetscCallA(MatMumpsSetIcntl(F,14,200,ierr))    ! Allow 3x estimated memory
+  PetscCallA(MatMumpsSetIcntl(F,23,1000,ierr))   ! Limit to 2GB per process
+#endif
+CASE DEFAULT
+  CALL abort(__STAMP__,'ERROR in PETScSetSolver: Unknown option! Note that the direct solver (10) is currently only available with MUMPS and the iteratice (2) only with HYPRE. PrecondType=', IntInfoOpt=PrecondType)
+END SELECT
+
+! Get solver and preconditioner types
+PetscCallA(KSPGetType(PETScSolver, ksp_type, ierr))
+PetscCallA(PCGetType(pc, pc_type, ierr))
+
+! If using direct solver, print factorization type
+IF (TRIM(ksp_type) .EQ. 'preonly') THEN
+  ! Print factorization details when using Cholesky/LU
+  IF ((TRIM(pc_type) .EQ. 'cholesky') .OR. (TRIM(pc_type) .EQ. 'lu')) then
+    PetscCallA(PCFactorGetMatrix(pc, F, ierr))
+    PetscCallA(MatGetType(F, mat_type, ierr))
+    LBWRITE(UNIT_stdOut,'(A)') ' | Direct solver: '//TRIM(pc_type)//', using factorization type: '//TRIM(mat_type)
+  END IF
+ELSE
+  LBWRITE(UNIT_stdOut,'(A)') ' | Iterative solver: '//TRIM(ksp_type)//' with '//TRIM(pc_type)//' preconditioning'
+END IF
+
+END SUBROUTINE PETScSetSolver
+#endif /*USE_PETSC*/
+
+
 !===================================================================================================================================
 !> Create containers and communicators for each floating boundary condition where impacting charges are accumulated.
 !>
@@ -779,7 +911,7 @@ USE MOD_Globals            ,ONLY: ElementOnProc
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,SideInfo_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
 USE MOD_Mesh_Vars          ,ONLY: nElems, offsetElem
-USE MOD_Particle_MPI_Vars  ,ONLY: halo_eps,halo_eps_velo,MPI_halo_eps,halo_eps_woshape,MPI_halo_eps_velo
+USE MOD_Particle_MPI_Vars  ,ONLY: halo_eps
 #endif /*USE_MPI && defined(PARTICLES)*/
 #if USE_MPI
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,nProcessors_Global
@@ -1037,7 +1169,7 @@ DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   FPC%COMM(iUniqueFPCBC)%ID=iUniqueFPCBC
 
   ! create new emission communicator for floating boundary condition communication. Pass MPI_INFO_NULL as rank to follow the original ordering
-  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, FPC%COMM(iUniqueFPCBC)%UNICATOR, iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, 0, FPC%COMM(iUniqueFPCBC)%UNICATOR, iError)
 
   ! Find my rank on the shared communicator, comm size and proc name
   IF(FPC%BConProc(iUniqueFPCBC))THEN
@@ -1320,7 +1452,7 @@ DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
 
   ! Create new emission communicator for Electric potential boundary condition communication.
   ! Pass MPI_INFO_NULL as rank to follow the original ordering
-  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, EPC%COMM(iUniqueEPCBC)%UNICATOR, iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, 0, EPC%COMM(iUniqueEPCBC)%UNICATOR, iError)
 
   ! Find my rank on the shared communicator, comm size and proc name
   IF(BConProc(iUniqueEPCBC))THEN
@@ -1494,7 +1626,7 @@ color = MERGE(BVBoundaries, MPI_UNDEFINED, BConProc)
 BiasVoltage%COMM%ID = BVBoundaries
 
 ! Create new emission communicator for electric potential boundary condition communication. Pass MPI_INFO_NULL as rank to follow the original ordering
-CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, BiasVoltage%COMM%UNICATOR, iError)
+CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, 0, BiasVoltage%COMM%UNICATOR, iError)
 
 ! Find my rank on the shared communicator, comm size and process name
 IF(BConProc)THEN
@@ -1581,6 +1713,7 @@ END SUBROUTINE ReadBVDataFromH5
 !===================================================================================================================================
 SUBROUTINE SynchronizeBV()
 ! MODULES
+USE mpi_f08
 USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
 USE MOD_HDG_Vars ,ONLY: BiasVoltage,BVDataLength
 ! insert modules here
@@ -1723,7 +1856,7 @@ IF(PerformLoadBalance.AND..NOT.(UseH5IOLoadBalance)) RETURN
 IF(MPIRoot)THEN
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
   ! Check old parameter name
-  ContainerName='ElectricPotenitalCondition'
+  ContainerName='ElectricPotentialCondition'
   CALL DatasetExists(File_ID,TRIM(ContainerName),EPCExists)
   ! Check for new parameter name
   IF(EPCExists)THEN
@@ -1769,6 +1902,7 @@ END SUBROUTINE ReadEPCDataFromH5
 !===================================================================================================================================
 SUBROUTINE SynchronizeChargeOnFPC()
 ! MODULES
+USE mpi_f08
 USE MOD_HDG_Vars ,ONLY: FPC
 USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
 ! insert modules here
@@ -1780,12 +1914,10 @@ IMPLICIT NONE
 INTEGER            :: iUniqueFPCBC
 !===================================================================================================================================
 DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-  ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR )
-    IF(COMM.NE.MPI_COMM_NULL)THEN
+  IF(FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
       ! Broadcast from root to other processors on the sub-communicator
-      CALL MPI_BCAST(FPC%Charge(iUniqueFPCBC), 1, MPI_DOUBLE_PRECISION, 0, COMM, IERROR)
+    CALL MPI_BCAST(FPC%Charge(iUniqueFPCBC), 1, MPI_DOUBLE_PRECISION, 0, FPC%COMM(iUniqueFPCBC)%UNICATOR, IERROR)
     END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
-  END ASSOCIATE
 END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
 END SUBROUTINE SynchronizeChargeOnFPC
 
@@ -1795,6 +1927,7 @@ END SUBROUTINE SynchronizeChargeOnFPC
 !===================================================================================================================================
 SUBROUTINE SynchronizeVoltageOnEPC()
 ! MODULES
+USE mpi_f08
 USE MOD_HDG_Vars ,ONLY: EPC
 USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
 ! insert modules here
@@ -1806,12 +1939,10 @@ IMPLICIT NONE
 INTEGER            :: iUniqueEPCBC
 !===================================================================================================================================
 DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
-  ASSOCIATE( COMM => EPC%COMM(iUniqueEPCBC)%UNICATOR )
-    IF(COMM.NE.MPI_COMM_NULL)THEN
+  IF(EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
       ! Broadcast from root to other processors on the sub-communicator
-      CALL MPI_BCAST(EPC%Voltage(iUniqueEPCBC), 1, MPI_DOUBLE_PRECISION, 0, COMM, IERROR)
+    CALL MPI_BCAST(EPC%Voltage(iUniqueEPCBC), 1, MPI_DOUBLE_PRECISION, 0, EPC%COMM(iUniqueEPCBC)%UNICATOR, IERROR)
     END IF ! EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL
-  END ASSOCIATE
 END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
 END SUBROUTINE SynchronizeVoltageOnEPC
 #endif /*USE_MPI*/
@@ -1826,6 +1957,9 @@ SUBROUTINE HDG(t,iter,ForceCGSolverIteration_opt,RecomputeLambda_opt)
 SUBROUTINE HDG(t,iter,RecomputeLambda_opt)
 #endif /*defined(PARTICLES)*/
 ! MODULES
+#if USE_MPI
+USE mpi_f08
+#endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
@@ -1899,16 +2033,14 @@ END IF
 
     ! Communicate the accumulated charged on each BC to all processors on the communicator
     DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
-      ASSOCIATE( COMM => EPC%COMM(iUniqueEPCBC)%UNICATOR)
-        IF(EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
-          IF(MPIRoot)THEN
-            CALL MPI_REDUCE(MPI_IN_PLACE, EPC%ChargeProc(iUniqueEPCBC), 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IERROR)
-          ELSE
-            CALL MPI_REDUCE(EPC%ChargeProc(iUniqueEPCBC), 0           , 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IERROR)
-          END IF ! MPIRoot
-          EPC%Charge(iUniqueEPCBC) = EPC%Charge(iUniqueEPCBC) + EPC%ChargeProc(iUniqueEPCBC)
-        END IF ! EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL
-      END ASSOCIATE
+      IF(EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
+        IF(MPIRoot)THEN
+          CALL MPI_REDUCE(MPI_IN_PLACE, EPC%ChargeProc(iUniqueEPCBC), 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, EPC%COMM(iUniqueEPCBC)%UNICATOR, IERROR)
+        ELSE
+          CALL MPI_REDUCE(EPC%ChargeProc(iUniqueEPCBC), 0           , 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, EPC%COMM(iUniqueEPCBC)%UNICATOR, IERROR)
+        END IF ! MPIRoot
+        EPC%Charge(iUniqueEPCBC) = EPC%Charge(iUniqueEPCBC) + EPC%ChargeProc(iUniqueEPCBC)
+      END IF ! EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL
     END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
 #endif /*USE_MPI*/
     IF(MPIRoot) EPC%Charge(:) = EPC%Charge(:) + EPC%ChargeProc(:)
@@ -2050,9 +2182,8 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt
 USE MOD_Mesh_Vars              ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,offSetElem,BC
 USE MOD_DG_Vars                ,ONLY: U_N,N_DG_Mapping
 USE MOD_PICDepo_Vars           ,ONLY: PS_N
-USE MOD_Particle_Boundary_Vars ,ONLY: N_SurfVDL,PartBound,ElementThicknessVDL
+USE MOD_Particle_Boundary_Vars ,ONLY: N_SurfVDL,PartBound
 USE MOD_ProlongToFace          ,ONLY: ProlongToFace_Side
-USE MOD_TimeDisc_Vars          ,ONLY: time
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -2155,7 +2286,6 @@ USE MOD_Equation_Vars ,ONLY: B
 #else
 USE MOD_Equation_Vars ,ONLY: B, E
 #endif
-USE MOD_DG_Vars  ,ONLY: U_N
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2207,6 +2337,7 @@ USE MOD_HDG_Vars
 USE MOD_Interpolation_Vars ,ONLY: NMax
 #if USE_PETSC
 USE petsc
+USE MOD_HDG_Vars_PETSc
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance

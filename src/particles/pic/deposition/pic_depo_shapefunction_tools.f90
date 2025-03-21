@@ -19,16 +19,9 @@ MODULE MOD_PICDepo_Shapefunction_Tools
 IMPLICIT NONE
 PRIVATE
 !===================================================================================================================================
-INTERFACE calcSfSource
-  MODULE PROCEDURE calcSfSource
-END INTERFACE
-
-INTERFACE SFNorm
-  MODULE PROCEDURE SFNorm
-END INTERFACE
-
 PUBLIC:: calcSfSource
 PUBLIC:: SFNorm
+PUBLIC:: SFRadius2
 PUBLIC:: InitShapeFunctionDimensionalty
 !===================================================================================================================================
 
@@ -163,8 +156,7 @@ ELSE
       CALL depoChargeOnDOFsSFAdaptive(  PartPos , SourceSize , Fac      , PartID )
     END IF ! SFAdaptiveSmoothing
   CASE DEFAULT
-    CALL CollectiveStop(__STAMP__,&
-        'Unknown ShapeFunction Method!')
+    CALL CollectiveStop(__STAMP__,'Unknown ShapeFunction Method!')
   END SELECT ! DepositionType
 END IF ! TRIM(DepositionType).EQ.'shape_function_cc'.AND.(NbrOfPeriodicSFCases.GT.1)
 
@@ -215,7 +207,8 @@ INTEGER                          :: kk, ll, mm, ppp
 INTEGER                          :: globElemID, CNElemID
 REAL                             :: radius2, S, S1
 REAL                             :: PartSourceLoc(4-SourceSize+1:4,0:PP_N,0:PP_N,0:PP_N)
-INTEGER                          :: PartSourceSize, PartSourceSizeTarget, Request
+INTEGER                          :: PartSourceSize, PartSourceSizeTarget
+TYPE(MPI_Request)                :: Request
 INTEGER                          :: expo,I
 !----------------------------------------------------------------------------------------------------------------------------------
 I=5-SourceSize
@@ -312,6 +305,7 @@ USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
+USE MOD_PICDepo_Vars       ,ONLY: dim_sf,dim_sf_dir
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -343,16 +337,49 @@ ChargeSFDone(:) = .FALSE.
 nUsedElems = 0
 !-- determine which background mesh cells (and interpolation points within) need to be considered
 kmax = CEILING((Position(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
-kmax = MIN(kmax,GEO%FIBGMimax)
 kmin = FLOOR((Position(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-kmin = MAX(kmin,GEO%FIBGMimin)
 lmax = CEILING((Position(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
-lmax = MIN(lmax,GEO%FIBGMjmax)
 lmin = FLOOR((Position(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-lmin = MAX(lmin,GEO%FIBGMjmin)
 mmax = CEILING((Position(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
-mmax = MIN(mmax,GEO%FIBGMkmax)
 mmin = FLOOR((Position(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+! Adjustments for lower dimensional shape functions
+SELECT CASE(dim_sf)
+CASE(2)
+  SELECT CASE(dim_sf_dir)
+  CASE(1)
+    kmax = GEO%FIBGMimax
+    kmin = GEO%FIBGMimin
+  CASE(2)
+    lmax = GEO%FIBGMjmax
+    lmin = GEO%FIBGMjmin
+  CASE(3)
+    mmax = GEO%FIBGMkmax
+    mmin = GEO%FIBGMkmin
+  END SELECT
+CASE(1)
+  SELECT CASE(dim_sf_dir)
+  CASE(1)
+    lmax = GEO%FIBGMjmax
+    lmin = GEO%FIBGMjmin
+    mmax = GEO%FIBGMkmax
+    mmin = GEO%FIBGMkmin
+  CASE(2)
+    kmax = GEO%FIBGMimax
+    kmin = GEO%FIBGMimin
+    mmax = GEO%FIBGMkmax
+    mmin = GEO%FIBGMkmin
+  CASE(3)
+    kmax = GEO%FIBGMimax
+    kmin = GEO%FIBGMimin
+    lmax = GEO%FIBGMjmax
+    lmin = GEO%FIBGMjmin
+  END SELECT
+END SELECT
+kmax = MIN(kmax,GEO%FIBGMimax)
+kmin = MAX(kmin,GEO%FIBGMimin)
+lmax = MIN(lmax,GEO%FIBGMjmax)
+lmin = MAX(lmin,GEO%FIBGMjmin)
+mmax = MIN(mmax,GEO%FIBGMkmax)
 mmin = MAX(mmin,GEO%FIBGMkmin)
 DO kk = kmin,kmax
   DO ll = lmin, lmax
@@ -367,7 +394,7 @@ DO kk = kmin,kmax
         IF (((globElemID-offSetElem).GE.1).AND.(globElemID-offSetElem).LE.nElems) &
           nDeposPerElem(globElemID-offSetElem)=nDeposPerElem(globElemID-offSetElem)+1
 #endif /*USE_LOADBALANCE*/
-          !--- go through all gauss points
+        !--- go through all gauss points
         Nloc = N_DG_Mapping(2,globElemID)
         offSetDof = N_DG_Mapping(1,globElemID)
         DO m=0,Nloc; DO l=0,Nloc; DO k=0,Nloc
@@ -415,6 +442,7 @@ USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
+USE MOD_PICDepo_Vars       ,ONLY: dim_sf,dim_sf_dir
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -441,16 +469,49 @@ ChargeSFDone(:) = .FALSE.
 
 !-- determine which background mesh cells (and interpolation points within) need to be considered
 kmax = CEILING((Position(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
-kmax = MIN(kmax,GEO%FIBGMimax)
 kmin = FLOOR((Position(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-kmin = MAX(kmin,GEO%FIBGMimin)
 lmax = CEILING((Position(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
-lmax = MIN(lmax,GEO%FIBGMjmax)
 lmin = FLOOR((Position(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-lmin = MAX(lmin,GEO%FIBGMjmin)
 mmax = CEILING((Position(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
-mmax = MIN(mmax,GEO%FIBGMkmax)
 mmin = FLOOR((Position(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+! Adjustments for lower dimensional shape functions
+SELECT CASE(dim_sf)
+CASE(2)
+  SELECT CASE(dim_sf_dir)
+  CASE(1)
+    kmax = GEO%FIBGMimax
+    kmin = GEO%FIBGMimin
+  CASE(2)
+    lmax = GEO%FIBGMjmax
+    lmin = GEO%FIBGMjmin
+  CASE(3)
+    mmax = GEO%FIBGMkmax
+    mmin = GEO%FIBGMkmin
+  END SELECT
+CASE(1)
+  SELECT CASE(dim_sf_dir)
+  CASE(1)
+    lmax = GEO%FIBGMjmax
+    lmin = GEO%FIBGMjmin
+    mmax = GEO%FIBGMkmax
+    mmin = GEO%FIBGMkmin
+  CASE(2)
+    kmax = GEO%FIBGMimax
+    kmin = GEO%FIBGMimin
+    mmax = GEO%FIBGMkmax
+    mmin = GEO%FIBGMkmin
+  CASE(3)
+    kmax = GEO%FIBGMimax
+    kmin = GEO%FIBGMimin
+    lmax = GEO%FIBGMjmax
+    lmin = GEO%FIBGMjmin
+  END SELECT
+END SELECT
+kmax = MIN(kmax,GEO%FIBGMimax)
+kmin = MAX(kmin,GEO%FIBGMimin)
+lmax = MIN(lmax,GEO%FIBGMjmax)
+lmin = MAX(lmin,GEO%FIBGMjmin)
+mmax = MIN(mmax,GEO%FIBGMkmax)
 mmin = MAX(mmin,GEO%FIBGMkmin)
 DO kk = kmin,kmax
   DO ll = lmin, lmax
@@ -513,6 +574,7 @@ USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+USE MOD_PICDepo_Vars       ,ONLY: dim_sf,dim_sf_dir
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -558,16 +620,49 @@ nUsedElems = 0
 totalCharge = 0.0
 !-- determine which background mesh cells (and interpolation points within) need to be considered
 kmax = CEILING((Position(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
-kmax = MIN(kmax,GEO%FIBGMimax)
 kmin = FLOOR((Position(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-kmin = MAX(kmin,GEO%FIBGMimin)
 lmax = CEILING((Position(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
-lmax = MIN(lmax,GEO%FIBGMjmax)
 lmin = FLOOR((Position(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-lmin = MAX(lmin,GEO%FIBGMjmin)
 mmax = CEILING((Position(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
-mmax = MIN(mmax,GEO%FIBGMkmax)
 mmin = FLOOR((Position(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+! Adjustments for lower dimensional shape functions
+SELECT CASE(dim_sf)
+CASE(2)
+  SELECT CASE(dim_sf_dir)
+  CASE(1)
+    kmax = GEO%FIBGMimax
+    kmin = GEO%FIBGMimin
+  CASE(2)
+    lmax = GEO%FIBGMjmax
+    lmin = GEO%FIBGMjmin
+  CASE(3)
+    mmax = GEO%FIBGMkmax
+    mmin = GEO%FIBGMkmin
+  END SELECT
+CASE(1)
+  SELECT CASE(dim_sf_dir)
+  CASE(1)
+    lmax = GEO%FIBGMjmax
+    lmin = GEO%FIBGMjmin
+    mmax = GEO%FIBGMkmax
+    mmin = GEO%FIBGMkmin
+  CASE(2)
+    kmax = GEO%FIBGMimax
+    kmin = GEO%FIBGMimin
+    mmax = GEO%FIBGMkmax
+    mmin = GEO%FIBGMkmin
+  CASE(3)
+    kmax = GEO%FIBGMimax
+    kmin = GEO%FIBGMimin
+    lmax = GEO%FIBGMjmax
+    lmin = GEO%FIBGMjmin
+  END SELECT
+END SELECT
+kmax = MIN(kmax,GEO%FIBGMimax)
+kmin = MAX(kmin,GEO%FIBGMimin)
+lmax = MIN(lmax,GEO%FIBGMjmax)
+lmin = MAX(lmin,GEO%FIBGMjmin)
+mmax = MIN(mmax,GEO%FIBGMkmax)
 mmin = MAX(mmin,GEO%FIBGMkmin)
 DO kk = kmin,kmax
   DO ll = lmin, lmax
@@ -667,12 +762,12 @@ SUBROUTINE depoChargeOnDOFsSFAdaptive(Position,SourceSize,Fac,PartIdx)
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,SFElemr2_Shared,ChargeSFDone,sfDepo3D,dimFactorSF, N_ShapeTmp
+USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,SFElemr2_Shared,ChargeSFDone,sfDepo3D,dimFactorSF,N_ShapeTmp
 USE MOD_Mesh_Vars          ,ONLY: offSetElem
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemBaryNgeo, Elem_xGP_Shared,ElemsJ
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemToElemMapping,ElemToElemInfo
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemBaryNgeo,Elem_xGP_Shared,ElemsJ
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo,ElemToElemMapping,ElemToElemInfo
 USE MOD_Preproc
-USE MOD_Mesh_Tools         ,ONLY: GetCNElemID, GetGlobalElemID
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID,GetGlobalElemID
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
 USE MOD_Particle_Vars      ,ONLY: PEM
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
