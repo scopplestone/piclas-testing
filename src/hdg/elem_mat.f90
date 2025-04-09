@@ -299,7 +299,7 @@ DO iElem=1,PP_nElems
       IF (BC(iSide).GT.0)THEN
         BCType = BoundaryType(BC(iSide),BC_TYPE)
         IF (BCType.EQ.30) THEN ! Distributed Capacitance
-          fac = (Tau(iElem) + eps0 * DCPermittivity / DCThickness)
+          fac = (Tau(iElem) + DCPermittivity / DCThickness)
         END IF
       END IF
       IF(Nloc.EQ.NSideMax)THEN
@@ -307,7 +307,7 @@ DO iElem=1,PP_nElems
       ELSE
         Fdiag_i = - fac*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(iSide)%SurfElemMin(p,q)
       END IF
-      HDG_Vol_N(iElem)%Smat(i,i,jLocSide,jLocSide) = HDG_Vol_N(iElem)%Smat(i,i,jLocSide,jLocSide) -Fdiag_i
+      HDG_Vol_N(iElem)%Smat(i,i,jLocSide,jLocSide) = HDG_Vol_N(iElem)%Smat(i,i,jLocSide,jLocSide) - Fdiag_i
     END DO; END DO !p,q
 
     ! off-diagonal terms
