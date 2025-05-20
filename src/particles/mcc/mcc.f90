@@ -49,7 +49,7 @@ SUBROUTINE MonteCarloCollision(iElem)
 USE MOD_Globals
 USE MOD_Globals_Vars
 ! VARIABLES
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartIntEn, DSMC
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMCSumOfFormedParticles, PolyatomMolDSMC, VibQuantsPar
 USE MOD_MCC_Vars                ,ONLY: SpecXSec, XSec_NullCollision
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
@@ -166,7 +166,10 @@ DO iLoop = 1, nPart
   ! Sum of the particle weights (in case the particle is split later, the sum of the weights remains constant and is equal to this greater weight added here)
   CollInf%Coll_SpecPartNum(iSpec) = CollInf%Coll_SpecPartNum(iSpec) + MPF
   ! Calculation of mean vibrational energy per cell and iter, necessary for dissociation probability
-  IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) + PartStateIntEn(1,iPart) * MPF
+  IF (CollisMode.EQ.3) THEN
+    IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) &
+      ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) + PartIntEn(iPart)%EVib(1) * MPF
+  END IF
   ! Create species-specific particle index list for cross-section based pairing
   iPartIndexSpec(SpecPartNum(iSpec),iSpec) = iPart
 END DO
@@ -299,13 +302,22 @@ DO iSpec = 1, nSpecies
               PartState(1:6,PartIndex) = PartStateSplit(1:6)
               IF(TrackingMethod.EQ.REFMAPPING) PartPosRef(1:3,PartIndex)=PartPosRefSplit(1:3)
               IF(CollisMode.GT.1) THEN
-                PartStateIntEn(1:2,PartIndex) = PartStateIntSplit(1:2)
+                IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
+                  ALLOCATE(PartIntEn(PartIndex)%EVib(1), PartIntEn(PartIndex)%ERot(1))
+                  PartIntEn(PartIndex)%EVib = PartStateIntSplit(1)
+                  PartIntEn(PartIndex)%ERot = PartStateIntSplit(2)
+                END IF
                 IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
                   IF(ALLOCATED(VibQuantsPar(PartIndex)%Quants)) DEALLOCATE(VibQuantsPar(PartIndex)%Quants)
                   ALLOCATE(VibQuantsPar(PartIndex)%Quants(PolyatomMolDSMC(SpecDSMC(iSpec)%SpecToPolyArray)%VibDOF))
                   VibQuantsPar(PartIndex)%Quants(:) = VibQuantsParSplit(:)
                 END IF
-                IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,PartIndex) = PartStateIntSplit(3)
+                IF(DSMC%ElectronicModel.GT.0) THEN
+                  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+                    ALLOCATE(PartIntEn(PartIndex)%EElec(1))
+                    PartIntEn(PartIndex)%EElec = PartStateIntSplit(3)
+                  END IF
+                END IF
               END IF
               ! Set global element indices
               PEM%GlobalElemID(PartIndex)     = GlobalElemID
@@ -345,12 +357,18 @@ DO iSpec = 1, nSpecies
             PartStateSplit(1:6) = PartState(1:6,PartIndex)
             IF(TrackingMethod.EQ.REFMAPPING) PartPosRefSplit(1:3) = PartPosRef(1:3,PartIndex)
             IF(CollisMode.GT.1) THEN
-              PartStateIntSplit(1:2) = PartStateIntEn(1:2,PartIndex)
+              IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
+                PartStateIntSplit(1) = PartIntEn(PartIndex)%EVib(1)
+                PartStateIntSplit(2) = PartIntEn(PartIndex)%ERot(1)
+              END IF
               IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
                 ALLOCATE(VibQuantsParSplit(PolyatomMolDSMC(SpecDSMC(iSpec)%SpecToPolyArray)%VibDOF))
                 VibQuantsParSplit(:) = VibQuantsPar(PartIndex)%Quants(:)
               END IF ! SpecDSMC(iSpec)%PolyatomicMol
-              IF(DSMC%ElectronicModel.GT.0) PartStateIntSplit(3) = PartStateIntEn(3,PartIndex)
+              IF(DSMC%ElectronicModel.GT.0) THEN
+                IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) &
+                  PartStateIntSplit(3) = PartIntEn(PartIndex)%EElec(1)
+              END IF
             END IF ! CollisMode.GT.1
             IF(UseVarTimeStep) PartTimeStepSplit = PartTimeStep(PartIndex)
             ! Set the new MPF based on the actual number of split particles
@@ -637,7 +655,7 @@ SUBROUTINE MCC_CalcReactionProb(iCase,bgSpec,CRela2,CollEnergy_in,PartIndex,bggP
 ! MODULES
 USE MOD_Globals_Vars          ,ONLY: RelativisticLimit
 USE MOD_Particle_Vars         ,ONLY: Species, PartSpecies, VarTimeStep
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, BGGas, ChemReac, DSMC, PartStateIntEn, CollInf
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, BGGas, ChemReac, DSMC, PartIntEn, CollInf
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_Particle_Vars         ,ONLY: Species
 USE MOD_TimeDisc_Vars         ,ONLY: dt
@@ -650,7 +668,7 @@ INTEGER,INTENT(IN)            :: iCase,bgSpec,PartIndex,bggPartIndex,iElem
 REAL,INTENT(IN)               :: CRela2, CollEnergy_in
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: jSpec, iPath, ReacTest, EductReac(1:3), ProductReac(1:4), iProd
+INTEGER                       :: jSpec, iPath, ReacTest, EductReac(1:3), ProductReac(1:4), iProd, iSpec
 INTEGER                       :: NumWeightProd
 REAL                          :: EZeroPoint_Educt, EZeroPoint_Prod, CollEnergy, CollEnergyNonRela
 REAL                          :: CrossSection, dtVar
@@ -659,7 +677,7 @@ REAL                          :: Temp_Rot, Temp_Vib, Temp_Elec, BGGasNumDens, BG
 NumWeightProd = 2
 
 jSpec = BGGas%MapBGSpecToSpec(bgSpec)
-
+iSpec = PartSpecies(PartIndex)
 ! Set the time step in case of species-specific time stepping
 IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
   dtVar = dt * Species(PartSpecies(PartIndex))%TimeStepFactor
@@ -694,9 +712,12 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       END IF
     END DO
     ! Adding the internal energy of particle species (relative translational energy is added at the end)
-    CollEnergy = PartStateIntEn(1,PartIndex) + PartStateIntEn(2,PartIndex)
+    IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
+      CollEnergy = PartIntEn(PartIndex)%EVib(1) + PartIntEn(PartIndex)%ERot(1)
+    END IF
     ! Internal energy of background species
     IF((Species(jSpec)%InterID.EQ.2).OR.(Species(jSpec)%InterID.EQ.20)) THEN
+      IF (.NOT.ALLOCATED(PartIntEn(bggPartIndex)%EVib)) ALLOCATE(PartIntEn(bggPartIndex)%EVib(1), PartIntEn(bggPartIndex)%ERot(1))
       IF(BGGas%UseDistribution) THEN
         Temp_Vib   = BGGas%Distribution(bgSpec,8,iElem)
         Temp_Rot   = BGGas%Distribution(bgSpec,9,iElem)
@@ -704,18 +725,23 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
         Temp_Vib   = SpecDSMC(jSpec)%Init(1)%TVib
         Temp_Rot   = SpecDSMC(jSpec)%Init(1)%TRot
       END IF
-      PartStateIntEn(1,bggPartIndex) = CalcEVib_particle(jSpec,Temp_Vib,bggPartIndex)
-      PartStateIntEn(2,bggPartIndex) = CalcERot_particle(jSpec,Temp_Rot)
-      CollEnergy = CollEnergy + PartStateIntEn(1,bggPartIndex) + PartStateIntEn(2,bggPartIndex)
+      PartIntEn(bggPartIndex)%EVib = CalcEVib_particle(jSpec,Temp_Vib,bggPartIndex)
+      PartIntEn(bggPartIndex)%ERot = CalcERot_particle(jSpec,Temp_Rot)
+      CollEnergy = CollEnergy + PartIntEn(bggPartIndex)%EVib(1) + PartIntEn(bggPartIndex)%ERot(1)
     END IF
-    IF ((DSMC%ElectronicModel.GT.0).AND.(.NOT.SpecDSMC(jSpec)%FullyIonized)) THEN
-      IF(BGGas%UseDistribution) THEN
-        Temp_Elec = BGGas%Distribution(bgSpec,10,iElem)
-      ELSE
-        Temp_Elec = SpecDSMC(jSpec)%Init(1)%TElec
+    IF (DSMC%ElectronicModel.GT.0)THEN 
+      IF ((.NOT.SpecDSMC(jSpec)%FullyIonized).AND.(Species(jSpec)%InterID.NE.4)) THEN
+        IF (.NOT.ALLOCATED(PartIntEn(bggPartIndex)%EElec)) ALLOCATE(PartIntEn(bggPartIndex)%EElec(1))
+        IF(BGGas%UseDistribution) THEN
+          Temp_Elec = BGGas%Distribution(bgSpec,10,iElem)
+        ELSE
+          Temp_Elec = SpecDSMC(jSpec)%Init(1)%TElec
+        END IF
+        PartIntEn(bggPartIndex)%EElec = CalcEElec_particle(jSpec,Temp_Elec,bggPartIndex)
+        CollEnergy = CollEnergy + PartIntEn(bggPartIndex)%EElec(1)
       END IF
-      PartStateIntEn(3,bggPartIndex) = CalcEElec_particle(jSpec,Temp_Elec,bggPartIndex)
-      CollEnergy = CollEnergy + PartStateIntEn(3,PartIndex) + PartStateIntEn(3,bggPartIndex)
+      IF ((.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.4)) &
+        CollEnergy = CollEnergy + PartIntEn(PartIndex)%EElec(1)
     END IF
     ! Work-around for relativistic energies: since the energy distribution after the reaction is not done relativistically yet,
     ! we have to check whether sufficient collision energy is available in the classical manner

@@ -40,7 +40,7 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,SampleType,SurfaceNormal_opt)
 ! MODULES
 USE MOD_Particle_Vars
 USE MOD_Globals                   ,ONLY: abort,DOTPRODUCT
-USE MOD_DSMC_Vars                 ,ONLY: useDSMC,PartStateIntEn
+USE MOD_DSMC_Vars                 ,ONLY: useDSMC,PartIntEn, SpecDSMC
 USE MOD_DSMC_Vars                 ,ONLY: CollisMode,DSMC,AmbipolElecVelo
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact,SWIVarTimeStep
 USE MOD_part_tools                ,ONLY: GetParticleWeight
@@ -113,10 +113,12 @@ CASE ('old')
   IF(CalcSurfaceImpact) THEN
     IF (useDSMC) THEN
       IF (CollisMode.GT.1) THEN
-        EVib = PartStateIntEn(1,PartID)
-        ERot = PartStateIntEn(2,PartID)
+        IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
+          EVib = PartIntEn(PartID)%EVib(1)
+          ERot = PartIntEn(PartID)%ERot(1)
+        END IF
         IF(DSMC%ElectronicModel.GT.0) THEN
-          EElec = PartStateIntEn(3,PartID)
+          IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) EElec = PartIntEn(PartID)%EElec(1)
         END IF
       END IF
     END IF
@@ -160,13 +162,14 @@ IF (useDSMC) THEN
   IF (CollisMode.GT.1) THEN
     IF ((Species(SpecID)%InterID.EQ.2).OR.Species(SpecID)%InterID.EQ.20) THEN
       !----  Sampling the internal (rotational) energy accommodation at walls
-      SampWallState(ERotID ,SubP,SubQ,SurfSideID) = SampWallState(ERotID ,SubP,SubQ,SurfSideID) + PartStateIntEn(2,PartID) * MPF
+      SampWallState(ERotID ,SubP,SubQ,SurfSideID) = SampWallState(ERotID ,SubP,SubQ,SurfSideID) + PartIntEn(PartID)%ERot(1) * MPF
       !----  Sampling for internal (vibrational) energy accommodation at walls
-      SampWallState(EVibID ,SubP,SubQ,SurfSideID) = SampWallState(EVibID ,SubP,SubQ,SurfSideID) + PartStateIntEn(1,PartID) * MPF
+      SampWallState(EVibID ,SubP,SubQ,SurfSideID) = SampWallState(EVibID ,SubP,SubQ,SurfSideID) + PartIntEn(PartID)%EVib(1) * MPF
     END IF
     IF(DSMC%ElectronicModel.GT.0) THEN
       !----  Sampling for internal (electronic) energy accommodation at walls
-      SampWallState(EElecID ,SubP,SubQ,SurfSideID) = SampWallState(EElecID ,SubP,SubQ,SurfSideID) + PartStateIntEn(3,PartID) * MPF
+      IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) &
+        SampWallState(EElecID ,SubP,SubQ,SurfSideID) = SampWallState(EElecID ,SubP,SubQ,SurfSideID) + PartIntEn(PartID)%EElec(1) * MPF
     END IF
   END IF
 END IF

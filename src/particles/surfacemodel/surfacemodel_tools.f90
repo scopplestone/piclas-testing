@@ -586,13 +586,13 @@ END SUBROUTINE SurfaceModelParticleEmission
 
 SUBROUTINE SurfaceModelEnergyAccommodation(PartID,locBCID,WallTemp)
 !===================================================================================================================================
-!> Energy accommodation at the surface: Particle internal energies PartStateIntEn() are sampled at surface temperature
+!> Energy accommodation at the surface: Particle internal energies PartIntEn are sampled at surface temperature
 !===================================================================================================================================
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, PolyatomMolDSMC, useDSMC
-USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
+USE MOD_DSMC_Vars             ,ONLY: PartIntEn, SpecDSMC, DSMC, VibQuantsPar
 USE MOD_DSMC_ElectronicModel  ,ONLY: RelaxElectronicShellWall
 #if (PP_TimeDiscMethod==400)
 USE MOD_BGK_Vars              ,ONLY: BGKDoVibRelaxation
@@ -647,9 +647,9 @@ IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
     END DO
     ErotWall = ErotWall*BoltzmannConst*WallTemp
   END IF
-  ErotNew  = PartStateIntEn(2,PartID) + RotACC *(ErotWall - PartStateIntEn(2,PartID))
+  ErotNew  = PartIntEn(PartID)%ERot(1) + RotACC *(ErotWall - PartIntEn(PartID)%ERot(1))
 
-  PartStateIntEn(2,PartID) = ErotNew
+  PartIntEn(PartID)%ERot = ErotNew
 
 #if (PP_TimeDiscMethod==400)
   IF (BGKDoVibRelaxation) THEN
@@ -681,7 +681,7 @@ IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
         END IF
       END DO
     ELSE
-      VibQuant     = NINT(PartStateIntEn(1,PartID)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) - DSMC%GammaQuant)
+      VibQuant     = NINT(PartIntEn(PartID)%EVib(1)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) - DSMC%GammaQuant)
       CALL RANDOM_NUMBER(RanNum)
       VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
       DO WHILE (VibQuantWall.GE.SpecDSMC(SpecID)%MaxVibQuant)
@@ -699,7 +699,7 @@ IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
     END IF
 
     IF(SpecDSMC(SpecID)%PolyatomicMol) VibQuantsPar(PartID)%Quants(:) = VibQuantTemp(:)
-    PartStateIntEn(1,PartID) = EvibNew
+    PartIntEn(PartID)%EVib = EvibNew
 #if (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==300)
   END IF ! FPDoVibRelaxation || BGKDoVibRelaxation
 #endif
@@ -709,7 +709,7 @@ IF (DSMC%ElectronicModel.GT.0) THEN
   IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
     CALL RANDOM_NUMBER(RanNum)
     IF (RanNum.LT.ElecACC) THEN
-      PartStateIntEn(3,PartID) = RelaxElectronicShellWall(PartID, WallTemp)
+      PartIntEn(PartID)%EElec = RelaxElectronicShellWall(PartID, WallTemp)
     END IF
   END IF
 END IF

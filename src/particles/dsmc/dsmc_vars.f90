@@ -51,8 +51,17 @@ INTEGER                       :: SelectionProc              ! Mode of Selection 
 INTEGER                       :: PairE_vMPF(2)              ! 1: Pair chosen for energy redistribution
                                                             ! 2: partical with minimal MPF of this Pair
 LOGICAL                       :: useDSMC
-REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! 1st index: 1:npartmax
-!                                                           ! 2nd index: Evib, Erot, Eel
+
+TYPE tPartIntEn
+  REAL, ALLOCATABLE           :: EVib(:)
+  REAL, ALLOCATABLE           :: ERot(:)  
+  REAL, ALLOCATABLE           :: EElec(:)  
+  INTEGER, ALLOCATABLE        :: QuantVib(:)
+  INTEGER, ALLOCATABLE        :: QuantRot(:)  
+  INTEGER, ALLOCATABLE        :: QuantElec(:)  
+END TYPE tPartIntEn
+
+TYPE(tPartIntEn), ALLOCATABLE :: PartIntEn(:)        
 
 LOGICAL                       :: useRelaxProbCorrFactor     ! Use the relaxation probability correction factor of Lumpkin
 
@@ -132,7 +141,7 @@ TYPE tClonedParticles
   ! Clone Delay: Clones are inserted at the next time step
   INTEGER                     :: Species
   REAL                        :: PartState(1:6)
-  REAL                        :: PartStateIntEn(1:3)
+  TYPE(tPartIntEn)            :: PartIntEn
   INTEGER                     :: Element
   REAL                        :: LastPartPos(1:3)
   REAL                        :: WeightingFactor

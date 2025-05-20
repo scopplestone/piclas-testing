@@ -45,7 +45,7 @@ USE MOD_PreProc
 USE MOD_Particle_Readin
 USE MOD_Particle_Restart_Vars
 ! DSMC
-USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,PartStateIntEn,DSMC,VibQuantsPar,PolyatomMolDSMC,SpecDSMC
+USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,PartIntEn,DSMC,VibQuantsPar,PolyatomMolDSMC,SpecDSMC
 USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 ! Localization
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement,SinglePointToElement
@@ -179,11 +179,12 @@ IF(.NOT.DoMacroscopicRestart) THEN
         IF(useDSMC) THEN
           IF(CollisMode.GT.1) THEN
             IF(readVarFromState(1+iPos).AND.readVarFromState(2+iPos)) THEN
-              PartStateIntEn(1:2,iPart)=PartData(MapPartDataToReadin(1+iPos):MapPartDataToReadin(2+iPos),offsetnPart+iLoop)
+              IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
+                ALLOCATE(PartIntEn(iPart)%EVib(1), PartIntEn(iPart)%ERot(1))
+                PartIntEn(iPart)%EVib = PartData(MapPartDataToReadin(1+iPos),offsetnPart+iLoop)
+                PartIntEn(iPart)%ERot = PartData(MapPartDataToReadin(2+iPos),offsetnPart+iLoop)
+              END IF
               iPos=iPos+2
-            ELSE IF((Species(SpecID)%InterID.EQ.1).OR.(Species(SpecID)%InterID.EQ.10).OR.(Species(SpecID)%InterID.EQ.15)) THEN
-              !- setting inner DOF to 0 for atoms
-              PartStateIntEn(1:2,iPart) = 0.
             ELSE
               IPWRITE(UNIT_StdOut,*) "Species(PartSpecies(iPart))%InterID =", Species(PartSpecies(iPart))%InterID
               IPWRITE(UNIT_StdOut,*) "SpecID =", SpecID
@@ -191,7 +192,10 @@ IF(.NOT.DoMacroscopicRestart) THEN
               CALL Abort(__STAMP__,"resetting inner DOF for molecules is not implemented yet!")
             END IF ! readVarFromState
             IF(DSMC%ElectronicModel.GT.0) THEN
-              PartStateIntEn(3,iPart)=PartData(MapPartDataToReadin(1+iPos),offsetnPart+iLoop)
+              IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+                ALLOCATE(PartIntEn(iPart)%EElec(1))
+                PartIntEn(iPart)%EElec=PartData(MapPartDataToReadin(1+iPos),offsetnPart+iLoop)
+              END IF
               iPos=iPos+1
             END IF
           END IF
@@ -506,6 +510,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
         IF (.NOT.PDM%ParticleInside(iPart)) THEN
           RecBuff(1:6,NbrOfMissingParticles) = PartState(1:6,iPart)
           RecBuff(7,NbrOfMissingParticles)   = REAL(PartSpecies(iPart))
+          SpecID = PartSpecies(iPart)
           iPos=7
           ! Rotational frame of reference
           IF(UseRotRefFrame) THEN
@@ -514,10 +519,19 @@ IF(.NOT.DoMacroscopicRestart) THEN
           END IF
           IF (useDSMC) THEN
             IF (CollisMode.GT.1) THEN
-              RecBuff(1+iPos:2+iPos,NbrOfMissingParticles)  = PartStateIntEn(1:2,iPart)
+              IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
+                RecBuff(1+iPos,NbrOfMissingParticles)  = PartIntEn(iPart)%EVib(1)
+                RecBuff(2+iPos,NbrOfMissingParticles)  = PartIntEn(iPart)%ERot(1)
+              ELSE
+                RecBuff(1+iPos:2+iPos,NbrOfMissingParticles)  = 0.
+              END IF
               iPos=iPos+2
               IF(DSMC%ElectronicModel.GT.0) THEN
-                RecBuff(1+iPos,NbrOfMissingParticles) = PartStateIntEn(3,iPart)
+                IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+                  RecBuff(1+iPos,NbrOfMissingParticles) = PartIntEn(iPart)%EElec(1)
+                ELSE
+                  RecBuff(1+iPos,NbrOfMissingParticles) = 0.
+                END IF
                 iPos=iPos+1
               END IF
             END IF
@@ -655,6 +669,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
 
           ! Set particle properties (if the particle is lost, it's properties are written to a .h5 file)
           PartSpecies(CurrentPartNum) = INT(RecBuff(7,iPart))
+          SpecID = PartSpecies(CurrentPartNum)
           iPos = 7
           ! Rotational frame of reference
           IF(UseRotRefFrame) THEN
@@ -669,10 +684,17 @@ IF(.NOT.DoMacroscopicRestart) THEN
           ! DSMC-specific variables
           IF (useDSMC) THEN
             IF (CollisMode.GT.1) THEN
-              PartStateIntEn(1:2,CurrentPartNum) = RecBuff(1+iPos:2+iPos,iPart)
+              IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN          
+                IF (.NOT.ALLOCATED(PartIntEn(CurrentPartNum)%EVib)) ALLOCATE(PartIntEn(CurrentPartNum)%EVib(1), PartIntEn(CurrentPartNum)%ERot(1))
+                PartIntEn(CurrentPartNum)%EVib = RecBuff(1+iPos,iPart)
+                PartIntEn(CurrentPartNum)%ERot = RecBuff(2+iPos,iPart)
+              END IF
               iPos = iPos + 2
               IF(DSMC%ElectronicModel.GT.0) THEN
-                PartStateIntEn(3,CurrentPartNum) = RecBuff(1+iPos,iPart)
+                IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+                  IF (.NOT.ALLOCATED(PartIntEn(CurrentPartNum)%EElec)) ALLOCATE(PartIntEn(CurrentPartNum)%EElec(1))
+                  PartIntEn(CurrentPartNum)%EElec = RecBuff(1+iPos,iPart)
+                END IF
                 iPos = iPos + 1
               END IF
             END IF
@@ -721,7 +743,6 @@ IF(.NOT.DoMacroscopicRestart) THEN
 
           CurrentPartNum = CurrentPartNum + 1
         ELSE ! Lost
-          PDM%ParticleInside(iPart)=.FALSE.
           IndexOfFoundParticles(iPart) = 0
         END IF
 

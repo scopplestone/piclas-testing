@@ -42,8 +42,8 @@ SUBROUTINE CreateParticle(SpecID,Pos,GlobElemID,LastGlobalElemID,Velocity,RotEne
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies,PartPosRef, Species, usevMPF, PartMPF
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, PartVeloRotRef, RotRefFrameOmega, UseRotRefFrame, InRotRefFrame
-USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
-USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC, PartIntEn, DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
+USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, SpecDSMC
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF
@@ -82,10 +82,16 @@ IF(TrackingMethod.EQ.REFMAPPING)THEN
 END IF ! TrackingMethod.EQ.REFMAPPING
 
 IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-  PartStateIntEn(1,newParticleID) = VibEnergy
-  PartStateIntEn(2,newParticleID) = RotEnergy
+  IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
+    ALLOCATE(PartIntEn(newParticleID)%EVib(1), PartIntEn(newParticleID)%ERot(1))
+    PartIntEn(newParticleID)%EVib = VibEnergy
+    PartIntEn(newParticleID)%ERot = RotEnergy
+  END IF
   IF (DSMC%ElectronicModel.GT.0) THEN
-    PartStateIntEn(3,newParticleID) = ElecEnergy
+    IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+      ALLOCATE(PartIntEn(newParticleID)%EElec(1))
+      PartIntEn(newParticleID)%EElec = ElecEnergy
+    END IF
   ENDIF
   IF (DSMC%DoAmbipolarDiff) THEN
     newAmbiParts = newAmbiParts + 1

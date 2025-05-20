@@ -946,10 +946,17 @@ IF(ClonePartNum.GT.0) THEN
         iPos = 9
         IF(UseDSMC) THEN
           IF(CollisMode.GT.1) THEN
-            ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(1:2) = CloneData(1+iPos:2+iPos,iPart)
+            IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
+              ALLOCATE(ClonedParticles(pcount(iDelay),iDelay)%PartIntEn%EVib(1), ClonedParticles(pcount(iDelay),iDelay)%PartIntEn%ERot(1))
+              ClonedParticles(pcount(iDelay),iDelay)%PartIntEn%EVib(1) = CloneData(1+iPos,iPart)
+              ClonedParticles(pcount(iDelay),iDelay)%PartIntEn%ERot(1) = CloneData(2+iPos,iPart)
+            END IF
             iPos = iPos + 2
             IF(DSMC%ElectronicModel.GT.0) THEN
-              ClonedParticles(pcount(iDelay),iDelay)%PartStateIntEn(3)= CloneData(1+iPos,iPart)
+              IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+                ALLOCATE(ClonedParticles(pcount(iDelay),iDelay)%PartIntEn%EElec(1))
+                ClonedParticles(pcount(iDelay),iDelay)%PartIntEn%EElec(1)= CloneData(1+iPos,iPart)
+              END IF
               iPos = iPos + 1
             END IF
           END IF

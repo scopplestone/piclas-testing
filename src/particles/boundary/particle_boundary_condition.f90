@@ -499,7 +499,7 @@ USE MOD_part_tools              ,ONLY: StoreLostParticleProperties
 USE MOD_Particle_Tracking_Vars  ,ONLY: NbrOfLostParticles, TrackInfo, CountNbrOfLostParts,DisplayLostParticles
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_part_operations         ,ONLY: CreateParticle, RemoveParticle
-USE MOD_DSMC_Vars               ,ONLY: CollisMode, useDSMC, PartStateIntEn
+USE MOD_DSMC_Vars               ,ONLY: CollisMode, useDSMC, PartIntEn, SpecDSMC
 USE MOD_Particle_Vars           ,ONLY: PDM,InterPlanePartNumber, InterPlanePartIndx
 USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame, InRotRefFrame, RotRefFrameOmega, PartVeloRotRef, LastPartVeloRotRef
 USE MOD_part_tools              ,ONLY: RotateVectorAroundAxis
@@ -582,10 +582,18 @@ IF(DoCreateParticles) THEN
       SpecID = PartSpecies(PartID)
       NewVelo(1:3) = PartState(4:6,PartID)
       IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-        VibEnergy = PartStateIntEn(1,PartID)
-        RotEnergy = PartStateIntEn(2,PartID)
+        IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
+          VibEnergy = PartIntEn(PartID)%EVib(1)
+          RotEnergy = PartIntEn(PartID)%ERot(1)
+        ELSE
+          VibEnergy = 0.0; RotEnergy = 0.0
+        END IF
         IF (DSMC%ElectronicModel.GT.0) THEN
-          ElecEnergy = PartStateIntEn(3,PartID)
+          IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+            ElecEnergy = PartIntEn(PartID)%EElec(1)
+          ELSE
+            ElecEnergy = 0.0
+          END IF
         ELSE
           ElecEnergy = 0.0
         ENDIF

@@ -42,7 +42,7 @@ SUBROUTINE AdjustParticleWeight(iPart,iElem)
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
-USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting, DSMC, PartStateIntEn, useDSMC, CollisMode, AmbipolElecVelo
+USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting, DSMC, PartIntEn, useDSMC, CollisMode, AmbipolElecVelo
 USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, VibQuantsPar, SpecDSMC, PolyatomMolDSMC, ElectronicDistriPart
 USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting
 USE MOD_Particle_Vars           ,ONLY: PartMPF, PartSpecies, PartState, Species, LastPartPos
@@ -113,14 +113,21 @@ IF(DoCloning) THEN
   cloneIndex = ParticleWeighting%ClonePartNum(DelayCounter)
   ClonedParticles(cloneIndex,DelayCounter)%PartState(1:6)= PartState(1:6,iPart)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-    ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(1:2) = PartStateIntEn(1:2,iPart)
+    IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
+      ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%PartIntEn%EVib(1), ClonedParticles(cloneIndex,DelayCounter)%PartIntEn%ERot(1))
+      ClonedParticles(cloneIndex,DelayCounter)%PartIntEn%EVib = PartIntEn(iPart)%EVib
+      ClonedParticles(cloneIndex,DelayCounter)%PartIntEn%ERot = PartIntEn(iPart)%Erot
+    END IF
     IF(DSMC%ElectronicModel.GT.0) THEN
-      ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(3) =   PartStateIntEn(3,iPart)
-      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((Species(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized))) THEN
-        IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)) &
-          DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)
-        ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(1:SpecDSMC(SpecID)%MaxElecQuant))
-        ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(:) = ElectronicDistriPart(iPart)%DistriFunc(:)
+      IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+        ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%PartIntEn%EElec(1))
+        ClonedParticles(cloneIndex,DelayCounter)%PartIntEn%EElec = PartIntEn(iPart)%EElec
+        IF (DSMC%ElectronicModel.EQ.2) THEN
+          IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)) &
+            DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)
+          ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(1:SpecDSMC(SpecID)%MaxElecQuant))
+          ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(:) = ElectronicDistriPart(iPart)%DistriFunc(:)
+        END IF
       END IF
     END IF
     IF ((DSMC%DoAmbipolarDiff).AND.(Species(SpecID)%ChargeIC.GT.0.0)) THEN
@@ -174,7 +181,7 @@ SUBROUTINE SetInClones()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, PartStateIntEn, useDSMC, CollisMode, DSMC, ParticleWeighting
+USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, PartIntEn, useDSMC, CollisMode, DSMC, ParticleWeighting
 USE MOD_DSMC_Vars               ,ONLY: AmbipolElecVelo, DoRadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive, ElectronicDistriPart
 USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, Species
@@ -191,7 +198,7 @@ USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iPart, PositionNbr, iPolyatMole, DelayCounter, locElemID
+INTEGER                         :: iPart, PositionNbr, iPolyatMole, DelayCounter, locElemID, SpecID
 REAL                            :: iRan
 !===================================================================================================================================
 
@@ -235,15 +242,26 @@ DO iPart = 1, ParticleWeighting%ClonePartNum(DelayCounter)
   ELSE
     PartState(6,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartState(6)
   END IF
+  PartSpecies(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Species
+  SpecID = PartSpecies(PositionNbr)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-    PartStateIntEn(1:2,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
+    IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
+      ALLOCATE(PartIntEn(iPart)%EVib(1), PartIntEn(iPart)%ERot(1))
+      PartIntEn(iPart)%EVib = ClonedParticles(iPart,DelayCounter)%PartIntEn%EVib
+      PartIntEn(iPart)%ERot = ClonedParticles(iPart,DelayCounter)%PartIntEn%ERot
+      DEALLOCATE(ClonedParticles(iPart,DelayCounter)%PartIntEn%EVib, ClonedParticles(iPart,DelayCounter)%PartIntEn%ERot)
+    END IF
     IF(DSMC%ElectronicModel.GT.0) THEN
-      PartStateIntEn(3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
-      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((Species(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) &
-          .OR.SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%FullyIonized))) THEN
-        IF(ALLOCATED(ElectronicDistriPart(PositionNbr)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc)
-        ALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc(1:SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%MaxElecQuant))
-        ElectronicDistriPart(PositionNbr)%DistriFunc(:) = ClonedParticles(iPart,DelayCounter)%DistriFunc(:)
+      IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+        ALLOCATE(PartIntEn(iPart)%EElec(1))
+        PartIntEn(iPart)%EElec = ClonedParticles(iPart,DelayCounter)%PartIntEn%EElec
+        DEALLOCATE(ClonedParticles(iPart,DelayCounter)%PartIntEn%EElec)
+        IF (DSMC%ElectronicModel.EQ.2) THEN
+          IF(ALLOCATED(ElectronicDistriPart(PositionNbr)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc)
+          ALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc(1:SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%MaxElecQuant))
+          ElectronicDistriPart(PositionNbr)%DistriFunc(:) = ClonedParticles(iPart,DelayCounter)%DistriFunc(:)
+          DEALLOCATE(ClonedParticles(iPart,DelayCounter)%PartIntEn%EElec)
+        END IF
       END IF
     END IF
     IF ((DSMC%DoAmbipolarDiff).AND.(Species(ClonedParticles(iPart,DelayCounter)%Species)%ChargeIC.GT.0.0)) THEN
@@ -263,8 +281,7 @@ DO iPart = 1, ParticleWeighting%ClonePartNum(DelayCounter)
       ALLOCATE(VibQuantsPar(PositionNbr)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
       VibQuantsPar(PositionNbr)%Quants(:) = ClonedParticles(iPart,DelayCounter)%VibQuants(:)
     END IF
-  END IF
-  PartSpecies(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Species
+  END IF  
   ! Set the global element number with the offset
   PEM%GlobalElemID(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Element
   PEM%LastGlobalElemID(PositionNbr) = PEM%GlobalElemID(PositionNbr)
@@ -433,7 +450,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: NewSize,i,ii,ALLOCSTAT
+INTEGER                              :: NewSize,i,ii,ALLOCSTAT, SpecID
 TYPE (tClonedParticles), ALLOCATABLE :: ClonedParticles_new(:,:)
 !===================================================================================================================================
 NewSize = MAX(CEILING(ParticleWeighting%CloneVecLength * (1+PDM%MaxPartNumIncrease)),ParticleWeighting%CloneVecLength+ParticleWeighting%CloneVecLengthDelta)
@@ -446,13 +463,15 @@ CASE(1)
     DO i=1,ParticleWeighting%ClonePartNum(ii)
       ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
       ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
-      ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
       ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
       ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
       ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
       CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
       CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
       CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
+      CALL MOVE_ALLOC(ClonedParticles(i,ii)%PartIntEn%EVib,ClonedParticles_new(i,ii)%PartIntEn%EVib)
+      CALL MOVE_ALLOC(ClonedParticles(i,ii)%PartIntEn%ERot,ClonedParticles_new(i,ii)%PartIntEn%ERot)
+      CALL MOVE_ALLOC(ClonedParticles(i,ii)%PartIntEn%EElec,ClonedParticles_new(i,ii)%PartIntEn%EElec)
     END DO
   END DO
   DEALLOCATE(ClonedParticles)
@@ -464,13 +483,15 @@ CASE(2)
     DO i=1,ParticleWeighting%ClonePartNum(ii)
       ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
       ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
-      ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
       ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
       ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
       ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
       CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
       CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
       CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
+      CALL MOVE_ALLOC(ClonedParticles(i,ii)%PartIntEn%EVib,ClonedParticles_new(i,ii)%PartIntEn%EVib)
+      CALL MOVE_ALLOC(ClonedParticles(i,ii)%PartIntEn%ERot,ClonedParticles_new(i,ii)%PartIntEn%ERot)
+      CALL MOVE_ALLOC(ClonedParticles(i,ii)%PartIntEn%EElec,ClonedParticles_new(i,ii)%PartIntEn%EElec)
     END DO
   END DO
   DEALLOCATE(ClonedParticles)
@@ -518,13 +539,15 @@ CASE(1)
     DO i=1,ParticleWeighting%ClonePartNum(ii)
       ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
       ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
-      ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
       ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
       ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
       ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
       CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
       CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
       CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
+      CALL MOVE_ALLOC(ClonedParticles(i,ii)%PartIntEn%EVib,ClonedParticles_new(i,ii)%PartIntEn%EVib)
+      CALL MOVE_ALLOC(ClonedParticles(i,ii)%PartIntEn%ERot,ClonedParticles_new(i,ii)%PartIntEn%ERot)
+      CALL MOVE_ALLOC(ClonedParticles(i,ii)%PartIntEn%EElec,ClonedParticles_new(i,ii)%PartIntEn%EElec)
     END DO
   END DO
   DEALLOCATE(ClonedParticles)
@@ -536,13 +559,15 @@ CASE(2)
     DO i=1,ParticleWeighting%ClonePartNum(ii)
       ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
       ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
-      ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
       ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
       ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
       ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
       CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
       CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
       CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
+      CALL MOVE_ALLOC(ClonedParticles(i,ii)%PartIntEn%EVib,ClonedParticles_new(i,ii)%PartIntEn%EVib)
+      CALL MOVE_ALLOC(ClonedParticles(i,ii)%PartIntEn%ERot,ClonedParticles_new(i,ii)%PartIntEn%ERot)
+      CALL MOVE_ALLOC(ClonedParticles(i,ii)%PartIntEn%EElec,ClonedParticles_new(i,ii)%PartIntEn%EElec)
     END DO
   END DO
   DEALLOCATE(ClonedParticles)

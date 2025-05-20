@@ -39,7 +39,7 @@ SUBROUTINE DSMC_SetInternalEnr_Diatomic(iSpec, iPart, TRot, TVib)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn, SpecDSMC, DSMC
+USE MOD_DSMC_Vars               ,ONLY: PartIntEn, SpecDSMC, DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -53,8 +53,6 @@ REAL, INTENT(IN)                :: TRot, TVib
 REAL                            :: iRan
 INTEGER                         :: iQuant
 !===================================================================================================================================
-! Nullify energy for atomic species
-PartStateIntEn(1:2,iPart) = 0
 ! Set vibrational energy
 CALL RANDOM_NUMBER(iRan)
 iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpec)%CharaTVib)
@@ -62,10 +60,10 @@ DO WHILE (iQuant.GE.SpecDSMC(iSpec)%MaxVibQuant)
   CALL RANDOM_NUMBER(iRan)
   iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpec)%CharaTVib)
 END DO
-PartStateIntEn( 1,iPart) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
+PartIntEn(iPart)%EVib = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
 ! Set rotational energy
 CALL RANDOM_NUMBER(iRan)
-PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan)
+PartIntEn(iPart)%ERot = -BoltzmannConst*TRot*LOG(iRan)
 
 END SUBROUTINE DSMC_SetInternalEnr_Diatomic
 
@@ -75,7 +73,7 @@ SUBROUTINE DSMC_VibRelaxDiatomic(iPair, iPart, FakXi)
 ! Performs the vibrational relaxation of diatomic molecules
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, PartStateIntEn, Coll_pData
+USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, PartIntEn, Coll_pData
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, UseVarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -110,7 +108,7 @@ DO WHILE (iRan.GT.(1 - REAL(iQua)/REAL(MaxColQua))**FakXi)
   CALL RANDOM_NUMBER(iRan)
 END DO
 
-PartStateIntEn(1,iPart) = (iQua + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(PartSpecies(iPart))%CharaTVib
+PartIntEn(iPart)%EVib = (iQua + DSMC%GammaQuant) * BoltzmannConst * SpecDSMC(PartSpecies(iPart))%CharaTVib
 
 END SUBROUTINE DSMC_VibRelaxDiatomic
 
@@ -344,7 +342,7 @@ USE MOD_Globals            ,ONLY: Abort
 USE MOD_Globals_Vars       ,ONLY: Pi, BoltzmannConst
 USE MOD_Particle_Vars      ,ONLY: UseVarTimeStep, usevMPF
 USE MOD_part_tools         ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars          ,ONLY: SpecDSMC, Coll_pData, PartStateIntEn, DSMC, useRelaxProbCorrFactor, CollInf
+USE MOD_DSMC_Vars          ,ONLY: SpecDSMC, Coll_pData, PartIntEn, DSMC, useRelaxProbCorrFactor, CollInf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -367,7 +365,7 @@ ELSE
 END IF
 
 RotDOF     = SpecDSMC(iSpec1)%Xi_Rot
-RotEn      = PartStateIntEn(2,iPart)
+RotEn      = PartIntEn(iPart)%ERot(1)
 ProbRot    = 0.
 ProbRotMax = 0.
 

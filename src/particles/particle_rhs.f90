@@ -788,7 +788,7 @@ SUBROUTINE CalcFlowParticleInteractionAndNewPartTemp(iPart,Pt,dtVar)
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: PartState, PEM, Species, PartSpecies, SkipGranularUpdate,ForceAverage
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, PI
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PartStateIntEn
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PartIntEn
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
@@ -806,7 +806,7 @@ REAL, INTENT(INOUT)           :: Pt(3)
 ! LOCAL VARIABLES
 INTEGER                  :: ElemID, nPart, locPart, iLoop, SpecID, SpecIDSolid, CNElemID
 REAL                     :: Energy, c_r_abs, ElemVolume
-REAL                     :: c_r(3), Force(3)
+REAL                     :: c_r(3), Force(3), e_rot
 !===================================================================================================================================
 Force = 0.0
 Energy = 0.0
@@ -825,13 +825,17 @@ DO iLoop = 1, nPart
   IF(Species(SpecID)%InterID.NE.100) THEN
     c_r = PartState(4:6,locPart) - PartState(4:6,iPart)
     c_r_abs = VECNORM(c_r)
+    IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
+      e_rot =  PartIntEn(locPart)%ERot(1)
+    ELSE
+      e_rot = 0.0
+    END IF
     ASSOCIATE(&
       R_p     =>  SpecDSMC(SpecIDSolid)%dref / 2.0 ,&
-      T_p     =>  PartStateIntEn( 1,iPart),&
+      T_p     =>  PartIntEn(iPart)%EVib(1),&
       W_g     =>  Species(SpecID)%MacroParticleFactor,&
       m_g     =>  Species(SpecID)%MassIC ,&
       tau_g   =>  SpecDSMC(SpecID)%ThermalACCGranularPart ,&
-      e_rot   =>  PartStateIntEn( 2,locPart) ,&
       Lambda  =>  SpecDSMC(SpecID)%Xi_Rot &
       )
       Force = Force + c_r * W_g * (PI * R_p * R_p) / ElemVolume &
@@ -847,7 +851,7 @@ END DO
 
 Pt(:) = Pt(:) + Force(:) / Species(SpecIDSolid)%MassIC
 IF(.NOT.SkipGranularUpdate) THEN
-  PartStateIntEn( 1,iPart) = PartStateIntEn( 1,iPart) + Energy * dtVar &
+  PartIntEn(iPart)%EVib = PartIntEn(iPart)%EVib + Energy * dtVar &
                             / ( SpecDSMC(SpecIDSolid)%SpecificHeatSolid * Species(SpecIDSolid)%MassIC )
 END IF
 

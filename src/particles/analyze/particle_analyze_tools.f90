@@ -1308,7 +1308,7 @@ SUBROUTINE CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, PDM, nSpecies, usevMPF
-USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC
+USE MOD_DSMC_Vars             ,ONLY: PartIntEn, SpecDSMC, DSMC
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -1338,11 +1338,13 @@ IntTemp(:,:) = 0.
 DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
     iSpec = PartSpecies(iPart)
-    EVib(iSpec) = EVib(iSpec) + PartStateIntEn(1,iPart) * GetParticleWeight(iPart)
-    ERot(iSpec) = ERot(iSpec) + PartStateIntEn(2,iPart) * GetParticleWeight(iPart)
+    IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
+      EVib(iSpec) = EVib(iSpec) + PartIntEn(iPart)%EVib(1) * GetParticleWeight(iPart)
+      ERot(iSpec) = ERot(iSpec) + PartIntEn(iPart)%ERot(1) * GetParticleWeight(iPart)
+    END IF
     IF (DSMC%ElectronicModel.GT.0) THEN
       IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
-        Eelec(iSpec) = Eelec(iSpec) + PartStateIntEn(3,iPart) * GetParticleWeight(iPart)
+        Eelec(iSpec) = Eelec(iSpec) + PartIntEn(iPart)%EElec(1) * GetParticleWeight(iPart)
       END IF
     END IF
   END IF

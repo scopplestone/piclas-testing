@@ -366,7 +366,7 @@ SUBROUTINE MPIParticleSend(UseOldVecLength)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_DSMC_Vars,               ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
+USE MOD_DSMC_Vars,               ONLY:useDSMC, CollisMode, DSMC, PartIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
 USE MOD_DSMC_Vars,               ONLY:ElectronicDistriPart, AmbipolElecVelo
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange,PartCommSize,PartSendBuf,PartRecvBuf,PartTargetProc!,PartHaloElemToProc
 USE MOD_Particle_MPI_Vars,       ONLY:nExchangeProcessors,ExchangeProcToGlobalProc
@@ -500,27 +500,55 @@ DO iProc=0,nExchangeProcessors-1
       !>> particle element
       PartSendBuf(iProc)%content(    1+jPos) = REAL(PEM%GlobalElemID(iPart),KIND=8)
       jPos=jPos+1
-
+      SpecID = PartSpecies(iPart)
       IF (useDSMC.AND.(CollisMode.GT.1)) THEN
         IF (usevMPF .AND. DSMC%ElectronicModel.GT.0) THEN
-          PartSendBuf(iProc)%content(1+jPos) = PartStateIntEn( 1,iPart)
-          PartSendBuf(iProc)%content(2+jPos) = PartStateIntEn( 2,iPart)
+          IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20).OR.(Species(SpecID)%InterID.EQ.100)) THEN
+            PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%EVib(1)
+            PartSendBuf(iProc)%content(2+jPos) = PartIntEn(iPart)%ERot(1)
+          ELSE
+            PartSendBuf(iProc)%content(1+jPos) = 0.0
+            PartSendBuf(iProc)%content(2+jPos) = 0.0
+          END IF
           PartSendBuf(iProc)%content(3+jPos) = PartMPF(iPart)
-          PartSendBuf(iProc)%content(4+jPos) = PartStateIntEn( 3,iPart)
+          IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+            PartSendBuf(iProc)%content(4+jPos) = PartIntEn(iPart)%EElec(1)
+          ELSE
+            PartSendBuf(iProc)%content(4+jPos) = 0.0
+          END IF
           jPos=jPos+4
         ELSE IF (usevMPF) THEN
-          PartSendBuf(iProc)%content(1+jPos) = PartStateIntEn( 1,iPart)
-          PartSendBuf(iProc)%content(2+jPos) = PartStateIntEn( 2,iPart)
+          IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20).OR.(Species(SpecID)%InterID.EQ.100)) THEN
+            PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%EVib(1)
+            PartSendBuf(iProc)%content(2+jPos) = PartIntEn(iPart)%ERot(1)
+          ELSE
+            PartSendBuf(iProc)%content(1+jPos) = 0.0
+            PartSendBuf(iProc)%content(2+jPos) = 0.0
+          END IF
           PartSendBuf(iProc)%content(3+jPos) = PartMPF(iPart)
           jPos=jPos+3
         ELSE IF (DSMC%ElectronicModel.GT.0) THEN
-          PartSendBuf(iProc)%content(1+jPos) = PartStateIntEn( 1,iPart)
-          PartSendBuf(iProc)%content(2+jPos) = PartStateIntEn( 2,iPart)
-          PartSendBuf(iProc)%content(3+jPos) = PartStateIntEn( 3,iPart)
+          IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20).OR.(Species(SpecID)%InterID.EQ.100)) THEN
+            PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%EVib(1)
+            PartSendBuf(iProc)%content(2+jPos) = PartIntEn(iPart)%ERot(1)
+          ELSE
+            PartSendBuf(iProc)%content(1+jPos) = 0.0
+            PartSendBuf(iProc)%content(2+jPos) = 0.0
+          END IF
+          IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+            PartSendBuf(iProc)%content(3+jPos) = PartIntEn(iPart)%EElec(1)
+          ELSE
+            PartSendBuf(iProc)%content(3+jPos) = 0.0
+          END IF
           jPos=jPos+3
         ELSE
-          PartSendBuf(iProc)%content(1+jPos) = PartStateIntEn( 1,iPart)
-          PartSendBuf(iProc)%content(2+jPos) = PartStateIntEn( 2,iPart)
+          IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20).OR.(Species(SpecID)%InterID.EQ.100)) THEN
+            PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%EVib(1)
+            PartSendBuf(iProc)%content(2+jPos) = PartIntEn(iPart)%ERot(1)
+          ELSE
+            PartSendBuf(iProc)%content(1+jPos) = 0.0
+            PartSendBuf(iProc)%content(2+jPos) = 0.0
+          END IF
           jPos=jPos+2
         END IF
       ELSE
@@ -531,7 +559,6 @@ DO iProc=0,nExchangeProcessors-1
       END IF
 
       IF (useDSMC) THEN
-        SpecID = PartSpecies(iPart)
 #if USE_HDG
         ! Check particle index for VDL particles and reset to original species index
         SpecID = ResetVDLSpecID(iPart)
@@ -713,7 +740,7 @@ SUBROUTINE MPIParticleRecv(DoMPIUpdateNextFreePos)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, DSMC, PartIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
 USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo, ParticleWeighting
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartCommSize,PartRecvBuf,PartSendBuf
 USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors
@@ -896,26 +923,45 @@ DO iProc=0,nExchangeProcessors-1
 !           END IF ! PartSpecies(PartID).LT.0
     jPos=jPos+1
 
+    SpecID = PartSpecies(PartID)
     IF (useDSMC.AND.(CollisMode.GT.1)) THEN
       IF (usevMPF .AND. DSMC%ElectronicModel.GT.0) THEN
-        PartStateIntEn( 1,PartID) = PartRecvBuf(iProc)%content(1+jPos)
-        PartStateIntEn( 2,PartID) = PartRecvBuf(iProc)%content(2+jPos)
+        IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20).OR.(Species(SpecID)%InterID.EQ.100)) THEN
+          ALLOCATE(PartIntEn(PartID)%EVib(1),PartIntEn(PartID)%ERot(1))
+          PartIntEn(PartID)%EVib(1) = PartRecvBuf(iProc)%content(1+jPos)
+          PartIntEn(PartID)%ERot(1) = PartRecvBuf(iProc)%content(2+jPos)
+        END IF
         PartMPF(PartID)           = PartRecvBuf(iProc)%content(3+jPos)
-        PartStateIntEn( 3,PartID) = PartRecvBuf(iProc)%content(4+jPos)
+        IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+          ALLOCATE(PartIntEn(PartID)%EElec(1))
+          PartIntEn(PartID)%EElec(1) = PartRecvBuf(iProc)%content(4+jPos)
+        END IF
         jPos=jPos+4
       ELSE IF ( usevMPF ) THEN
-        PartStateIntEn( 1,PartID) = PartRecvBuf(iProc)%content(1+jPos)
-        PartStateIntEn( 2,PartID) = PartRecvBuf(iProc)%content(2+jPos)
+        IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20).OR.(Species(SpecID)%InterID.EQ.100)) THEN
+          ALLOCATE(PartIntEn(PartID)%EVib(1),PartIntEn(PartID)%ERot(1))
+          PartIntEn(PartID)%EVib(1) = PartRecvBuf(iProc)%content(1+jPos)
+          PartIntEn(PartID)%ERot(1) = PartRecvBuf(iProc)%content(2+jPos)
+        END IF
         PartMPF(PartID)           = PartRecvBuf(iProc)%content(3+jPos)
         jPos=jPos+3
       ELSE IF ( DSMC%ElectronicModel.GT.0) THEN
-        PartStateIntEn( 1,PartID) = PartRecvBuf(iProc)%content(1+jPos)
-        PartStateIntEn( 2,PartID) = PartRecvBuf(iProc)%content(2+jPos)
-        PartStateIntEn( 3,PartID) = PartRecvBuf(iProc)%content(3+jPos)
+        IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20).OR.(Species(SpecID)%InterID.EQ.100)) THEN
+          ALLOCATE(PartIntEn(PartID)%EVib(1),PartIntEn(PartID)%ERot(1))
+          PartIntEn(PartID)%EVib(1) = PartRecvBuf(iProc)%content(1+jPos)
+          PartIntEn(PartID)%ERot(1) = PartRecvBuf(iProc)%content(2+jPos)
+        END IF
+        IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+          ALLOCATE(PartIntEn(PartID)%EElec(1))
+          PartIntEn(PartID)%EElec(1) = PartRecvBuf(iProc)%content(4+jPos)
+        END IF
         jPos=jPos+3
       ELSE
-        PartStateIntEn( 1,PartID) = PartRecvBuf(iProc)%content(1+jPos)
-        PartStateIntEn( 2,PartID) = PartRecvBuf(iProc)%content(2+jPos)
+        IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20).OR.(Species(SpecID)%InterID.EQ.100)) THEN
+          ALLOCATE(PartIntEn(PartID)%EVib(1),PartIntEn(PartID)%ERot(1))
+          PartIntEn(PartID)%EVib(1) = PartRecvBuf(iProc)%content(1+jPos)
+          PartIntEn(PartID)%ERot(1) = PartRecvBuf(iProc)%content(2+jPos)
+        END IF
         jPos=jPos+2
       END IF
     ELSE
@@ -930,7 +976,6 @@ DO iProc=0,nExchangeProcessors-1
     END IF
 
     IF (useDSMC) THEN
-      SpecID = PartSpecies(PartID)
 #if USE_HDG
       ! Check particle index for VDL particles and reset to original species index
       SpecID = ResetVDLSpecID(PartID)

@@ -353,9 +353,8 @@ DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant')
 DSMC%ElectronicModel         = GETINT('Particles-DSMC-ElectronicModel')
 IF(SampleElecExcitation.AND.(DSMC%ElectronicModel.NE.3)) CALL CollectiveStop(__STAMP__,&
     'Part-SampleElectronicExcitation = T requires Particles-DSMC-ElectronicModel = 3')
+ALLOCATE(PartIntEn(PDM%maxParticleNumber))
 IF (DSMC%ElectronicModel.GT.0) THEN
-  ! Allocate internal energy array WITH electronic energy
-  ALLOCATE(PartStateIntEn(1:3,PDM%maxParticleNumber))
   ! Allocate model-specific variables
   SELECT CASE(DSMC%ElectronicModel)
     CASE(1) ! Model by Liechty, each particle has a specific electronic state
@@ -368,15 +367,11 @@ IF (DSMC%ElectronicModel.GT.0) THEN
     CASE(4) ! Landau-Teller based model, relaxation of given distribution function
       ALLOCATE(ElecRelaxPart(1:PDM%maxParticleNumber))
       ElecRelaxPart = .TRUE.
+    CASE(5) ! Vibronic Model
     CASE DEFAULT
       CALL Abort(__STAMP__,'ERROR: Please select an electronic model between 1 and 4!')
-  END SELECT
-ELSE
-  ! Allocate internal energy array WITHOUT electronic energy
-  ALLOCATE(PartStateIntEn(1:2,PDM%maxParticleNumber))
+  END SELECT 
 ENDIF
-
-PartStateIntEn = 0. ! nullify
 
 DSMC%ElectronicModelDatabase = TRIM(GETSTR('Particles-DSMCElectronicDatabase','none'))
 IF (SpeciesDatabase.EQ.'none') THEN
@@ -1657,7 +1652,10 @@ SDEALLOCATE(DSMC%CalcVibProb)
 SDEALLOCATE(DSMC%CalcRotProb)
 SDEALLOCATE(DSMC%InstantTXiElec)
 SDEALLOCATE(SampDSMC)
-SDEALLOCATE(PartStateIntEn)
+!TODO
+SDEALLOCATE(PartIntEn)
+
+
 SDEALLOCATE(ElecRelaxPart)
 SDEALLOCATE(SpecDSMC)
 IF(DSMC%NumPolyatomMolecs.GT.0) THEN

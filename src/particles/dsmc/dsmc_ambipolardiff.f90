@@ -154,7 +154,7 @@ SUBROUTINE AD_InsertParticles(iPartIndx_Node, nPart, iPartIndx_NodeTotalAmbi, To
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars               ,ONLY: BGGas, CollisMode, DSMC, PartStateIntEn, AmbipolElecVelo
+USE MOD_DSMC_Vars               ,ONLY: BGGas, CollisMode, DSMC, AmbipolElecVelo
 USE MOD_DSMC_Vars               ,ONLY: DSMCSumOfFormedParticles, newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_PARTICLE_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, Species, PartMPF, usevMPF
 USE MOD_PARTICLE_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
@@ -219,11 +219,6 @@ DO iLoop = 1, nNewElectrons
   PDM%isNewPart(PositionNbr) = .TRUE.
   PartState(4:6,PositionNbr) = AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(1:3)
   DEALLOCATE(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo)
-  IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-    PartStateIntEn( 1,PositionNbr) = 0.
-    PartStateIntEn( 2,PositionNbr) = 0.
-    IF (DSMC%ElectronicModel.GT.0)   PartStateIntEn( 3,PositionNbr) = 0.
-  END IF
   IF(usevMPF) PartMPF(PositionNbr) = PartMPF(IonIndX(iLoop))
   IF(UseVarTimeStep) PartTimeStep(PositionNbr) = PartTimeStep(IonIndX(iLoop))
   iPartIndx_NodeTotalAmbi(nPart+iLoop) = PositionNbr
