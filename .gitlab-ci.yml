@@ -400,6 +400,7 @@ pyhope_download:
   script:
     - source ~/venv-pyhope/bin/activate
     - python3 -m pip install pyhope
+    - pyhope --version
 
 reggie_download:
   extends: .default_build_param
@@ -412,7 +413,6 @@ reggie_download:
     policy: push
   stage: build
   script:
-    - pyhope --version
     # Check if the "reggie" directory contains a ".git" directory
     # Check if the .day file exists under "reggie/.day" and move it here if that is the case
     # Check if the "reggie" directory exists and remove it before cloning it again
@@ -1270,6 +1270,7 @@ documentation:
   extends: .default_build_param
   stage: build
   script:
+    - deactivate || true
     - cd docs/documentation
     - python3 -m pip install --exists-action=w --no-cache-dir -r requirements.txt --break-system-packages
     - python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
