@@ -42,6 +42,7 @@ workflow:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Load modules on new boltzplatz reggie
 before_script:
+  - source ~/venv-pyhope/bin/activate
   - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
   - ulimit -s unlimited
   - python3 -V || true
@@ -393,8 +394,16 @@ stages:
 # Stage "build": Build on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 
+pyhope_download:
+  extends: .default_build_param
+  stage: build
+  script:
+    - source ~/venv-pyhope/bin/activate
+    - python3 -m pip install pyhope
+
 reggie_download:
   extends: .default_build_param
+  needs: [pyhope_download]
   artifacts:
     paths: [reggie]
   cache:
@@ -403,6 +412,7 @@ reggie_download:
     policy: push
   stage: build
   script:
+    - pyhope --version
     # Check if the "reggie" directory contains a ".git" directory
     # Check if the .day file exists under "reggie/.day" and move it here if that is the case
     # Check if the "reggie" directory exists and remove it before cloning it again
