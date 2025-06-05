@@ -43,6 +43,7 @@ workflow:
 # Load modules on new boltzplatz reggie
 before_script:
   - source ~/venv-pyhope/bin/activate
+  - export PYTHONPATH=~/pyhope:$PYTHONPATH
   - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
   - ulimit -s unlimited
   - python3 -V || true
@@ -153,7 +154,9 @@ stages:
 
 .reggie_cache: &reggie_cache
   key: "reggie"
-  paths: [reggie]
+  paths:
+    - reggie
+    - pyhope
   policy: pull
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -396,10 +399,19 @@ stages:
 
 pyhope_download:
   extends: .default_build_param
+  cache:
+    key: "pyhope"
+    paths: [pyhope]
+    policy: push
   stage: build
   script:
     - source ~/venv-pyhope/bin/activate
-    - python3 -m pip install pyhope
+    # - python3 -m pip install pyhope
+    - rm -rf pyhope
+    - git clone git@gitlabiag:flexi/codes/pyhope.git
+    - cd pyhope
+    - git checkout feature.h5.mesh
+    - python3 -m pip install -e .
     - pyhope --version
 
 reggie_download:
