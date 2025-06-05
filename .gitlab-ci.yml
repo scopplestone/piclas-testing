@@ -42,8 +42,7 @@ workflow:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Load modules on new boltzplatz reggie
 before_script:
-  - source ~/venv-pyhope/bin/activate
-  # - export PYTHONPATH=~/pyhope:$PYTHONPATH
+  - source venv-pyhope/bin/activate || true
   - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
   - ulimit -s unlimited
   - python3 -V || true
@@ -159,6 +158,13 @@ stages:
     - pyhope
   policy: pull
 
+.pyhope_cache: &pyhope_cache
+  key: "pyhope"
+  paths:
+    - pyhope
+    - venv-pyhope
+  policy: pull
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for the standard maxwell tests (utilizing "extends" to merge the other "artifacts" options with the specific path)
 .defaults: &defaults
@@ -168,6 +174,7 @@ stages:
     paths: [build]
   cache:
     - *reggie_cache
+    - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}"
       paths: [build]
       policy: pull
@@ -197,6 +204,7 @@ stages:
     paths: [build_maxwell]
   cache:
     - *reggie_cache
+    - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-MAX"
       paths: [build_maxwell]
       policy: pull
@@ -217,6 +225,7 @@ stages:
       - build_poisson_debug_Leapfrog
   cache:
     - *reggie_cache
+    - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI"
       paths:
         - build_poisson_release_RK3
@@ -246,6 +255,7 @@ stages:
       - build_drift_diffusion
   cache:
     - *reggie_cache
+    - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-DD"
       paths:
         - build_drift_diffusion
@@ -277,6 +287,7 @@ stages:
       - build_DVM
   cache:
     - *reggie_cache
+    - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-DVM"
       paths:
         - build_DVM
@@ -311,6 +322,7 @@ stages:
       - build_poisson_petsc_debug_Leapfrog
   cache:
     - *reggie_cache
+    - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI-PETSC"
       paths:
         - build_poisson_petsc_release_RK3
@@ -348,6 +360,7 @@ stages:
       - build_radiation
   cache:
     - *reggie_cache
+    - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"
       paths:
         - build_DSMC_release
@@ -382,6 +395,7 @@ stages:
       - build_radiation
   cache:
     - *reggie_cache
+    - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"
       paths:
         - build_DSMC_release
@@ -400,15 +414,17 @@ stages:
 pyhope_download:
   extends: .default_build_param
   cache:
-    key: "pyhope"
-    paths: [pyhope]
-    policy: push
+    - key: "pyhope"
+      paths:
+        - pyhope
+        - venv-pyhope
+      policy: push
   stage: build
   script:
-    - deactivate
-    - rm -rf ~/venv-pyhope
-    - python3 -m venv ~/venv-pyhope
-    - source ~/venv-pyhope/bin/activate
+    - deactivate || true
+    - rm -rf venv-pyhope
+    - python3 -m venv venv-pyhope
+    - source venv-pyhope/bin/activate
     # - python3 -m pip install pyhope
     - rm -rf pyhope
     - git clone git@gitlabiag:flexi/codes/pyhope.git
@@ -416,6 +432,7 @@ pyhope_download:
     - git checkout feature.h5.mesh
     - python3 -m ensurepip
     - python3 -m pip install --upgrade --ignore-installed -e .
+    - cd ..
     - pyhope --version
 
 reggie_download:
