@@ -42,7 +42,7 @@ workflow:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Load modules on new boltzplatz reggie
 before_script:
-  - source venv-pyhope/bin/activate || true
+  - source venv/bin/activate || true
   - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
   - ulimit -s unlimited
   - python3 -V || true
@@ -151,18 +151,22 @@ stages:
   <<: *default_build_param
   allow_failure: true
 
+.venv_cache: &venv_cache
+  key: "venv"
+  paths:
+    - venv
+  policy: pull
+
 .reggie_cache: &reggie_cache
   key: "reggie"
   paths:
     - reggie
-    - pyhope
   policy: pull
 
 .pyhope_cache: &pyhope_cache
   key: "pyhope"
   paths:
     - pyhope
-    - venv-pyhope
   policy: pull
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -173,6 +177,7 @@ stages:
   artifacts:
     paths: [build]
   cache:
+    - *venv_cache
     - *reggie_cache
     - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}"
@@ -203,6 +208,7 @@ stages:
   artifacts:
     paths: [build_maxwell]
   cache:
+    - *venv_cache
     - *reggie_cache
     - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-MAX"
@@ -224,6 +230,7 @@ stages:
       - build_poisson_debug_RK3
       - build_poisson_debug_Leapfrog
   cache:
+    - *venv_cache
     - *reggie_cache
     - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI"
@@ -254,6 +261,7 @@ stages:
     paths:
       - build_drift_diffusion
   cache:
+    - *venv_cache
     - *reggie_cache
     - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-DD"
@@ -286,6 +294,7 @@ stages:
     paths:
       - build_DVM
   cache:
+    - *venv_cache
     - *reggie_cache
     - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-DVM"
@@ -321,6 +330,7 @@ stages:
       - build_poisson_petsc_debug_RK3
       - build_poisson_petsc_debug_Leapfrog
   cache:
+    - *venv_cache
     - *reggie_cache
     - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI-PETSC"
@@ -359,6 +369,7 @@ stages:
       - build_DSMC_N1
       - build_radiation
   cache:
+    - *venv_cache
     - *reggie_cache
     - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"
@@ -394,6 +405,7 @@ stages:
       - build_DSMC_release
       - build_radiation
   cache:
+    - *venv_cache
     - *reggie_cache
     - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"
@@ -411,20 +423,38 @@ stages:
 # Stage "build": Build on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 
-pyhope_download:
+venv_create:
   extends: .default_build_param
   cache:
-    - key: "pyhope"
+    - key: "venv"
       paths:
-        - pyhope
-        - venv-pyhope
-      policy: push
+        - venv
+      policy: pull-push
   stage: build
   script:
     - deactivate || true
-    - rm -rf venv-pyhope
-    - python3 -m venv venv-pyhope
-    - source venv-pyhope/bin/activate
+    - rm -rf venv
+    - python3 -m venv venv
+    - source venv/bin/activate
+    - python3 -m ensurepip
+    - python3 -m pip install --upgrade pip setuptools wheel
+    - python3 -m pip install --upgrade --ignore-installed pytest pytest-cov
+
+pyhope_download:
+  extends: .default_build_param
+  needs: [venv_create]
+  cache:
+    - key: "venv"
+      paths:
+        - venv
+      policy: pull-push
+    - key: "pyhope"
+      paths:
+        - pyhope
+      policy: push
+  stage: build
+  script:
+    - source venv/bin/activate
     # - python3 -m pip install pyhope
     - rm -rf pyhope
     - git clone git@gitlabiag:flexi/codes/pyhope.git
@@ -441,9 +471,14 @@ reggie_download:
   artifacts:
     paths: [reggie]
   cache:
-    key: "reggie"
-    paths: [reggie]
-    policy: push
+    - key: "venv"
+      paths:
+        - venv
+      policy: pull-push
+    - key: "reggie"
+      paths:
+        - reggie
+      policy: push
   stage: build
   script:
     # Check if the "reggie" directory contains a ".git" directory
@@ -455,7 +490,7 @@ reggie_download:
         if [ -f "reggie/.day" ]; then mv reggie/.day .; fi ;
         if [ -d "reggie" ]; then rm -rf reggie ; fi ;
         git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
-        if [ -d "reggie" ]; then cd reggie ; pip install -e . --break-system-packages ; cd .. ; fi ;
+        if [ -d "reggie" ]; source venv/bin/activate ; python -m ensurepip ; then cd reggie ; pip install -e . --break-system-packages ; cd .. ; fi ;
         if [ -f ".day" ]; then mv .day reggie/. ; fi ;
       fi
     # Test reggie installation
@@ -469,7 +504,6 @@ build:
   artifacts:
     paths: [build]
   cache:
-    - *reggie_cache
     - key: "${CI_COMMIT_REF_SLUG}"
       paths: [build]
       policy: push
@@ -485,7 +519,6 @@ build_maxwell:
   artifacts:
     paths: [build_maxwell]
   cache:
-    - *reggie_cache
     - key: "${CI_COMMIT_REF_SLUG}-MAX"
       paths: [build_maxwell]
       policy: push
@@ -508,7 +541,6 @@ build_poisson:
       - build_poisson_debug_RK3
       - build_poisson_debug_Leapfrog
   cache:
-    - *reggie_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI"
       paths:
         - build_poisson_release_RK3
@@ -556,7 +588,6 @@ build_poisson_petsc:
       - build_poisson_petsc_debug_RK3
       - build_poisson_petsc_debug_Leapfrog
   cache:
-    - *reggie_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI-PETSC"
       paths:
         - build_poisson_petsc_release_RK3
@@ -593,7 +624,6 @@ build_DSMC:
       - build_DSMC_N1
       - build_radiation
   cache:
-    - *reggie_cache
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"
       paths:
         - build_DSMC_release
@@ -629,7 +659,6 @@ build_drift_diffusion:
   artifacts:
     paths: [build_drift_diffusion]
   cache:
-    - *reggie_cache
     - key: "${CI_COMMIT_REF_SLUG}-DD"
       paths: [build_drift_diffusion]
       policy: push
@@ -644,7 +673,6 @@ build_DVM:
   artifacts:
     paths: [build_DVM]
   cache:
-    - *reggie_cache
     - key: "${CI_COMMIT_REF_SLUG}-DVM"
       paths: [build_DVM]
       policy: push
@@ -657,8 +685,6 @@ build_hopr:
   extends: .default_build_param
   artifacts:
     paths: [hopr]
-  cache:
-    - *reggie_cache
   stage: build
   script:
     - git clone https://github.com/hopr-framework/hopr.git hopr;
@@ -694,8 +720,6 @@ build_hopr_in_piclas:
 build_no_git:
   tags: [withmodules-concurrent]
   stage: build
-  cache:
-    <<: *reggie_cache
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME without git"
     - git clone --depth=1 --branch=$CI_COMMIT_REF_NAME git@piclas.boltzplatz.eu:piclas/piclas.git piclas-no-git
@@ -709,8 +733,6 @@ build_no_git:
 build_outside_repository:
   tags: [withmodules-concurrent]
   stage: build
-  cache:
-    <<: *reggie_cache
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME outside the piclas directory/repository"
     - REPOPATH=$(echo `pwd`)
@@ -725,8 +747,6 @@ build_outside_repository:
 build_no_git_libs:
   tags: [withmodules-concurrent]
   stage: build
-  cache:
-    <<: *reggie_cache
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME without git but with external libs"
     - git clone --depth=1 --branch=$CI_COMMIT_REF_NAME git@piclas.boltzplatz.eu:piclas/piclas.git piclas-no-git-but-libs
