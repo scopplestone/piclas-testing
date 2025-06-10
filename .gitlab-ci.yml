@@ -457,11 +457,14 @@ pyhope_download:
     - source venv/bin/activate
     # - python3 -m pip install pyhope
     - rm -rf pyhope
-    - git clone git@gitlabiag:flexi/codes/pyhope.git
+    - git clone git@gitlab.iag.uni-stuttgart.de:flexi/codes/pyhope.git
     - cd pyhope
     - git checkout feature.h5.mesh
     - python3 -m ensurepip
     - python3 -m pip install --upgrade --ignore-installed -e .
+    # Change GMSH to the NRG version
+    - python -m pip uninstall -y gmsh
+    - python -m pip install --no-cache-dir https://gitlab.iag.uni-stuttgart.de/libs/python-gmsh/-/raw/master/gmsh-4.13.1.post1-py3-none-linux_x86_64.whl
     - cd ..
     - pyhope --version
 
