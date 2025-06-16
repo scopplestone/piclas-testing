@@ -502,6 +502,7 @@ build:
   artifacts:
     paths: [build]
   cache:
+    - *reggie_cache
     - key: "${CI_COMMIT_REF_SLUG}"
       paths: [build]
       policy: push
@@ -517,6 +518,7 @@ build_maxwell:
   artifacts:
     paths: [build_maxwell]
   cache:
+    - *reggie_cache
     - key: "${CI_COMMIT_REF_SLUG}-MAX"
       paths: [build_maxwell]
       policy: push
@@ -539,6 +541,7 @@ build_poisson:
       - build_poisson_debug_RK3
       - build_poisson_debug_Leapfrog
   cache:
+    - *reggie_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI"
       paths:
         - build_poisson_release_RK3
@@ -586,6 +589,7 @@ build_poisson_petsc:
       - build_poisson_petsc_debug_RK3
       - build_poisson_petsc_debug_Leapfrog
   cache:
+    - *reggie_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI-PETSC"
       paths:
         - build_poisson_petsc_release_RK3
@@ -622,6 +626,7 @@ build_DSMC:
       - build_DSMC_N1
       - build_radiation
   cache:
+    - *reggie_cache
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"
       paths:
         - build_DSMC_release
@@ -657,6 +662,7 @@ build_drift_diffusion:
   artifacts:
     paths: [build_drift_diffusion]
   cache:
+    - *reggie_cache
     - key: "${CI_COMMIT_REF_SLUG}-DD"
       paths: [build_drift_diffusion]
       policy: push
@@ -671,6 +677,7 @@ build_DVM:
   artifacts:
     paths: [build_DVM]
   cache:
+    - *reggie_cache
     - key: "${CI_COMMIT_REF_SLUG}-DVM"
       paths: [build_DVM]
       policy: push
@@ -679,45 +686,49 @@ build_DVM:
     - mkdir -p build_DVM ; cd build_DVM
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=ED-DVM -DPICLAS_PARTICLES=OFF; $GENERATOR -j $NCORES all
 
-build_hopr:
-  extends: .default_build_param
-  artifacts:
-    paths: [hopr]
-  stage: build
-  script:
-    - git clone https://github.com/hopr-framework/hopr.git hopr;
-    - cd hopr ; mkdir -p build ; cd build;
-    - echo `pwd`
-    - cmake .. -DLIBS_BUILD_HDF5=OFF
-    - echo $GENERATOR
-    - echo $NCORES
-    - $GENERATOR -j $NCORES all
-    - ls bin/hopr
-    #- $GENERATOR -j $NCORES all &> output.txt;
-    #- tail -n 20 output.txt;
-    #- rm output.txt;
-  rules:
-    - if: '$DO_WEEKLY'
+# build_hopr:
+#   extends: .default_build_param
+#   artifacts:
+#     paths: [hopr]
+#   cache:
+#     - *reggie_cache
+#   stage: build
+#   script:
+#     - git clone https://github.com/hopr-framework/hopr.git hopr;
+#     - cd hopr ; mkdir -p build ; cd build;
+#     - echo `pwd`
+#     - cmake .. -DLIBS_BUILD_HDF5=OFF
+#     - echo $GENERATOR
+#     - echo $NCORES
+#     - $GENERATOR -j $NCORES all
+#     - ls bin/hopr
+#     #- $GENERATOR -j $NCORES all &> output.txt;
+#     #- tail -n 20 output.txt;
+#     #- rm output.txt;
+#   rules:
+#     - if: '$DO_WEEKLY'
 
-build_hopr_in_piclas:
-  tags: [withmodules-concurrent]
-  needs: [reggie_download]
-  cache:
-    <<: *reggie_cache
-  stage: build
-  script:
-    - mkdir -p build_hopr_lib ; cd build_hopr_lib
-    - reggie ../regressioncheck/WEK_HOPR
-  rules:
-    #- if: '$DO_CORE_SPLIT'
-      #when: never
-    #- if: '$DO_NODE_SPLIT'
-      #when: never
-    - if: '$DO_WEEKLY'
+# build_hopr_in_piclas:
+#   tags: [withmodules-concurrent]
+#   needs: [reggie_download]
+#   cache:
+#     <<: *reggie_cache
+#   stage: build
+#   script:
+#     - mkdir -p build_hopr_lib ; cd build_hopr_lib
+#     - reggie ../regressioncheck/WEK_HOPR
+#   rules:
+#     #- if: '$DO_CORE_SPLIT'
+#       #when: never
+#     #- if: '$DO_NODE_SPLIT'
+#       #when: never
+#     - if: '$DO_WEEKLY'
 
 build_no_git:
   tags: [withmodules-concurrent]
   stage: build
+  cache:
+    <<: *reggie_cache
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME without git"
     - git clone --depth=1 --branch=$CI_COMMIT_REF_NAME git@piclas.boltzplatz.eu:piclas/piclas.git piclas-no-git
@@ -731,6 +742,8 @@ build_no_git:
 build_outside_repository:
   tags: [withmodules-concurrent]
   stage: build
+  cache:
+    <<: *reggie_cache
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME outside the piclas directory/repository"
     - REPOPATH=$(echo `pwd`)
@@ -745,6 +758,8 @@ build_outside_repository:
 build_no_git_libs:
   tags: [withmodules-concurrent]
   stage: build
+  cache:
+    <<: *reggie_cache
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME without git but with external libs"
     - git clone --depth=1 --branch=$CI_COMMIT_REF_NAME git@piclas.boltzplatz.eu:piclas/piclas.git piclas-no-git-but-libs
