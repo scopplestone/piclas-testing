@@ -174,9 +174,9 @@ IF(NOT LIBS_BUILD_HDF5)
 
   # CMake might return found but only the shared library
   # > Adjust the LIBS_TYPE accordingly
-  IF(NOT HDF5_static_C_FOUND)
-    SET(LIB_TYPE SHARED)
-  ENDIF()
+  # IF(NOT HDF5_static_C_FOUND)
+  #   SET(LIB_TYPE SHARED)
+  # ENDIF()
 
   # Hide all the HDF5 libs paths
   # MARK_AS_ADVANCED(FORCE HDF5_DIR)
