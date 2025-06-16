@@ -174,9 +174,9 @@ IF(NOT LIBS_BUILD_HDF5)
 
   # CMake might return found but only the shared library
   # > Adjust the LIBS_TYPE accordingly
-  # IF(NOT HDF5_static_C_FOUND)
-  #   SET(LIB_TYPE SHARED)
-  # ENDIF()
+  IF(NOT HDF5_static_C_FOUND)
+    SET(LIB_TYPE SHARED)
+  ENDIF()
 
   # Hide all the HDF5 libs paths
   # MARK_AS_ADVANCED(FORCE HDF5_DIR)
@@ -229,10 +229,13 @@ IF(NOT LIBS_BUILD_HDF5)
     ENDIF()
   ENDIF()
 
-  # Unset leftover paths from old CMake runs
-  UNSET(HDF5_LIBRARIES)
-  # For newer versions of HDF5, the CMake package does not explicitly export the libraries
-  LIST(APPEND HDF5_LIBRARIES ${HDF5_hdf5_LIBRARY_hdf5} ${HDF5_Fortran_LIBRARY_hdf5_fortran_RELEASE} ${HDF5_Fortran_LIBRARY_hdf5_fortran} ${HDF5_hdf5_LIBRARY_RELEASE} ${HDF5_z_LIBRARY_RELEASE} -ldl)
+  # Set HDF5 paths for shared libraries
+  IF(LIB_TYPE STREQUAL "SHARED")
+    # Unset leftover paths from old CMake runs
+    UNSET(HDF5_LIBRARIES)
+    # For newer versions of HDF5, the CMake package does not explicitly export the libraries
+    LIST(APPEND HDF5_LIBRARIES ${HDF5_hdf5_LIBRARY_hdf5} ${HDF5_Fortran_LIBRARY_hdf5_fortran_RELEASE} ${HDF5_Fortran_LIBRARY_hdf5_fortran} ${HDF5_hdf5_LIBRARY_RELEASE} ${HDF5_z_LIBRARY_RELEASE} -ldl)
+  ENDIF()
 
   SET(HDF5_BUILD_STATUS "system")
 # Build HDF5 in PICLAS
@@ -398,9 +401,9 @@ IF(LIBS_HDF5_CMAKE)
   ELSE()
     MESSAGE(STATUS "Compiling with ${HDF5_BUILD_STATUS} [HDF5] (v${HDF5_VERSION}) without parallel support")
   ENDIF()
-  LIST(APPEND linkedlibs ${HDF5_C_${LIB_TYPE}_LIBRARY} ${HDF5_FORTRAN_${LIB_TYPE}_LIBRARY} )
+  LIST(APPEND linkedlibs ${HDF5_C_${LIB_TYPE}_LIBRARY} ${HDF5_FORTRAN_${LIB_TYPE}_LIBRARY})
   # For newer versions of HDF5, the CMake package does not explicitly export the libraries
-  LIST(APPEND linkedlibs ${HDF5_LIBRARIES} )
+  LIST(APPEND linkedlibs ${HDF5_LIBRARIES})
 # HDF5 build with configure
 ELSE()
   INCLUDE_DIRECTORIES(BEFORE ${HDF5_INCLUDE_DIR_FORTRAN} ${HDF5_INCLUDE_DIR})
