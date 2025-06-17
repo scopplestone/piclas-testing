@@ -483,57 +483,63 @@ ELSE
   ! ------------------------------------------------
   ! PartSource
   ! ------------------------------------------------
+! Read-in of dimensions of the field array (might have an additional dimension, i.e., rank is 6 instead of 5)
   IF(.NOT.RestartNullifySolution)THEN ! Use the solution in the restart file
     !-- read PartSource if relaxation is performed (might be needed for RecomputeEFieldHDG)
     IF (DoDeposition .AND. RelaxDeposition) THEN
       CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
       CALL DatasetExists(File_ID,'DG_Source',DGSourceExists)
       IF(DGSourceExists)THEN
+        CALL GetDataSize(File_ID,'DG_Source',nDims,HSize)
+        DEALLOCATE(HSize)
         IF(.NOT.InterpolateSolution)THEN! No interpolation needed, read solution directly from file
 
           IF(N_Restart.LT.1) CALL abort(__STAMP__,'N_Restart<1 is not allowed. Check correct initailisation of N_Restart!')
 
-          ! Associate construct for integer KIND=8 possibility
-          ASSOCIATE (&
-                    Nres          => INT(N_Restart,IK)       ,&
-                    OffsetElemTmp => INT(OffsetElem,IK) ,&
-                    PP_nElemsTmp  => INT(PP_nElems,IK))
-            ALLOCATE(PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,PP_nElems))
-            CALL ReadArray('DG_Source' ,5,(/4_IK,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=PartSource_HDF5)
+          IF(nDims.EQ.2)THEN
+            CALL abort(__STAMP__,'Read-in not implemented for 2D DG_Source')
+          ELSE ! nDims.EQ.5
+            ! Associate construct for integer KIND=8 possibility
+            ASSOCIATE (&
+                      Nres          => INT(N_Restart,IK)       ,&
+                      OffsetElemTmp => INT(OffsetElem,IK) ,&
+                      PP_nElemsTmp  => INT(PP_nElems,IK))
+              ALLOCATE(PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,PP_nElems))
+              CALL ReadArray('DG_Source' ,5,(/4_IK,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=PartSource_HDF5)
 
-            DO iElem =1,PP_nElems
-              Nloc = N_DG_Mapping(2,iElem+offSetElem)
-              ALLOCATE(PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
+              DO iElem =1,PP_nElems
+                Nloc = N_DG_Mapping(2,iElem+offSetElem)
+                ALLOCATE(PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
 
-              IF(Nloc.EQ.N_Restart)THEN
-                PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc) = PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,iElem)
-              ELSEIF(Nloc.GT.N_Restart)THEN
-                ! N_Restart -> Nloc (e.g. 1 -> 5)
-                CALL ChangeBasis3D(4, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,iElem), PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
-              ELSE
-                ! N_Restart -> Nloc (e.g. 5 -> 1)
-                ALLOCATE(Uloc(1:4,0:Nres,0:Nres,0:Nres))
-                !transform the slave side to the same degree as the master: switch to Legendre basis
-                CALL ChangeBasis3D(4, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,iElem), Uloc(1:4,0:Nres,0:Nres,0:Nres))
-                ! switch back to nodal basis
-                CALL ChangeBasis3D(4, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:4,0:Nloc,0:Nloc,0:Nloc), PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
-                DEALLOCATE(Uloc)
-              END IF ! Nloc.EQ.N_Restart
+                IF(Nloc.EQ.N_Restart)THEN
+                  PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc) = PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,iElem)
+                ELSEIF(Nloc.GT.N_Restart)THEN
+                  ! N_Restart -> Nloc (e.g. 1 -> 5)
+                  CALL ChangeBasis3D(4, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,iElem), PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
+                ELSE
+                  ! N_Restart -> Nloc (e.g. 5 -> 1)
+                  ALLOCATE(Uloc(1:4,0:Nres,0:Nres,0:Nres))
+                  !transform the slave side to the same degree as the master: switch to Legendre basis
+                  CALL ChangeBasis3D(4, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,iElem), Uloc(1:4,0:Nres,0:Nres,0:Nres))
+                  ! switch back to nodal basis
+                  CALL ChangeBasis3D(4, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:4,0:Nloc,0:Nloc,0:Nloc), PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
+                  DEALLOCATE(Uloc)
+                END IF ! Nloc.EQ.N_Restart
 
-              DO k=0, Nloc; DO j=0, Nloc; DO i=0, Nloc
+                DO k=0, Nloc; DO j=0, Nloc; DO i=0, Nloc
 #if ((USE_HDG) && (PP_nVar==1))
-                PS_N(iElem)%PartSourceOld(1  ,1,i,j,k) = PartSourceloc(  4,i,j,k)
-                PS_N(iElem)%PartSourceOld(1  ,2,i,j,k) = PartSourceloc(  4,i,j,k)
+                  PS_N(iElem)%PartSourceOld(1  ,1,i,j,k) = PartSourceloc(  4,i,j,k)
+                  PS_N(iElem)%PartSourceOld(1  ,2,i,j,k) = PartSourceloc(  4,i,j,k)
 #else
-                PS_N(iElem)%PartSourceOld(1:4,1,i,j,k) = PartSourceloc(1:4,i,j,k)
-                PS_N(iElem)%PartSourceOld(1:4,2,i,j,k) = PartSourceloc(1:4,i,j,k)
+                  PS_N(iElem)%PartSourceOld(1:4,1,i,j,k) = PartSourceloc(1:4,i,j,k)
+                  PS_N(iElem)%PartSourceOld(1:4,2,i,j,k) = PartSourceloc(1:4,i,j,k)
 #endif
-              END DO; END DO; END DO
+                END DO; END DO; END DO
 
-              DEALLOCATE(PartSourceloc)
-            END DO
-          END ASSOCIATE
-
+                DEALLOCATE(PartSourceloc)
+              END DO
+            END ASSOCIATE
+          END IF ! nDims.EQ.2
           DEALLOCATE(PartSource_HDF5)
         ELSE ! We need to interpolate the solution to the new computational grid
           CALL abort(__STAMP__,' Restart with changed polynomial degree not implemented for DG_Source!')
@@ -761,6 +767,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+CHARACTER(LEN=9)          :: dsetname = 'CloneData'
 INTEGER                   :: nDimsClone, CloneDataSize, ClonePartNum, iPart, iDelay, maxDelay, iElem, tempDelay, iPos
 INTEGER(HSIZE_T), POINTER :: SizeClone(:)
 REAL,ALLOCATABLE          :: CloneData(:,:)
@@ -775,7 +782,7 @@ ParameterExists = .FALSE.
 ResetClones = .FALSE.
 
 ! Determining whether clones have been written to State file
-CALL DatasetExists(File_ID,'CloneData',ClonesExist)
+CALL DatasetExists(File_ID,dsetname,ClonesExist)
 IF(.NOT.ClonesExist) THEN
   LBWRITE(*,*) 'No clone data found! Restart without cloning.'
   ResetClones = .TRUE.
@@ -789,9 +796,9 @@ IF(ClonesExist.AND..NOT.PerformLoadBalance) THEN
 IF(ClonesExist) THEN
 #endif /*USE_LOADBALANCE*/
   ! Determining the old time step
-  CALL DatasetExists(File_ID,'ManualTimeStep',ParameterExists,attrib=.TRUE.,DSetName_attrib='CloneData')
+  CALL AttributeExists(File_ID,'ManualTimeStep',TRIM(dsetname), AttrExists=ParameterExists)
   IF(ParameterExists) THEN
-    CALL ReadAttribute(File_ID,'ManualTimeStep',1,RealScalar=OldParameter,DatasetName='CloneData')
+    CALL ReadAttribute(File_ID,'ManualTimeStep',1,RealScalar=OldParameter,DatasetName=dsetname)
     IF(OldParameter.NE.ManualTimeStep) THEN
       ResetClones = .TRUE.
       LBWRITE(*,*) 'Changed timestep of read-in CloneData. Resetting the array to avoid wrong cloning due to different time steps.'
@@ -803,9 +810,9 @@ IF(ClonesExist) THEN
   ParameterExists = .FALSE.
 
   ! Determining the old weighting factor
-  CALL DatasetExists(File_ID,'WeightingFactor',ParameterExists,attrib=.TRUE.,DSetName_attrib='CloneData')
+  CALL AttributeExists(File_ID,'WeightingFactor',TRIM(dsetname), AttrExists=ParameterExists)
   IF(ParameterExists) THEN
-    CALL ReadAttribute(File_ID,'WeightingFactor',1,RealScalar=OldParameter,DatasetName='CloneData')
+    CALL ReadAttribute(File_ID,'WeightingFactor',1,RealScalar=OldParameter,DatasetName=dsetname)
     ! Only checking the weighting factor of the first species
     IF(OldParameter.NE.Species(1)%MacroParticleFactor) THEN
       ResetClones = .TRUE.
@@ -819,9 +826,9 @@ IF(ClonesExist) THEN
 
   ! Determining the old radial weighting factor
   IF(DoRadialWeighting) THEN
-    CALL DatasetExists(File_ID,'RadialWeightingFactor',ParameterExists,attrib=.TRUE.,DSetName_attrib='CloneData')
+    CALL AttributeExists(File_ID,'RadialWeightingFactor',TRIM(dsetname), AttrExists=ParameterExists)
     IF(ParameterExists) THEN
-      CALL ReadAttribute(File_ID,'RadialWeightingFactor',1,RealScalar=OldParameter,DatasetName='CloneData')
+      CALL ReadAttribute(File_ID,'RadialWeightingFactor',1,RealScalar=OldParameter,DatasetName=dsetname)
       IF(OldParameter.NE.ParticleWeighting%ScaleFactor) THEN
         ResetClones = .TRUE.
         LBWRITE(*,*) 'Changed radial weighting factor of read-in CloneData. Resetting the array.'
@@ -848,7 +855,7 @@ IF(ResetClones) THEN
   END IF
 END IF
 
-CALL GetDataSize(File_ID,'CloneData',nDimsClone,SizeClone)
+CALL GetDataSize(File_ID,dsetname,nDimsClone,SizeClone)
 
 CloneDataSize = INT(SizeClone(1),4)
 ClonePartNum = INT(SizeClone(2),4)
@@ -870,7 +877,7 @@ IF(ClonePartNum.GT.0) THEN
   ALLOCATE(CloneData(1:CloneDataSize,1:ClonePartNum))
   ASSOCIATE(ClonePartNum  => INT(ClonePartNum,IK)  ,&
             CloneDataSize => INT(CloneDataSize,IK) )
-    CALL ReadArray('CloneData',2,(/CloneDataSize,ClonePartNum/),0_IK,2,RealArray=CloneData)
+    CALL ReadArray(dsetname,2,(/CloneDataSize,ClonePartNum/),0_IK,2,RealArray=CloneData)
   END ASSOCIATE
   LBWRITE(*,*) 'Read-in of cloned particles complete. Total clone number: ', ClonePartNum
   ! Determing the old clone delay

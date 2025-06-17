@@ -121,7 +121,7 @@ USE MOD_ReadInTools           ,ONLY: GETLOGICAL,GETREAL,GETINT
 USE MOD_Mesh_Vars             ,ONLY: nBCSides,N_SurfMesh
 USE MOD_Mesh_Vars             ,ONLY: BoundaryType,nSides,BC
 USE MOD_Mesh_Vars             ,ONLY: nGlobalMortarSides,nMortarMPISides,N_VolMesh
-USE MOD_Mesh_Vars             ,ONLY: offSetElem
+USE MOD_Mesh_Vars             ,ONLY: offSetElem,ElemToSide
 USE MOD_Basis                 ,ONLY: InitializeVandermonde,LegendreGaussNodesAndWeights,BarycentricWeights
 USE MOD_FillMortar_HDG        ,ONLY: InitMortar_HDG
 USE MOD_HDG_Vars              ,ONLY: BRNbrOfRegions,ElemToBRRegion,RegionElectronRef
@@ -451,16 +451,9 @@ END IF
 #else
   nDirichletBCsidesGlobal = nDirichletBCsides
 #endif /*USE_MPI*/
-! TODO Do we really need to handle PETSc separately here?
-#if USE_PETSC
-IF(nDirichletBCsidesGlobal.EQ.0) THEN
-#else
-IF(MPIroot .AND. (nDirichletBCsidesGlobal.EQ.0)) THEN
-#endif /*USE_PETSC*/
-  SetZeroPotentialDOF = .TRUE.
-ELSE
-  SetZeroPotentialDOF = .FALSE.
-END IF
+
+ZeroPotentialSide = -1
+IF(mpiRoot.AND.nDirichletBCsidesGlobal==0) ZeroPotentialSide = ElemToSide(E2S_SIDE_ID,1,1)
 
 IF(nDirichletBCsides.GT.0)ALLOCATE(DirichletBC(nDirichletBCsides))
 IF(nNeumannBCsides  .GT.0)THEN
@@ -663,6 +656,15 @@ CALL StartSendMPIDataInt(   1,OffsetGlobalPETScDOF,1,nSides,SendRequest_U,SendID
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif
 
+! 4.2.4.3) ZeroPotential
+ZeroPotentialDOF = -1
+IF(nDirichletBCsidesGlobal==0) THEN
+  IF(mpiRoot) ZeroPotentialDOF = OffsetGlobalPETScDOF(ZeroPotentialSide)
+#if USE_MPI
+  CALL MPI_BCAST(ZeroPotentialDOF,1,MPI_INTEGER,0,MPI_COMM_PICLAS,IERROR)
+#endif
+END IF
+
 ! 3.1.3.5) Add All Small Mortar Sides to nLocalPETScDOFs
 DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
   nMortars = MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
@@ -756,10 +758,10 @@ SUBROUTINE PETScSetSolver()
 !> Set the solver and/or preconditioner combination in PETSc
 !> Iterative solvers
 !>    1: CG + Block Jacobi
-!>    2: GMRES + BoomerAMG (with hypre) or Block Jacobi (built-in)
+!>    2: Pipelined CG + Block Jacobi
+!>    3: GMRES + BoomerAMG (with hypre) or Block Jacobi (built-in)
 !> Direct solvers
 !>    10: CHOLESKY (requires the MUMPS package to support the matrix type)
-!>    PCLU: Does not support the matrix type "sbaij" (MATSBAIJ)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -785,13 +787,16 @@ PetscCallA(KSPCreate(PETSC_COMM_WORLD,PETScSolver,ierr))
 PetscCallA(KSPSetOperators(PETScSolver,PETScSystemMatrix,PETScSystemMatrix,ierr))
 
 PetscCallA(KSPGetPC(PETScSolver,pc,ierr))
+! Set the tolerances defaults: rtol=1e-5, atol=1e-50, dtol=1e5, maxits=1e4
+! ASSOCIATE( rtol => PETSC_DEFAULT_REAL )
+ASSOCIATE( rtol => 1e-16, atol => epsCG )
 SELECT CASE(PrecondType)
 CASE(0)
   ! ====== Iterative solver: Conjugate Gradient
   PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
   PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
   PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
-  PetscCallA(KSPSetTolerances(PETScSolver,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,rtol,atol,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
   ! ===  Preconditioner: None
   PetscCallA(PCSetType(pc,PCNONE,ierr))
 CASE(1)
@@ -799,49 +804,52 @@ CASE(1)
   PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
   PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
   PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
-  PetscCallA(KSPSetTolerances(PETScSolver,PETSC_DEFAULT_REAL,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,rtol,atol,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
   ! ===  Preconditioner: Block Jacobi
   PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
-#ifdef PETSC_HAVE_HYPRE
 CASE(2)
-  PetscCallA(KSPSetType(PETScSolver,KSPCG, ierr))
+  ! ====== Iterative solver: Pipelined Conjugate Gradient (only a single non-blocking communication instead of 2 blocking compared to KSPCG)
+  PetscCallA(KSPSetType(PETScSolver,KSPPIPECG,ierr))
   PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
   PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
-  PetscCallA(KSPSetTolerances(PETScSolver,1e-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
-  ! ===  Preconditioner: Incomplete factorization preconditioner
-  PetscCallA(PCHYPRESetType(pc,PCILU,ierr))
+  ! Tolerances defaults: rtol=1e-5, atol=1e-50, dtol=1e5, maxits=1e4
+  PetscCallA(KSPSetTolerances(PETScSolver,rtol,atol,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  ! ===  Preconditioner: Block Jacobi
+  PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
 CASE(3)
-  PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
+  ! ====== Iterative solver: Flexible Generalized Minimal Residual method
+  PetscCallA(KSPSetType(PETScSolver,KSPFGMRES, ierr))
+  ! Number of iterations at which the solver restarts [default = 30]: "A larger restart parameter generally leads to faster convergence
+  ! of GMRES but the memory usage is higher than with a smaller restart parameter, as is the average time to perform each iteration.
+  ! For more ill-conditioned problems a larger restart value may be necessary." https://petsc.org/release/manualpages/KSP/KSPGMRESSetRestart/
+  PetscCallA(KSPGMRESSetRestart(PETScSolver, 100, ierr))
   PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
   PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
-  PetscCallA(KSPSetTolerances(PETScSolver,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
-  ! ===  Preconditioner: matrix element based preconditioner, ParaSails is a parallel implementation of a sparse approximate
-  !      inverse preconditioner
-  PetscCallA(PCSetType(pc, PCHYPRE, ierr))
-  PetscCallA(PCHYPRESetType(pc, "parasails", ierr))
-#endif
-CASE(20)
-  ! ====== Iterative solver: GMRES
-  PetscCallA(KSPSetType(PETScSolver,KSPGMRES, ierr))
-  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
-  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
-  PetscCallA(KSPSetTolerances(PETScSolver,PETSC_DEFAULT_REAL,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,rtol,atol,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
 #ifdef PETSC_HAVE_HYPRE
   ! ===  Preconditioner: BoomerAMG
   PetscCallA(PCSetType(pc, PCHYPRE, ierr))
   PetscCallA(PCHYPRESetType(pc, "boomeramg", ierr))
   ! BoomerAMG options
+  ! Strong threshold for coarsening: greater value means more coarsening; default = 0.25, which is only sufficient for 2D
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_strong_threshold", "0.7", ierr))
   ! Coarsening strategy: HMIS coarsening
   PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_coarsen_type", "HMIS", ierr))
-  ! Strong threshold for coarsening
-  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_strong_threshold", "0.5", ierr))
-  ! Maximum number of levels
+  ! Maximum number of levels (default: 25)
   PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_max_levels", "25", ierr))
+  ! Number of coarsening levels for "aggressive coarsening"
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_agg_nl", "4", ierr))
+  ! Number of pathways within a coarsening level: 1 is most agressive value; balance between the number of levels and paths
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_agg_num_paths", "5", ierr))
+  ! Interpolation type
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_interp_type", "ext+i", ierr))
+  ! Coarsen during the interpolation
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_truncfactor", "0.3", ierr))
   PetscCallA(PCSetFromOptions(pc,ierr))
-#else
+#else /*NOT PETSC_HAVE_HYPRE*/
   ! ===  Preconditioner: Block Jacobi
   PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
-#endif
+#endif /*PETSC_HAVE_HYPRE*/
 #ifdef PETSC_HAVE_MUMPS
 CASE(10)
   ! ====== Direct solver: Cholesky
@@ -852,19 +860,41 @@ CASE(10)
   PetscCallA(PCFactorSetUpMatSolverType(pc,ierr))
   ! We need to get the internal matrix to set its options
   PetscCallA(PCFactorGetMatrix(pc,F,ierr))
-  ! Tell MUMPS matrix is SPD
-  PetscCallA(MatMumpsSetIcntl(F,7,2,ierr))
-  ! Memory handling
-  PetscCallA(MatMumpsSetIcntl(F,14,200,ierr))    ! Allow 3x estimated memory
-  PetscCallA(MatMumpsSetIcntl(F,23,1000,ierr))   ! Limit to 2GB per process
-#endif
+#if USE_DEBUG
+  ! Increase MUMPS diagnostics level: Errors, warnings, and main statistics printed.
+  PetscCallA(MatMumpsSetIcntl(F, 4, 2, ierr))
+#endif /*USE_DEBUG*/
+  ! === Compression
+  ! Enable BLR compression with automatic settings: showed better performance for initial factorization and better memory footprint
+  PetscCallA(MatMumpsSetIcntl(F, 35, 1, ierr))
+  ! ! Enable BLR compression of the contribution blocks, reducing the memory consumption at the cost of some additional operations
+  ! ! during factorization
+  ! PetscCallA(MatMumpsSetIcntl(F, 37, 1, ierr))
+  ! === Parallel ordering: select one of the following or let PETSc decide (recommended)
+  ! PetscCallA(MatMumpsSetIcntl(F, 28, 2, ierr))
+  ! ! Use PT-SCOTCH for ordering
+  ! PetscCallA(MatMumpsSetIcntl(F, 29, 1, ierr))
+  ! ! Use ParMetis for parallel ordering
+  ! PetscCallA(MatMumpsSetIcntl(F, 29, 2, ierr))
+
+  ! === Memory handling
+  ! Workspace allocation: Allow 2x estimated memory (default is at 35%)
+  PetscCallA(MatMumpsSetIcntl(F,14,100,ierr))
+  ! ! Limit to 2GB per process, or default (=0): each processor will allocate workspace based on the estimates computed during the analysis
+  ! PetscCallA(MatMumpsSetIcntl(F,23,2000,ierr))
+#endif /*PETSC_HAVE_MUMPS*/
 CASE DEFAULT
-  CALL abort(__STAMP__,'ERROR in PETScSetSolver: Unknown option! Note that the direct solver (10) is currently only available with MUMPS and the iteratice (2) only with HYPRE. PrecondType=', IntInfoOpt=PrecondType)
+  SWRITE(*,*) 'PrecondType:', PrecondType
+  CALL CollectiveStop(__STAMP__,'ERROR in PETScSetSolver: Unknown option! Direct solver (10) is only available with MUMPS.')
 END SELECT
+END ASSOCIATE
 
 ! Get solver and preconditioner types
 PetscCallA(KSPGetType(PETScSolver, ksp_type, ierr))
 PetscCallA(PCGetType(pc, pc_type, ierr))
+
+! Reuse preconditioner (might be unneccessary since the system matrix remains the same during the simulation)
+PetscCallA(KSPSetReusePreconditioner(PETScSolver, PETSC_TRUE, ierr))
 
 ! If using direct solver, print factorization type
 IF (TRIM(ksp_type) .EQ. 'preonly') THEN
@@ -957,7 +987,7 @@ IF(FPC%nFPCBounds.EQ.0) RETURN ! Already determined in HDG initialization
 UseFPC = .TRUE.
 
 #if !(USE_PETSC)
-CALL abort(__STAMP__,'FPC model requires compilation with LIBS_USE_PETSC=ON')
+CALL CollectiveStop(__STAMP__,'FPC model requires compilation with LIBS_USE_PETSC=ON')
 #endif /*!(USE_PETSC)*/
 
 GETTIME(StartT)

@@ -75,7 +75,7 @@ INTEGER             :: nDirichletBCsides
 INTEGER             :: nNeumannBCsides
 INTEGER             :: nConductorBCsides      !< Number of processor-local sides that are conductors (FPC) in [1:nBCSides]
 INTEGER             :: nDistriCapBCsides      !< Number of processor-local sides that are distributed capacitance (DC) in [1:nBCSides]
-LOGICAL             :: SetZeroPotentialDOF    !< Flag to set a single DOF, if only periodic and Neumann boundaries are present
+INTEGER             :: ZeroPotentialSide      !< (local) SideID of the side where the potential of one DOF is set to zero
 INTEGER,ALLOCATABLE :: ConductorBC(:)
 INTEGER,ALLOCATABLE :: DirichletBC(:)
 INTEGER,ALLOCATABLE :: NeumannBC(:)

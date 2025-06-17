@@ -219,7 +219,7 @@ DO iVar = 1, PP_nVar
 #endif /*USE_PETSC*/
 
   ! Set potential to zero (only one process does this)
-  IF(SetZeroPotentialDOF) HDG_Surf_N(1)%lambda(iVar,1) = 0.
+  IF(ZeroPotentialSide>0) HDG_Surf_N(ZeroPotentialSide)%lambda(iVar,1) = 0.
 END DO
 
 !volume source (volume RHS of u system)
@@ -381,8 +381,8 @@ IF(UseFPC) THEN
 END IF
 
 ! Reset the RHS of the first DOF if ZeroPotential must be set
-IF(MPIroot .AND. SetZeroPotentialDOF) THEN
-  PetscCallA(VecSetValue(PETScRHS,0,0,INSERT_VALUES,ierr))
+IF(mpiRoot.AND.ZeroPotentialDOF >= 0) THEN
+  PetscCallA(VecSetValue(PETScRHS,ZeroPotentialDOF,0,INSERT_VALUES,ierr))
 END IF
 
 PetscCallA(VecAssemblyBegin(PETScRHS,ierr))
@@ -407,12 +407,13 @@ PetscCallA(KSPGetResidualNorm(PETScSolver,petscnorm,ierr))
 ! -11: KSP_DIVERGED_PC_FAILED      -> It was not possible to build or use the requested preconditioner
 ! -11: KSP_DIVERGED_PCSETUP_FAILED_DEPRECATED
 IF(reason.LT.0)THEN
+  ! Output used memory
   CALL WarningMemusage(Mode=1,Threshold=5.0)
   !  View solver converged reason
   PetscCallA(KSPConvergedReasonView(PETScSolver,PETSC_VIEWER_STDOUT_WORLD,ierr))
   !  View solver info
   PetscCallA(KSPView(PETScSolver,PETSC_VIEWER_STDOUT_WORLD,ierr))
-  CALL abort(__STAMP__,'ERROR: PETSc not converged!')
+  CALL Abort(__STAMP__,'ERROR: PETSc not converged! Reason: ',IntInfoOpt=reason)
 END IF
 
 IF(MPIroot) THEN

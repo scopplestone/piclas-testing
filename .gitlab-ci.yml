@@ -711,6 +711,12 @@ CHE_poisson_p_adaption:
   script:
     - cd build_poisson_petsc_release_Leapfrog ; reggie ../regressioncheck/CHE_poisson_p_adaption -e ./bin/piclas
 
+CHE_poisson_periodic:
+  <<: *defaults_checkin
+  stage: reggie_feature_checkin
+  script:
+    - cd build ; reggie ../regressioncheck/CHE_poisson_periodic
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -803,11 +809,17 @@ NIG_PIC_maxwell_RK4:
   script:
     - cd build ; reggie ../regressioncheck/NIG_PIC_maxwell_RK4/
 
-NIG_PIC_maxwell_RK4_p_adaption:
+NIG_PIC_maxwell_RK4_p_adaption_release:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
     - cd build ; reggie ../regressioncheck/NIG_PIC_maxwell_RK4_p_adaption
+
+NIG_PIC_maxwell_RK4_p_adaption_debug:
+  <<: *defaults_nightly
+  stage: reggie_nightly
+  script:
+    - cd build ; reggie -t Debug ../regressioncheck/NIG_PIC_maxwell_RK4_p_adaption
 
 NIG_convtest_maxwell:
   <<: *defaults_nightly
