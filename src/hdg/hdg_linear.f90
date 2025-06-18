@@ -285,7 +285,8 @@ DO BCsideID=1,nDistriCapBCsides
   Nloc = N_SurfMesh(SideID)%NSide
   DO q=0,Nloc; DO p=0,Nloc
     r=q*(Nloc+1) + p+1
-    src = N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q) * DCPermittivity * DCBiasVoltage / DCThickness
+    src = N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q) * &
+         (DCPermittivity * DCBiasVoltage / DCThickness + DCSurfaceCharge/eps0)
     HDG_Surf_N(SideID)%RHS_face(1,r) = HDG_Surf_N(SideID)%RHS_face(1,r) + src
   END DO; END DO !p,q
 END DO

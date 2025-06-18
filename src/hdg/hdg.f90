@@ -88,6 +88,7 @@ CALL prms%CreateRealArrayOption( 'EPC-Resistance'      ,'Vector (length correspo
 CALL prms%CreateLogicalOption('HDGNSideMin'            ,'Use the minimum polynomial degree at the sides for the HDG solver', '.FALSE.')
 CALL prms%CreateRealOption(   'DC-BiasVoltage'         ,'Distributed Capacitance bias voltage', '0.0')
 CALL prms%CreateRealOption(   'DC-Permittivity'        ,'Distributed Capacitance relative permittivity (eps_r)', '1.0')
+CALL prms%CreateRealOption(   'DC-SurfaceCharge'       ,'Distributed Capacitance surface charge density (sigma)', '0.0')
 CALL prms%CreateRealOption(   'DC-Thickness'           ,'Distributed Capacitance thickness', '1.0')
 #if defined(PARTICLES)
 CALL prms%CreateLogicalOption(  'UseBiasVoltage'              , 'Activate usage of bias voltage adjustment (for specific boundaries only)', '.FALSE.')
@@ -441,6 +442,7 @@ IF(nDistriCapBCsides.GT.0)THEN
   ! Read stuff like thickness, permittivity and bias voltage
   DCThickness = GETREAL('DC-Thickness')
   DCPermittivity = GETREAL('DC-Permittivity')
+  DCSurfaceCharge = GETREAL('DC-SurfaceCharge')
   DCBiasVoltage = GETREAL('DC-BiasVoltage')
 END IF
 
