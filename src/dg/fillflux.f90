@@ -25,7 +25,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-#if !(USE_HDG)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700)) && !(USE_HDG)
 INTERFACE FillFlux
   MODULE PROCEDURE FillFlux
 END INTERFACE
@@ -42,16 +42,15 @@ SUBROUTINE FillFlux(t,tDeriv,doMPISides)
 ! MODULES
 USE MOD_GLobals
 USE MOD_PreProc
-USE MOD_Mesh_Vars          ,ONLY: nSides,nBCSides,N_SurfMesh
+USE MOD_Mesh_Vars          ,ONLY: nBCSides,N_SurfMesh
 USE MOD_DG_Vars            ,ONLY: U_Surf_N,DG_Elems_slave,DG_Elems_master
 USE MOD_GetBoundaryFlux    ,ONLY: GetBoundaryFlux
-USE MOD_Mesh_Vars          ,ONLY: firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide,SideToElem
+USE MOD_Mesh_Vars          ,ONLY: firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
 USE MOD_PML_vars           ,ONLY: PMLnVar
 USE MOD_Equation_Vars      ,ONLY: DoExactFlux,isExactFluxInterFace
 #ifdef maxwell
 USE MOD_Riemann            ,ONLY: ExactFlux
 #endif /*maxwell*/
-USE MOD_Mesh_Vars,   ONLY:ElemToSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -67,8 +66,7 @@ INTEGER,INTENT(IN) :: tDeriv      ! deriv
 !REAL,INTENT(OUT)   :: Flux_Slave(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: SideID,p,q,firstSideID_wo_BC,firstSideID ,lastSideID,N_master,N_slave,Nloc,N_max
-INTEGER           :: flip(6)
+INTEGER            :: SideID,p,q,firstSideID_wo_BC,firstSideID ,lastSideID,N_master,N_slave,N_max
 !===================================================================================================================================
 ! fill flux for sides ranging between firstSideID and lastSideID using Riemann solver
 ! Set the side range according to MPI or no MPI
@@ -162,11 +160,9 @@ END SUBROUTINE FillFlux
 SUBROUTINE GetSurfaceFlux(SideID,N_master,N_slave,N_max,Flux_Master,Flux_Slave,U_Master,U_Slave,NormVec,SurfElem)
 ! MODULES
 USE MOD_Riemann            ,ONLY: Riemann
-USE MOD_DG_Vars            ,ONLY: DG_Elems_slave,DG_Elems_master
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_Interpolation_Vars ,ONLY: PREF_VDM,N_Inter
 USE MOD_Interfaces_Vars    ,ONLY: InterfaceRiemann
-USE MOD_mesh_vars          ,ONLY: N_SurfMesh
 USE MOD_PML_vars           ,ONLY: PMLnVar
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -282,6 +278,6 @@ SDEALLOCATE(Fluxdie)
 
 END SUBROUTINE GetSurfaceFlux
 
-#endif
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700)) && !(USE_HDG)*/
 
 END MODULE MOD_FillFlux

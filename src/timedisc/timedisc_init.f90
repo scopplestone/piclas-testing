@@ -94,8 +94,6 @@ SUBROUTINE InitTimeDisc()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars     ,ONLY: nElems, offSetElem
-USE MOD_DG_Vars       ,ONLY: N_DG_Mapping
 USE MOD_ReadInTools   ,ONLY: GetReal,GetInt, GETLOGICAL
 USE MOD_TimeDisc_Vars ,ONLY: IterDisplayStepUser
 USE MOD_TimeDisc_Vars ,ONLY: CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal,dtWeight
@@ -103,19 +101,13 @@ USE MOD_TimeDisc_Vars ,ONLY: IterDisplayStep,DoDisplayIter
 USE MOD_TimeDisc_Vars ,ONLY: ManualTimeStep,useManualTimestep
 USE MOD_TimeDisc_Vars ,ONLY: TEnd
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
-!USE MOD_TimeDisc_Vars          ,ONLY: U2t_temp
-USE MOD_PML_Vars               ,ONLY: nPMLElems
-USE MOD_PML_Vars               ,ONLY: PMLnVar
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
+! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: Nloc,iElem
 !===================================================================================================================================
 IF(TimeDiscInitIsDone)THEN
    SWRITE(*,*) "InitTimeDisc already called."
@@ -172,6 +164,10 @@ dt=HUGE(1.)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Leapfrog, Poisson'
 #elif (PP_TimeDiscMethod==600)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Radiation'
+#elif (PP_TimeDiscMethod==700)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ED-DVM or DUGKS'
+#elif (PP_TimeDiscMethod==701)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Explicit finite volumes'
 #endif
 
 RKdtFrac      = 1.

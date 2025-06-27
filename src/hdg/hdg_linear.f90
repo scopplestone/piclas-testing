@@ -44,7 +44,7 @@ USE MOD_Equation           ,ONLY: CalcSourceHDG,ExactFunc
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nSides,BC,N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide, offSetElem
-USE MOD_Interpolation_Vars ,ONLY: NMax,PREF_VDM
+USE MOD_Interpolation_Vars ,ONLY: NMax,PREF_VDM,N_Inter
 USE MOD_Elem_Mat           ,ONLY: PostProcessGradientHDG
 USE MOD_FillMortar_HDG     ,ONLY: SmallToBigMortar_HDG
 #if (PP_nVar==1)
@@ -68,7 +68,7 @@ USE MOD_MPI_Vars
 USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG
 #endif
 #if USE_MPI
-USE MOD_MPI                ,ONLY: Mask_MPIsides
+USE MOD_MPI_HDG            ,ONLY: Mask_MPIsides
 #endif
 USE MOD_Globals_Vars       ,ONLY: ElementaryCharge,eps0
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
@@ -102,7 +102,7 @@ PetscScalar, POINTER :: lambda_pointer(:)
 KSPConvergedReason   :: reason
 PetscInt             :: iterations
 PetscReal            :: petscnorm
-INTEGER              :: ElemID,iBCSide,PETScLocalID
+INTEGER              :: ElemID,iBCSide
 INTEGER              :: DOF_start, DOF_stop
 REAL                 :: timeStartPiclas,timeEndPiclas
 INTEGER              :: jLocSide
@@ -111,8 +111,14 @@ INTEGER              :: iUniqueFPCBC
 #endif /*USE_PETSC*/
 REAL                 :: src
 INTEGER              :: iMortar, iType
-INTEGER              :: iGP, jGP, ip, iq, jp, jq
+! INTEGER              :: iGP, jGP, ip, iq, jp, jq
+REAL                 :: chitens_face(3,3)
 !===================================================================================================================================
+! Dummy for chitens_face(:,:,p,q,SideID)
+chitens_face=0.0
+chitens_face(1,1)=1.
+chitens_face(2,2)=1.
+chitens_face(3,3)=1.
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
@@ -180,6 +186,18 @@ DO iVar = 1, PP_nVar
       DO q=0,Nloc; DO p=0,Nloc
         r=q*(Nloc+1) + p+1
         HDG_Surf_N(SideID)%qn_face(iVar,r)= 0.
+      END DO; END DO !p,q
+    CASE(11) !neumann q*n=1 !test
+      DO q=0,Nloc; DO p=0,Nloc
+        r=q*(Nloc+1) + p+1
+        HDG_Surf_N(SideID)%qn_face(iVar,r)=SUM((/1.,1.,1./)  &
+                            *MATMUL(chitens_face(:,:),N_SurfMesh(SideID)%NormVec(:,p,q)))*N_SurfMesh(SideID)%SurfElem(p,q)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)
+      END DO; END DO !p,q
+    CASE(12) !neumann q*n=1 !test
+      DO q=0,Nloc; DO p=0,Nloc
+        r=q*(Nloc+1) + p+1
+        HDG_Surf_N(SideID)%qn_face(iVar,r)=SUM((/-1.45e7,1.,1./)  &
+                            *MATMUL(chitens_face(:,:),N_SurfMesh(SideID)%NormVec(:,p,q)))*N_SurfMesh(SideID)%SurfElem(p,q)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)
       END DO; END DO !p,q
     END SELECT ! BCType
   END DO !BCsideID=1,nNeumannBCSides

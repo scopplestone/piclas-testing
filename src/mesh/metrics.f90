@@ -51,18 +51,10 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTERFACE BuildElem_xGP
-  MODULE PROCEDURE BuildElem_xGP
-END INTERFACE
-
-INTERFACE CalcMetrics
-  MODULE PROCEDURE CalcMetrics
-END INTERFACE
-
-
 PUBLIC::BuildElem_xGP
 PUBLIC::CalcMetrics
 PUBLIC::CalcSurfMetrics
+PUBLIC::SurfMetricsFromJa
 !==================================================================================================================================
 
 CONTAINS
@@ -80,7 +72,12 @@ USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL,NodeTypeVISU,NodeType,Nmin,Nmax
 USE MOD_Interpolation      ,ONLY: GetVandermonde,GetNodesAndWeights
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D_XYZ, ChangeBasis3D
 USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
+#if !(PP_TimeDiscMethod==700)
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+#endif /*!(PP_TimeDiscMethod==700)*/
+#if USE_FV
+USE MOD_Mesh_Vars_FV,       ONLY: Elem_xGP_PP_1,Elem_xGP_FV
+#endif /*USE_FV*/
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -98,6 +95,15 @@ END TYPE VdmType
 TYPE(VdmType), DIMENSION(:), ALLOCATABLE :: Vdm
 !==================================================================================================================================
 
+#if USE_FV
+  ! Element centers
+  SDEALLOCATE(Elem_xGP_FV)
+  ALLOCATE(Elem_xGP_FV   (3,0:0,0:0,0:0,nElems))!
+  ! Output points
+  SDEALLOCATE(Elem_xGP_PP_1)
+  ALLOCATE(Elem_xGP_PP_1 (3,0:PP_1,0:PP_1,0:PP_1,nElems))
+ASSOCIATE( Nmin => 0 , Nmax => MAX(Nmax,1) )
+#endif /*USE_FV*/
 ! Build Vdm for every degree
 ALLOCATE(Vdm(Nmin:Nmax))
 DO Nloc = Nmin, Nmax
@@ -112,13 +118,28 @@ DO Nloc = Nmin, Nmax
 !1.a) Transform from EQUI_NGeo to solution points on Nloc
   Vdm(Nloc)%Vdm_EQNGeo_CLNloc=MATMUL(Vdm(Nloc)%Vdm_CLNloc_Nloc, Vdm(Nloc)%Vdm_EQNGeo_CLNloc)
 END DO ! Nloc = Nmin, Nmax
+#if USE_FV
+END ASSOCIATE
+#endif /*USE_FV*/
 
 ! Set Elem_xGP for each element
 DO iElem=1,nElems
+#if !(PP_TimeDiscMethod==700)
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
+#else
+  Nloc = PP_N
+#endif /*!(PP_TimeDiscMethod==700)*/
   ALLOCATE(N_VolMesh(iElem)%Elem_xGP(3,0:Nloc,0:Nloc,0:Nloc))
   !WRITE (*,*) "NodeCoords(:,:,:,:,iElem) =", NodeCoords(:,:,:,:,iElem)
   CALL ChangeBasis3D(3,NGeo,Nloc,Vdm(Nloc)%Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iElem),N_VolMesh(iElem)%Elem_xGP(:,:,:,:))
+#if USE_FV
+  ! Element centers
+  Nloc = 0
+  CALL ChangeBasis3D(3,NGeo,Nloc,Vdm(Nloc)%Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iElem),Elem_xGP_FV(:,:,:,:,iElem))
+  ! Output points
+  Nloc = PP_1
+  CALL ChangeBasis3D(3,NGeo,Nloc,Vdm(Nloc)%Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iElem),Elem_xGP_PP_1(:,:,:,:,iElem))
+#endif /*USE_FV*/
 END DO
 
 END SUBROUTINE BuildElem_xGP
@@ -141,7 +162,9 @@ USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem
 USE MOD_Interpolation      ,ONLY: GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
 USE MOD_ChangeBasis        ,ONLY: changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
+#if !(PP_TimeDiscMethod==700)
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+#endif /*!(PP_TimeDiscMethod==700)*/
 USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL,NodeTypeVISU,NodeType,Nmin,Nmax,NInfo
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL
 USE MOD_Globals_Vars       ,ONLY: PI
@@ -263,7 +286,11 @@ DO iElem=1,nElems
 SmallestscaledJacRef=HUGE(1.)
   N_VolMesh2(iElem)%dXCL_N=0.
   ! Get N
+#if !(PP_TimeDiscMethod==700)
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
+#else
+  Nloc = PP_N
+#endif /*!(PP_TimeDiscMethod==700)*/
 
   ! Init
   N_VolMesh(iElem)%Metrics_fTilde=0.
@@ -271,7 +298,7 @@ SmallestscaledJacRef=HUGE(1.)
   N_VolMesh(iElem)%Metrics_hTilde=0.
 
   !1.a) Transform from EQUI_Ngeo to CL points on Ngeo and N
-  CALL ChangeBasis3D(3, NGeo, NGeo, Vdm_EQNGeo_CLNGeo         , NodeCoords(:,:,:,:,iElem), XCL_Ngeo         )
+  CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_EQNGeo_CLNGeo,NodeCoords(:,:,:,:,iElem)            ,XCL_Ngeo)
   CALL ChangeBasis3D(3, NGeo, Nloc, NInfo(Nloc)%Vdm_CLNGeo_CLN, XCL_Ngeo                 , NInfo(Nloc)%XCL_N)
   ! Save XCL_N for LB communication
   N_VolMesh(iElem)%XCL_N = NInfo(Nloc)%XCL_N
@@ -447,7 +474,7 @@ LBWRITE (*,'(A,ES18.10E3,A,I0,A,ES13.5E3)') " Smallest scaled Jacobian in refere
     " (",nGlobalElems," global elements). Abort threshold is set to:", scaledJacRefTol
 
 GETTIME(EndT)
-CALL DisplayMessageAndTime(EndT-StartT, 'Calculation of metrics took!', DisplayLine=.FALSE.)
+CALL DisplayMessageAndTime(EndT-StartT, 'Calculation of metrics took ', DisplayLine=.FALSE.)
 
 END SUBROUTINE CalcMetrics
 
@@ -458,24 +485,27 @@ SUBROUTINE CalcSurfMetrics(iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,     ONLY:CROSS
+USE MOD_Globals,        ONLY:CROSS
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide,MortarType,xyzMinMax,GetMeshMinMaxBoundariesIsDone!,nSides
 USE MOD_Mesh_Vars          ,ONLY: NormalDirs,TangDirs,NormalSigns, N_SurfMesh
-USE MOD_Mappings,    ONLY:CGNS_SideToVol2
-USE MOD_ChangeBasis, ONLY:ChangeBasis2D
+USE MOD_Mappings,       ONLY:CGNS_SideToVol2
+USE MOD_ChangeBasis,    ONLY:ChangeBasis2D
 USE MOD_Mortar_Metrics, ONLY:Mortar_CalcSurfMetrics
+#if !(PP_TimeDiscMethod==700)
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
+#endif /*!(PP_TimeDiscMethod==700)*/
 USE MOD_Interpolation_Vars ,ONLY: Nmax,NInfo!,PREF_VDM,N_Inter
 USE MOD_Mesh_Vars,          ONLY: SideToElem, offSetElem,N_VolMesh,N_VolMesh2
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)) && defined(maxwell)
-USE MOD_Equation_Vars      ,ONLY: DoExactFlux ! Required for skipping cycle because NormVec is then not built for loc.LT.NSideMax sides
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)) && defined(maxwell)*/
+USE MOD_Interpolation_Vars ,ONLY: PREF_VDM!,N_Inter
+! #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)) && defined(maxwell)
+! USE MOD_Equation_Vars      ,ONLY: DoExactFlux ! Required for skipping cycle because NormVec is then not built for loc.LT.NSideMax sides
+! #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)) && defined(maxwell)*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: iElem                               !< (IN) element index
+INTEGER,INTENT(IN) :: iElem                                !< (IN) element index
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -485,39 +515,47 @@ INTEGER            :: p,q,pq(2),dd,iLocSide,SideID,SideID2,iMortar,nbSideIDs(4)
 INTEGER            :: NormalDir,TangDir,NSideMax
 REAL               :: NormalSign
 REAL               :: Ja_Face_l(3,3,0:Nmax,0:Nmax)
-REAL               :: Mortar_Ja(3,3,0:Nmax,0:Nmax,4)
-REAL               :: Mortar_xGP( 3,0:Nmax,0:Nmax,4)
+REAL               :: Mortar_Ja(3,3,0:Nmax,0:Nmax,4), Mortar_Ja_loc(3,3,0:Nmax,0:Nmax)
+REAL               :: Mortar_xGP( 3,0:Nmax,0:Nmax,4), Mortar_xGP_loc( 3,0:Nmax,0:Nmax)
 REAL               :: tmp(        3,0:Nmax,0:Nmax)
 REAL               :: tmp2(       3,0:Nmax,0:Nmax)
 REAL               :: tmpflip(    3,0:Nmax,0:Nmax)
-INTEGER            :: Nloc,flip!,NSideMin,NSideMax
+INTEGER            :: Nloc,flip,NSideMortar!,NSideMin,NSideMax
 LOGICAL            :: flipSide
 !#if USE_HDG
 !INTEGER            :: iSide
 !#endif /*USE_HDG*/
 !==================================================================================================================================
 
+#if PP_dim == 3
 DO iLocSide=1,6
+#else
+DO iLocSide=2,5
+#endif
   SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+  flipSide=.FALSE.
+#if !(PP_TimeDiscMethod==700)
   ! Use maximum polynomial degree of master/slave sides
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   NSideMax = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
-  flipSide=.FALSE.
   !WRITE (*,*) "Nloc,NSideMax,ElemToSide(E2S_FLIP,iLocSide,iElem) =", Nloc,NSideMax,ElemToSide(E2S_FLIP,iLocSide,iElem)
 
   ! TODO: maybe this has to be done differently between HDG and Maxwell
   IF(Nloc.LT.NSideMax)THEN
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)) && defined(maxwell)
     ! Do not cycle here when exact flux is used because NormVec is then not built for loc.LT.NSideMax sides
-    IF(.NOT.DoExactFlux)&
+!    IF(.NOT.DoExactFlux)&
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)) && defined(maxwell)*/
-    CYCLE
+!    CYCLE
   ELSE
     IF(DG_Elems_master(SideID).EQ.DG_Elems_slave(SideID).AND.(ElemToSide(E2S_FLIP,iLocSide,iElem).NE.0) ) CYCLE ! only master sides with flip=0
     IF(ElemToSide(E2S_FLIP,iLocSide,iElem).NE.0) flipSide=.TRUE.
   END IF
   !IF (ElemToSide(E2S_FLIP,iLocSide,iElem).NE.0) CYCLE
   !Nloc = NSideMax
+#else
+  Nloc = PP_N
+#endif /*!(PP_TimeDiscMethod==700)*/
 
   SELECT CASE(iLocSide)
   CASE(XI_MINUS)
@@ -669,10 +707,48 @@ DO iLocSide=1,6
     DO iMortar=1,4
       SideID2=nbSideIDs(iMortar)
       IF(SideID2.LT.1) CYCLE ! for MPI sides some sides are built from the inside and for type 2/3 there are only 2 neighbours
-      N_SurfMesh(SideID2)%Face_xGP(:,:,:) = Mortar_xGP(1:3,0:Nloc,0:Nloc,iMortar)
-      CALL SurfMetricsFromJa(Nloc,NormalDir,TangDir,NormalSign,Mortar_Ja(1:3,1:3,0:Nloc,0:Nloc,iMortar),&
-                             N_SurfMesh(SideID2)%NormVec(:,:,:),N_SurfMesh(SideID2)%TangVec1(:,:,:),&
-                             N_SurfMesh(SideID2)%TangVec2(:,:,:),N_SurfMesh(SideID2)%SurfElem(:,:))
+      NSideMortar = MAX(DG_Elems_slave(SideID2),DG_Elems_master(SideID2))
+      IF (Nloc.EQ.NSideMortar) THEN
+        N_SurfMesh(SideID2)%Face_xGP(:,:,:) = Mortar_xGP(1:3,0:Nloc,0:Nloc,iMortar)
+        CALL SurfMetricsFromJa(Nloc,NormalDir,TangDir,NormalSign,Mortar_Ja(1:3,1:3,0:Nloc,0:Nloc,iMortar),&
+                               N_SurfMesh(SideID2)%NormVec(:,:,:),N_SurfMesh(SideID2)%TangVec1(:,:,:),&
+                               N_SurfMesh(SideID2)%TangVec2(:,:,:),N_SurfMesh(SideID2)%SurfElem(:,:))
+      ELSE IF (NSideMortar.GT.NLoc) THEN
+        CALL ChangeBasis2D(3, NLoc, NSideMortar, PREF_VDM(NLoc, NSideMortar)%Vdm, &
+                 Mortar_xGP(1:3,0:Nloc,0:Nloc,iMortar), Mortar_xGP_loc(1:3,0:NSideMortar,0:NSideMortar))
+        N_SurfMesh(SideID2)%Face_xGP(:,:,:) = Mortar_xGP_loc(1:3,0:NSideMortar,0:NSideMortar)
+        CALL ChangeBasis2D(3, NLoc, NSideMortar, PREF_VDM(NLoc, NSideMortar)%Vdm, &
+                 Mortar_Ja(1:3,1,0:Nloc,0:Nloc,iMortar), Mortar_Ja_loc(1:3,1,0:NSideMortar,0:NSideMortar))
+        CALL ChangeBasis2D(3, NLoc, NSideMortar, PREF_VDM(NLoc, NSideMortar)%Vdm, &
+                 Mortar_Ja(1:3,2,0:Nloc,0:Nloc,iMortar), Mortar_Ja_loc(1:3,2,0:NSideMortar,0:NSideMortar))
+        CALL ChangeBasis2D(3, NLoc, NSideMortar, PREF_VDM(NLoc, NSideMortar)%Vdm, &
+                 Mortar_Ja(1:3,3,0:Nloc,0:Nloc,iMortar), Mortar_Ja_loc(1:3,3,0:NSideMortar,0:NSideMortar))
+        CALL SurfMetricsFromJa(NSideMortar,NormalDir,TangDir,NormalSign,Mortar_Ja_loc(1:3,1:3,0:NSideMortar,0:NSideMortar),&
+                               N_SurfMesh(SideID2)%NormVec(:,:,:),N_SurfMesh(SideID2)%TangVec1(:,:,:),&
+                               N_SurfMesh(SideID2)%TangVec2(:,:,:),N_SurfMesh(SideID2)%SurfElem(:,:))
+      ELSE IF (NSideMortar.LT.NLoc) THEN
+!        CALL ChangeBasis2D(3, NLoc, NLoc, N_Inter(NLoc)%sVdm_Leg, &
+!                Mortar_xGP(1:3,0:Nloc,0:Nloc,iMortar), Mortar_xGP(1:3,0:Nloc,0:Nloc,iMortar))
+!        ! Switch back to nodal basis but cut-off the higher-order DOFs (go from N_master to N_master)
+!        CALL ChangeBasis2D(3, NSideMortar, NSideMortar, N_Inter(NSideMortar)%Vdm_Leg, &
+!                Mortar_xGP(1:3, 0:NSideMortar, 0:NSideMortar ,iMortar), Mortar_xGP_loc(1:3,0:NSideMortar,0:NSideMortar))
+!        N_SurfMesh(SideID2)%Face_xGP(:,:,:) = Mortar_xGP_loc(1:3,0:NSideMortar,0:NSideMortar)
+!        CALL ChangeBasis2D(3, NLoc, NLoc, N_Inter(NLoc)%sVdm_Leg, &
+!                Mortar_Ja(1:3,1,0:Nloc,0:Nloc,iMortar), Mortar_Ja(1:3,1,0:Nloc,0:Nloc,iMortar))
+!        CALL ChangeBasis2D(3, NLoc, NLoc, N_Inter(NLoc)%sVdm_Leg, &
+!                Mortar_Ja(1:3,2,0:Nloc,0:Nloc,iMortar), Mortar_Ja(1:3,2,0:Nloc,0:Nloc,iMortar))
+!        CALL ChangeBasis2D(3, NLoc, NLoc, N_Inter(NLoc)%sVdm_Leg, &
+!                Mortar_Ja(1:3,3,0:Nloc,0:Nloc,iMortar), Mortar_Ja(1:3,3,0:Nloc,0:Nloc,iMortar))
+!        CALL ChangeBasis2D(3, NSideMortar, NSideMortar, N_Inter(NSideMortar)%Vdm_Leg, &
+!                Mortar_Ja(1:3,1, 0:NSideMortar, 0:NSideMortar ,iMortar), Mortar_Ja_loc(1:3,1,0:NSideMortar,0:NSideMortar))
+!        CALL ChangeBasis2D(3, NSideMortar, NSideMortar, N_Inter(NSideMortar)%Vdm_Leg, &
+!                Mortar_Ja(1:3,2, 0:NSideMortar, 0:NSideMortar ,iMortar), Mortar_Ja_loc(1:3,2,0:NSideMortar,0:NSideMortar))
+!        CALL ChangeBasis2D(3, NSideMortar, NSideMortar, N_Inter(NSideMortar)%Vdm_Leg, &
+!                Mortar_Ja(1:3,3, 0:NSideMortar, 0:NSideMortar ,iMortar), Mortar_Ja_loc(1:3,3,0:NSideMortar,0:NSideMortar))
+!        CALL SurfMetricsFromJa(NSideMortar,NormalDir,TangDir,NormalSign,Mortar_Ja_loc(1:3,3,0:NSideMortar,0:NSideMortar),&
+!                               N_SurfMesh(SideID2)%NormVec(:,:,:),N_SurfMesh(SideID2)%TangVec1(:,:,:),&
+!                               N_SurfMesh(SideID2)%TangVec2(:,:,:),N_SurfMesh(SideID2)%SurfElem(:,:))
+      END IF
     END DO ! iMortar=1,4
 
   END IF ! MortarType(1,SideID).GT.0
@@ -725,11 +801,13 @@ REAL,INTENT(OUT)   ::  SurfElem(  0:Nloc,0:Nloc) !< element face surface area
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: p,q
+CHARACTER(32)      :: hilf
 !==================================================================================================================================
+WRITE(UNIT=hilf,FMT='(I0)') Nloc
 DO q=0,Nloc; DO p=0,Nloc
   SurfElem(p,q) = SUM(Ja_Face(NormalDir,:,p,q)**2)
   IF(SurfElem(p,q).LT.0.)THEN
-    CALL abort(__STAMP__,'SurfElem(p,q).LT.0.',RealInfoOpt=SurfElem(p,q))
+    CALL abort(__STAMP__,'Nloc='//TRIM(hilf)//': SurfElem(p,q).LT.0.',RealInfoOpt=SurfElem(p,q))
 #if USE_HDG
   ELSEIF(Symmetry%Axisymmetric.AND.(SurfElem(p,q).EQ.0.))THEN
     NormVec( :,p,q) = (/0.,-1., 0./)
@@ -737,7 +815,8 @@ DO q=0,Nloc; DO p=0,Nloc
     TangVec2(:,p,q) = (/0., 0., 1./)
 #endif /*USE_HDG*/
   ELSE
-    IF(ABS(SurfElem(p,q)).LE.0.0) CALL abort(__STAMP__,'SUM(Ja_Face(NormalDir,:,p,q)**2) <= 0',RealInfoOpt=SurfElem(p,q))
+    IF(Nloc.GT.0.AND.ABS(SurfElem(p,q)).LE.0.0) CALL abort(__STAMP__,'Nloc='//TRIM(hilf)//&
+      ': SUM(Ja_Face(NormalDir,:,p,q)**2) <= 0',RealInfoOpt=SurfElem(p,q))
     SurfElem(  p,q) = SQRT(SurfElem(p,q))
     NormVec( :,p,q) = NormalSign*Ja_Face(NormalDir,:,p,q)/SurfElem(p,q)
     TangVec1(:,p,q) = Ja_Face(TangDir,:,p,q) - SUM(Ja_Face(TangDir,:,p,q)*NormVec(:,p,q)) * NormVec(:,p,q)
