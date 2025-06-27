@@ -437,8 +437,9 @@ venv_create:
     - python3 -m venv venv
     - source venv/bin/activate
     - python3 -m ensurepip
-    - python3 -m pip install --upgrade pip setuptools wheel
-    - python3 -m pip install --upgrade --ignore-installed pytest pytest-cov
+    - python3 -m pip install uv
+    - uv pip install --upgrade setuptools wheel
+    - uv pip install --upgrade pytest pytest-cov
 
 pyhope_download:
   extends: .default_build_param
@@ -455,11 +456,10 @@ pyhope_download:
   stage: build
   script:
     - source venv/bin/activate
-    - python3 -m ensurepip
-    - python3 -m pip install --upgrade --ignore-installed pyhope
-    # Change GMSH to the NRG version
-    - python -m pip uninstall -y gmsh
-    - python -m pip install --no-cache-dir https://gitlab.iag.uni-stuttgart.de/libs/python-gmsh/-/raw/master/gmsh-4.13.1.post1-py3-none-linux_x86_64.whl
+    # PyHOPE needs NRG Gmsh, pre-install it
+    - uv pip install https://gitlab.iag.uni-stuttgart.de/libs/python-gmsh/-/raw/master/gmsh-4.13.1.post1-py3-none-linux_x86_64.whl
+    # Install PyHOPE
+    - uv pip install --upgrade pyhope
     - cd ..
     - pyhope --version
 
@@ -488,7 +488,7 @@ reggie_download:
         if [ -f "reggie/.day" ]; then mv reggie/.day .; fi ;
         if [ -d "reggie" ]; then rm -rf reggie ; fi ;
         git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
-        if [ -d "reggie" ]; source venv/bin/activate ; python -m ensurepip ; then cd reggie ; git checkout feature.h5diff.reorder ; pip install -e . --break-system-packages ; cd .. ; fi ;
+        if [ -d "reggie" ]; source venv/bin/activate ; then cd reggie ; git checkout feature.h5diff.reorder ; uv pip install -e . ; cd .. ; fi ;
         if [ -f ".day" ]; then mv .day reggie/. ; fi ;
       fi
     # Test reggie installation
