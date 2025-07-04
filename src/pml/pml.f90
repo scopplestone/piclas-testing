@@ -162,9 +162,21 @@ CALL SelectMinMaxRegion('PML',usePMLMinMax,&
 
 ! find all elements in the PML region
 IF(usePMLMinMax)THEN ! find all elements located inside of 'xyzPMLMinMax'
+#if !(PP_NodeType==1) /*for Gauss-Lobatto-points*/
+    CALL abort(__STAMP__,'For Gauss-Lobatto, the PML region defined by "xyzPMLMinMax" requires adjusting xyzPMLMinMax here.')
+#endif
   CALL FindElementInRegion(isPMLElem,xyzPMLMinMax,&
                            ElementIsInside=.TRUE. ,DoRadius=.FALSE.,Radius=-1.,DisplayInfo=.TRUE.)
 ELSE ! find all elements located outside of 'xyzPhysicalMinMax'
+#if !(PP_NodeType==1) /*for Gauss-Lobatto-points*/
+! For GL, slightly adjust the bounding box for the physical region
+xyzPhysicalMinMax(1) = xyzPhysicalMinMax(1)*0.99
+xyzPhysicalMinMax(3) = xyzPhysicalMinMax(3)*0.99
+xyzPhysicalMinMax(5) = xyzPhysicalMinMax(5)*0.99
+xyzPhysicalMinMax(2) = xyzPhysicalMinMax(2)*1.01
+xyzPhysicalMinMax(4) = xyzPhysicalMinMax(4)*1.01
+xyzPhysicalMinMax(6) = xyzPhysicalMinMax(6)*1.01
+#endif
   CALL FindElementInRegion(isPMLElem,xyzPhysicalMinMax,&
                            ElementIsInside=.FALSE.,DoRadius=.FALSE.,Radius=-1.,DisplayInfo=.TRUE.)
 END IF
