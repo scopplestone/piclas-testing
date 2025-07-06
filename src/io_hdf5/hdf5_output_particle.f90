@@ -26,43 +26,11 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-
-INTERFACE WriteParticleToHDF5
-  MODULE PROCEDURE WriteParticleToHDF5
-END INTERFACE
-
-INTERFACE WriteBoundaryParticleToHDF5
-  MODULE PROCEDURE WriteBoundaryParticleToHDF5
-END INTERFACE
-
-INTERFACE WriteLostParticlesToHDF5
-  MODULE PROCEDURE WriteLostParticlesToHDF5
-END INTERFACE
-
-INTERFACE WriteAdaptiveInfoToHDF5
-  MODULE PROCEDURE WriteAdaptiveInfoToHDF5
-END INTERFACE
-
-INTERFACE WriteAdaptiveWallTempToHDF5
-  MODULE PROCEDURE WriteAdaptiveWallTempToHDF5
-END INTERFACE
-
-INTERFACE WriteVibProbInfoToHDF5
-  MODULE PROCEDURE WriteVibProbInfoToHDF5
-END INTERFACE
-
-INTERFACE WriteClonesToHDF5
-  MODULE PROCEDURE WriteClonesToHDF5
-END INTERFACE
-
 #if USE_HDG
 PUBLIC :: AddBRElectronFluidToPartSource
 #endif /*USE_HDG*/
 
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-INTERFACE WriteNodeSourceExtToHDF5
-  MODULE PROCEDURE WriteNodeSourceExtToHDF5
-END INTERFACE
 PUBLIC :: WriteNodeSourceExtToHDF5
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 PUBLIC :: WriteParticleToHDF5
@@ -72,7 +40,9 @@ PUBLIC :: WriteAdaptiveInfoToHDF5
 PUBLIC :: WriteAdaptiveWallTempToHDF5
 PUBLIC :: WriteVibProbInfoToHDF5
 PUBLIC :: WriteClonesToHDF5
+#if !(USE_FV) || (USE_HDG)
 PUBLIC :: WriteElectroMagneticPICFieldToHDF5
+#endif
 PUBLIC :: WriteEmissionVariablesToHDF5
 PUBLIC :: FillParticleData
 !===================================================================================================================================
@@ -90,18 +60,20 @@ USE MOD_io_HDF5
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Dielectric_Vars    ,ONLY: NodeSourceExtGlobal
-USE MOD_Mesh_Vars          ,ONLY: MeshFile,nGlobalElems,offsetElem
+USE MOD_Mesh_Vars          ,ONLY: MeshFile,offsetElem,nElems
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Globals_Vars       ,ONLY: ProjectName
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,NodeVolume,DoDeposition
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes
 USE MOD_TimeDisc_Vars      ,ONLY: iter
-USE MOD_Interpolation_Vars ,ONLY: NodeType,NodeTypeVISU,NMax
+USE MOD_Interpolation_Vars ,ONLY: NodeType,NodeTypeVISU,Nmin,Nmax
 USE MOD_Interpolation      ,ONLY: GetVandermonde
+USE MOD_DG_vars            ,ONLY: N_DG_Mapping,nDofsMapping
 #if USE_MPI
 USE MOD_PICDepo            ,ONLY: ExchangeNodeSourceExtTmp
 #endif /*USE_MPI*/
+USE MOD_HDF5_Output_ElemData,ONLY: WriteAdditionalElemData
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -111,25 +83,51 @@ REAL,INTENT(IN)     :: OutputTime
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER,PARAMETER              :: N_variables=1
+INTEGER,PARAMETER              :: nVarOut=1
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255)             :: FileName,DataSetName
-INTEGER                        :: iElem,i,iMax,CNElemID
-REAL                           :: NodeSourceExtEqui(1:N_variables,0:1,0:1,0:1),sNodeVol(1:8)
+INTEGER                        :: iElem,iMax,CNElemID
+REAL                           :: NodeSourceExtEqui(1:nVarOut,0:1,0:1,0:1),sNodeVol(1:8)
 INTEGER                        :: NodeID(1:8)
-REAL,ALLOCATABLE               :: Vdm_EQ_N(:,:)               !< Vandermonde mapping from equidistant (visu) to NodeType node set
-!===================================================================================================================================
-! create global Eps field for parallel output of Eps distribution
-ALLOCATE(NodeSourceExtGlobal(1:N_variables,0:NMax,0:NMax,0:NMax,1:PP_nElems))
-ALLOCATE(StrVarNames(1:N_variables))
-StrVarNames(1)='NodeSourceExt'
-NodeSourceExtGlobal=0.
+! p-adaption output
+TYPE VdmType
+  REAL,ALLOCATABLE :: Vdm(:,:)                              !< Vandermonde mapping from equidistant (visu) to NodeType node set
+END TYPE VdmType
 
-! Allocate and determine Vandermonde mapping from equidistant (visu) to NodeType node set
-IF(.NOT.ALLOCATED(Vdm_EQ_N))THEN
-  ALLOCATE(Vdm_EQ_N(0:NMax,0:1))
-  CALL GetVandermonde(1, NodeTypeVISU, NMax, NodeType, Vdm_EQ_N, modal=.FALSE.)
-END IF ! .NOT.ALLOCATED(Vdm_EQ_N)
+TYPE(VdmType), DIMENSION(:), ALLOCATABLE :: Vdm_EQ_N        !< Array to store all Vandermonde matrices depending on Nloc
+
+TYPE NSEType
+  REAL,ALLOCATABLE :: U(:,:,:,:)                            !< NodeSourceExtEqui mapped to Nloc
+END TYPE NSEType
+
+TYPE(NSEType), DIMENSION(:), ALLOCATABLE :: NodeSourceExt_N !< Array to store all NodeSourceExtEqui depending on Nloc
+
+REAL,ALLOCATABLE               :: U_N_2D_local(:,:)
+INTEGER                        :: iDOF, nDOFOutput, offsetDOF, Nloc, i, j, k
+!===================================================================================================================================
+ALLOCATE(StrVarNames(1:nVarOut))
+StrVarNames(1)='NodeSourceExt'
+
+! build necessary mappings
+ALLOCATE(Vdm_EQ_N(Nmin:Nmax))
+ALLOCATE(NodeSourceExt_N(Nmin:Nmax))
+DO Nloc = Nmin, Nmax
+  ALLOCATE(Vdm_EQ_N(Nloc)%Vdm(0:Nloc,0:1))
+  CALL GetVandermonde(1, NodeTypeVISU, Nloc, NodeType, Vdm_EQ_N(Nloc)%Vdm(0:Nloc,0:1), modal=.FALSE.)
+  ALLOCATE(NodeSourceExt_N(Nloc)%U(1:1,0:Nloc,0:Nloc,0:Nloc))
+END DO ! Nloc = Nmin, Nmax
+
+! Preparing U_N_2D_local array for output as DG_Solution
+! Get the number of output DOFs per processor as the difference between the first and last offset and adding the number of DOFs of the last element
+nDOFOutput = N_DG_Mapping(1,nElems+offsetElem)-N_DG_Mapping(1,1+offsetElem)+(N_DG_Mapping(2,nElems+offSetElem)+1)**3
+! Get the offset based on the element-local polynomial degree
+IF(offsetElem.GT.0) THEN
+  offsetDOF = N_DG_Mapping(1,1+offsetElem)
+ELSE
+  offsetDOF = 0
+END IF
+! Allocate local 2D array
+ALLOCATE(U_N_2D_local(1:nVarOut,1:nDOFOutput))
 
 ! Skip MPI communication in the first step as nothing has been deposited yet
 IF(iter.NE.0)THEN
@@ -150,7 +148,9 @@ IF(.NOT.ALLOCATED(NodeSourceExt)) THEN
   ALLOCATE(NodeSourceExt(1:nUniqueGlobalNodes))
   NodeSourceExt = 0.
 END IF
-DO iElem=1,PP_nElems
+! Write into 2D array
+iDOF = 0
+DO iElem=1,nElems
   ! Copy values to equidistant distribution
   CNElemID = GetCNElemID(iElem+offsetElem)
   NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
@@ -165,8 +165,17 @@ DO iElem=1,PP_nElems
   NodeSourceExtEqui(1,0,1,1) = NodeSourceExt(NodeID(8))*sNodeVol(8)
 
   ! Map equidistant distribution to G/GL (current node type)
-  CALL ChangeBasis3D(1, 1, NMax, Vdm_EQ_N, NodeSourceExtEqui(1:1,0:1,0:1,0:1), NodeSourceExtGlobal(1:1,0:NMax,0:NMax,0:NMax,iElem))
+  Nloc = N_DG_Mapping(2,iElem+offsetElem)
+  CALL ChangeBasis3D(1, 1, Nloc, Vdm_EQ_N(Nloc)%Vdm, NodeSourceExtEqui(1:1,0:1   ,0:1   ,0:1)   , &
+                                               NodeSourceExt_N(Nloc)%U(1:1,0:Nloc,0:Nloc,0:Nloc))
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+    iDOF = iDOF + 1
+    U_N_2D_local(1:nVarOut,iDOF)   = NodeSourceExt_N(Nloc)%U(1:1,i,j,k)
+  END DO; END DO; END DO
 END DO!iElem
+
+DEALLOCATE(Vdm_EQ_N)
+DEALLOCATE(NodeSourceExt_N)
 
 ! Write data twice to .h5 file
 ! 1. to _State_.h5 file (or restart)
@@ -184,32 +193,34 @@ DO i = 1, iMax
   ELSE
     ! Generate skeleton for the file with all relevant data on a single processor (MPIRoot)
     ! Write field to separate file for debugging purposes
-    CALL GenerateFileSkeleton('NodeSourceExtGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,NIn=NMax,FileNameOut=FileName)
+    CALL GenerateFileSkeleton('NodeSourceExtGlobal',nVarOut,StrVarNames,TRIM(MeshFile),OutputTime,FileNameOut=FileName)
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
     IF(MPIRoot)THEN
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
-      CALL WriteAttributeToHDF5(File_ID,'VarNamesNodeSourceExtGlobal',N_variables,StrArray=StrVarNames)
+      CALL WriteAttributeToHDF5(File_ID,'VarNamesNodeSourceExtGlobal',nVarOut,StrArray=StrVarNames)
       CALL CloseDataFile()
     END IF ! MPIRoot
     DataSetName='DG_Solution'
+
+    ! Write 'Nloc' array to the .h5 file, which is required for 2D DG_Solution conversion in piclas2vtk
+    CALL WriteAdditionalElemData(FileName,ElementOutNloc)
   END IF ! i.EQ.2
 
   ! Associate construct for integer KIND=8 possibility
-  ASSOCIATE (&
-        nGlobalElems    => INT(nGlobalElems,IK)    ,&
-        PP_nElems       => INT(PP_nElems,IK)       ,&
-        N_variables     => INT(N_variables,IK)     ,&
-        NMax8           => INT(NMax,IK)            ,&
-        offsetElem      => INT(offsetElem,IK)      )
+  ASSOCIATE(nVarOut         => INT(nVarOut,IK)           ,&
+            nDofsMapping    => INT(nDofsMapping,IK)      ,&
+            nDOFOutput      => INT(nDOFOutput,IK)        ,&
+            offsetDOF       => INT(offsetDOF,IK)         )
     CALL GatheredWriteArray(FileName,create=.FALSE.,&
-        DataSetName=TRIM(DataSetName) , rank=5 , &
-        nValGlobal =(/N_variables , NMax8+1_IK , NMax8+1_IK , NMax8+1_IK , nGlobalElems/) , &
-        nVal       =(/N_variables , NMax8+1_IK , NMax8+1_IK , NMax8+1_IK , PP_nElems   /) , &
-        offset     =(/       0_IK , 0_IK       , 0_IK       , 0_IK       , offsetElem  /) , &
-        collective =.TRUE.            , RealArray=NodeSourceExtGlobal)
+                          DataSetName = TRIM(DataSetName) , rank = 2                , &
+                          nValGlobal  = (/nVarOut         , nDofsMapping/)          , &
+                          nVal        = (/nVarOut         , nDOFOutput/)            , &
+                          offset      = (/0_IK            , offsetDOF/)             , &
+                          collective  = .TRUE.            , RealArray = U_N_2D_local)
   END ASSOCIATE
+  SDEALLOCATE(U_N_2D_local)
 END DO ! i = 1, 2
 
 SDEALLOCATE(NodeSourceExtGlobal)
@@ -578,13 +589,17 @@ SUBROUTINE WriteBoundaryParticleToHDF5(MeshFileName,OutputTime,PreviousTime)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_PreProc
+#if USE_FV
+#if USE_HDG
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
+#endif
+USE MOD_Equation_Vars_FV       ,ONLY: StrVarNames_FV
+#else
+USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
 USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,nVarPartStateBoundary
-USE MOD_Particle_Analyze_Pure  ,ONLY: CalcEkinPart2
 USE MOD_TimeDisc_Vars          ,ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -598,23 +613,21 @@ REAL,INTENT(IN),OPTIONAL       :: PreviousTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames2(:)
-INTEGER                        :: nVar
-LOGICAL                        :: reSwitch
-INTEGER                        :: pcount
 INTEGER(KIND=IK)               :: locnPart,offsetnPart
-INTEGER(KIND=IK)               :: iPart,globnPart(6)
-REAL,ALLOCATABLE               :: PartData(:,:)
-INTEGER                        :: PartDataSizeLoc     !> Number of entries in PartData, not to be confused with the global variable
+INTEGER(KIND=IK)               :: globnPart(6)
 CHARACTER(LEN=255)             :: FileName,PreviousFileName
 REAL                           :: PreviousTime_loc
-INTEGER                        :: ALLOCSTAT,SpecID
+REAL                           :: StartT,EndT
 !===================================================================================================================================
 ! Do not write to file on restart or fresh computation
 IF(iter.EQ.0) RETURN
 ! set local variables for output and previous times
 IF(PRESENT(PreviousTime))PreviousTime_loc = PreviousTime
-! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE PartStateBoundary TO HDF5 FILE '
+GETTIME(StartT)
+
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 #if USE_HDG
 #if PP_nVar==1
 CALL GenerateFileSkeleton('PartStateBoundary',4,StrVarNames,MeshFileName,OutputTime,FileNameOut=FileName)
@@ -623,9 +636,14 @@ CALL GenerateFileSkeleton('PartStateBoundary',3,StrVarNames,MeshFileName,OutputT
 #else
 CALL GenerateFileSkeleton('PartStateBoundary',7,StrVarNames,MeshFileName,OutputTime,FileNameOut=FileName)
 #endif
+#elif defined(discrete_velocity)
+CALL GenerateFileSkeleton('PartStateBoundary',15,StrVarNames_FV,MeshFileName,OutputTime,FileNameOut=FileName)
+#elif USE_FV
+CALL GenerateFileSkeleton('PartStateBoundary',PP_nVar_FV,StrVarNames_FV,MeshFileName,OutputTime,FileNameOut=FileName)
 #else
 CALL GenerateFileSkeleton('PartStateBoundary',PP_nVar,StrVarNames,MeshFileName,OutputTime,FileNameOut=FileName)
 #endif /*USE_HDG*/
+
 ! generate nextfile info in previous output file
 IF(PRESENT(PreviousTime))THEN
   PreviousFileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_PartStateBoundary',PreviousTime))//'.h5'
@@ -639,85 +657,13 @@ END IF
 CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
 
-! 3xPos [m], 3xvelo [m/s], species [-]
-PartDataSizeLoc = 7
-! Kinetic energy [eV]
-PartDataSizeLoc = PartDataSizeLoc + 1
-! MPF [-]
-PartDataSizeLoc = PartDataSizeLoc + 1
-! time [s]
-PartDataSizeLoc = PartDataSizeLoc + 1
-! Impact obliqueness angle [degree]
-PartDataSizeLoc = PartDataSizeLoc + 1
-! iBC [-]
-PartDataSizeLoc = PartDataSizeLoc + 1
-
 ! Set number of local particles
 locnPart = INT(PartStateBoundaryVecLength,IK)
 
 ! Communicate the total number and offset
 CALL GetOffsetAndGlobalNumberOfParts('WriteBoundaryParticleToHDF5',offsetnPart,globnPart,locnPart,.FALSE.)
 
-ALLOCATE(PartData(INT(PartDataSizeLoc,IK),offsetnPart+1_IK:offsetnPart+locnPart), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
-    ,'Error in WriteBoundaryParticleToHDF5: Cannot allocate PartData array for writing boundary particle data to .h5!')
-
-pcount=1
-DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
-  ! Position and Velocity
-  PartData(1,iPart)=PartStateBoundary(1,pcount)
-  PartData(2,iPart)=PartStateBoundary(2,pcount)
-  PartData(3,iPart)=PartStateBoundary(3,pcount)
-  PartData(4,iPart)=PartStateBoundary(4,pcount)
-  PartData(5,iPart)=PartStateBoundary(5,pcount)
-  PartData(6,iPart)=PartStateBoundary(6,pcount)
-
-  ! SpeciesID
-  PartData(7,iPart)=PartStateBoundary(7,pcount)
-
-  ! Kinetic energy [J->eV] (do not consider the MPF here! Call CalcEkinPart2 with MPF=1.0)
-  ! Take ABS() from SpecID as is might be negative (for storing particles that are emitted from a surface)
-  SpecID = INT(ABS(PartStateBoundary(7,pcount)))
-  IF(SpecID.EQ.0) CALL abort(__STAMP__,'Error in WriteBoundaryParticleToHDF5: SpecID = PartStateBoundary(7,pcount) = 0')
-  ! Check if photon is emitted during ray tracing
-  IF(SpecID.EQ.999)THEN
-    PartData(8,iPart)=0 ! insert photon energy here
-  ELSE
-    PartData(8,iPart)=CalcEkinPart2(PartStateBoundary(4:6,pcount),SpecID,1.0) / ElementaryCharge
-  END IF ! SpecID.EQ.999
-
-  ! MPF: Macro particle factor
-  PartData(9,iPart)=PartStateBoundary(8,pcount)
-
-  ! Simulation time [s]
-  PartData(10,iPart)=PartStateBoundary(9,pcount)
-
-  ! Impact obliqueness angle [degree]
-  PartData(11,iPart)=PartStateBoundary(10,pcount)
-
-  ! iBC [-]
-  PartData(12,iPart)=PartStateBoundary(11,pcount)
-
-  pcount = pcount +1
-END DO ! iPart=offsetnPart+1_IK,offsetnPart+locnPart
-
-reSwitch=.FALSE.
-IF(gatheredWrite)THEN
-  ! gatheredwrite not working with distributed particles
-  ! particles require own routine for which the communicator has to be build each time
-  reSwitch=.TRUE.
-  gatheredWrite=.FALSE.
-END IF
-
-! Associate construct for integer KIND=8 possibility
-ASSOCIATE (&
-      nGlobalElems => INT(nGlobalElems,IK) ,&
-      nVar         => INT(nVar,IK)         ,&
-      PP_nElems    => INT(PP_nElems,IK)    ,&
-      offsetElem   => INT(offsetElem,IK)   ,&
-      PartDataSizeLoc => INT(PartDataSizeLoc,IK) )
-
-  ALLOCATE(StrVarNames2(PartDataSizeLoc))
+ALLOCATE(StrVarNames2(nVarPartStateBoundary))
   StrVarNames2(1)  = 'ParticlePositionX'
   StrVarNames2(2)  = 'ParticlePositionY'
   StrVarNames2(3)  = 'ParticlePositionZ'
@@ -731,9 +677,13 @@ ASSOCIATE (&
   StrVarNames2(11) = 'ImpactObliquenessAngle'
   StrVarNames2(12) = 'iBC'
 
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+  nVarPartStateBoundary => INT(nVarPartStateBoundary,IK) )
+
   IF(MPIRoot)THEN
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    CALL WriteAttributeToHDF5(File_ID,'VarNamesParticles',INT(PartDataSizeLoc,4),StrArray=StrVarNames2)
+    CALL WriteAttributeToHDF5(File_ID,'VarNamesParticles',INT(nVarPartStateBoundary,4),StrArray=StrVarNames2)
     CALL CloseDataFile()
   END IF
 
@@ -741,37 +691,34 @@ ASSOCIATE (&
     IF(MPIRoot)THEN ! only root writes the container
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
       CALL WriteArrayToHDF5(DataSetName = 'PartData'        , rank = 2       , &
-                            nValGlobal  = (/ PartDataSizeLoc, globnPart(3)/) , &
-                            nVal        = (/ PartDataSizeLoc, locnPart    /) , &
+                            nValGlobal  = (/ nVarPartStateBoundary, globnPart(3)/) , &
+                            nVal        = (/ nVarPartStateBoundary, locnPart    /) , &
                             offset      = (/ 0_IK           , offsetnPart /) , &
-                            collective  = .FALSE.           , RealArray = PartData)
+                            collective  = .FALSE.                 , RealArray = PartStateBoundary)
       CALL CloseDataFile()
     END IF !MPIRoot
   END IF !globnPart(3) .EQ.0_IK
 #if USE_MPI
   CALL DistributedWriteArray(FileName                                                 , &
                              DataSetName  = 'PartData'        , rank = 2              , &
-                             nValGlobal   = (/ PartDataSizeLoc, globnPart(3)/)        , &
-                             nVal         = (/ PartDataSizeLoc, locnPart    /)        , &
+                             nValGlobal   = (/ nVarPartStateBoundary, globnPart(3)/)        , &
+                             nVal         = (/ nVarPartStateBoundary, locnPart    /)        , &
                              offset       = (/ 0_IK           , offsetnPart /)        , &
                              collective   = UseCollectiveIO   , offSetDim = 2         , &
-                             communicator = MPI_COMM_PICLAS      , RealArray = PartData)
+                             communicator = MPI_COMM_PICLAS         , RealArray = PartStateBoundary)
 #else
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
   CALL WriteArrayToHDF5(DataSetName = 'PartData'        , rank = 2              , &
-                        nValGlobal  = (/ PartDataSizeLoc, globnPart(3)/)        , &
-                        nVal        = (/ PartDataSizeLoc, locnPart    /)        , &
+                        nValGlobal  = (/ nVarPartStateBoundary, globnPart(3)/)        , &
+                        nVal        = (/ nVarPartStateBoundary, locnPart    /)        , &
                         offset      = (/ 0_IK           , offsetnPart /)        , &
-                        collective  = .FALSE.           , RealArray = PartData)
+                        collective  = .FALSE.                 , RealArray = PartStateBoundary)
   CALL CloseDataFile()
 #endif /*USE_MPI*/
 
 END ASSOCIATE
-! reswitch
-IF(reSwitch) gatheredWrite=.TRUE.
 
 DEALLOCATE(StrVarNames2)
-DEALLOCATE(PartData)
 
 ! Nullify and reset boundary parts container after write out
 PartStateBoundaryVecLength = 0
@@ -782,6 +729,8 @@ DEALLOCATE(PartStateBoundary)
 ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:10))
 PartStateBoundary=0.
 
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 END SUBROUTINE WriteBoundaryParticleToHDF5
 
 
@@ -792,10 +741,16 @@ SUBROUTINE WriteLostParticlesToHDF5(MeshFileName,OutputTime)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartLostDataSize,PartStateLostVecLength,NbrOfLostParticles
 USE MOD_Particle_Tracking_Vars ,ONLY: TotalNbrOfMissingParticlesSum
+#if USE_FV
+#if USE_HDG
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
+USE MOD_Equation_Vars_FV       ,ONLY: StrVarNames_FV
+#else
+USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -807,8 +762,6 @@ REAL,INTENT(IN)                :: OutputTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames2(:)
-INTEGER                        :: nVar
-LOGICAL                        :: reSwitch
 INTEGER                        :: pcount
 INTEGER(KIND=IK)               :: locnPart,offsetnPart
 INTEGER(KIND=IK)               :: iPart,globnPart(6)
@@ -826,6 +779,10 @@ CALL GenerateFileSkeleton('PartStateLost',3,StrVarNames,MeshFileName,OutputTime,
 #else
 CALL GenerateFileSkeleton('PartStateLost',7,StrVarNames,MeshFileName,OutputTime,FileNameOut=FileName)
 #endif
+#elif defined(discrete_velocity)
+CALL GenerateFileSkeleton('PartStateLost',15,StrVarNames_FV,MeshFileName,OutputTime,FileNameOut=FileName)
+#elif USE_FV
+CALL GenerateFileSkeleton('PartStateLost',PP_nVar_FV,StrVarNames_FV,MeshFileName,OutputTime,FileNameOut=FileName)
 #else
 CALL GenerateFileSkeleton('PartStateLost',PP_nVar,StrVarNames,MeshFileName,OutputTime,FileNameOut=FileName)
 #endif /*USE_HDG*/
@@ -885,20 +842,8 @@ DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
   pcount = pcount +1
 END DO ! iPart=offsetnPart+1_IK,offsetnPart+locnPart
 
-reSwitch=.FALSE.
-IF(gatheredWrite)THEN
-  ! gatheredwrite not working with distributed particles
-  ! particles require own routine for which the communicator has to be build each time
-  reSwitch=.TRUE.
-  gatheredWrite=.FALSE.
-END IF
-
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
-      nGlobalElems     => INT(nGlobalElems,IK) ,&
-      nVar             => INT(nVar,IK)         ,&
-      PP_nElems        => INT(PP_nElems,IK)    ,&
-      offsetElem       => INT(offsetElem,IK)   ,&
       PartLostDataSize => INT(PartLostDataSize,IK) )
 
   ALLOCATE(StrVarNames2(PartLostDataSize))
@@ -955,8 +900,6 @@ ASSOCIATE (&
 #endif /*USE_MPI*/
 
 END ASSOCIATE
-! reswitch
-IF(reSwitch) gatheredWrite=.TRUE.
 
 DEALLOCATE(StrVarNames2)
 DEALLOCATE(PartData)
@@ -1164,7 +1107,7 @@ CHARACTER(LEN=255),INTENT(IN)   :: FileName
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: nSurfacefluxBCs
-INTEGER, ALLOCATABLE            :: AdaptBCPartNumOutTemp(:,:)
+REAL, ALLOCATABLE               :: AdaptBCPartNumOutTemp(:,:)
 !===================================================================================================================================
 
 IF(.NOT.DoRestart.AND.iter.EQ.0) RETURN
@@ -1175,9 +1118,9 @@ nSurfacefluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
 #if USE_MPI
 IF(MPIRoot)THEN
   ALLOCATE(AdaptBCPartNumOutTemp(1:nSpecies,1:nSurfacefluxBCs))
-  CALL MPI_REDUCE(AdaptBCPartNumOut,AdaptBCPartNumOutTemp,nSpecies*nSurfacefluxBCs,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+  CALL MPI_REDUCE(AdaptBCPartNumOut,AdaptBCPartNumOutTemp,nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
 ELSE
-  CALL MPI_REDUCE(AdaptBCPartNumOut,MPI_IN_PLACE         ,nSpecies*nSurfacefluxBCs,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+  CALL MPI_REDUCE(AdaptBCPartNumOut,MPI_IN_PLACE         ,nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
 END IF
 #endif
 
@@ -1190,7 +1133,7 @@ IF(MPIRoot)THEN
                           nValGlobal  = (/nSpecies,nSurfacefluxBCs/),   &
                           nVal        = (/nSpecies,nSurfacefluxBCs/),   &
                           offset      = (/0_IK,0_IK/), &
-                          collective  = .FALSE. , IntegerArray_i4 = AdaptBCPartNumOutTemp)
+                          collective  = .FALSE. , RealArray = AdaptBCPartNumOutTemp)
   END ASSOCIATE
   CALL CloseDataFile()
 END IF
@@ -1290,7 +1233,7 @@ CHARACTER(LEN=255)             :: SpecID
 INTEGER                        :: iSpec
 !===================================================================================================================================
 IF(CollisMode.GT.1) THEN
-  IF(DSMC%VibRelaxProb.GE.2.0) THEN
+  IF(DSMC%VibRelaxProb.EQ.2.0) THEN
     ALLOCATE(StrVarNames(nSpecies))
     DO iSpec=1,nSpecies
       WRITE(SpecID,'(I3.3)') iSpec
@@ -1587,7 +1530,7 @@ DEALLOCATE(PartData)
 
 END SUBROUTINE WriteClonesToHDF5
 
-
+#if !(USE_FV) || (USE_HDG)
 !===================================================================================================================================
 !> Store the magnetic filed acting on particles at each DOF for all elements to .h5
 !===================================================================================================================================
@@ -1596,12 +1539,15 @@ SUBROUTINE WriteElectroMagneticPICFieldToHDF5()
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: ProjectName
-USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems,MeshFile,N_VolMesh
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,nElems,MeshFile,N_VolMesh
 USE MOD_Output_Vars            ,ONLY: UserBlockTmpFile,userblock_total_len
 USE MOD_Interpolation_Vars     ,ONLY: NodeType
 USE MOD_PICInterpolation_tools ,ONLY: GetExternalFieldAtParticle,GetEMField
-USE MOD_Interpolation_Vars     ,ONLY: N_Inter
 USE MOD_Restart_Vars           ,ONLY: RestartTime
+USE MOD_Interpolation_Vars     ,ONLY: N_Inter,Nmax,Nmin
+USE MOD_DG_Vars                ,ONLY: nDofsMapping,N_DG_Mapping
+USE MOD_HDF5_Output_ElemData   ,ONLY: WriteAdditionalElemData
+USE MOD_IO_HDF5                ,ONLY: ElementOutNloc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1612,25 +1558,38 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-INTEGER                        :: nVal
-INTEGER,PARAMETER              :: outputVars=6
-REAL,ALLOCATABLE               :: outputArray(:,:,:,:,:)
+INTEGER,PARAMETER              :: nVarOut=6
+REAL,ALLOCATABLE               :: U_N_2D_local(:,:)
 REAL                           :: StartT,EndT
-INTEGER                        :: iElem,i,j,k
+INTEGER                        :: iElem,k,i,j,iDOF,nDOFOutput,offsetDOF,Nloc
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE PIC EM-FIELD TO HDF5 FILE...'
 GETTIME(StartT)
 
-ALLOCATE(outputArray(1:outputVars,0:PP_N,0:PP_N,0:PP_N,1:nElems))
+! Get the number of output DOFs per processor as the difference between the first and last offset and adding the number of DOFs of the last element
+nDOFOutput = N_DG_Mapping(1,nElems+offsetElem)-N_DG_Mapping(1,1+offsetElem)+(N_DG_Mapping(2,nElems+offSetElem)+1)**3
+! Get the offset based on the element-local polynomial degree
+IF(offsetElem.GT.0) THEN
+  offsetDOF = N_DG_Mapping(1,1+offsetElem)
+ELSE
+  offsetDOF = 0
+END IF
+
+! Allocate local 2D array
+ALLOCATE(U_N_2D_local(1:nVarOut,1:nDOFOutput))
+
 DO iElem=1,PP_nElems
-  DO k=0,PP_N
-    DO j=0,PP_N
-      DO i=0,PP_N
+  Nloc = N_DG_Mapping(2,iElem+offsetElem)
+  DO k=0,Nloc
+    DO j=0,Nloc
+      DO i=0,Nloc
+        iDOF = iDOF + 1
         ASSOCIATE( x => N_VolMesh(iElem)%Elem_xGP(1,i,j,k), y => N_VolMesh(iElem)%Elem_xGP(2,i,j,k), z => N_VolMesh(iElem)%Elem_xGP(3,i,j,k))
           ! Superposition of the external and calculated electromagnetic field
           !   GetExternalFieldAtParticle : Get the 1 of 4 external fields (analytic, variable, etc.) at position x,y,z
           !                   GetEMField : Evaluate the electro-(magnetic) field using the reference position and return the field
-          outputArray(1:6,i,j,k,iElem) = GetExternalFieldAtParticle((/x,y,z/)) + GetEMField(iElem,(/N_Inter(PP_N)%xGP(i),N_Inter(PP_N)%xGP(j),N_Inter(PP_N)%xGP(k)/))
+          U_N_2D_local(1:nVarOut,iDOF) = GetExternalFieldAtParticle((/x,y,z/)) &
+                                       + GetEMField(iElem,(/N_Inter(Nloc)%xGP(i),N_Inter(Nloc)%xGP(j),N_Inter(Nloc)%xGP(k)/))
         END ASSOCIATE
       END DO ! i
     END DO ! j
@@ -1639,7 +1598,7 @@ END DO ! iElem=1,PP_nElems
 
 
 ! Create dataset attribute "VarNames"
-ALLOCATE(StrVarNames(1:outputVars))
+ALLOCATE(StrVarNames(1:nVarOut))
 StrVarNames(1)='ElectricFieldX'
 StrVarNames(2)='ElectricFieldY'
 StrVarNames(3)='ElectricFieldZ'
@@ -1655,9 +1614,11 @@ IF(MPIRoot) THEN
   CALL WriteHDF5Header('BField',File_ID) ! File_Type='BField'
   ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
   CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=PP_N)
+  CALL WriteAttributeToHDF5(File_ID , 'Nmin'     , 1       , IntegerScalar = Nmin)
+  CALL WriteAttributeToHDF5(File_ID , 'Nmax'     , 1       , IntegerScalar = Nmax)
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFile)/))
   CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
-  CALL WriteAttributeToHDF5(File_ID,'VarNames',outputVars,StrArray=StrVarNames)
+  CALL WriteAttributeToHDF5(File_ID , 'VarNames' , nVarOut , StrArray      = StrVarNames)
   CALL WriteAttributeToHDF5(File_ID,'Time'    ,1,RealScalar=RestartTime)
   CALL CloseDataFile()
   ! Add userblock to hdf5-file
@@ -1666,33 +1627,31 @@ END IF
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
-CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
 
-nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
+! Write 'Nloc' array to the .h5 file, which is required for 2D DG_Solution conversion in piclas2vtk
+CALL WriteAdditionalElemData(FileName,ElementOutNloc)
 
 ! Associate construct for integer KIND=8 possibility
-ASSOCIATE (&
-  outputVars   => INT(outputVars,IK)   ,&
-  N            => INT(PP_N,IK)         ,&
-  PP_nElems    => INT(PP_nElems,IK)    ,&
-  offsetElem   => INT(offsetElem,IK)   ,&
-  nGlobalElems => INT(nGlobalElems,IK) )
-CALL WriteArrayToHDF5(DataSetName = 'DG_Solution' , rank = 5                                    , &
-                      nValGlobal  = (/outputVars  , N+1_IK   , N+1_IK , N+1_IK , nGlobalElems/) , &
-                      nVal        = (/outputVars  , N+1_IK   , N+1_IK , N+1_IK , PP_nElems/)    , &
-                      offset      = (/0_IK        , 0_IK     , 0_IK   , 0_IK   , offsetElem/)   , &
-                      collective  = .FALSE.       , RealArray = outputArray)
+ASSOCIATE(nVarOut         => INT(nVarOut,IK)      ,&
+          nDofsMapping    => INT(nDofsMapping,IK) ,&
+          nDOFOutput      => INT(nDOFOutput,IK)   ,&
+          offsetDOF       => INT(offsetDOF,IK)    )
+CALL GatheredWriteArray(FileName,create = .FALSE.                  , &
+                           DataSetName  = 'DG_Solution', rank = 2  , &
+                           nValGlobal   = (/nVarOut, nDofsMapping/), &
+                           nVal         = (/nVarOut, nDOFOutput/)  , &
+                           offset       = (/0_IK   , offsetDOF/)   , &
+                           collective   = .TRUE.   , RealArray = U_N_2D_local)
 END ASSOCIATE
 
-CALL CloseDataFile()
-
 DEALLOCATE(StrVarNames)
-DEALLOCATE(outputArray)
+DEALLOCATE(U_N_2D_local)
 
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 
 END SUBROUTINE WriteElectroMagneticPICFieldToHDF5
+#endif /*!(USE_FV) || (USE_HDG)*/
 
 
 !===================================================================================================================================

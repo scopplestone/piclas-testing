@@ -26,6 +26,10 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
+#if USE_FV
+TYPE(MPI_Request),ALLOCATABLE :: SendRequest_gradUx(:), SendRequest_gradUy(:), SendRequest_gradUz(:)
+TYPE(MPI_Request),ALLOCATABLE :: RecRequest_gradUx(:), RecRequest_gradUy(:), RecRequest_gradUz(:)
+#endif /*USE_FV*/
 TYPE(MPI_Request),ALLOCATABLE :: SendRequest_U(:),SendRequest_Flux(:)
 TYPE(MPI_Request),ALLOCATABLE :: SendRequest_U2(:),RecRequest_U2(:)
 TYPE(MPI_Request),ALLOCATABLE :: RecRequest_U(:),RecRequest_Flux(:)
@@ -56,6 +60,10 @@ TYPE tExchangeData
   REAL,ALLOCATABLE      :: FaceDataRecvU(:,:)
   REAL,ALLOCATABLE      :: FaceDataSendFlux(:,:)
   REAL,ALLOCATABLE      :: FaceDataRecvFlux(:,:)
+  REAL,ALLOCATABLE      :: FaceDataSendVec(:,:)
+  REAL,ALLOCATABLE      :: FaceDataRecvVec(:,:)
+  REAL,ALLOCATABLE      :: FaceDataSendSurf(:)
+  REAL,ALLOCATABLE      :: FaceDataRecvSurf(:)
 #if !(USE_HDG)
   REAL,ALLOCATABLE      :: FaceDataSendUMaster(:,:)
   REAL,ALLOCATABLE      :: FaceDataRecvUMaster(:,:)

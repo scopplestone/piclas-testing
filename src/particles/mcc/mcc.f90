@@ -603,6 +603,14 @@ DO iSpec = 1, nSpecies
     SDEALLOCATE(PartIndexCase)
   END DO      ! bgSpec = 1, BGGas%NumberOfSpecies
 END DO        ! iSpec = 1, nSpecies
+! Delete background gas particles created during chemical reactions
+iPart = PEM%pStart(iElem)
+DO iLoop = 1, PEM%pNumber(iElem)
+  IF (PDM%ParticleInside(iPart)) THEN
+    IF(BGGas%BackgroundSpecies(PartSpecies(iPart))) PDM%ParticleInside(iPart) = .FALSE.
+  END IF
+  iPart = PEM%pNext(iPart)
+END DO
 ! Delete the dummy particle
 IF(bggPartIndex.NE.0) THEN
   PDM%ParticleInside(bggPartIndex) = .FALSE.
@@ -659,7 +667,7 @@ USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, BGGas, ChemReac, DSMC, PartIntEn,
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_Particle_Vars         ,ONLY: Species
 USE MOD_TimeDisc_Vars         ,ONLY: dt
-USE MOD_part_tools            ,ONLY: CalcERot_particle, CalcEVib_particle, CalcEElec_particle
+USE MOD_part_tools            ,ONLY: CalcEVib_particle, CalcEElec_particle, RotInitPolyRoutineFuncPTR
 USE MOD_MCC_XSec              ,ONLY: InterpolateCrossSection
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -726,7 +734,7 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
         Temp_Rot   = SpecDSMC(jSpec)%Init(1)%TRot
       END IF
       PartIntEn(bggPartIndex)%EVib = CalcEVib_particle(jSpec,Temp_Vib,bggPartIndex)
-      PartIntEn(bggPartIndex)%ERot = CalcERot_particle(jSpec,Temp_Rot)
+      PartIntEn(bggPartIndex)%ERot = RotInitPolyRoutineFuncPTR(jSpec,Temp_Rot,bggPartIndex)
       CollEnergy = CollEnergy + PartIntEn(bggPartIndex)%EVib(1) + PartIntEn(bggPartIndex)%ERot(1)
     END IF
     IF (DSMC%ElectronicModel.GT.0)THEN 

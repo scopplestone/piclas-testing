@@ -43,7 +43,8 @@ USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies,PartPosRef, Species, usevMPF, PartMPF
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, PartVeloRotRef, RotRefFrameOmega, UseRotRefFrame, InRotRefFrame
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC, PartIntEn, DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
-USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, SpecDSMC
+USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF
@@ -66,7 +67,7 @@ REAL, INTENT(IN),OPTIONAL     :: NewMPF           !< MPF of newly created partic
 REAL, INTENT(IN),OPTIONAL     :: NewTimestep      !< Timestep of the newly created particle
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER :: newParticleID, iElem
+INTEGER :: newParticleID, iElem, iPolyatMole
 !===================================================================================================================================
 
 newParticleID = GetNextFreePosition()
@@ -86,6 +87,15 @@ IF (useDSMC.AND.(CollisMode.GT.1)) THEN
     ALLOCATE(PartIntEn(newParticleID)%EVib(1), PartIntEn(newParticleID)%ERot(1))
     PartIntEn(newParticleID)%EVib = VibEnergy
     PartIntEn(newParticleID)%ERot = RotEnergy
+    IF(DSMC%NumPolyatomMolecs.GT.0) THEN
+        IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
+          iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
+          IF(ALLOCATED(VibQuantsPar(newParticleID)%Quants)) DEALLOCATE(VibQuantsPar(newParticleID)%Quants)
+          ALLOCATE(VibQuantsPar(newParticleID)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
+          ! TODO: Initialize quants to actually correspond to the vibrational energy
+          VibQuantsPar(newParticleID)%Quants = 0
+        END IF
+      END IF
   END IF
   IF (DSMC%ElectronicModel.GT.0) THEN
     IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
@@ -210,11 +220,12 @@ SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
 USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, usevMPF, PartState, PartPosRef, Pt
 USE MOD_Particle_Vars             ,ONLY: UseRotRefFrame, InRotRefFrame
+USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, usevMPF, PartState, PartPosRef, Pt, PartMPF
 USE MOD_Particle_Sampling_Vars    ,ONLY: UseAdaptiveBC, AdaptBCPartNumOut
 USE MOD_Particle_Vars             ,ONLY: UseNeutralization, NeutralizationSource, NeutralizationBalance,nNeutralizationElems
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_Particle_Analyze_Vars     ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcSurfFluxInfo
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput,BPO
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod
 #if defined(LSERK)
 USE MOD_Particle_Vars             ,ONLY: Pt_temp
@@ -298,18 +309,18 @@ Pt_temp(1:6,PartID)   = 0.
 !   - the mass flow through the boundary shall be calculated or
 !   - the charges impinging on the boundary are to be summed (thruster neutralization)
 IF(PRESENT(BCID)) THEN
-  ! Determine the particle weight
+  ! Determine the particle weight without using the GetParticleWeight function, which includes the time step
   IF(usevMPF) THEN
-    MPF = GetParticleWeight(PartID)
+    MPF = PartMPF(PartID)
   ELSE
-    MPF = GetParticleWeight(PartID) * Species(iSpec)%MacroParticleFactor
+    MPF = Species(iSpec)%MacroParticleFactor
   END IF
   ! Check if adaptive BC or surface flux info
   IF(UseAdaptiveBC.OR.CalcSurfFluxInfo) THEN
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
       IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.BCID) THEN
         Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow - MPF
-        IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)  AdaptBCPartNumOut(iSpec,iSF) = AdaptBCPartNumOut(iSpec,iSF) + 1
+        IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)  AdaptBCPartNumOut(iSpec,iSF) = AdaptBCPartNumOut(iSpec,iSF) + MPF
       END IF
     END DO
   END IF ! UseAdaptiveBC.OR.CalcSurfFluxInfo

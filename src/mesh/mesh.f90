@@ -28,7 +28,12 @@ PUBLIC::InitMesh
 PUBLIC::FinalizeMesh
 PUBLIC::GetMeshMinMaxBoundaries
 PUBLIC::DefineParametersMesh
+#if !(PP_TimeDiscMethod==700)
+PUBLIC::Set_N_DG_Mapping
+#endif /*!(PP_TimeDiscMethod==700)*/
 
+INTEGER,PARAMETER :: PRM_P_ADAPTION_DBG2 = -2 ! Debugging
+INTEGER,PARAMETER :: PRM_P_ADAPTION_DBG  = -1 ! Debugging
 INTEGER,PARAMETER :: PRM_P_ADAPTION_ZERO = 0  ! deactivate
 INTEGER,PARAMETER :: PRM_P_ADAPTION_RDN  = 1  ! random
 INTEGER,PARAMETER :: PRM_P_ADAPTION_NPB  = 2  ! Elements with non-periodic boundary sides get NMax
@@ -63,6 +68,10 @@ CALL prms%CreateLogicalOption( 'readFEMconnectivity' , 'Activate reading the FEM
 CALL prms%CreateLogicalOption( 'crossProductMetrics' , "Compute mesh metrics using cross product form. Caution: in this case free-stream preservation is only guaranteed for N=3*NGeo."     , '.FALSE.')
 CALL prms%CreateStringOption(  'BoundaryName'        , "Names of boundary conditions to be set (must be present in the mesh!). For each BoundaryName a BoundaryType needs to be specified." , multiple=.TRUE.)
 CALL prms%CreateIntArrayOption('BoundaryType'        , "Type of boundary conditions to be set. Format: (BC_TYPE, BC_STATE)"                                                                 , multiple=.TRUE. , no=2)
+#if USE_FV
+CALL prms%CreateLogicalOption( 'meshCheckRef-FV'        , "Flag if the mesh Jacobians should be checked in the reference system in addition to the computational system."                      , '.TRUE.')
+CALL prms%CreateIntArrayOption('BoundaryType-FV'     , "Type of boundary conditions for FV to be set. Format: (BC_TYPE, BC_STATE)"                                                                 , multiple=.TRUE. , no=2)
+#endif
 CALL prms%CreateLogicalOption( 'writePartitionInfo'  , "Write information about MPI partitions into a file."                                                                                , '.FALSE.')
 
 ! p-adaption
@@ -116,6 +125,10 @@ USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Mappings               ,ONLY: InitMappings
 USE MOD_Mesh_Vars
 USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
+#if USE_FV
+USE MOD_Mesh_Vars_FV
+USE MOD_Metrics_FV             ,ONLY: CalcMetrics_PP_1,CalcSurfMetrics_PP_1
+#endif /*FV*/
 USE MOD_Metrics                ,ONLY: BuildElem_xGP,CalcMetrics,CalcSurfMetrics
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: PrintOption
@@ -136,6 +149,9 @@ USE MOD_LoadBalance_Metrics    ,ONLY: ExchangeVolMesh,ExchangeMetrics
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
+#if USE_FV
+USE MOD_LoadBalance_Metrics_FV ,ONLY: ExchangeVolMesh_FV,ExchangeMetrics_FV
+#endif /*USE_FV*/
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
 USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
@@ -144,7 +160,9 @@ USE MOD_Particle_Vars          ,ONLY: usevMPF
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_Mesh_Tools             ,ONLY: BuildSideToNonUniqueGlobalSide
 #endif /*USE_HDG && USE_LOADBALANCE*/
+#if !(PP_TimeDiscMethod==700)
 USE MOD_DG_Vars                ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
+#endif /*!(PP_TimeDiscMethod==700)*/
 USE MOD_Particle_Mesh_Vars     ,ONLY: meshScale
 USE MOD_Mesh_Vars              ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 ! IMPLICIT VARIABLE HANDLING
@@ -265,6 +283,12 @@ IF(GETLOGICAL('meshdeform','.FALSE.'))THEN
   END DO
 END IF
 
+! initialize flag for gradient calculations (filled in setLocalSideIDs)
+#if USE_FV
+ALLOCATE(IsPeriodicSide(1:nSides))
+IsPeriodicSide(:)=.FALSE.
+#endif /*USE_FV*/
+
 ! Return if no connectivity and metrics are required (e.g. for visualization mode)
 IF (ABS(meshMode).GT.0) THEN
   LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING setLocalSideIDs..."
@@ -296,7 +320,7 @@ IF (ABS(meshMode).GT.0) THEN
   BC          = 0
   AnalyzeSide = 0
 
-  ! fill output definition for InnerBCs
+! fill output definition for InnerBCs
 #if defined(PARTICLES) || USE_HDG
   ALLOCATE(GlobalUniqueSideID(1:nSides))
   GlobalUniqueSideID(:)=-1
@@ -331,6 +355,9 @@ CALL InitpAdaption() ! Calls Build_N_DG_Mapping() which builds N_DG_Mapping()
 IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
 !IF (PerformLoadBalance) THEN
   CALL ExchangeVolMesh() !  Allocates N_VolMesh(1:nElems) after communication of Elem_xGP
+#if USE_FV
+  CALL ExchangeVolMesh_FV()
+#endif
 ELSE
   ! Build the coordinates of the solution gauss points in the volume
 #endif /*USE_LOADBALANCE*/
@@ -342,7 +369,9 @@ ELSE
 END IF
 #endif /*USE_LOADBALANCE*/
 
+#if !(PP_TimeDiscMethod==700)
 CALL DG_ProlongDGElemsToFace() ! Builds DG_Elems_master and ,DG_Elems_slave, requires SideToElem()
+#endif /*!(PP_TimeDiscMethod==700)*/
 
 ! ----- CONNECTIVITY IS NOW COMPLETE AT THIS POINT -----
 
@@ -352,6 +381,9 @@ IF (ABS(meshMode).GT.1) THEN
   !IF (PerformLoadBalance) THEN
     ! Shift metric arrays during load balance
     CALL ExchangeMetrics()
+#if USE_FV
+    CALL ExchangeMetrics_FV()
+#endif
   ELSE
 #endif /*USE_LOADBALANCE*/
 
@@ -360,7 +392,11 @@ IF (ABS(meshMode).GT.1) THEN
 
     ! volume data
     DO iElem = 1, nElems
+#if !(PP_TimeDiscMethod==700)
       Nloc = N_DG_Mapping(2,iElem+offSetElem)
+#else
+      Nloc = PP_N
+#endif /*!(PP_TimeDiscMethod==700)*/
       ALLOCATE(N_VolMesh(iElem)%XCL_N(       3,  0:Nloc,0:Nloc,0:Nloc))
       ALLOCATE(N_VolMesh(iElem)%Metrics_fTilde(3,0:Nloc,0:Nloc,0:Nloc))
       ALLOCATE(N_VolMesh(iElem)%Metrics_gTilde(3,0:Nloc,0:Nloc,0:Nloc))
@@ -370,11 +406,34 @@ IF (ABS(meshMode).GT.1) THEN
 
     ! volume data
     DO iElem = 1, nElems
+#if !(PP_TimeDiscMethod==700)
       Nloc = N_DG_Mapping(2,iElem+offSetElem)
+#else
+      Nloc = PP_N
+#endif /*!(PP_TimeDiscMethod==700)*/
       ALLOCATE(N_VolMesh2(iElem)%dXCL_N(     3,3,0:Nloc,0:Nloc,0:Nloc))
       ALLOCATE(N_VolMesh2(iElem)%JaCL_N(     3,3,0:Nloc,0:Nloc,0:Nloc))
     END DO ! iElem = 1, nElems
 
+#if USE_FV
+    SDEALLOCATE(       XCL_N_PP_1)
+    SDEALLOCATE(      dXCL_N_PP_1)
+    SDEALLOCATE(      JaCL_N_PP_1)
+    SDEALLOCATE(Metrics_fTilde_FV)
+    SDEALLOCATE(Metrics_gTilde_FV)
+    SDEALLOCATE(Metrics_hTilde_FV)
+
+    ALLOCATE(       XCL_N_PP_1(  3,0:PP_1,0:PP_1,0:PP_1,nElems)) ! built in CalcMetrics(), required in CalcSurfMetrics()
+    ALLOCATE(      dXCL_N_PP_1(3,3,0:PP_1,0:PP_1,0:PP_1,nElems)) ! built in CalcMetrics()
+    ALLOCATE(      JaCL_N_PP_1(3,3,0:PP_1,0:PP_1,0:PP_1,nElems))
+    ALLOCATE(Metrics_fTilde_FV(3,0:0,0:0,0:0,nElems))
+    ALLOCATE(Metrics_gTilde_FV(3,0:0,0:0,0:0,nElems))
+    ALLOCATE(Metrics_hTilde_FV(3,0:0,0:0,0:0,nElems))
+    JaCL_N_PP_1 = 0.
+
+    ! Vandermonde
+    ALLOCATE(Vdm_CLN_N_PP_1(   0:PP_1,0:PP_1))
+#endif /*FV*/
     ! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
     ! assign 1/detJ (sJ)
     ! assign normal and tangential vectors and surfElems on faces
@@ -391,18 +450,28 @@ IF (ABS(meshMode).GT.1) THEN
     ! get XCL_NGeo
     ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
     XCL_NGeo = 0.
+
+#if USE_FV
 #if defined(PARTICLES)
     ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
     dXCL_NGeo = 0.
-#endif /*defined(PARTICLES)*/
-
+    CALL CalcMetrics_PP_1(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
+#else
+    ! CALL InitGetCNElemID() ! TODO: is this required here?
+    CALL CalcMetrics_PP_1(XCL_NGeo_Out=XCL_NGeo)
+#endif /*PARTICLES*/
+#endif /*USE_FV*/
+#if !(USE_FV) || (USE_HDG)
 #ifdef PARTICLES
+    IF(.NOT.ALLOCATED(dXCL_NGeo)) ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
+    dXCL_NGeo = 0.
     CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
 #else
     CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
-#endif
+#endif /*PARTICLES*/
+#endif /*!(USE_FV) || (USE_HDG)*/
 #if USE_LOADBALANCE
-  END IF
+  END IF ! PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)
 #endif /*USE_LOADBALANCE*/
 
   ! surface data
@@ -410,27 +479,74 @@ IF (ABS(meshMode).GT.1) THEN
   DO iSide = 1, nSides
 
     ! Allocate with max. polynomial degree of the two master-slave sides
-    N_max     = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+#if !(PP_TimeDiscMethod==700)
+    N_max    = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
     NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+#else
+    N_max    = PP_N
+    NSideMin = PP_N
+#endif /*!(PP_TimeDiscMethod==700)*/
     N_SurfMesh(iSide)%NSide = NSideMin
     ALLOCATE(N_SurfMesh(iSide)%Face_xGP (3,0:N_max,0:N_max))
     ALLOCATE(N_SurfMesh(iSide)%NormVec  (3,0:N_max,0:N_max))
     ALLOCATE(N_SurfMesh(iSide)%TangVec1 (3,0:N_max,0:N_max))
     ALLOCATE(N_SurfMesh(iSide)%TangVec2 (3,0:N_max,0:N_max))
     ALLOCATE(N_SurfMesh(iSide)%SurfElem (  0:N_max,0:N_max))
-    ALLOCATE(N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
+    !!!ALLOCATE(N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
     N_SurfMesh(iSide)%Face_xGP = 0.
     N_SurfMesh(iSide)%NormVec  = 0.
     N_SurfMesh(iSide)%TangVec1 = 0.
     N_SurfMesh(iSide)%TangVec2 = 0.
     N_SurfMesh(iSide)%SurfElem = 0.
-    N_SurfMesh(iSide)%SurfElemMin= 0.
+    !!!N_SurfMesh(iSide)%SurfElemMin= 0.
   END DO ! iSide = 1, nSides
 
+#if !(USE_FV) || (USE_HDG)
   ! Due to possible load balance, this is done outside of CalcMetrics() now
-  DO iElem = 1, nElems
+  DO iElem=1,nElems
     CALL CalcSurfMetrics(iElem)
   END DO ! iElem = 1, nElems
+#endif
+
+#if USE_FV
+  ALLOCATE(Face_xGP_FV      (3,0:0,0:0,1:nSides))
+  ALLOCATE(NormVec_FV       (3,0:0,0:0,1:nSides))
+  ALLOCATE(TangVec1_FV      (3,0:0,0:0,1:nSides))
+  ALLOCATE(TangVec2_FV      (3,0:0,0:0,1:nSides))
+  ALLOCATE(SurfElem_FV      (  0:0,0:0,1:nSides))
+  ALLOCATE(Ja_Face_FV       (3,3,0:0,0:0,1:nSides)) ! temp
+  Face_xGP_FV=0.
+  NormVec_FV=0.
+  TangVec1_FV=0.
+  TangVec2_FV=0.
+  SurfElem_FV=0.
+  Ja_Face_FV=0.
+
+  ALLOCATE(Face_xGP_PP_1   (3,0:PP_1,0:PP_1,1:nSides))
+  ALLOCATE(NormVec_PP_1    (3,0:PP_1,0:PP_1,1:nSides))
+  ALLOCATE(TangVec1_PP_1   (3,0:PP_1,0:PP_1,1:nSides))
+  ALLOCATE(TangVec2_PP_1   (3,0:PP_1,0:PP_1,1:nSides))
+  ALLOCATE(SurfElem_PP_1     (0:PP_1,0:PP_1,1:nSides))
+  ALLOCATE(Ja_Face_PP_1  (3,3,0:PP_1,0:PP_1,1:nSides))
+  Face_xGP_PP_1       = 0.
+  NormVec_PP_1        = 0.
+  TangVec1_PP_1       = 0.
+  TangVec2_PP_1       = 0.
+  SurfElem_PP_1       = 0.
+  Ja_Face_PP_1        = 0.
+
+  DO iElem=1,nElems
+    CALL CalcSurfMetrics_PP_1(JaCL_N_PP_1(:,:,:,:,:,iElem),iElem)
+  END DO
+
+  ! PP_1 metrics to global ones
+  Face_xGP_FV(:,0,0,:)   = Face_xGP_PP_1      (:,0,0,:)
+  NormVec_FV (:,0,0,:)   = NormVec_PP_1       (:,0,0,:)
+  TangVec1_FV(:,0,0,:)   = TangVec1_PP_1      (:,0,0,:)
+  TangVec2_FV(:,0,0,:)   = TangVec2_PP_1      (:,0,0,:)
+  SurfElem_FV(0,0,:)     = SUM(SUM(SurfElem_PP_1(:,:,:),2),1)
+  Ja_Face_FV (:,:,0,0,:) = SUM(SUM(Ja_Face_PP_1(:,:,:,:,:),4),3)
+#endif /*FV*/
 
 #if defined(PARTICLES) || USE_HDG
   ! Compute element bary and element radius for processor-local elements (without halo region)
@@ -449,7 +565,11 @@ IF (ABS(meshMode).GT.1) THEN
 
 #ifndef PARTICLES
   IF(meshMode.GT.1) DEALLOCATE(NodeCoords)
-#endif
+#endif /*PARTICLES*/
+#if USE_FV
+  DEALLOCATE(Ja_Face_PP_1)
+  DEALLOCATE(Ja_Face_FV)
+#endif /*FV*/
 
   IF((ABS(meshMode).NE.3).AND.(meshMode.GT.1))THEN
 #ifdef PARTICLES
@@ -499,15 +619,18 @@ SUBROUTINE InitpAdaption()
 USE MOD_Globals
 USE MOD_PreProc
 !USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
+#if !(PP_TimeDiscMethod==700)
 USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionType,pAdaptionBCLevel,NDGAllocationIsDone
-USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut
+#endif /*!(PP_TimeDiscMethod==700)*/
+USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut,ElementOutNloc
 USE MOD_Mesh_Vars          ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC,readFEMconnectivity,NodeCoords,nGlobalDOFs
 USE MOD_Mesh_Vars          ,ONLY: NMaxGlobal,NMinGlobal
 USE MOD_ReadInTools        ,ONLY: GETINTFROMSTR
 USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
+USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity, offsetElem, nElems
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT / OUTPUT VARIABLES
+! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: iElem,BCSideID,BCType
@@ -517,11 +640,17 @@ INTEGER(KIND=8) :: nLocalDOFs
 !===================================================================================================================================
 ! Set defaults
 SetBCElemsToNMax = .FALSE. ! Initialize
+
+#if !(PP_TimeDiscMethod==700)
 pAdaptionBCLevel = -1
 NDGAllocationIsDone = .FALSE.
 
 ! Read p-adaption specific input data
 pAdaptionType = GETINTFROMSTR('pAdaptionType')
+#if USE_HDG && !(USE_PETSC)
+! Sanity check: p-adaption without petsc is not allowed
+IF (pAdaptionType.NE.PRM_P_ADAPTION_ZERO) CALL abort(__STAMP__,'p-adaption is only implemented with petsc. Set LIBS_USE_PETSC=ON')
+#endif /*USE_HDG && !(USE_PETSC)*/
 
 ! Allocate arrays and initialize local polynomial degree
 ! This happens here because nElems is determined here and N_DG is required below for the mesh initialisation
@@ -530,8 +659,34 @@ N_DG = -1
 !CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG_Mapping(2,1+offSetElem:nElems+offSetElem)) ! TODO: Why does this not work?
 ! Add array containing the local polynomial degree to the hdf5 output
 CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG)
+! Add the same container to a separate object for writing it to special .h5 files that contain other fields using Nloc
+CALL AddToElemData(ElementOutNloc,'Nloc',IntArray=N_DG)
 
 SELECT CASE(pAdaptionType)
+CASE(PRM_P_ADAPTION_DBG2) ! Debugging
+  ! Nloc = 2,3,4,5
+  DO iElem=1,nElems
+    N_DG(iElem) = 2
+    IF (iElem+offsetElem.eq.1) THEN
+      N_DG(iElem) = 4
+    ELSEIF (iElem+offsetElem.eq.2) THEN
+      N_DG(iElem) = 5
+    ELSEIF (iElem+offsetElem.eq.4) THEN
+      N_DG(iElem) = 3
+    END IF ! iElem+offset
+  END DO
+CASE(PRM_P_ADAPTION_DBG) ! Debugging
+  ! Nloc = 2 for all elements, except for iGlogalElemID=1,6,10
+  DO iElem=1,nElems
+    N_DG(iElem) = 2
+    IF (iElem+offsetElem.eq.1) THEN
+      N_DG(iElem) = 1
+    ELSEIF (iElem+offsetElem.eq.6) THEN
+      N_DG(iElem) = 1
+    ELSEIF (iElem+offsetElem.eq.10) THEN
+      N_DG(iElem) = 1
+    END IF ! iElem+offset
+  END DO
 CASE(PRM_P_ADAPTION_ZERO)
   N_DG = PP_N ! By default, the initial degree is set to PP_N
 CASE(PRM_P_ADAPTION_RDN) ! Random between NMin and NMax
@@ -613,10 +768,15 @@ nGlobalDOFs = nLocalDOFs
 
 ! Initialize element containers
 CALL Build_N_DG_Mapping()
+#else
+NMinGlobal = PP_N
+NMaxGlobal = PP_N
+#endif /*!(PP_TimeDiscMethod==700)*/
 
 END SUBROUTINE InitpAdaption
 
 
+#if !(PP_TimeDiscMethod==700)
 !===================================================================================================================================
 !> Set Nloc of BC elements to a higher polynomial degree than in the volume
 !>
@@ -636,7 +796,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,SideInfo_Shared
 USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionBCLevel,N_DG_Mapping
 USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
 USE MOD_DG_Vars         ,ONLY: N_DG_Mapping_Shared_Win
@@ -702,7 +862,7 @@ GlobalElemIDLoop: DO iGlobalElemID = FirstElemInd, LastElemInd
       IF(BCType.EQ.10) CYCLE LocSideListLoop ! Skip Neumann sides
       IF(pAdaptionBCLevel.EQ.-1)THEN
         N_DG(iElem) = NMin+1
-      ELSE
+ELSE
         N_DG(iElem) = NMax
       END IF ! pAdaptionBCLevel.EQ.-1
     END DO LocSideListLoop ! iLocSideList = 1, 3
@@ -736,7 +896,7 @@ IF(ABS(pAdaptionBCLevel).GT.1)THEN
       IF(N_DG_Mapping(2,GlobalNbElemID).EQ.NMax)THEN
         IF(pAdaptionBCLevel.EQ.-2)THEN
           N_DG(iElem) = NMin+1
-        ELSE
+ELSE
           N_DG(iElem) = NMax
         END IF ! pAdaptionBCLevel.EQ.-2
       END IF ! N_DG_Mapping(2,GlobalNbElemID).EQ.NMax
@@ -747,9 +907,8 @@ IF(ABS(pAdaptionBCLevel).GT.1)THEN
   CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 END IF ! pAdaptionBCLevel.GT.1
-
-
 END SUBROUTINE SetpAdaptionBCLevel
+#endif /*!(PP_TimeDiscMethod==700)*/
 
 !===================================================================================================================================
 !> Returns a list of sides (depending on the CGNS ordering) for a given local corner node index
@@ -796,6 +955,7 @@ END SELECT
 END SUBROUTINE GetLocSideList
 
 
+#if !(PP_TimeDiscMethod==700)
 !===================================================================================================================================
 !> Allocate the shared memory container N_DG_Mapping_Shared
 !===================================================================================================================================
@@ -901,7 +1061,7 @@ IF(PerformLoadBalance)THEN
   !OffsetCounter = N_DG_Mapping(1,nElems+offSetElem) + (N_DG_Mapping(2,nElems+offSetElem)+1)**3
 
 #if USE_LOADBALANCE
-ELSE
+    ELSE
 #endif /*USE_LOADBALANCE*/
   IF(.NOT.NDGAllocationIsDone)THEN
     ! Allocate the shared memory container and associate pointer: N_DG_Mapping
@@ -952,7 +1112,7 @@ ELSE
       recvcountDofs(iProc-1) = displsDofs(iProc)-displsDofs(iProc-1)
     END DO
     recvcountDofs(nLeaderGroupProcs-1) = nDofsMapping - displsDofs(nLeaderGroupProcs-1)
-  END IF
+    END IF
 
   CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win ,MPI_COMM_SHARED)
 
@@ -962,7 +1122,7 @@ ELSE
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
-END IF
+    END IF
 #endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE Build_N_DG_Mapping
@@ -1006,8 +1166,8 @@ ALLOCATE(DG_Elems_master(1:nSides))
 ALLOCATE(DG_Elems_slave (1:nSides))
 ! Initialize with element-local N
 !IF(pAdaptionType.EQ.0)THEN
-  DG_Elems_master = PP_N
-  DG_Elems_slave  = PP_N
+  DG_Elems_master = -1
+  DG_Elems_slave  = -1
 !ELSE
 !  DO iSide = 1, nSides
 !    iElem = SideToElem(S2E_ELEM_ID,iSide)
@@ -1113,7 +1273,7 @@ DO iNbProc = 1, nNbProcs
       DataSizeSideSendMaster(iNbProc,1) = DataSizeSideSendMaster(iNbProc,1)  + (Nloc+1)**2
 #endif /*not USE_HDG*/
     END DO ! iSide = 1, nMPISides_rec(iNbProc,1)
-  END IF
+END IF
 
   ! Important: Keep symmetry
   DataSizeSideSend(iNbProc,2) = DataSizeSideRec( iNbProc,1)
@@ -1131,6 +1291,7 @@ END DO ! iNbProc = 1, nNbProcs
 
 #endif /*USE_MPI*/
 END SUBROUTINE DG_ProlongDGElemsToFace
+#endif /*!(PP_TimeDiscMethod==700)*/
 
 
 SUBROUTINE GetMeshMinMaxBoundaries()
@@ -1245,7 +1406,9 @@ SUBROUTINE InitElemVolumes()
 USE MOD_PreProc
 USE MOD_Globals            ,ONLY: UNIT_StdOut,abort
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
+#if !(PP_TimeDiscMethod==700)
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+#endif /*!(PP_TimeDiscMethod==700)*/
 USE MOD_Mesh_Vars          ,ONLY: nElems,N_VolMesh, offSetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: LocalVolume,MeshVolume
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
@@ -1285,8 +1448,12 @@ REAL                            :: CNVolume                       ! Total CN vol
 !===================================================================================================================================
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT ELEMENT GEOMETRY INFORMATION ...'
+#if (USE_FV) && !(USE_HDG)
+! Can something be checked in this case?
+#else
 ! Sanity check
 IF(.NOT.ALLOCATED(N_Inter)) CALL abort(__STAMP__,'Error in InitElemVolumes(): N_Inter is not allocated')
+#endif /*(USE_FV) && !(USE_HDG)*/
 
 #if USE_MPI && defined(PARTICLES)
 ! J_N is only built for local DG elements. Therefore, array is only filled for elements on the same compute node
@@ -1320,11 +1487,15 @@ ElemCharLength_Shared(:) = 0.
 DO iElem = 1,nElems
   CNElemID=iElem+offsetElemCNProc
   !--- Calculate and save volume of element iElem
+#if (USE_FV) && !(USE_HDG)
+    ElemVolume_Shared(CNElemID) = 1./N_VolMesh(iElem)%sJ(0,0,0)
+#else
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
     ElemVolume_Shared(CNElemID) = ElemVolume_Shared(CNElemID) + &
                                   N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)/N_VolMesh(iElem)%sJ(i,j,k)
   END DO; END DO; END DO
+#endif /*(USE_FV) && !(USE_HDG)*/
   !---- Calculate characteristic cell length: V^(1/3)
   ElemCharLength_Shared(CNElemID) = ElemVolume_Shared(CNElemID)**(1./3.)
 END DO
@@ -1457,12 +1628,19 @@ SUBROUTINE FinalizeMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars
+#if USE_FV
+USE MOD_Mesh_Vars_FV
+#endif /*USE_FV*/
 #if defined(PARTICLES) && USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+#if !(PP_TimeDiscMethod==700)
 USE MOD_DG_Vars          ,ONLY: DG_Elems_master,DG_Elems_slave, N_DG_Mapping_Shared, N_DG
+#endif /*!(PP_TimeDiscMethod==700)*/
 #if USE_MPI
+#if !(PP_TimeDiscMethod==700)
 USE MOD_DG_Vars          ,ONLY: N_DG_Mapping_Shared_Win
+#endif /*!(PP_TimeDiscMethod==700)*/
 USE MOD_MPI_Shared_Vars  ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
 USE MOD_MPI_Vars         ,ONLY: DataSizeSideSend,DataSizeSurfSendMax,DataSizeSurfSendMin
@@ -1503,6 +1681,19 @@ SDEALLOCATE(MortarInfo)
 SDEALLOCATE(MortarSlave2MasterInfo)
 ! mappings
 SDEALLOCATE(DetJac_Ref)
+#if USE_FV
+SDEALLOCATE(NormVec_FV)
+SDEALLOCATE(TangVec1_FV)
+SDEALLOCATE(TangVec2_FV)
+SDEALLOCATE(SurfElem_FV)
+SDEALLOCATE(Face_xGP_FV)
+SDEALLOCATE(NormVec_PP_1)
+SDEALLOCATE(TangVec1_PP_1)
+SDEALLOCATE(TangVec2_PP_1)
+SDEALLOCATE(SurfElem_PP_1)
+SDEALLOCATE(Face_xGP_PP_1)
+SDEALLOCATE(IsPeriodicSide)
+#endif
 SDEALLOCATE(Vdm_CLNGeo1_CLNGeo)
 SDEALLOCATE(wBaryCL_NGeo1)
 SDEALLOCATE(XiCL_NGeo1)
@@ -1514,10 +1705,12 @@ SDEALLOCATE(myInvisibleRank)
 SDEALLOCATE(LostRotPeriodicSides)
 SDEALLOCATE(SideToNonUniqueGlobalSide)
 
+SDEALLOCATE(n_surfmesh)
+
 ! p-adaption
+#if !(PP_TimeDiscMethod==700)
 SDEALLOCATE(DG_Elems_master)
 SDEALLOCATE(DG_Elems_slave)
-SDEALLOCATE(n_surfmesh)
 
 #if USE_MPI
 SDEALLOCATE(DataSizeSideSend)
@@ -1550,6 +1743,7 @@ END IF
 #endif /*USE_MPI*/
 
 SDEALLOCATE(N_DG)
+#endif /*!(PP_TimeDiscMethod==700)*/
 SDEALLOCATE(Xi_NGeo)
 
 ! Arrays are being shifted along load balancing, so they need to be kept allocated
@@ -1575,6 +1769,9 @@ SDEALLOCATE(wBaryCL_NGeo)
 ! BCS
 SDEALLOCATE(BoundaryName)
 SDEALLOCATE(BoundaryType)
+#if USE_FV && USE_HDG
+SDEALLOCATE(BoundaryType_FV)
+#endif
 ! elem-xgp and metrics
 SDEALLOCATE(XCL_NGeo)  ! MPI communication during LB in ExchangeMetrics()
 SDEALLOCATE(dXCL_NGeo) ! MPI communication during LB in ExchangeMetrics()
@@ -1582,6 +1779,16 @@ SDEALLOCATE(dXCL_NGeo) ! MPI communication during LB in ExchangeMetrics()
 SDEALLOCATE(N_VolMesh)  ! MPI communication during LB in ExchangeVolMesh()
 SDEALLOCATE(N_VolMesh2) ! MPI communication during LB in ExchangeMetrics()
 
+#if USE_FV
+SDEALLOCATE(Elem_xGP_FV)
+SDEALLOCATE(Elem_xGP_PP_1)
+SDEALLOCATE(Metrics_fTilde_FV)
+SDEALLOCATE(Metrics_gTilde_FV)
+SDEALLOCATE(Metrics_hTilde_FV)
+SDEALLOCATE(JaCL_N_PP_1)
+SDEALLOCATE(       XCL_N_PP_1)
+SDEALLOCATE(      dXCL_N_PP_1)
+#endif
 END SUBROUTINE FinalizeMesh
 
 END MODULE MOD_Mesh

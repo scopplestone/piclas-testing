@@ -42,7 +42,7 @@ PUBLIC :: DefineParametersHDG
 #if USE_MPI
 PUBLIC :: SynchronizeChargeOnFPC,SynchronizeVoltageOnEPC
 #if defined(PARTICLES)
-PUBLIC :: SynchronizeBV
+ PUBLIC :: SynchronizeBV
 #endif /*defined(PARTICLES)*/
 #endif /*USE_MPI */
 #if defined(PARTICLES)
@@ -128,7 +128,7 @@ USE MOD_Part_BR_Elecron_Fluid ,ONLY: UpdateNonlinVolumeFac
 USE MOD_Restart_Vars          ,ONLY: DoRestart
 #endif /*defined(PARTICLES)*/
 #if USE_MPI
-USE MOD_MPI                   ,ONLY: StartReceiveMPISurfDataType, StartSendMPISurfDataType, FinishExchangeMPISurfDataType
+USE MOD_MPI_HDG               ,ONLY: StartReceiveMPISurfDataType, StartSendMPISurfDataType, FinishExchangeMPISurfDataType
 USE MOD_MPI_Vars
 #endif
 #if USE_LOADBALANCE
@@ -264,7 +264,9 @@ dirPm2iSide(1,3) = ZETA_MINUS
 dirPm2iSide(2,3) = ZETA_PLUS
 
 ! -------------------------------------------------------------------------------------------------
-! TODO NSideMin - N_SurfMesh: Fill NSide. I do not know if it is a good idea to do that here...
+! Fill NSide for each side.
+! For Mortars, DG_Elems_slave(iSide) = -1 for the large mortar side.
+! -> Loop over all large mortar sides and fill NSide with the min/max of all shared sides.
 DO iSide = 1, nSides
   IF(UseNSideMin) THEN
     NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
@@ -314,9 +316,6 @@ DO iNbProc=1,nNbProcs
   ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv(MAXVAL(DataSizeSurfRecMax(iNbProc,:))))
   ALLOCATE(SurfExchange(iNbProc)%SurfDataSend(MAXVAL(DataSizeSurfSendMax(iNbProc,:))))
 END DO !iProc=1,nNBProcs
-CALL StartReceiveMPISurfDataType(RecRequest_Geo, 1, 1)
-CALL StartSendMPISurfDataType(SendRequest_Geo,1,1)
-CALL FinishExchangeMPISurfDataType(SendRequest_Geo,RecRequest_Geo,1, 1)
 DO iNbProc=1,nNbProcs
   DEALLOCATE(SurfExchange(iNbProc)%SurfDataRecv)
   DEALLOCATE(SurfExchange(iNbProc)%SurfDataSend)
@@ -335,18 +334,6 @@ END DO !iProc=1,nNBProcs
 #endif /*USE_MPI*/
 
 ! -------------------------------------------------------------------------------------------------
-! 3. Build SurfElemMin for all sides (including Mortar sides)
-DO iSide = 1, nSides
-  ! Get SurfElemMin
-  NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-  NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-  IF(NSideMax.EQ.NSideMin)THEN
-    N_SurfMesh(iSide)%SurfElemMin(:,:) = N_SurfMesh(iSide)%SurfElem(:,:)
-  ELSE
-    CALL ChangeBasis2D(1,NSideMax,NSideMin,PREF_VDM(NSideMax,NSideMin)%Vdm,N_SurfMesh(iSide)%SurfElem(0:NSideMax,0:NSideMax), &
-                                                                          N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
-  END IF ! NSideMax.EQ.NSideMin
-END DO ! iSide = 1, nSides
 
 
 ! 4. Initialize BR electron fluid model
@@ -392,7 +379,7 @@ IF(nGlobalMortarSides.GT.0)THEN !mortar mesh
   IF(nMortarMPISides.GT.0) CALL abort(__STAMP__,&
   "nMortarMPISides >0: HDG mortar MPI implementation relies on big sides having always only master sides (=> nMortarMPISides=0 )")
 
-  CALL InitMortar_HDG()
+CALL InitMortar_HDG()
 END IF !mortarMesh
 
 ! 6. BCs, the first
@@ -406,7 +393,7 @@ DO SideID=1,nBCSides
   SELECT CASE(BCType)
   CASE(HDGDIRICHLETBCSIDEIDS) ! Dirichlet
     nDirichletBCsides=nDirichletBCsides+1
-  CASE(10) ! Neumann
+  CASE(10,11,12) ! Neumann
     nNeumannBCsides=nNeumannBCsides+1
   CASE(20) ! Conductor: Floating Boundary Condition (FPC)
     nConductorBCsides=nConductorBCsides+1
@@ -437,8 +424,8 @@ CALL InitBV()
 #else
   nDirichletBCsidesGlobal = nDirichletBCsides
 #endif /*USE_MPI*/
+
 ZeroPotentialSide = -1
-! TODO is the LocSide=1 of GlobElemID=1 always the master side?
 IF(mpiRoot.AND.nDirichletBCsidesGlobal==0) ZeroPotentialSide = ElemToSide(E2S_SIDE_ID,1,1)
 
 IF(nDirichletBCsides.GT.0)ALLOCATE(DirichletBC(nDirichletBCsides))
@@ -460,7 +447,7 @@ DO SideID=1,nBCSides
     nDirichletBCsides=nDirichletBCsides+1
     DirichletBC(nDirichletBCsides)=SideID
     MaskedSide(SideID)=1
-  CASE(10) !Neumann,
+  CASE(10,11,12) !Neumann,
     nNeumannBCsides=nNeumannBCsides+1
     NeumannBC(nNeumannBCsides)=SideID
   CASE(20) ! Conductor: Floating Boundary Condition (FPC)
@@ -475,10 +462,10 @@ END DO
 IF(nNeumannBCsides.GT.0)THEN
   DO iNeumannBCsides = 1, nNeumannBCsides
     SideID = NeumannBC(iNeumannBCsides)
-    Nloc = DG_Elems_master(SideID)
+    Nloc = N_SurfMesh(SideID)%NSide
     ALLOCATE(HDG_Surf_N(SideID)%qn_face(PP_nVar, nGP_face(Nloc)))
   END DO ! iNeumannBCsides = 1, nNeumannBCsides
-END IF
+  END IF
 
 ! 9. Initialize interpolation variables for each Polynomial degree (Also fill HDG_Vol_N further)
 ! Initialize interpolation variables
@@ -494,25 +481,25 @@ DO Nloc = 1, NMax
 
   ALLOCATE(N_Inter(Nloc)%Lomega_m(0:Nloc))
   ALLOCATE(N_Inter(Nloc)%Lomega_p(0:Nloc))
-  ! Compute a lifting matrix scaled by the Gaussian weights
+! Compute a lifting matrix scaled by the Gaussian weights
   N_Inter(Nloc)%Lomega_m = - N_Inter(Nloc)%L_minus/N_Inter(Nloc)%wGP
   N_Inter(Nloc)%Lomega_p = + N_Inter(Nloc)%L_plus/N_Inter(Nloc)%wGP
   ALLOCATE(N_Inter(Nloc)%Domega(0:Nloc,0:Nloc))
-  ! Compute Differentiation matrix D for given Gausspoints (1D)
+! Compute Differentiation matrix D for given Gausspoints (1D)
   CALL PolynomialDerivativeMatrix(Nloc,N_Inter(Nloc)%xGP,D(0:Nloc,0:Nloc))
   ! Compute a Differentiation matrix scaled by the Gaussian weights
   DO j=0,Nloc
     DO i=0,Nloc
       N_Inter(Nloc)%Domega(i,j) = N_Inter(Nloc)%wGP(i)/N_Inter(Nloc)%wGP(j)*D(i,j)
-    END DO !r
-  END DO !s
+  END DO !r
+END DO !s
 
   ALLOCATE(N_Inter(Nloc)%wGP_vol(nGP_vol(Nloc)))
   DO k=0,Nloc
     DO j=0,Nloc
       DO i=0,Nloc
-    r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
-    N_Inter(Nloc)%wGP_vol(r)=N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)
+        r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+        N_Inter(Nloc)%wGP_vol(r)=N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)
       END DO
     END DO
   END DO !i,j,k
@@ -528,7 +515,7 @@ DO iElem=1,PP_nElems
   END DO; END DO; END DO !i,j,k
 
   ALLOCATE(HDG_Vol_N(iElem)%Ehat(nGP_face(Nloc),nGP_vol(Nloc),6))
-  !side matrices
+!side matrices
   ALLOCATE(HDG_Vol_N(iElem)%Smat(nGP_face(Nloc),nGP_face(Nloc),6,6))
 END DO !iElem
 
@@ -636,6 +623,15 @@ CALL StartSendMPIDataInt(   1,OffsetGlobalPETScDOF,1,nSides,SendRequest_U,SendID
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif
 
+! 4.2.4.3) ZeroPotential
+ZeroPotentialDOF = -1
+IF(nDirichletBCsidesGlobal==0) THEN
+  IF(mpiRoot) ZeroPotentialDOF = OffsetGlobalPETScDOF(ZeroPotentialSide)
+#if USE_MPI
+  CALL MPI_BCAST(ZeroPotentialDOF,1,MPI_INTEGER,0,MPI_COMM_PICLAS,IERROR)
+#endif
+END IF
+
 ! 3.1.3.5) Add All Small Mortar Sides to nLocalPETScDOFs
 DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
   nMortars = MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
@@ -665,7 +661,7 @@ DO SideID=1,nSides
 END DO
 
 ! 3.1.6) Add each FPC to the DOFs
-IF(UseFPC) THEN
+IF(UseFPC)THEN
   DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
     LocalToGlobalPETScDOF(nLocalPETScDOFs+iUniqueFPCBC) = nGlobalPETScDOFs + iUniqueFPCBC - 1
   END DO
@@ -729,10 +725,10 @@ SUBROUTINE PETScSetSolver()
 !> Set the solver and/or preconditioner combination in PETSc
 !> Iterative solvers
 !>    1: CG + Block Jacobi
-!>    2: GMRES + BoomerAMG (with hypre) or Block Jacobi (built-in)
+!>    2: Pipelined CG + Block Jacobi
+!>    3: GMRES + BoomerAMG (with hypre) or Block Jacobi (built-in)
 !> Direct solvers
 !>    10: CHOLESKY (requires the MUMPS package to support the matrix type)
-!>    PCLU: Does not support the matrix type "sbaij" (MATSBAIJ)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -758,13 +754,16 @@ PetscCallA(KSPCreate(PETSC_COMM_WORLD,PETScSolver,ierr))
 PetscCallA(KSPSetOperators(PETScSolver,PETScSystemMatrix,PETScSystemMatrix,ierr))
 
 PetscCallA(KSPGetPC(PETScSolver,pc,ierr))
+! Set the tolerances defaults: rtol=1e-5, atol=1e-50, dtol=1e5, maxits=1e4
+! ASSOCIATE( rtol => PETSC_DEFAULT_REAL )
+ASSOCIATE( rtol => 1e-16, atol => epsCG )
 SELECT CASE(PrecondType)
 CASE(0)
   ! ====== Iterative solver: Conjugate Gradient
   PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
   PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
   PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
-  PetscCallA(KSPSetTolerances(PETScSolver,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,rtol,atol,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
   ! ===  Preconditioner: None
   PetscCallA(PCSetType(pc,PCNONE,ierr))
 CASE(1)
@@ -772,49 +771,52 @@ CASE(1)
   PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
   PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
   PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
-  PetscCallA(KSPSetTolerances(PETScSolver,PETSC_DEFAULT_REAL,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,rtol,atol,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
   ! ===  Preconditioner: Block Jacobi
   PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
-#ifdef PETSC_HAVE_HYPRE
 CASE(2)
-  PetscCallA(KSPSetType(PETScSolver,KSPCG, ierr))
+  ! ====== Iterative solver: Pipelined Conjugate Gradient (only a single non-blocking communication instead of 2 blocking compared to KSPCG)
+  PetscCallA(KSPSetType(PETScSolver,KSPPIPECG,ierr))
   PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
   PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
-  PetscCallA(KSPSetTolerances(PETScSolver,1e-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
-  ! ===  Preconditioner: Incomplete factorization preconditioner
-  PetscCallA(PCHYPRESetType(pc,PCILU,ierr))
+  ! Tolerances defaults: rtol=1e-5, atol=1e-50, dtol=1e5, maxits=1e4
+  PetscCallA(KSPSetTolerances(PETScSolver,rtol,atol,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  ! ===  Preconditioner: Block Jacobi
+  PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
 CASE(3)
-  PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
+  ! ====== Iterative solver: Flexible Generalized Minimal Residual method
+  PetscCallA(KSPSetType(PETScSolver,KSPFGMRES, ierr))
+  ! Number of iterations at which the solver restarts [default = 30]: "A larger restart parameter generally leads to faster convergence
+  ! of GMRES but the memory usage is higher than with a smaller restart parameter, as is the average time to perform each iteration.
+  ! For more ill-conditioned problems a larger restart value may be necessary." https://petsc.org/release/manualpages/KSP/KSPGMRESSetRestart/
+  PetscCallA(KSPGMRESSetRestart(PETScSolver, 100, ierr))
   PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
   PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
-  PetscCallA(KSPSetTolerances(PETScSolver,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
-  ! ===  Preconditioner: matrix element based preconditioner, ParaSails is a parallel implementation of a sparse approximate
-  !      inverse preconditioner
-  PetscCallA(PCSetType(pc, PCHYPRE, ierr))
-  PetscCallA(PCHYPRESetType(pc, "parasails", ierr))
-#endif
-CASE(20)
-  ! ====== Iterative solver: GMRES
-  PetscCallA(KSPSetType(PETScSolver,KSPGMRES, ierr))
-  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
-  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
-  PetscCallA(KSPSetTolerances(PETScSolver,PETSC_DEFAULT_REAL,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,rtol,atol,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
 #ifdef PETSC_HAVE_HYPRE
   ! ===  Preconditioner: BoomerAMG
   PetscCallA(PCSetType(pc, PCHYPRE, ierr))
   PetscCallA(PCHYPRESetType(pc, "boomeramg", ierr))
   ! BoomerAMG options
+  ! Strong threshold for coarsening: greater value means more coarsening; default = 0.25, which is only sufficient for 2D
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_strong_threshold", "0.7", ierr))
   ! Coarsening strategy: HMIS coarsening
   PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_coarsen_type", "HMIS", ierr))
-  ! Strong threshold for coarsening
-  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_strong_threshold", "0.5", ierr))
-  ! Maximum number of levels
+  ! Maximum number of levels (default: 25)
   PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_max_levels", "25", ierr))
+  ! Number of coarsening levels for "aggressive coarsening"
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_agg_nl", "4", ierr))
+  ! Number of pathways within a coarsening level: 1 is most agressive value; balance between the number of levels and paths
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_agg_num_paths", "5", ierr))
+  ! Interpolation type
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_interp_type", "ext+i", ierr))
+  ! Coarsen during the interpolation
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_truncfactor", "0.3", ierr))
   PetscCallA(PCSetFromOptions(pc,ierr))
-#else
+#else /*NOT PETSC_HAVE_HYPRE*/
   ! ===  Preconditioner: Block Jacobi
   PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
-#endif
+#endif /*PETSC_HAVE_HYPRE*/
 #ifdef PETSC_HAVE_MUMPS
 CASE(10)
   ! ====== Direct solver: Cholesky
@@ -825,19 +827,41 @@ CASE(10)
   PetscCallA(PCFactorSetUpMatSolverType(pc,ierr))
   ! We need to get the internal matrix to set its options
   PetscCallA(PCFactorGetMatrix(pc,F,ierr))
-  ! Tell MUMPS matrix is SPD
-  PetscCallA(MatMumpsSetIcntl(F,7,2,ierr))
-  ! Memory handling
-  PetscCallA(MatMumpsSetIcntl(F,14,200,ierr))    ! Allow 3x estimated memory
-  PetscCallA(MatMumpsSetIcntl(F,23,1000,ierr))   ! Limit to 2GB per process
-#endif
+#if USE_DEBUG
+  ! Increase MUMPS diagnostics level: Errors, warnings, and main statistics printed.
+  PetscCallA(MatMumpsSetIcntl(F, 4, 2, ierr))
+#endif /*USE_DEBUG*/
+  ! === Compression
+  ! Enable BLR compression with automatic settings: showed better performance for initial factorization and better memory footprint
+  PetscCallA(MatMumpsSetIcntl(F, 35, 1, ierr))
+  ! ! Enable BLR compression of the contribution blocks, reducing the memory consumption at the cost of some additional operations
+  ! ! during factorization
+  ! PetscCallA(MatMumpsSetIcntl(F, 37, 1, ierr))
+  ! === Parallel ordering: select one of the following or let PETSc decide (recommended)
+  ! PetscCallA(MatMumpsSetIcntl(F, 28, 2, ierr))
+  ! ! Use PT-SCOTCH for ordering
+  ! PetscCallA(MatMumpsSetIcntl(F, 29, 1, ierr))
+  ! ! Use ParMetis for parallel ordering
+  ! PetscCallA(MatMumpsSetIcntl(F, 29, 2, ierr))
+
+  ! === Memory handling
+  ! Workspace allocation: Allow 2x estimated memory (default is at 35%)
+  PetscCallA(MatMumpsSetIcntl(F,14,100,ierr))
+  ! ! Limit to 2GB per process, or default (=0): each processor will allocate workspace based on the estimates computed during the analysis
+  ! PetscCallA(MatMumpsSetIcntl(F,23,2000,ierr))
+#endif /*PETSC_HAVE_MUMPS*/
 CASE DEFAULT
-  CALL abort(__STAMP__,'ERROR in PETScSetSolver: Unknown option! Note that the direct solver (10) is currently only available with MUMPS and the iteratice (2) only with HYPRE. PrecondType=', IntInfoOpt=PrecondType)
+  SWRITE(*,*) 'PrecondType:', PrecondType
+  CALL CollectiveStop(__STAMP__,'ERROR in PETScSetSolver: Unknown option! Direct solver (10) is only available with MUMPS.')
 END SELECT
+END ASSOCIATE
 
 ! Get solver and preconditioner types
 PetscCallA(KSPGetType(PETScSolver, ksp_type, ierr))
 PetscCallA(PCGetType(pc, pc_type, ierr))
+
+! Reuse preconditioner (might be unneccessary since the system matrix remains the same during the simulation)
+PetscCallA(KSPSetReusePreconditioner(PETScSolver, PETSC_TRUE, ierr))
 
 ! If using direct solver, print factorization type
 IF (TRIM(ksp_type) .EQ. 'preonly') THEN
@@ -930,7 +954,7 @@ IF(FPC%nFPCBounds.EQ.0) RETURN ! Already determined in HDG initialization
 UseFPC = .TRUE.
 
 #if !(USE_PETSC)
-CALL abort(__STAMP__,'FPC model requires compilation with LIBS_USE_PETSC=ON')
+CALL CollectiveStop(__STAMP__,'FPC model requires compilation with LIBS_USE_PETSC=ON')
 #endif /*!(USE_PETSC)*/
 
 GETTIME(StartT)
@@ -1048,70 +1072,70 @@ ELSE
 END IF ! nComputeNodeProcessors.EQ.nProcessors_Global
 
 #if defined(PARTICLES)
-! Check if all FPCs have already been found
+  ! Check if all FPCs have already been found
 IF(.NOT.(ALL(FPC%BConProc)))THEN
 
   ! Check whether this information has already been created before to skip the costly search below
   !CALL ReadFPCCommunicationFromH5()
 
-  ! Particles might impact the FPC on another proc/node. Therefore check if a particle can travel from a local element to an
-  ! element that has at least one side, which is an FPC
-  ! 4.1.) Each processor loops over all of his elements
-  iElemLoop: DO iElem = 1+offsetElem, nElems+offsetElem
+    ! Particles might impact the FPC on another proc/node. Therefore check if a particle can travel from a local element to an
+    ! element that has at least one side, which is an FPC
+    ! 4.1.) Each processor loops over all of his elements
+    iElemLoop: DO iElem = 1+offsetElem, nElems+offsetElem
 
-    iElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)),&
-                          SUM(BoundsOfElem_Shared(1:2,2,iElem)),&
-                          SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
-    iElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem),&
-                              BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),&
-                              BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+      iElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)),&
+                            SUM(BoundsOfElem_Shared(1:2,2,iElem)),&
+                            SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
+      iElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem),&
+                                BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),&
+                                BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
 
-    ! 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
-    ! Loop ALL compute-node elements (use global element index)
-    iCNElemLoop: DO iCNElem = 1,nComputeNodeTotalElems
-      iGlobElem = GetGlobalElemID(iCNElem)
+      ! 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
+      ! Loop ALL compute-node elements (use global element index)
+      iCNElemLoop: DO iCNElem = 1,nComputeNodeTotalElems
+        iGlobElem = GetGlobalElemID(iCNElem)
 
-      ! Skip my own elements as they have already been tested when the local sides are checked
-      IF(ElementOnProc(iGlobElem)) CYCLE iCNElemLoop
+        ! Skip my own elements as they have already been tested when the local sides are checked
+        IF(ElementOnProc(iGlobElem)) CYCLE iCNElemLoop
 
-      ! Check if one of the six sides of the compute-node element is a FPC
-      ! Note that iSide is in the range of 1:nNonUniqueGlobalSides
-      DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
-        ! Get BC index of the global side index
-        BCIndex = SideInfo_Shared(SIDE_BCID,iSide)
-        ! Only check BC sides with BC index > 0
-        IF(BCIndex.GT.0)THEN
-          ! Get boundary type
-          BCType = BoundaryType(BCIndex,BC_TYPE)
-          ! Check if FPC has been found
-          IF(BCType.EQ.BCTypeFPC)THEN
+        ! Check if one of the six sides of the compute-node element is a FPC
+        ! Note that iSide is in the range of 1:nNonUniqueGlobalSides
+        DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
+          ! Get BC index of the global side index
+          BCIndex = SideInfo_Shared(SIDE_BCID,iSide)
+          ! Only check BC sides with BC index > 0
+          IF(BCIndex.GT.0)THEN
+            ! Get boundary type
+            BCType = BoundaryType(BCIndex,BC_TYPE)
+            ! Check if FPC has been found
+            IF(BCType.EQ.BCTypeFPC)THEN
 
-            ! Check if the BC can be reached
-            iGlobElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iGlobElem)),&
-                                      SUM(BoundsOfElem_Shared(1:2,2,iGlobElem)),&
-                                      SUM(BoundsOfElem_Shared(1:2,3,iGlobElem)) /) / 2.
-            iGlobElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iGlobElem)-BoundsOfElem_Shared(1,1,iGlobElem),&
-                                          BoundsOfElem_Shared(2,2,iGlobElem)-BoundsOfElem_Shared(1,2,iGlobElem),&
-                                          BoundsOfElem_Shared(2,3,iGlobElem)-BoundsOfElem_Shared(1,3,iGlobElem) /) / 2.)
+              ! Check if the BC can be reached
+              iGlobElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iGlobElem)),&
+                                        SUM(BoundsOfElem_Shared(1:2,2,iGlobElem)),&
+                                        SUM(BoundsOfElem_Shared(1:2,3,iGlobElem)) /) / 2.
+              iGlobElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iGlobElem)-BoundsOfElem_Shared(1,1,iGlobElem),&
+                                            BoundsOfElem_Shared(2,2,iGlobElem)-BoundsOfElem_Shared(1,2,iGlobElem),&
+                                            BoundsOfElem_Shared(2,3,iGlobElem)-BoundsOfElem_Shared(1,3,iGlobElem) /) / 2.)
 
-            ! check if compute-node element "iGlobElem" is within halo_eps of processor-local element "iElem"
+              ! check if compute-node element "iGlobElem" is within halo_eps of processor-local element "iElem"
             ! TODO: what about periodic vectors?
-            IF (VECNORM( iElemCenter(1:3) - iGlobElemCenter(1:3) ) .LE. ( halo_eps + iElemRadius + iGlobElemRadius ) )THEN
-              BCState = BoundaryType(BCIndex,BC_STATE) ! BCState corresponds to iFPC
-              IF(BCState.LT.1) CALL abort(__STAMP__,'BCState cannot be <1',IntInfoOpt=BCState)
-              iUniqueFPCBC = FPC%Group(BCState,2)
-              ! Flag the i-th FPC
+              IF (VECNORM( iElemCenter(1:3) - iGlobElemCenter(1:3) ) .LE. ( halo_eps + iElemRadius + iGlobElemRadius ) )THEN
+                BCState = BoundaryType(BCIndex,BC_STATE) ! BCState corresponds to iFPC
+                IF(BCState.LT.1) CALL abort(__STAMP__,'BCState cannot be <1',IntInfoOpt=BCState)
+                iUniqueFPCBC = FPC%Group(BCState,2)
+                ! Flag the i-th FPC
               FPC%BConProc(iUniqueFPCBC) = .TRUE.
-              ! Check if all FPCs have been found -> exit complete loop
+                ! Check if all FPCs have been found -> exit complete loop
               IF(ALL(FPC%BConProc)) EXIT iElemLoop
-              ! Go to next element
-              CYCLE iCNElemLoop
-            END IF ! VECNORM( ...
-          END IF ! BCType.EQ.BCTypeFPC
-        END IF ! BCIndex.GT.0
-      END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
-    END DO iCNElemLoop ! iCNElem = 1,nComputeNodeTotalElems
-  END DO iElemLoop ! iElem = 1, nElems
+                ! Go to next element
+                CYCLE iCNElemLoop
+              END IF ! VECNORM( ...
+            END IF ! BCType.EQ.BCTypeFPC
+          END IF ! BCIndex.GT.0
+        END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
+      END DO iCNElemLoop ! iCNElem = 1,nComputeNodeTotalElems
+    END DO iElemLoop ! iElem = 1, nElems
 END IF ! .NOT.(ALL(FPC%BConProc))
 #endif /*defined(PARTICLES)*/
 
@@ -1888,9 +1912,9 @@ INTEGER            :: iUniqueFPCBC
 !===================================================================================================================================
 DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   IF(FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
-      ! Broadcast from root to other processors on the sub-communicator
+    ! Broadcast from root to other processors on the sub-communicator
     CALL MPI_BCAST(FPC%Charge(iUniqueFPCBC), 1, MPI_DOUBLE_PRECISION, 0, FPC%COMM(iUniqueFPCBC)%UNICATOR, IERROR)
-    END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
+  END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
 END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
 END SUBROUTINE SynchronizeChargeOnFPC
 
@@ -1913,9 +1937,9 @@ INTEGER            :: iUniqueEPCBC
 !===================================================================================================================================
 DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
   IF(EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
-      ! Broadcast from root to other processors on the sub-communicator
+    ! Broadcast from root to other processors on the sub-communicator
     CALL MPI_BCAST(EPC%Voltage(iUniqueEPCBC), 1, MPI_DOUBLE_PRECISION, 0, EPC%COMM(iUniqueEPCBC)%UNICATOR, IERROR)
-    END IF ! EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL
+  END IF ! EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL
 END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
 END SUBROUTINE SynchronizeVoltageOnEPC
 #endif /*USE_MPI*/
@@ -2114,21 +2138,21 @@ IF( ( ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR. & ! Analysis dt
     DO iElem = 1, nElems
       U_N(iElem)%Dt(:,:,:,:) = U_N(iElem)%E(:,:,:,:)
     END DO ! iElem = 1, nElems
-  ELSE
+ELSE
     ! Store E^n+1 at the end of the time step and subtract E^n to calculate the difference
     IF(DoDielectric)THEN
-      DO iElem=1,PP_nElems
+  DO iElem=1,PP_nElems
         IF(isDielectricElem(iElem)) THEN
           DO iDir = 1, 3
             U_N(iElem)%Dt(iDir,:,:,:) = DielectricVol(ElemToDielectric(iElem))%DielectricEps(:,:,:)&
                 *eps0*(U_N(iElem)%E(iDir,:,:,:)-U_N(iElem)%Dt(iDir,:,:,:)) / dt
           END DO ! iDir = 1, 3
-        ELSE
+          ELSE
           U_N(iElem)%Dt(:,:,:,:) = eps0*(U_N(iElem)%E(:,:,:,:)-U_N(iElem)%Dt(:,:,:,:)) / dt
         END IF ! isDielectricElem(iElem)
       END DO ! iElem=1,PP_nElems
-    ELSE
-      DO iElem=1,PP_nElems
+            ELSE
+    DO iElem=1,PP_nElems
         U_N(iElem)%Dt(:,:,:,:) = eps0*(U_N(iElem)%E(:,:,:,:)-U_N(iElem)%Dt(:,:,:,:)) / dt
       END DO ! iElem=1,PP_nElems
     END IF ! DoDielectric
@@ -2138,7 +2162,7 @@ IF( ( ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR. & ! Analysis dt
     IF(DoVirtualDielectricLayer) CALL CalculatePhiAndEFieldFromCurrentsVDL(.TRUE.)
 #endif /*defined(PARTICLES)*/
   END IF ! mode.EQ.1
-END IF
+    END IF
 
 END SUBROUTINE CalculateElectricTimeDerivative
 
@@ -2171,7 +2195,7 @@ LOGICAL          :: UpdatePhiF
 !     interpolate the vector field E = (/Ex, Ey, Ez/) to the boundary face
 DO SideID=1,nBCSides
   ! Get the local element index
-  ElemID = SideToElem(S2E_ELEM_ID,SideID)
+    ElemID    = SideToElem(S2E_ELEM_ID,SideID)
   ! Get local polynomial degree of the element
   Nloc   = N_DG_Mapping(2,ElemID+offSetElem)
   ! Get particle boundary index

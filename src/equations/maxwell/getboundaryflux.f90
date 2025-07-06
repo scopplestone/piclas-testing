@@ -13,6 +13,7 @@
 #include "piclas.h"
 
 MODULE MOD_GetBoundaryFlux
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700)) && !(USE_HDG)
 !===================================================================================================================================
 ! Contains FillBoundary (which depends on the considered equation)
 !===================================================================================================================================
@@ -24,20 +25,7 @@ PRIVATE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
-
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE GetBoundaryFlux
-  MODULE PROCEDURE GetBoundaryFlux
-END INTERFACE
-
-INTERFACE InitBC
-  MODULE PROCEDURE InitBC
-END INTERFACE
-
-INTERFACE FinalizeBC
-  MODULE PROCEDURE FinalizeBC
-END INTERFACE
-
 PUBLIC::GetBoundaryFlux
 PUBLIC:: InitBC,FinalizeBC
 !===================================================================================================================================
@@ -53,8 +41,7 @@ SUBROUTINE InitBC()
 USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Equation_Vars     ,ONLY: EquationInitIsDone
-USE MOD_Equation_Vars     ,ONLY: BCData,nBCByType,BCSideID!,nRefstate
-USE MOD_Equation_Vars     ,ONLY: BCStateFile
+USE MOD_Equation_Vars     ,ONLY: nBCByType,BCSideID
 USE MOD_Interpolation_Vars,ONLY: InterpolationInitIsDone
 USE MOD_Mesh_Vars         ,ONLY: MeshInitIsDone,nBCSides,BC,BoundaryType,nBCs
 ! IMPLICIT VARIABLE HANDLING
@@ -159,8 +146,7 @@ USE MOD_Riemann         ,ONLY: RiemannVacuum,RiemannPML
 USE MOD_Riemann         ,ONLY: RiemannDielectric
 USE MOD_Equation        ,ONLY: ExactFunc
 USE MOD_Globals_Vars    ,ONLY: c,c_inv
-USE MOD_Mesh_Vars       ,ONLY: nBCSides,nBCs,BoundaryType,BC
-USE MOD_Equation_Vars   ,ONLY: nBCByType,BCSideID,BCData,nBCByType
+USE MOD_Mesh_Vars       ,ONLY: BoundaryType,BC
 USE MOD_PML_Vars        ,ONLY: PMLnVar, DoPML
 USE MOD_Interfaces_Vars ,ONLY: InterfaceRiemann
 USE MOD_Dielectric_vars ,ONLY: DielectricSurf
@@ -182,7 +168,7 @@ REAL,INTENT(IN)                      :: BCFace_xGP(        3,0:Nloc,0:Nloc)
 REAL,INTENT(OUT)                     :: Flux(PP_nVar+PMLnVar,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: iSide,p,q
+INTEGER                              :: p,q
 INTEGER                              :: BCType,BCState
 REAL                                 :: n_loc(3),resul(PP_nVar),epsBC
 REAL                                 :: U_Face_loc(PP_nVar,0:Nloc,0:Nloc)
@@ -395,4 +381,5 @@ SDEALLOCATE(BCSideID)
 END SUBROUTINE FinalizeBC
 
 
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700)) && !(USE_HDG)*/
 END MODULE MOD_GetBoundaryFlux

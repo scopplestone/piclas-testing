@@ -75,7 +75,7 @@ LOGICAL                        :: CmdLineMode, NVisuDefault         ! In command
 CHARACTER(LEN=2)               :: NVisuString                       ! String containing NVisu from command line option
 CHARACTER(LEN=20)              :: fmtString                         ! String containing options for formatted write
 LOGICAL                        :: DGSolutionExists, ElemDataExists, SurfaceDataExists, VisuParticles, PartDataExists, DMDDataExists
-LOGICAL                        :: BGFieldExists, ExcitationDataExists
+LOGICAL                        :: BGFieldExists, ExcitationDataExists, DVMSolutionExists
 LOGICAL                        :: VisuAdaptiveInfo, AdaptiveInfoExists
 LOGICAL                        :: ReadMeshFinished, ElemMeshInit, SurfMeshInit
 LOGICAL                        :: ConvertPointToCellData
@@ -92,6 +92,7 @@ CALL ParseCommandlineArguments()
 CALL prms%SetSection('piclas2vtk')
 CALL prms%CreateStringOption( 'NodeTypeVisu'           , 'Node type of the visualization basis: VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO', 'VISU')
 CALL prms%CreateIntOption(    'NVisu'                  , 'Number of points at which solution is sampled for visualization.')
+CALL prms%CreateIntOption(    'NVisuAdd'               , 'p-adaption: increase local polynomial degree by NVisuAdd','0')
 CALL prms%CreateLogicalOption('VisuParticles'          , 'Visualize particles (velocity, species, internal energy).', '.FALSE.')
 CALL prms%CreateLogicalOption('VisuAdaptiveInfo'       , 'Visualize the sampled values utilized for the adaptive surface flux and porous BC (velocity, density, pumping speed)', '.FALSE.')
 CALL prms%CreateLogicalOption('ConvertPointToCellData' , 'Visualize the DG solution as constant cell data using the VISU INNER nodes', '.FALSE.')
@@ -200,6 +201,9 @@ ELSE
   NVisu            = GETINT('NVisu')                  ! Degree of visualization basis
 END IF
 
+! p-adaption: increase the cell-local polynomial degree by NVisuAdd
+NVisuAdd            = GETINT('NVisuAdd')
+
 ! Set necessary parameters for piclas2vtk tool
 ! If no parameter file has been set, the standard values will be used
 NodeTypeVisuOut  = GETSTR('NodeTypeVisu','VISU')    ! Node type of visualization basis
@@ -281,6 +285,7 @@ DO iArgs = iArgsStart,nArgs
   CALL DatasetExists(File_ID , 'SurfaceData'  , SurfaceDataExists)
   CALL DatasetExists(File_ID , 'PartData'     , PartDataExists)
   CALL DatasetExists(File_ID , 'BGField'      , BGFieldExists) ! deprecated , but allow for backward compatibility
+  CALL DatasetExists(File_ID , 'DVM_Solution'  , DVMSolutionExists)
   CALL DatasetExists(File_ID , 'Mode_001_ElectricFieldX_Img'     , DMDDataExists)
   IF(BGFieldExists)THEN
     DGSolutionExists  = .TRUE.
@@ -309,7 +314,7 @@ DO iArgs = iArgsStart,nArgs
     ReadMeshFinished = .TRUE.
   END IF
   ! Build connectivity for element/volume output
-  IF(ElemDataExists.AND..NOT.ElemMeshInit) THEN
+  IF((ElemDataExists.OR.DVMSolutionExists).AND..NOT.ElemMeshInit) THEN
     CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
     CALL ReadAttribute(File_ID,'nUniqueNodes',1,IntScalar=nUniqueNodes)
     CALL CloseDataFile()
@@ -379,6 +384,10 @@ DO iArgs = iArgsStart,nArgs
     IF(AdaptiveInfoExists) THEN
       CALL ConvertElemData(InputStateFile,'AdaptiveInfo','VarNamesAdaptive',iArgs)
     END IF
+  END IF
+  ! === DVM_Solution ===============================================================================================================
+  IF(DVMSolutionExists) THEN
+    CALL ConvertDVMSolution(InputStateFile,NVisu,NodeTypeVisuOut,'DVM_Solution')
   END IF
 END DO ! iArgs = 2, nArgs
 
@@ -664,6 +673,107 @@ END SUBROUTINE WriteDataToVTK_PICLas
 
 
 !===================================================================================================================================
+!> Convert DVM solution to a cell-based VTK format
+!===================================================================================================================================
+SUBROUTINE ConvertDVMSolution(InputStateFile,NVisu,NodeTypeVisuOut,ArrayName)
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars          ,ONLY: ProjectName
+USE MOD_IO_HDF5               ,ONLY: HSize
+USE MOD_HDF5_Input            ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize,GetDataProps
+USE MOD_Mesh_Vars             ,ONLY: NodeCoords,nElems,offsetElem,NGeo
+USE MOD_Interpolation_Vars    ,ONLY: NodeTypeVisu
+USE MOD_Interpolation         ,ONLY: GetVandermonde
+USE MOD_ChangeBasis           ,ONLY: ChangeBasis3D
+USE MOD_VTK                   ,ONLY: WriteDataToVTK
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile,NodeTypeVisuOut
+CHARACTER(LEN=*),INTENT(IN)     :: ArrayName
+INTEGER,INTENT(IN)              :: NVisu
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)              :: FileString,NodeType_State
+REAL                            :: OutputTime
+INTEGER                         :: nDims,nVar,N_State,nElems_State,iElem
+CHARACTER(LEN=255),ALLOCATABLE  :: VarNames(:)
+REAL,ALLOCATABLE,TARGET         :: U(:,:,:,:,:)
+REAL,ALLOCATABLE,TARGET         :: U_Visu(:,:,:,:,:)                 !< Solution on visualization nodes
+REAL,ALLOCATABLE                :: Coords_NVisu(:,:,:,:,:)           !< Coordinates of visualization nodes
+REAL,ALLOCATABLE                :: Vdm_EQNgeo_NVisu(:,:)             !< Vandermonde from equidistant mesh to visualization nodes
+REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)                  !< Vandermonde from state to visualization nodes
+!===================================================================================================================================
+SDEALLOCATE(Vdm_EQNgeo_NVisu)
+ALLOCATE(Vdm_EQNgeo_NVisu(0:Ngeo,0:NVisu))
+CALL GetVandermonde(Ngeo,NodeTypeVisu,NVisu,NodeTypeVisuOut,Vdm_EQNgeo_NVisu,modal=.FALSE.)
+SDEALLOCATE(Coords_NVisu)
+ALLOCATE(Coords_NVisu(3,0:NVisu,0:NVisu,0:NVisu,nElems))
+
+! Convert coordinates to visu grid
+DO iElem = 1,nElems
+  CALL ChangeBasis3D(3,NGeo,NVisu,Vdm_EQNgeo_NVisu,NodeCoords(:,:,:,:,iElem),Coords_NVisu(:,:,:,:,iElem))
+END DO
+
+! Read in solution
+CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
+CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
+OutputTime = 0. ! default
+CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
+CALL GetDataSize(File_ID,TRIM(ArrayName),nDims,HSize)
+IF (nDims.NE.5) CALL abort(__STAMP__,'Wrong number of dimensions in state file!')
+CALL GetDataProps(TRIM(ArrayName),nVar,N_State,nElems_State,NodeType_State)
+IF (nElems.NE.nElems_State) CALL abort(__STAMP__,'Number of elements in state file and mesh file do not match!')
+
+IF (nVar.GT.0) THEN
+  ALLOCATE(VarNames(1:nVar))
+  CALL ReadAttribute(File_ID,'VarNames',nVar,StrArray=VarNames(1:nVar))
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        nVar       => INT(nVar,IK)      ,&
+        N_State    => INT(N_State, IK)  ,&
+        offsetElem => INT(offsetElem,IK),&
+        nElems     => INT(nElems,IK)    )
+    SDEALLOCATE(U)
+    ALLOCATE(U(1:nVar,0:N_State,0:N_State,0:N_State,1:nElems))
+    CALL ReadArray(TRIM(ArrayName),5,(/nVar,N_State+1_IK,N_State+1_IK,N_State+1_IK, nElems/),offsetElem,5, &
+    RealArray=U(1:nVar,0:N_State,0:N_State,0:N_State,1:nElems))
+  END ASSOCIATE
+
+  SDEALLOCATE(Vdm_N_NVisu)
+  ALLOCATE(Vdm_N_NVisu(0:N_State,0:NVisu))
+  CALL GetVandermonde(N_State,NodeType_State,NVisu,NodeTypeVisuOut,Vdm_N_NVisu,modal=.FALSE.)
+
+  SDEALLOCATE(U_Visu)
+  ALLOCATE(U_Visu(nVar,0:NVisu,0:NVisu,0:NVisu,nElems))
+
+  ! Write solution to vtk
+  FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution_DVM',OutputTime))//'.vtu'
+  ! Interpolate solution to visu grid
+  DO iElem = 1,nElems
+    CALL ChangeBasis3D(nVar,N_State,NVisu,Vdm_N_NVisu,U(:,:,:,:,iElem),U_Visu(:,:,:,:,iElem))
+  END DO
+  ! Output to VTK
+  CALL WriteDataToVTK(nVar,NVisu,nElems,VarNames,Coords_NVisu,U_Visu,TRIM(FileString),dim=3,DGFV=0)
+END IF
+
+SDEALLOCATE(VarNames)
+SDEALLOCATE(Vdm_EQNgeo_NVisu)
+SDEALLOCATE(Coords_NVisu)
+SDEALLOCATE(U)
+SDEALLOCATE(Vdm_N_NVisu)
+SDEALLOCATE(U_Visu)
+
+CALL CloseDataFile()
+
+END SUBROUTINE ConvertDVMSolution
+
+
+!===================================================================================================================================
 !> Convert the output of the field solver to a VTK output format
 !===================================================================================================================================
 SUBROUTINE ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,OutputName,DGSolutionDataset,iErrorReturn)
@@ -678,7 +788,7 @@ USE MOD_Interpolation         ,ONLY: GetVandermonde
 USE MOD_ChangeBasis           ,ONLY: ChangeBasis3D
 USE MOD_VTK                   ,ONLY: WriteDataToVTK
 USE MOD_IO_HDF5               ,ONLY: HSize
-USE MOD_piclas2vtk_Vars       ,ONLY: NVisuLocal, ElemLocal, Nloc_HDF5, PointToCellSwitch
+USE MOD_piclas2vtk_Vars       ,ONLY: ElemLocal, Nloc_Visu, PointToCellSwitch, NVisuAdd
 USE MOD_ReadInTools           ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -694,13 +804,14 @@ INTEGER,INTENT(OUT)           :: iErrorReturn
 ! LOCAL VARIABLES
 INTEGER                         :: iElem, iDG, nVar_State, N_State, nElems_State, nVar_Solution, nDims, iField, nFields, Suffix
 INTEGER                         :: nDimsOffset, nVar_Source,nVar_TD
-INTEGER                         :: iVar, nVarAdd, Nloc, NlocMax, NlocMin, nDOF, iDOF, k, l, m
+INTEGER                         :: iVar, nVarAdd, Nloc, NlocMax, NlocMin, NlocOut, nDOF, iDOF, k, l, m
 CHARACTER(LEN=255)              :: MeshFile, NodeType_State, FileString_DG, StrVarNamesTemp(4),StrVarNamesTemp3(3),StrVarNamesTemp4
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:), StrVarNamesTemp2(:)
 REAL                            :: OutputTime
 REAL,ALLOCATABLE                :: U2(:,:,:,:,:,:)                   !< Solution from state file with additional dimension, rank=6
 REAL,ALLOCATABLE                :: U(:,:,:,:,:)                      !< Solution from state file, rank=5
 REAL,ALLOCATABLE                :: U_N_2D(:,:)                       !< Solution from state file, rank=2
+REAL,ALLOCATABLE                :: U_N_3D(:,:,:)                     !< Solution from state file, rank=3
 REAL,ALLOCATABLE,TARGET         :: U_Visu(:,:,:,:,:)                 !< Solution on visualization nodes
 REAL,POINTER                    :: U_Visu_p(:,:,:,:,:)               !< Solution on visualization nodes
 REAL,ALLOCATABLE                :: Coords_NVisu(:,:,:,:,:)           !< Coordinates of visualization nodes
@@ -709,11 +820,23 @@ REAL,POINTER                    :: Coords_DG_p(:,:,:,:,:)
 REAL,ALLOCATABLE                :: Vdm_EQNgeo_NVisu(:,:)             !< Vandermonde from equidistant mesh to visualization nodes
 REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)                  !< Vandermonde from state to visualization nodes
 REAL,ALLOCATABLE                :: ElemData(:,:)                     !< Array for temporary read-in of ElemData container
+INTEGER,ALLOCATABLE             :: Nloc_HDF5(:)                      !< Array for temporary read-in of Nloc container
 LOGICAL                         :: DGSourceExists,DGTimeDerivativeExists,TimeExists,DGSourceExtExists,DMDMode,DGSolutionDatasetExists
 LOGICAL                         :: ElemDataExists, NlocFound
 CHARACTER(LEN=16)               :: hilf
 CHARACTER(LEN=255)              :: DMDFields(1:16), Dataset, NodeType
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesAdd(:)
+! p-Adaption
+TYPE tNGeo
+  REAL,ALLOCATABLE              :: Vdm_EQNgeo_NVisu(:,:)        !< Vandermonde from equidistant mesh to visualization nodes
+END TYPE tNGeo
+
+TYPE tNVisu
+  REAL,ALLOCATABLE              :: Vdm_N_NVisu(:,:)             !< Vandermonde from state to visualization nodes
+END TYPE tNVisu
+
+TYPE(tNGeo),ALLOCATABLE         :: NVisuGeo(:)                  !< Container for polynomial degree specific variables [1:NlocMax]
+TYPE(tNVisu),ALLOCATABLE        :: NVisuLocal(:,:)              !< Container for polynomial degree specific variables [1:NlocMax,1:NlocMaxVisu]
 !===================================================================================================================================
 ! 1.) Open given file to get the number of elements, the order and the name of the mesh file
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
@@ -735,6 +858,7 @@ IF(ElemDataExists) THEN
   ! Get size of the ElemData array
   CALL GetDataSize(File_ID,'ElemData',nDims,HSize)
   nVarAdd=INT(HSize(1),4)
+  DEALLOCATE(HSize)
   ! Read-in the variable names
   ALLOCATE(VarNamesAdd(1:nVarAdd))
   CALL ReadAttribute(File_ID,'VarNamesAdd',nVarAdd,StrArray=VarNamesAdd(1:nVarAdd))
@@ -747,7 +871,9 @@ IF(ElemDataExists) THEN
   END DO
   IF(NlocFound) THEN
     SDEALLOCATE(Nloc_HDF5)
+    SDEALLOCATE(Nloc_Visu)
     ALLOCATE(Nloc_HDF5(1:nElems))
+    ALLOCATE(Nloc_Visu(1:nElems))
     ALLOCATE(ElemData(1:nVarAdd,1:nElems))
     ! Associate construct for integer KIND=8 possibility
     ASSOCIATE (&
@@ -765,7 +891,20 @@ IF(ElemDataExists) THEN
       CALL abort(__STAMP__,'ERROR: Ngeo as read-in from mesh is greater than the smallest local polynomial degree! Ngeo: ',Ngeo)
     END IF
     DEALLOCATE(ElemData)
-    SWRITE(*,*) 'Found element-local polynomial degree ('//TRIM(VarNamesAdd(iVar))//'), considering it for the output each element instead of NVisu.'
+    ! Checking whether Nloc varies
+    IF(NlocMin.EQ.NlocMax) THEN
+      SWRITE(*,*) '| Found element-local polynomial degree ('//TRIM(VarNamesAdd(iVar))//'), but using NVisu since Nloc is constant.'
+      Nloc_Visu(1:nElems) = NVisu
+      ! Required for Nloc = 1,NlocMax loops
+      NlocMax = MAX(NVisu,NlocMax)
+      NlocMin = MIN(NVisu,NlocMin)
+    ELSE
+      SWRITE(*,*) '| Found element-local polynomial degree ('//TRIM(VarNamesAdd(iVar))//'), considering it for the output of each element and adding NVisuAdd.'
+      ! Increasing the cell-local polynomial degree by NVisuAdd
+      Nloc_Visu(1:nElems) = Nloc_HDF5(1:nElems) + NVisuAdd
+      ! NlocMax is increasing accordingly, NlocMin remains the same as it is used to create the Vandermonde
+      NlocMax = NlocMax + NVisuAdd
+    END IF
   END IF
   DEALLOCATE(VarNamesAdd)
 END IF
@@ -774,11 +913,23 @@ END IF
 CALL GetDataSize(File_ID,TRIM(DGSolutionDataset),nDims,HSize)
 ! Check the number of fields in the file, if more than 5 dimensions, the 6th dimensions carries the number of fields
 IF(nDims.GE.5) THEN
-  nFields     = MERGE(1 , INT(HSize(nDims)) , nDims.EQ.5)
-  nDimsOffset = MERGE(0 , 1                 , nDims.EQ.5)
+nFields     = MERGE(1 , INT(HSize(nDims)) , nDims.EQ.5)
+nDimsOffset = MERGE(0 , 1                 , nDims.EQ.5)
 ELSE
-  nFields     = 1
-  nDimsOffset = 0
+  ! p-adaption data format
+  IF (nDims.EQ.2) THEN
+    ! For nDims=2, assume shape [1:nVar, 1:nDOF]
+    nFields     = 1
+    nDimsOffset = 0
+  ELSEIF (nDims.EQ.3) THEN
+    ! For nDims=3, assume shape [1:nVar, 1:nDOF, 1:nFields] - the nFields e.g. could be 1:nTimePoints for time-dependent data
+    nFields = INT(HSize(nDims))
+    nDimsOffset = 1
+  ELSE
+    ! Unknown - abort
+    IPWRITE(*,*) 'HSize:', HSize
+    CALL abort(__STAMP__,'ERROR: Unknown array shape (HSize) for '//TRIM(DGSolutionDataset)//' encountered.')
+  END IF ! nDims.EQ.2
 END IF
 DEALLOCATE(HSize)
 
@@ -847,45 +998,51 @@ IF(TRIM(OutputName).EQ.'RadiationVolState') TimeExists = .FALSE.
 CALL CloseDataFile()
 
 ! Check for 2D array (nVar,nDOF)
-IF(nDims.EQ.2) THEN
+IF((nDims.GE.2).AND.(nDims.LT.5)) THEN
   IF(.NOT.NlocFound) CALL abort(__STAMP__,'ERROR: Missing Nloc array for read-in of 2D DG_Solution!')
-  IF(DGSourceExists.OR.DGTimeDerivativeExists.OR.DGSourceExtExists) CALL abort(__STAMP__,'ERROR: DGSource or DGTimeDerivative or DGSourceExt output with 2D DG_Solution is not supported!')
   nDOF = SUM((Nloc_HDF5(1:nElems)+1)**3)
-  ! Allocate local 2D array
-  ALLOCATE(U_N_2D(1:nVar_State,1:nDOF))
+  IF(nDims.EQ.2) THEN
+    ! Allocate local 2D array
+    ALLOCATE(U_N_2D(1:nVar_State,1:nDOF))
+  ELSEIF(nDims.EQ.3) THEN
+    ! Allocate local 3D array
+    ALLOCATE(U_N_3D(1:nVar_State,1:nDOF,1:nFields))
+  ELSE
+    CALL abort(__STAMP__,'ERROR: Unknown nDims >=2 and <5 encountered.')
+  END IF
 END IF
 
 IF(NlocFound) THEN
-  SDEALLOCATE(NVisuLocal)
+  SDEALLOCATE(NVisuGeo)
   NlocMax = NlocMax + PointToCellSwitch
-  ALLOCATE(NVisuLocal(1:NlocMax))
+  ALLOCATE(NVisuGeo(1:NlocMax))
   DO Nloc = 1, NlocMax
-    ALLOCATE(NVisuLocal(Nloc)%Vdm_EQNgeo_NVisu(0:Nloc,0:NGeo))
-    CALL GetVandermonde(Ngeo,NodeTypeVisu,Nloc,NodeTypeVisuOut,NVisuLocal(Nloc)%Vdm_EQNgeo_NVisu,modal=.FALSE.)
+    ALLOCATE(NVisuGeo(Nloc)%Vdm_EQNgeo_NVisu(0:Nloc,0:NGeo))
+    CALL GetVandermonde(Ngeo,NodeTypeVisu,Nloc,NodeTypeVisuOut,NVisuGeo(Nloc)%Vdm_EQNgeo_NVisu,modal=.FALSE.)
   END DO
   SDEALLOCATE(ElemLocal)
   ALLOCATE(ElemLocal(1:nElems))
   ! Convert coordinates to visu grid
   DO iElem = 1 , nElems
-    Nloc = Nloc_HDF5(iElem) + PointToCellSwitch
+    Nloc = Nloc_Visu(iElem) + PointToCellSwitch
     ALLOCATE(ElemLocal(iElem)%Coords_NVisu(1:3,0:Nloc,0:Nloc,0:Nloc))
     ! ALLOCATE(tempArray(3,0:Nloc,0:Nloc,0:Nloc))
-    CALL ChangeBasis3D(3, NGeo, Nloc, NVisuLocal(Nloc)%Vdm_EQNgeo_NVisu(0:Nloc,0:NGeo), NodeCoords(1:3,0:NGeo,0:NGeo,0:NGeo,iElem), &
+    CALL ChangeBasis3D(3, NGeo, Nloc, NVisuGeo(Nloc)%Vdm_EQNgeo_NVisu(0:Nloc,0:NGeo), NodeCoords(1:3,0:NGeo,0:NGeo,0:NGeo,iElem), &
                                                                      ElemLocal(iElem)%Coords_NVisu(1:3,0:Nloc,0:Nloc,0:Nloc))
   END DO
 ELSE
-  SDEALLOCATE(Vdm_EQNgeo_NVisu)
+SDEALLOCATE(Vdm_EQNgeo_NVisu)
   ALLOCATE(Vdm_EQNgeo_NVisu(0:NVisu,0:NGeo))
-  CALL GetVandermonde(Ngeo,NodeTypeVisu,NVisu,NodeTypeVisuOut,Vdm_EQNgeo_NVisu,modal=.FALSE.)
-  SDEALLOCATE(Coords_NVisu)
-  ALLOCATE(Coords_NVisu(3,0:NVisu,0:NVisu,0:NVisu,nElems))
-  SDEALLOCATE(Coords_DG)
-  ALLOCATE(Coords_DG(3,0:NVisu,0:NVisu,0:NVisu,nElems))
-  ! Convert coordinates to visu grid
-  DO iElem = 1,nElems
+CALL GetVandermonde(Ngeo,NodeTypeVisu,NVisu,NodeTypeVisuOut,Vdm_EQNgeo_NVisu,modal=.FALSE.)
+SDEALLOCATE(Coords_NVisu)
+ALLOCATE(Coords_NVisu(3,0:NVisu,0:NVisu,0:NVisu,nElems))
+SDEALLOCATE(Coords_DG)
+ALLOCATE(Coords_DG(3,0:NVisu,0:NVisu,0:NVisu,nElems))
+! Convert coordinates to visu grid
+DO iElem = 1,nElems
     CALL ChangeBasis3D(3, NGeo, NVisu, Vdm_EQNgeo_NVisu(0:NVisu,0:NGeo), NodeCoords(1:3,0:NGeo ,0:NGeo ,0:NGeo ,iElem), &
                                                                        Coords_NVisu(1:3,0:NVisu,0:NVisu,0:NVisu,iElem))
-  END DO
+END DO
 END IF
 
 ! Read in solution
@@ -936,30 +1093,52 @@ ASSOCIATE (&
   ELSE
     IF(nFields.EQ.1)THEN
       ! Default: DGSolutionDataset = 'DG_Solution'
-      ! Read 1:nVar_Solution
+      ! Check whether old (nDims=5) or new p-adaption data shape (nDim=2) is used
       IF(nDims.EQ.2) THEN
+        IF(offsetElem.NE.0) CALL abort(__STAMP__,'offsetElem must be zero for the following to work (it should also be offsetDOF)')
+        ! TODO: Implement offsetDOF
         CALL ReadArray(TRIM(DGSolutionDataset),2,(/nVar_Solution,nDOF/),offsetElem,2, RealArray=U_N_2D(1:nVar_Solution,1:nDOF))
-      ELSEIF(nDims.EQ.5) THEN
-        SDEALLOCATE(U)
-        ALLOCATE(U(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
-        CALL ReadArray(TRIM(DGSolutionDataset),5,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
-            RealArray=U(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems))
         ! Read nVar_Solution+1:nVar_Source
-        IF(DGSourceExists) CALL ReadArray('DG_Source',5,(/4_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
-            RealArray=U(nVar_Solution+1:nVar_Source,0:N_State,0:N_State,0:N_State,1:nElems))
+        IF(DGSourceExists) &
+          CALL ReadArray('DG_Source',2,(/4_IK,nDOF/),offsetElem,2, RealArray=U_N_2D(nVar_Solution+1:nVar_Source,1:nDOF))
         ! Read nVar_Source+1:nVar_TD
-        IF(DGTimeDerivativeExists) CALL ReadArray('DG_TimeDerivative',5,(/3_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),&
-            offsetElem,5,RealArray=U(nVar_Source+1:nVar_TD,0:N_State,0:N_State,0:N_State,1:nElems))
+        IF(DGTimeDerivativeExists) &
+          CALL ReadArray('DG_TimeDerivative',2,(/3_IK,nDOF/),offsetElem,2, RealArray=U_N_2D(nVar_Source+1:nVar_TD,1:nDOF))
         ! Read nVar_TD+1:nVar_State
-        IF(DGSourceExtExists) CALL ReadArray('DG_SourceExt',5,(/1_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),&
-            offsetElem,5,RealArray=U(nVar_TD+1:nVar_State,0:N_State,0:N_State,0:N_State,1:nElems))
+        IF(DGSourceExtExists) &
+          CALL ReadArray('DG_SourceExt',2,(/1_IK,nDOF/),offsetElem,2, RealArray=U_N_2D(nVar_TD+1:nVar_State,1:nDOF))
+      ELSEIF(nDims.EQ.5) THEN
+      SDEALLOCATE(U)
+      ALLOCATE(U(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
+      CALL ReadArray(TRIM(DGSolutionDataset),5,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
+          RealArray=U(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems))
+      ! Read nVar_Solution+1:nVar_Source
+      IF(DGSourceExists) CALL ReadArray('DG_Source',5,(/4_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
+          RealArray=U(nVar_Solution+1:nVar_Source,0:N_State,0:N_State,0:N_State,1:nElems))
+      ! Read nVar_Source+1:nVar_TD
+      IF(DGTimeDerivativeExists) CALL ReadArray('DG_TimeDerivative',5,(/3_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),&
+          offsetElem,5,RealArray=U(nVar_Source+1:nVar_TD,0:N_State,0:N_State,0:N_State,1:nElems))
+      ! Read nVar_TD+1:nVar_State
+      IF(DGSourceExtExists) CALL ReadArray('DG_SourceExt',5,(/1_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),&
+          offsetElem,5,RealArray=U(nVar_TD+1:nVar_State,0:N_State,0:N_State,0:N_State,1:nElems))
       END IF
     ELSE ! more than one field
+      ! Check whether old (nDims=5) or new p-adaption data shape (nDim=3, 2 + 1 for nFields) is used
+      IF(nDims.EQ.3) THEN
+        IF(offsetElem.NE.0) CALL abort(__STAMP__,'offsetElem must be zero for the following to work (it should also be offsetDOF)')
+        ! TODO: Implement offsetDOF
+        CALL ReadArray(TRIM(DGSolutionDataset),3,(/nVar_Solution,nDOF,nFields/),offsetElem,2,&
+                      RealArray=U_N_3D(1:nVar_Solution,1:nDOF,1:nFields))
+      ELSEIF(nDims.EQ.6) THEN
       SDEALLOCATE(U2)
       ALLOCATE(U2(nVar_State,0:N_State,0:N_State,0:N_State,nElems,nFields))
       ! Default: DGSolutionDataset = 'DG_Solution'
       CALL ReadArray(TRIM(DGSolutionDataset),6,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems,nFields/),offsetElem,5, &
           RealArray=U2(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems,1:nFields))
+      ELSE
+        IPWRITE(*,*) 'nDims:', nDims
+        CALL abort(__STAMP__,'Unknown nDims for nFields>1 encountered')
+      END IF
     END IF ! nFields.GT.1
   END IF ! TRIM(DGSolutionDataset(1:MIN(LEN(TRIM(DGSolutionDataset)),5))).EQ.'Mode_'
 END ASSOCIATE
@@ -967,23 +1146,38 @@ END ASSOCIATE
 CALL CloseDataFile()
 
 IF(NlocFound) THEN
-  IF(nDims.EQ.2) THEN
-    DO Nloc = 1, NlocMax
-      ALLOCATE(NVisuLocal(Nloc)%Vdm_N_NVisu(0:Nloc,0:Nloc))
-      CALL GetVandermonde(Nloc,NodeType_State,Nloc,NodeTypeVisuOut,NVisuLocal(Nloc)%Vdm_N_NVisu,modal=.FALSE.)
+  ! New format: p-adaption
+  IF((nDims.EQ.2).OR.(nDims.EQ.3)) THEN
+    SDEALLOCATE(NVisuLocal)
+    ALLOCATE(NVisuLocal(NlocMin:NlocMax,NlocMin:NlocMax))
+    DO Nloc = NlocMin, NlocMax
+      DO NlocOut = NlocMin, NlocMax
+        ALLOCATE(NVisuLocal(Nloc,NlocOut)%Vdm_N_NVisu(0:NlocOut,0:Nloc))
+        IF(Nloc.GT.NlocOut) THEN
+          CALL GetVandermonde(Nloc,NodeType_State,NlocOut,NodeTypeVisuOut,NVisuLocal(Nloc,NlocOut)%Vdm_N_NVisu,modal=.TRUE.)
+        ELSE
+          CALL GetVandermonde(Nloc,NodeType_State,NlocOut,NodeTypeVisuOut,NVisuLocal(Nloc,NlocOut)%Vdm_N_NVisu,modal=.FALSE.)
+        END IF
+      END DO
     END DO
   ELSE IF(nDims.EQ.5) THEN
-    DO Nloc = 1, NlocMax
-      ALLOCATE(NVisuLocal(Nloc)%Vdm_N_NVisu(0:Nloc,0:N_State))
-      CALL GetVandermonde(N_State,NodeType_State,Nloc,NodeTypeVisuOut,NVisuLocal(Nloc)%Vdm_N_NVisu,modal=.FALSE.)
+    ! TODO: Is this even possible? Aren't all outputs with the Nloc container utilizing the new nDims = 2 format?
+    SDEALLOCATE(NVisuLocal)
+    ALLOCATE(NVisuLocal(N_State:NlocMax,N_State:NlocMax))
+    DO Nloc = N_State, NlocMax
+      ALLOCATE(NVisuLocal(Nloc,N_State)%Vdm_N_NVisu(0:Nloc,0:N_State))
+      CALL GetVandermonde(N_State,NodeType_State,Nloc,NodeTypeVisuOut,NVisuLocal(Nloc,N_State)%Vdm_N_NVisu,modal=.FALSE.)
     END DO
   END IF
+  ! Allocate element-local solution vector for visualization
   DO iElem = 1,nElems
-    Nloc = Nloc_HDF5(iElem)
+    Nloc = Nloc_Visu(iElem)
     ALLOCATE(ElemLocal(iElem)%U_Visu(nVar_State,0:Nloc,0:Nloc,0:Nloc))
+    ! Must be nullified to prevent possible Floating point exception in WRITE(ivtk) REAL(ElemLocal(iElem)%U_Visu...
+    ElemLocal(iElem)%U_Visu = 0.0
   END DO
+  ! Write solution into element-local array
   IF(nDims.EQ.2) THEN
-    ! Write into regular array
     iDOF = 0
     DO iElem = 1,nElems
       Nloc = Nloc_HDF5(iElem)
@@ -998,23 +1192,39 @@ IF(NlocFound) THEN
         END DO ! l
       END DO ! m
     END DO
+  ELSEIF(nDims.EQ.3) THEN
+    iDOF = 0
+    DO iElem = 1,nElems
+      Nloc = Nloc_HDF5(iElem)
+      ALLOCATE(ElemLocal(iElem)%U2(nVar_State,0:Nloc,0:Nloc,0:Nloc,1:nFields))
+      DO m=0,Nloc
+        DO l=0,Nloc
+          DO k=0,Nloc
+            iDOF = iDOF + 1
+            ! TODO: Treatment required when NodeTypeVisuOut differs from NodeType_State
+            ElemLocal(iElem)%U2(1:nVar_State,k,l,m,1:nFields) = U_N_3D(1:nVar_State,iDOF,1:nFields)
+          END DO ! k
+        END DO ! l
+      END DO ! m
+    END DO
   END IF
 ELSE
-  SDEALLOCATE(Vdm_N_NVisu)
-  ALLOCATE(Vdm_N_NVisu(0:N_State,0:NVisu))
-  CALL GetVandermonde(N_State,NodeType_State,NVisu,NodeTypeVisuOut,Vdm_N_NVisu,modal=.FALSE.)
+  ! Old format: constant polynomial degree
+SDEALLOCATE(Vdm_N_NVisu)
+ALLOCATE(Vdm_N_NVisu(0:N_State,0:NVisu))
+CALL GetVandermonde(N_State,NodeType_State,NVisu,NodeTypeVisuOut,Vdm_N_NVisu,modal=.FALSE.)
 
-  SDEALLOCATE(U_Visu)
-  ALLOCATE(U_Visu(nVar_State,0:NVisu,0:NVisu,0:NVisu,nElems))
+SDEALLOCATE(U_Visu)
+ALLOCATE(U_Visu(nVar_State,0:NVisu,0:NVisu,0:NVisu,nElems))
 
-  ! Set DG coords
-  iDG = 0
-  DO iElem = 1,nElems
-    iDG = iDG + 1
-    Coords_DG(:,:,:,:,iDG) = Coords_NVisu(:,:,:,:,iElem)
-  END DO
-  Coords_DG_p => Coords_DG(:,:,:,:,1:iDG)
-  U_Visu_p    => U_Visu(:,:,:,:,1:iDG)
+! Set DG coords
+iDG = 0
+DO iElem = 1,nElems
+  iDG = iDG + 1
+  Coords_DG(:,:,:,:,iDG) = Coords_NVisu(:,:,:,:,iElem)
+END DO
+Coords_DG_p => Coords_DG(:,:,:,:,1:iDG)
+U_Visu_p    => U_Visu(:,:,:,:,1:iDG)
 END IF
 
 ! Output multiples files, if the DGSolution file contains more than one field (e.g. multiple different times for the same field)
@@ -1043,54 +1253,92 @@ DO iField = 1, nFields
 
   ! Interpolate solution to visu grid
   IF(NlocFound) THEN
+    ! New format: p-adaption
     DO iElem = 1,nElems
       Nloc = Nloc_HDF5(iElem)
+      NlocOut = Nloc_Visu(iElem)
       IF(nFields.EQ.1)THEN
         IF(PointToCellSwitch.EQ.0) THEN
           IF(nDims.EQ.2) THEN
-            ! New output format: only changing the nodetype if required
-            CALL ChangeBasis3D(nVar_State, Nloc, Nloc, NVisuLocal(Nloc)%Vdm_N_NVisu(0:Nloc,0:Nloc), ElemLocal(iElem)%U(1:nVar_State,0:Nloc,0:Nloc,0:Nloc)       , &
-            ElemLocal(iElem)%U_Visu(1:nVar_State,0:Nloc,0:Nloc,0:Nloc))
+            ! New output format: might require interpolation from Nloc to NlocOut
+            CALL ChangeBasis3D(nVar_State, Nloc, NlocOut, NVisuLocal(Nloc,NlocOut)%Vdm_N_NVisu(0:NlocOut,0:Nloc), &
+                               ElemLocal(iElem)%U(1:nVar_State,0:Nloc,0:Nloc,0:Nloc)                            , &
+                               ElemLocal(iElem)%U_Visu(1:nVar_State,0:NlocOut,0:NlocOut,0:NlocOut))
           ELSE IF(nDims.EQ.5) THEN
-            ! Old output format on Nmax requires interpolation to Nloc
-            CALL ChangeBasis3D(nVar_State, N_State, Nloc, NVisuLocal(Nloc)%Vdm_N_NVisu(0:Nloc,0:N_State), U( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem)       , &
-                              ElemLocal(iElem)%U_Visu(1:nVar_State,0:Nloc,0:Nloc,0:Nloc))
+            ! Old output format on Nmax requires interpolation to Nloc  TODO: is this case even relevant?
+            CALL ChangeBasis3D(nVar_State, N_State, NlocOut, NVisuLocal(NlocOut,N_State)%Vdm_N_NVisu(0:NlocOut,0:N_State), &
+                               U( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem)                                      , &
+                               ElemLocal(iElem)%U_Visu(1:nVar_State,0:NlocOut,0:NlocOut,0:NlocOut))
           END IF
         ELSE IF(PointToCellSwitch.EQ.1) THEN
           IF(nDims.EQ.2) THEN
             ! New output format using the cell-local polynomial degree
-            ElemLocal(iElem)%U_Visu(1:nVar_State,0:Nloc,0:Nloc,0:Nloc) = ElemLocal(iElem)%U(1:nVar_State,0:Nloc,0:Nloc,0:Nloc)
+            ElemLocal(iElem)%U_Visu(1:nVar_State,0:NlocOut,0:NlocOut,0:NlocOut) = ElemLocal(iElem)%U(1:nVar_State,0:NlocOut,0:NlocOut,0:NlocOut)
           ELSEIF(nDims.EQ.5) THEN
-            ! Old output format on Nmax requires interpolation to Nloc
-            IF(Nloc.NE.N_State) THEN
-              CALL ChangeBasis3D(nVar_State, N_State, Nloc, NVisuLocal(Nloc)%Vdm_N_NVisu(0:Nloc,0:N_State), U( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem)       , &
-                                ElemLocal(iElem)%U_Visu(1:nVar_State,0:Nloc,0:Nloc,0:Nloc))
+            ! Old output format on Nmax requires interpolation to Nloc TODO: is this case even relevant?
+            IF(NlocOut.NE.N_State) THEN
+              CALL ChangeBasis3D(nVar_State, N_State, NlocOut, NVisuLocal(NlocOut,N_State)%Vdm_N_NVisu(0:NlocOut,0:N_State), &
+                                 U( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem)                                      , &
+                                 ElemLocal(iElem)%U_Visu(1:nVar_State,0:NlocOut,0:NlocOut,0:NlocOut))
             ELSE
               ElemLocal(iElem)%U_Visu(1:nVar_State,0:Nloc,0:Nloc,0:Nloc) = U( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem)
             END IF
           END IF
         END IF
       ELSE ! more than one field
-        CALL ChangeBasis3D(nVar_State, N_State, Nloc, NVisuLocal(Nloc)%Vdm_N_NVisu, U2(1:nVar_State,0:N_State,0:N_State,0:N_State,iElem,iField), &
-                            ElemLocal(iElem)%U_Visu(1:nVar_State,0:Nloc,0:Nloc,0:Nloc))
+        IF(PointToCellSwitch.EQ.0) THEN
+          IF(nDims.EQ.3) THEN
+            ! New output format: might require interpolation from Nloc to NlocOut
+            CALL ChangeBasis3D(nVar_State, Nloc, NlocOut, NVisuLocal(Nloc,NlocOut)%Vdm_N_NVisu(0:NlocOut,0:Nloc), &
+                               ElemLocal(iElem)%U2(1:nVar_State,0:Nloc,0:Nloc,0:Nloc,iField)                            , &
+                               ElemLocal(iElem)%U_Visu(1:nVar_State,0:NlocOut,0:NlocOut,0:NlocOut))
+          ELSE IF(nDims.EQ.6) THEN
+            ! Old output format on Nmax requires interpolation to Nloc  TODO: is this case even relevant?
+            CALL ChangeBasis3D(nVar_State, N_State, NlocOut, NVisuLocal(NlocOut,N_State)%Vdm_N_NVisu(0:NlocOut,0:N_State), &
+                               U2( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem,iField)                                      , &
+                               ElemLocal(iElem)%U_Visu(1:nVar_State,0:NlocOut,0:NlocOut,0:NlocOut))
+          END IF
+        ELSE IF(PointToCellSwitch.EQ.1) THEN
+          IF(nDims.EQ.3) THEN
+            ! New output format using the cell-local polynomial degree
+            ElemLocal(iElem)%U_Visu(1:nVar_State,0:NlocOut,0:NlocOut,0:NlocOut) = ElemLocal(iElem)%U2(1:nVar_State,0:NlocOut,0:NlocOut,0:NlocOut,iField)
+          ELSEIF(nDims.EQ.6) THEN
+            ! Old output format on Nmax requires interpolation to Nloc TODO: is this case even relevant?
+            IF(NlocOut.NE.N_State) THEN
+              CALL ChangeBasis3D(nVar_State, N_State, NlocOut, NVisuLocal(NlocOut,N_State)%Vdm_N_NVisu(0:NlocOut,0:N_State), &
+                                 U2( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem,iField)                                      , &
+                                 ElemLocal(iElem)%U_Visu(1:nVar_State,0:NlocOut,0:NlocOut,0:NlocOut))
+            ELSE
+              ElemLocal(iElem)%U_Visu(1:nVar_State,0:Nloc,0:Nloc,0:Nloc) = U2( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem,iField)
+            END IF
+          END IF
+        END IF
       END IF ! nFields.GT.1
     END DO
   ELSE
-    iDG = 0
-    DO iElem = 1,nElems
-      iDG = iDG + 1
-      IF(nFields.EQ.1)THEN
-        CALL ChangeBasis3D(nVar_State, N_State, NVisu, Vdm_N_NVisu, U( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem)       , U_Visu(1:nVar_State,0:NVisu,0:NVisu,0:NVisu,iDG))
-      ELSE ! more than one field
-        CALL ChangeBasis3D(nVar_State, N_State, NVisu, Vdm_N_NVisu, U2(1:nVar_State,0:N_State,0:N_State,0:N_State,iElem,iField), U_Visu(1:nVar_State,0:NVisu,0:NVisu,0:NVisu,iDG))
-      END IF ! nFields.GT.1
-    END DO
+    ! Old format: constant polynomial degree
+  iDG = 0
+  DO iElem = 1,nElems
+    iDG = iDG + 1
+    IF(nFields.EQ.1)THEN
+        CALL ChangeBasis3D(nVar_State, N_State, NVisu, Vdm_N_NVisu             , &
+                           U( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem), &
+                           U_Visu(1:nVar_State,0:NVisu,0:NVisu,0:NVisu,iDG))
+    ELSE ! more than one field
+        CALL ChangeBasis3D(nVar_State, N_State, NVisu, Vdm_N_NVisu                    , &
+                           U2(1:nVar_State,0:N_State,0:N_State,0:N_State,iElem,iField), &
+                           U_Visu(1:nVar_State,0:NVisu,0:NVisu,0:NVisu,iDG))
+    END IF ! nFields.GT.1
+  END DO
   END IF
+
   ! Output to VTK
   IF(NlocFound) THEN
+    ! New format: p-adaption
     CALL WriteDataToVTKpAdaption(nVar_State,StrVarNames,TRIM(FileString_DG))
   ELSE
-    CALL WriteDataToVTK(nVar_State,NVisu,iDG,StrVarNames,Coords_DG_p,U_Visu_p,TRIM(FileString_DG),dim=3,DGFV=0)
+    ! Old format: constant polynomial degree
+  CALL WriteDataToVTK(nVar_State,NVisu,iDG,StrVarNames,Coords_DG_p,U_Visu_p,TRIM(FileString_DG),dim=3,DGFV=0)
   END IF
 
 END DO ! iField = 1, nFields
@@ -1106,10 +1354,15 @@ SDEALLOCATE(U2)
 SDEALLOCATE(Vdm_N_NVisu)
 SDEALLOCATE(U_Visu)
 IF(NlocFound) THEN
-  DO Nloc = 1, NlocMax
-    SDEALLOCATE(NVisuLocal(Nloc)%Vdm_N_NVisu)
-    SDEALLOCATE(NVisuLocal(Nloc)%Vdm_EQNgeo_NVisu)
+  DO Nloc = NlocMin, NlocMax
+    DO NlocOut = NlocMin, NlocMax
+      SDEALLOCATE(NVisuLocal(Nloc,NlocOut)%Vdm_N_NVisu)
+    END DO
   END DO
+  DO Nloc = 1, NlocMax
+    SDEALLOCATE(NVisuGeo(Nloc)%Vdm_EQNgeo_NVisu)
+  END DO
+  SDEALLOCATE(NVisuGeo)
   SDEALLOCATE(NVisuLocal)
   DO iElem = 1,nElems
     SDEALLOCATE(ElemLocal(iElem)%Coords_NVisu)
@@ -1118,6 +1371,7 @@ IF(NlocFound) THEN
   END DO
   SDEALLOCATE(ElemLocal)
   SDEALLOCATE(Nloc_HDF5)
+  SDEALLOCATE(Nloc_Visu)
 END IF
 
 END SUBROUTINE ConvertDGSolution
@@ -1330,7 +1584,9 @@ USE MOD_ChangeBasis             ,ONLY: ChangeBasis2D
 USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVISU
 USE MOD_Mesh_Vars               ,ONLY: N_SurfMesh
 USE MOD_ReadInTools             ,ONLY: PrintOption
+#if !(PP_TimeDiscMethod==700)
 USE MOD_DG_Vars                 ,ONLY: DG_Elems_master,DG_Elems_slave
+#endif /*!(PP_TimeDiscMethod==700)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1344,13 +1600,13 @@ CHARACTER(LEN=255)              :: FileString, File_Type
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
 INTEGER                         :: nDims, nVarSurf, nSurfaceSidesReadin, SideID, iSurfOutputSide, Nloc
 REAL                            :: OutputTime
-REAL,ALLOCATABLE                :: tempSurfData(:,:,:,:,:)
+REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:,:)
 REAL,ALLOCATABLE                :: NodeCoords_visu(:,:,:,:,:)     !< Coordinates of visualization nodes
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Interpolation variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE :: VisuInterpolation
-  REAL,ALLOCATABLE :: Vdm_N_NVisu(:,:)               !< Vandermonde from equidistant mesh to visualization nodes
+REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)                    !< Vandermonde from equidistant mesh to visualization nodes
 END TYPE VisuInterpolation
 
 TYPE(VisuInterpolation),ALLOCATABLE :: N_Inter_Visu(:)      !< Array of prebuild interpolation matrices
@@ -1417,7 +1673,11 @@ IF(nSurfSample.GT.1) THEN
   DO iSurfOutputSide = 1, SurfConnect%nSurfaceOutputSides
     ! Mapping from nSurfaceOutputSides to nSides
     SideID = SurfOutputSideToUniqueSide(iSurfOutputSide)
+#if !(PP_TimeDiscMethod==700)
     Nloc   = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+#else
+    Nloc = PP_N
+#endif /*!(PP_TimeDiscMethod==700)*/
     CALL ChangeBasis2D(3, Nloc, nSurfSample, N_Inter_Visu(Nloc)%Vdm_N_NVisu, &
         N_SurfMesh(SideID)%Face_xGP(1:3 , 0:Nloc        , 0:Nloc)       , &
                     NodeCoords_visu(1:3 , 0:nSurfSample , 0:nSurfSample , 0 , iSurfOutputSide))
@@ -1430,7 +1690,11 @@ END IF
 
 IF(TRIM(File_Type).NE.'RadiationSurfState') THEN
   IF(TRIM(File_Type).NE.'DSMCSurfChemState') THEN
+    IF(TRIM(File_Type).NE.'DVMSurfState') THEN
     FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
+  ELSE
+      FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurfDVM',OutputTime))//'.vtu'
+    END IF
   ELSE
     FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurfChem',OutputTime))//'.vtu'
   END IF
@@ -1582,7 +1846,7 @@ SUBROUTINE WriteDataToVTKpAdaption(nVar,VarNames,FileString)
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars           ,ONLY: nElems
-USE MOD_piclas2vtk_Vars     ,ONLY: ElemLocal, Nloc_HDF5, PointToCellSwitch
+USE MOD_piclas2vtk_Vars     ,ONLY: ElemLocal, Nloc_Visu, PointToCellSwitch
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -1616,7 +1880,7 @@ nVTKPoints = 0
 nVTKCells = 0
 
 DO iElem = 1, nElems
-  Nloc = Nloc_HDF5(iElem) + PointToCellSwitch
+  Nloc = Nloc_Visu(iElem) + PointToCellSwitch
   nVTKPoints = nVTKPoints + (Nloc+1)**3
   nVTKCells  = nVTKCells  +  Nloc**3
 END DO
@@ -1716,7 +1980,7 @@ END IF
 DO iVar=1,nVar
   WRITE(ivtk) nBytes
   DO iElem = 1, nElems
-    Nloc = Nloc_HDF5(iElem)
+    Nloc = Nloc_Visu(iElem)
     WRITE(ivtk) REAL(ElemLocal(iElem)%U_Visu(iVar,0:Nloc,0:Nloc,0:Nloc),4)
   END DO
 END DO       ! iVar
@@ -1724,7 +1988,7 @@ END DO       ! iVar
 nBytes = nVTKPoints*SIZEOF_F(FLOATdummy)*3
 WRITE(ivtk) nBytes
 DO iElem = 1, nElems
-  Nloc = Nloc_HDF5(iElem) + PointToCellSwitch
+  Nloc = Nloc_Visu(iElem) + PointToCellSwitch
   WRITE(ivtk) REAL(ElemLocal(iElem)%Coords_NVisu(1:3,0:Nloc,0:Nloc,0:Nloc),4)
 END DO
 
@@ -1764,7 +2028,7 @@ SUBROUTINE CreateConnectivitypAdaption(nNodes,nodeids)
 USE ISO_C_BINDING
 USE MOD_Globals
 USE MOD_Mesh_Vars           ,ONLY: nElems
-USE MOD_piclas2vtk_Vars     ,ONLY: Nloc_HDF5, PointToCellSwitch
+USE MOD_piclas2vtk_Vars     ,ONLY: Nloc_Visu, PointToCellSwitch
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)  :: nNodes             !< number of nodes
@@ -1780,7 +2044,7 @@ INTEGER           :: Nloc, Nloc_elem, Nloc_p1_2
 NodeID = 0
 NodeIDElem = 0
 DO iElem=1,nElems
-  Nloc = Nloc_HDF5(iElem) + PointToCellSwitch
+  Nloc = Nloc_Visu(iElem) + PointToCellSwitch
   Nloc_elem = (Nloc+1)**3
   Nloc_p1_2 = (Nloc+1)**2
   DO k=1,Nloc

@@ -44,7 +44,7 @@ USE MOD_Equation           ,ONLY: CalcSourceHDG,ExactFunc
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nSides,BC,N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide, offSetElem
-USE MOD_Interpolation_Vars ,ONLY: NMax,PREF_VDM
+USE MOD_Interpolation_Vars ,ONLY: NMax,PREF_VDM,N_Inter
 USE MOD_Elem_Mat           ,ONLY: PostProcessGradientHDG
 USE MOD_FillMortar_HDG     ,ONLY: SmallToBigMortar_HDG
 #if (PP_nVar==1)
@@ -61,7 +61,6 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 USE PETSc
 USE MOD_Mesh_Vars          ,ONLY: SideToElem,nGlobalMortarSides
 USE MOD_HDG_Vars_PETSc
-USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #if USE_MPI
 USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_MPI_Vars
@@ -69,12 +68,11 @@ USE MOD_MPI_Vars
 USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG
 #endif
 #if USE_MPI
-USE MOD_MPI                ,ONLY: Mask_MPIsides
+USE MOD_MPI_HDG            ,ONLY: Mask_MPIsides
 #endif
 USE MOD_Globals_Vars       ,ONLY: ElementaryCharge,eps0
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_HDG_Tools          ,ONLY: CG_solver,DisplayConvergence
-USE MOD_Mortar_Vars        ,ONLY: N_Mortar
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -103,7 +101,7 @@ PetscScalar, POINTER :: lambda_pointer(:)
 KSPConvergedReason   :: reason
 PetscInt             :: iterations
 PetscReal            :: petscnorm
-INTEGER              :: ElemID,iBCSide,PETScLocalID
+INTEGER              :: ElemID,iBCSide
 INTEGER              :: DOF_start, DOF_stop
 REAL                 :: timeStartPiclas,timeEndPiclas
 INTEGER              :: jLocSide
@@ -111,8 +109,14 @@ REAL                 :: Smatloc(nGP_face(NMax),nGP_face(NMax))
 INTEGER              :: iUniqueFPCBC
 #endif /*USE_PETSC*/
 INTEGER              :: iMortar, iType
-INTEGER              :: iGP, jGP, ip, iq, jp, jq
+! INTEGER              :: iGP, jGP, ip, iq, jp, jq
+REAL                 :: chitens_face(3,3)
 !===================================================================================================================================
+! Dummy for chitens_face(:,:,p,q,SideID)
+chitens_face=0.0
+chitens_face(1,1)=1.
+chitens_face(2,2)=1.
+chitens_face(3,3)=1.
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
@@ -180,6 +184,18 @@ DO iVar = 1, PP_nVar
       DO q=0,Nloc; DO p=0,Nloc
         r=q*(Nloc+1) + p+1
         HDG_Surf_N(SideID)%qn_face(iVar,r)= 0.
+      END DO; END DO !p,q
+    CASE(11) !neumann q*n=1 !test
+      DO q=0,Nloc; DO p=0,Nloc
+        r=q*(Nloc+1) + p+1
+        HDG_Surf_N(SideID)%qn_face(iVar,r)=SUM((/1.,1.,1./)  &
+                            *MATMUL(chitens_face(:,:),N_SurfMesh(SideID)%NormVec(:,p,q)))*N_SurfMesh(SideID)%SurfElem(p,q)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)
+      END DO; END DO !p,q
+    CASE(12) !neumann q*n=1 !test
+      DO q=0,Nloc; DO p=0,Nloc
+        r=q*(Nloc+1) + p+1
+        HDG_Surf_N(SideID)%qn_face(iVar,r)=SUM((/-1.45e7,1.,1./)  &
+                            *MATMUL(chitens_face(:,:),N_SurfMesh(SideID)%NormVec(:,p,q)))*N_SurfMesh(SideID)%SurfElem(p,q)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)
       END DO; END DO !p,q
     END SELECT ! BCType
   END DO !BCsideID=1,nNeumannBCSides
@@ -370,8 +386,8 @@ IF(UseFPC) THEN
 END IF
 
 ! Reset the RHS of the first DOF if ZeroPotential must be set
-IF(ZeroPotentialSide>0) THEN
-  PetscCallA(VecSetValue(PETScRHS,OffsetGlobalPETScDOF(ZeroPotentialSide),0,INSERT_VALUES,ierr))
+IF(mpiRoot.AND.ZeroPotentialDOF >= 0) THEN
+  PetscCallA(VecSetValue(PETScRHS,ZeroPotentialDOF,0,INSERT_VALUES,ierr))
 END IF
 
 PetscCallA(VecAssemblyBegin(PETScRHS,ierr))
@@ -396,12 +412,13 @@ PetscCallA(KSPGetResidualNorm(PETScSolver,petscnorm,ierr))
 ! -11: KSP_DIVERGED_PC_FAILED      -> It was not possible to build or use the requested preconditioner
 ! -11: KSP_DIVERGED_PCSETUP_FAILED_DEPRECATED
 IF(reason.LT.0)THEN
+  ! Output used memory
   CALL WarningMemusage(Mode=1,Threshold=5.0)
   !  View solver converged reason
   PetscCallA(KSPConvergedReasonView(PETScSolver,PETSC_VIEWER_STDOUT_WORLD,ierr))
   !  View solver info
   PetscCallA(KSPView(PETScSolver,PETSC_VIEWER_STDOUT_WORLD,ierr))
-  CALL abort(__STAMP__,'ERROR: PETSc not converged!')
+  CALL Abort(__STAMP__,'ERROR: PETSc not converged! Reason: ',IntInfoOpt=reason)
 END IF
 
 IF(MPIroot) THEN

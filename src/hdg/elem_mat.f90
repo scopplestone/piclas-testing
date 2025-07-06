@@ -54,6 +54,7 @@ USE MOD_Interpolation_Vars ,ONLY: N_Inter,NMax
 USE MOD_Mesh_Vars          ,ONLY: N_VolMesh,offSetElem
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: N_Mesh
+USE MOD_ProlongToFace      ,ONLY:ProlongToFace_Side
 #ifdef VDM_ANALYTICAL
 USE MOD_Mathtools          ,ONLY: INVERSE_LU
 #else
@@ -73,7 +74,7 @@ INTEGER(KIND=8),INTENT(IN)  :: td_iter
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: l,p,q,g1,g2,g3,Nloc,NSideMin,NSideMax
+INTEGER              :: l,p,q,g1,g2,g3,Nloc,NSideMax
 INTEGER              :: i,j,iElem, i_m,i_p,j_m,j_p
 INTEGER              :: iDir,jDir
 INTEGER              :: iLocSide, jLocSide
@@ -84,6 +85,7 @@ REAL                 :: Ktilde(3,3)
 REAL                 :: Stmp1(nGP_vol(Nmax),nGP_face(Nmax)), Stmp2(nGP_face(Nmax),nGP_face(Nmax))
 INTEGER              :: idx(3),jdx(3),gdx(3)
 REAL                 :: time0, time
+REAL                 :: SurfElemLoc(0:Nmax,0:Nmax,6), Ja_tmp(3,0:NMax,0:NMax), Ja_vol(3,0:NMax,0:NMax,0:NMax)
 !===================================================================================================================================
 
 IF(DoDisplayIter)THEN
@@ -100,6 +102,23 @@ DO iElem=1,PP_nElems
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   SideID(:)=ElemToSide(E2S_SIDE_ID,:,iElem)
   Flip(:)  =ElemToSide(E2S_FLIP,:,iElem)
+
+  ! Calculate SurfElem
+  DO iLocSide=1,6
+    iSide = SideID(iLocSide)
+    SELECT CASE(iLocSide)
+      CASE(XI_MINUS,XI_PLUS)
+        Ja_vol(:,0:Nloc,0:Nloc,0:Nloc) = N_VolMesh(iElem)%Metrics_fTilde
+      CASE(ETA_MINUS,ETA_PLUS)
+        Ja_vol(:,0:Nloc,0:Nloc,0:Nloc) = N_VolMesh(iElem)%Metrics_gTilde
+      CASE(ZETA_MINUS,ZETA_PLUS)
+        Ja_vol(:,0:Nloc,0:Nloc,0:Nloc) = N_VolMesh(iElem)%Metrics_hTilde
+    END SELECT
+    CALL ProlongToFace_Side(3,Nloc,iLocSide,Flip(iLocSide),Ja_vol(:,0:Nloc,0:Nloc,0:Nloc),Ja_tmp(:,0:Nloc,0:Nloc))
+    DO q=0,Nloc; DO p=0,Nloc
+      SurfElemLoc(p,q,iLocSide) = SQRT(SUM(Ja_tmp(:,p,q)**2))
+    END DO; END DO
+  END DO
 
   ! Loop over the Gauss points with indexes (g1,g2,g3); for each
   ! point, compute all the i,j contributions in the local matrices.
@@ -131,13 +150,7 @@ DO iElem=1,PP_nElems
                      l1=> N_Mesh(Nloc)%VolToSideIJKA(1,g1,g2,g3,Flip(iLocSide),iLocSide), &
                      l2=> N_Mesh(Nloc)%VolToSideIJKA(2,g1,g2,g3,Flip(iLocSide),iLocSide)  )
               iSide = SideID(iLocSide)
-              ! TODO NSideMin - SurfElemMin
-              NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-              IF(Nloc.EQ.NSideMax)THEN
-                Taus(pm(iLocSide),SideDir(iLocSide))=N_Inter(Nloc)%wGP(l1)*N_Inter(Nloc)%wGP(l2)*N_SurfMesh(iSide)%SurfElem(p,q)
-              ELSE
-                Taus(pm(iLocSide),SideDir(iLocSide))=N_Inter(Nloc)%wGP(l1)*N_Inter(Nloc)%wGP(l2)*N_SurfMesh(iSide)%SurfElemMin(p,q)
-              END IF
+              Taus(pm(iLocSide),SideDir(iLocSide))=N_Inter(Nloc)%wGP(l1)*N_Inter(Nloc)%wGP(l2)*SurfElemLoc(p,q,iLocSide)
            END ASSOCIATE
          END DO !iLocSide
 
@@ -287,14 +300,7 @@ DO iElem=1,PP_nElems
     ! then combined with to Smat  = Smat - F
     DO q=0,Nloc; DO p=0,Nloc
       i=q*(Nloc+1)+p+1
-      iSide = SideID(jLocSide)
-      ! TODO NSideMin - SurfElemMin
-      NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-      IF(Nloc.EQ.NSideMax)THEN
-        Fdiag_i = - Tau(ielem)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(iSide)%SurfElem(p,q)
-      ELSE
-        Fdiag_i = - Tau(ielem)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(iSide)%SurfElemMin(p,q)
-      END IF
+      Fdiag_i = - Tau(ielem)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*SurfElemLoc(p,q,jLocSide)
       HDG_Vol_N(iElem)%Smat(i,i,jLocSide,jLocSide) = HDG_Vol_N(iElem)%Smat(i,i,jLocSide,jLocSide) -Fdiag_i
     END DO; END DO !p,q
 
@@ -356,21 +362,16 @@ USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_HDG_Vars_PETSc
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
-
 USE PETSc
 USE MOD_Mesh_Vars          ,ONLY: SideToElem, nSides
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,BC
 USE MOD_Interpolation_Vars ,ONLY: PREF_VDM,NMax
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
-
-USE MOD_Mortar_Vars        ,ONLY: N_Mortar
-USE MOD_Mesh_Vars          ,ONLY: MortarType,MortarInfo,firstMortarInnerSide,lastMortarInnerSide
-
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
-USE MOD_Mesh_Vars          ,ONLY: N_VolMesh,offSetElem
+USE MOD_Mesh_Vars          ,ONLY: offSetElem
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
-USE MOD_Mesh_Vars          ,ONLY: N_Mesh,nGlobalMortarSides
+USE MOD_Mesh_Vars          ,ONLY: nGlobalMortarSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -381,16 +382,14 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 PetscErrorCode       :: ierr
 INTEGER              :: iElem,NElem
-INTEGER              :: iLocSide,iSideID,iNloc,iPETScGlobal, iNdof, iIndices(nGP_face(Nmax))
-INTEGER              :: jLocSide,jSideID,jNloc,jPETScGlobal, jNdof, jIndices(nGP_face(Nmax))
+INTEGER              :: iLocSide,iSideID,iNloc,iNdof, iIndices(nGP_face(Nmax))
+INTEGER              :: jLocSide,jSideID,jNloc,jNdof, jIndices(nGP_face(Nmax))
 REAL                 :: Smatloc(nGP_face(Nmax),nGP_face(Nmax))
-INTEGER              :: l,p,q,g1,g2,g3,Nloc
-INTEGER              :: i,j,i_m,i_p,j_m,j_p
+INTEGER              :: Nloc
+INTEGER              :: i,j
 INTEGER              :: BCsideID, BCState
-INTEGER              :: locSideID,nGP
-REAL                 :: intMat(nGP_face(Nmax), nGP_face(Nmax))
-INTEGER              :: iType,iMortar,nMortars
-INTEGER              :: iGP, jGP, ip, iq, jp, jq
+INTEGER              :: nGP
+INTEGER              :: iType,iMortar
 !===================================================================================================================================
 ! TODO PETSC P-Adaption - Fill directly when SmatK is filled... (or sth like that)
 
@@ -428,10 +427,10 @@ DO iElem=1,PP_nElems
       jNloc=N_SurfMesh(jSideID)%NSide
       IF(MaskedSide(jSideID).GT.0) CYCLE
       IF(OffsetGlobalPETScDOF(iSideID).GT.OffsetGlobalPETScDOF(jSideID)) CYCLE ! Only fill upper triangle
-      IF(iSideID==ZeroPotentialSide) THEN
-        ! The first DOF is set to constant 0 -> lambda_{1,1} = 0
-        HDG_Vol_N(iElem)%Smat(:,1,jLocSide,iLocSide) = 0 ! TODO PETSC P-Adaption: why ji and not ij?
-        IF(jSideID==ZeroPotentialSide) HDG_Vol_N(iElem)%Smat(1,1,jLocSide,iLocSide) = 1
+      IF(OffsetGlobalPETScDOF(iSideID)==ZeroPotentialDOF) HDG_Vol_N(iElem)%Smat(1,:,iLocSide,jLocSide) = 0
+      IF(OffsetGlobalPETScDOF(jSideID)==ZeroPotentialDOF) THEN
+        HDG_Vol_N(iElem)%Smat(:,1,iLocSide,jLocSide) = 0
+        IF(OffsetGlobalPETScDOF(iSideID)==ZeroPotentialDOF) HDG_Vol_N(iElem)%Smat(1,1,iLocSide,jLocSide) = 1
       END IF
 
       iNdof=nGP_face(iNloc)
@@ -521,11 +520,11 @@ USE MOD_Preproc
 USE MOD_HDG_Vars
 #if USE_MPI
 USE MOD_MPI_Vars
-USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,Mask_MPIsides
+USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI_HDG        ,ONLY: Mask_MPIsides
 #endif /*USE_MPI*/
-USE MOD_Mesh_Vars      ,ONLY: nSides,SideToElem,nMPIsides_YOUR,N_SurfMesh, offSetElem
+USE MOD_Mesh_Vars      ,ONLY: nSides,SideToElem,nMPIsides_YOUR,N_SurfMesh
 USE MOD_FillMortar_HDG ,ONLY: SmallToBigMortarPrecond_HDG
-USE MOD_DG_Vars        ,ONLY: DG_Elems_master, DG_Elems_slave,N_DG_Mapping
 USE MOD_Interpolation_Vars ,ONLY: Nmax
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -539,6 +538,12 @@ INTEGER          :: ElemID, locSideID, SideID, igf
 INTEGER          :: lapack_info
 INTEGER          :: NSide
 !===================================================================================================================================
+! Sanity check: Remove this if p-adaption for HDG without PETSc is implemented
+DO SideID=1,nSides
+  NSide = N_SurfMesh(SideID)%NSide
+  IF(NSide.NE.NMax) CALL abort(__STAMP__,'p-adaption is not implemented for the HDG CG solver. Set LIBS_USE_PETSC=ON')
+END DO ! SideID=1,nSides
+
 SELECT CASE(PrecondType)
 CASE(0)
 ! do nothing
@@ -557,7 +562,6 @@ CASE(1)
     locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_NB_ELEM_ID,SideID)
-      IF(NSide.NE.NMax) CALL abort(__STAMP__,'not implemented for different polynomial degrees')
       HDG_Surf_N(SideID)%Precond(:,:) = HDG_Surf_N(SideID)%Precond(:,:)+HDG_Vol_N(ElemID)%Smat(:,:,locSideID,locSideID)
     END IF !locSideID.NE.-1
   END DO ! SideID=1,nSides
@@ -582,7 +586,6 @@ CASE(2)
     locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_ELEM_ID,SideID)
-      IF(NSide.NE.NMax) CALL abort(__STAMP__,'not implemented for different polynomial degrees')
       DO igf = 1, nGP_face(NSide)
         HDG_Surf_N(SideID)%InvPrecondDiag(igf) = HDG_Surf_N(SideID)%InvPrecondDiag(igf)+ &
                               HDG_Vol_N(ElemID)%Smat(igf,igf,locSideID,locSideID)
@@ -622,8 +625,8 @@ SUBROUTINE PostProcessGradientHDG()
 ! MODULES
 USE MOD_Preproc
 USE MOD_HDG_Vars
-USE MOD_Mesh_Vars          ,ONLY: ElemToSide,N_VolMesh,N_Mesh,nSides,N_SurfMesh, offSetElem
-USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave,N_DG_Mapping,U_N
+USE MOD_Mesh_Vars          ,ONLY: ElemToSide,N_VolMesh,N_Mesh,N_SurfMesh,offSetElem
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,U_N
 USE MOD_Interpolation_Vars ,ONLY: N_Inter,PREF_VDM,NMax
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 ! IMPLICIT VARIABLE HANDLING

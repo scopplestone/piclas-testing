@@ -39,7 +39,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: PI
 USE MOD_Timedisc_Vars           ,ONLY: dt,time
 USE MOD_Particle_Boundary_Vars  ,ONLY: Partbound,DoBoundaryParticleOutputRay
-USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF,PartSpecies,SpeciesOffsetVDL
+USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF,SpeciesOffsetVDL
 USE MOD_RayTracing_Vars         ,ONLY: Ray,UseRayTracing,RayElemEmission
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared,UseBezierControlPoints
@@ -65,9 +65,9 @@ USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_loc,PhotonSurfSideArea
 USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars               ,ONLY: BoundaryType
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoVirtualDielectricLayer
-USE MOD_Particle_Vars           ,ONLY: LastPartPos
+USE MOD_Particle_Vars           ,ONLY: LastPartPos,PartSpecies
 #endif /*USE_HDG*/
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcElectronSEE
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcPhotonSEE
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemBaryNGeo
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Vars           ,ONLY: nSpecies
@@ -206,11 +206,11 @@ DO BCSideID=1,nBCSides
       ! NbrOfSEE: Number of particles to be inserted
       IF(NbrOfSEE.GT.0)THEN
         ! Check if photon SEE electric current is to be measured
-        IF(CalcElectronSEE)THEN
+        IF(CalcPhotonSEE)THEN
           ! Note that the negative value of the charge -q is used below
           iSEEBC = SEE%BCIDToSEEBCID(iPartBound)
-          SEE%RealElectronOut(iSEEBC) = SEE%RealElectronOut(iSEEBC) - MPF*NbrOfSEE*Species(SpecID)%ChargeIC
-        END IF ! (NbrOfSEE.GT.0).AND.(CalcElectronSEE)
+          SEE%RealElectronOutPhoton(iSEEBC) = SEE%RealElectronOutPhoton(iSEEBC) - MPF*NbrOfSEE*Species(SpecID)%ChargeIC
+        END IF ! (NbrOfSEE.GT.0).AND.(CalcPhotonSEE)
         ! Calculate the normal & tangential vectors
         IF(UseBezierControlPoints)THEN
           ! Use Bezier polynomial
