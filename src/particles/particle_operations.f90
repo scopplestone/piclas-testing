@@ -151,6 +151,55 @@ IF (PRESENT(NewPartID)) NewPartID=newParticleID
 
 END SUBROUTINE CreateParticle
 
+SUBROUTINE CreateParticleSkeleton(SpecID,NewPartID,useOldPartID)
+!===================================================================================================================================
+!> creates a single particle at correct array position and assign properties
+!> OldPartID can be supplied to get the MPF and Timestep, however, NewMPF and NewTimestep have priority
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies,PartPosRef, Species, usevMPF, PartMPF
+USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, PartVeloRotRef, RotRefFrameOmega, UseRotRefFrame, InRotRefFrame
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC, PartIntEn, DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
+USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, SpecDSMC
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF
+USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
+USE MOD_Part_Tools              ,ONLY: InRotRefFrameCheck, GetNextFreePosition
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+INTEGER, INTENT(IN)           :: SpecID           !< Species ID
+INTEGER, INTENT(INOUT)        :: NewPartID        !< ID of newly created particle
+LOGICAL,INTENT(IN)            :: useOldPartID
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+INTEGER :: newParticleID, iElem
+!===================================================================================================================================
+IF(.NOT.useOldPartID) newParticleID = GetNextFreePosition()
+
+PartSpecies(newParticleID)     = SpecID
+
+IF (useDSMC.AND.(CollisMode.GT.1)) THEN
+  IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
+    ALLOCATE(PartIntEn(newParticleID)%EVib(1), PartIntEn(newParticleID)%ERot(1))
+  END IF
+  IF (DSMC%ElectronicModel.GT.0) THEN
+    IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+      ALLOCATE(PartIntEn(newParticleID)%EElec(1))
+    END IF
+  ENDIF
+  IF (DSMC%DoAmbipolarDiff) THEN
+    newAmbiParts = newAmbiParts + 1
+    iPartIndx_NodeNewAmbi(newAmbiParts) = newParticleID
+  END IF
+END IF
+
+PDM%ParticleInside(newParticleID)   = .TRUE.
+
+END SUBROUTINE CreateParticleSkeleton
+
 
 SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 !===================================================================================================================================
@@ -172,7 +221,7 @@ USE MOD_Particle_Vars             ,ONLY: Pt_temp
 #endif
 USE MOD_Particle_Analyze_Pure     ,ONLY: CalcEkinPart
 USE MOD_part_tools                ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars                 ,ONLY: CollInf, AmbipolElecVelo, ElectronicDistriPart, VibQuantsPar
+USE MOD_DSMC_Vars                 ,ONLY: CollInf, AmbipolElecVelo, ElectronicDistriPart, VibQuantsPar, PartIntEn
 USE MOD_Mesh_Vars                 ,ONLY: BoundaryName
 #if USE_HDG
 USE MOD_Globals                   ,ONLY: abort
@@ -220,6 +269,14 @@ PartState(1:6,PartID)      = 0.
 IF(TrackingMethod.EQ.REFMAPPING) PartPosRef(1:3,PartID) = -888.
 PartSpecies(PartID)        = 0
 Pt(1:3,PartID)             = 0.
+
+IF (ALLOCATED(PartIntEn)) THEN
+  SDEALLOCATE(PartIntEn(PartID)%ERot)
+  SDEALLOCATE(PartIntEn(PartID)%EVib)
+  SDEALLOCATE(PartIntEn(PartID)%EElec)
+  SDEALLOCATE(PartIntEn(PartID)%QVib)
+  SDEALLOCATE(PartIntEn(PartID)%QElec)
+END IF
 
 IF(ALLOCATED(AmbipolElecVelo)) THEN
   SDEALLOCATE(AmbipolElecVelo(PartID)%ElecVelo)

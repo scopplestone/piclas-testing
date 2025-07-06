@@ -325,7 +325,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
               PDM%ParticleInside(iPart)=.TRUE.
               IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),PEM%GlobalElemID(iPart))
             ELSE
-              PDM%ParticleInside(iPart)=.FALSE.
+              CALL RemoveParticle(iPart)
               NbrOfLostParticles = NbrOfLostParticles + 1
 #if !(USE_MPI)
               IF (CountNbrOfLostParts) CALL StoreLostParticleProperties(iPart, PEM%GlobalElemID(iPart), UsePartState_opt=.TRUE.)
@@ -376,7 +376,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
               PDM%ParticleInside(iPart)=.TRUE.
               IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),PEM%GlobalElemID(iPart))
             ELSE
-              PDM%ParticleInside(iPart)=.FALSE.
+              CALL RemoveParticle(iPart)
               NbrOfLostParticles = NbrOfLostParticles + 1
 #if !(USE_MPI)
               IF (CountNbrOfLostParts) CALL StoreLostParticleProperties(iPart, PEM%GlobalElemID(iPart), UsePartState_opt=.TRUE.)
@@ -427,7 +427,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
               PDM%ParticleInside(iPart)=.TRUE.
               IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),PEM%GlobalElemID(iPart))
             ELSE
-              PDM%ParticleInside(iPart)=.FALSE.
+              CALL RemoveParticle(iPart)
               NbrOfLostParticles = NbrOfLostParticles + 1
 #if !(USE_MPI)
               IF (CountNbrOfLostParts) CALL StoreLostParticleProperties(iPart, PEM%GlobalElemID(iPart), UsePartState_opt=.TRUE.)
@@ -795,7 +795,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
             PartState(1:6,CurrentPartNum)        = RecBuff(1:6,iPart)
             PartSpecies(CurrentPartNum)          = INT(RecBuff(7,iPart))
             PEM%LastGlobalElemID(CurrentPartNum) = 0 ! Initialize with invalid value
-            PDM%ParticleInside(CurrentPartNum)   = .FALSE.
+            CALL RemoveParticle(CurrentPartNum)
             IF(usevMPF) PartMPF(CurrentPartNum)  = RecBuff(8,iPart) ! only required when using vMPF
 
             CALL StoreLostParticleProperties(CurrentPartNum, PEM%GlobalElemID(CurrentPartNum), &

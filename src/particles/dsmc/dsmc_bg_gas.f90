@@ -550,6 +550,7 @@ SUBROUTINE BGGas_DeleteParticles()
 USE MOD_DSMC_Vars           ,ONLY: BGGas
 USE MOD_PARTICLE_Vars       ,ONLY: PDM, PartSpecies
 USE MOD_part_tools          ,ONLY: UpdateNextFreePosition
+USE MOD_part_operations     ,ONLY: RemoveParticle
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers  ,ONLY: LBStartTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -573,7 +574,7 @@ CALL LBStartTime(tLBStart)
 DO iPart = 1, PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
     ! No Pt_temp=0 necessary, because it is a ghost particle
-    IF(BGGas%BackgroundSpecies(PartSpecies(iPart))) PDM%ParticleInside(iPart) = .FALSE.
+    IF(BGGas%BackgroundSpecies(PartSpecies(iPart))) CALL RemoveParticle(iPart) 
   END IF
 END DO
 BGGas%PairingPartner = 0

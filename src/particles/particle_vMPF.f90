@@ -139,6 +139,7 @@ USE MOD_DSMC_Vars             ,ONLY: PartIntEn, CollisMode, SpecDSMC, DSMC, Poly
 USE MOD_Particle_Analyze_Tools,ONLY: CalcTelec, CalcTVibPoly
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_Globals               ,ONLY: LOG_RAN
+USE MOD_part_operations       ,ONLY: RemoveParticle
 #ifdef CODE_ANALYZE
 USE MOD_Globals               ,ONLY: unit_stdout,myrank,abort
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
@@ -294,7 +295,7 @@ DO iLoop = 1, nDelete
   iPart = INT(iRan*nTemp) + 1
   partWeight = GetParticleWeight(iPartIndx_Node(iPart))
   lostWeight = lostWeight + partWeight
-  PDM%ParticleInside(iPartIndx_Node(iPart)) = .FALSE.
+  CALL RemoveParticle(iPartIndx_Node(iPart))
   iPartIndx_Node(iPart) = iPartIndx_Node(nTemp)
   nTemp = nTemp - 1
 END DO

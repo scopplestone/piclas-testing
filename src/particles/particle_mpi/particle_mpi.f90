@@ -953,7 +953,7 @@ DO iProc=0,nExchangeProcessors-1
         END IF
         IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
           ALLOCATE(PartIntEn(PartID)%EElec(1))
-          PartIntEn(PartID)%EElec(1) = PartRecvBuf(iProc)%content(4+jPos)
+          PartIntEn(PartID)%EElec(1) = PartRecvBuf(iProc)%content(3+jPos)
         END IF
         jPos=jPos+3
       ELSE
