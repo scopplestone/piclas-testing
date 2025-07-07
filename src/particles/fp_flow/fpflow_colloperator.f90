@@ -41,6 +41,7 @@ SUBROUTINE FP_CollisionOperator(iPartIndx_Node, nPart, NodeVolume)
 ! MODULES
 #ifdef CODE_ANALYZE
 USE MOD_Globals                 ,ONLY: abort,unit_stdout,myrank
+USE MOD_Particle_Vars           ,ONLY: PartSpecies
 #endif /* CODE_ANALYZE */
 USE MOD_Globals_Vars            ,ONLY: Pi, BoltzmannConst
 USE MOD_FPFlow_Vars             ,ONLY: FPCollModel, ESFPModel, SpecFP, FPUseQuantVibEn, FPDoVibRelaxation, FP_PrandtlNumber
@@ -94,7 +95,7 @@ DO iLoop = 1, nPart
                              + PartState(6,iPart)**2.)*0.5*Species(1)%MassIC * partWeight
   IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     ! Add internal energies (vibration, rotation) for molecules and molecular ions
-    Energy_old = Energy_old + (PartIntEn(iPart)%ERot(1) + PartIntEn(iPart)%Vib(1))*partWeight
+    Energy_old = Energy_old + (PartIntEn(iPart)%ERot(1) + PartIntEn(iPart)%EVib(1))*partWeight
   END IF
 END DO
 #endif

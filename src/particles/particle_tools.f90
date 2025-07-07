@@ -2465,11 +2465,6 @@ ELSE
   IF(GetNextFreePosition.GT.PDM%ParticleVecLength) PDM%ParticleVecLength = GetNextFreePosition
 END IF
 IF(GetNextFreePosition.EQ.0) CALL ABORT(__STAMP__,'This should not happen, PDM%MaxParticleNumber reached',IntInfoOpt=PDM%MaxParticleNumber)
-IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-  SDEALLOCATE(PartIntEn(GetNextFreePosition)%ERot)
-  SDEALLOCATE(PartIntEn(GetNextFreePosition)%EVib)
-  SDEALLOCATE(PartIntEn(GetNextFreePosition)%EElec)
-END IF
 
 END FUNCTION GetNextFreePosition
 

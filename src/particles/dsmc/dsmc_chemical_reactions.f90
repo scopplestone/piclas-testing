@@ -611,7 +611,7 @@ END IF
 IF (EductReac(3).NE.0) THEN
   Energy_old=Energy_old+0.5*Species(PartSpecies(ReactInx(3)))%MassIC*DOTPRODUCT(PartState(4:6,ReactInx(3)))* Weight(3)
   IF((Species(EductReac(3))%InterID.EQ.2).OR.(Species(EductReac(3))%InterID.EQ.20)) &
-     Energy_old=Energy_old + (PartIntEn(ReactInx(3))%EVib(1) + PartIntEn(ReactInx(3))%ERot(1))) * Weight(3)
+     Energy_old=Energy_old + (PartIntEn(ReactInx(3))%EVib(1) + PartIntEn(ReactInx(3))%ERot(1)) * Weight(3)
   IF(DSMC%ElectronicModel.GT.0) THEN
     IF((Species(EductReac(3))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(3))%FullyIonized)) &
       Energy_old=Energy_old + PartIntEn(ReactInx(3))%EElec(1) * Weight(3)
@@ -1048,9 +1048,9 @@ IF(ProductReac(3).NE.0) THEN
   IF((Species(ProductReac(3))%InterID.EQ.2).OR.(Species(ProductReac(3))%InterID.EQ.20)) &
     Energy_new = Energy_new + (PartIntEn(ReactInx(3))%EVib(1) + PartIntEn(ReactInx(3))%ERot(1)) * Weight(3) 
   IF(DSMC%ElectronicModel.GT.0) THEN
-    IF((Species(ProductReac(1))%InterID.NE.4).AND.(.NOT.SpecDSMC(ProductReac(1)%FullyIonized)) & 
+    IF((Species(ProductReac(1))%InterID.NE.4).AND.(.NOT.SpecDSMC(ProductReac(1))%FullyIonized)) & 
       Energy_new=Energy_new + PartIntEn(ReactInx(1))%EElec(1)*Weight(1)
-    IF((Species(ProductReac(3))%InterID.NE.4).AND.(.NOT.SpecDSMC(ProductReac(3)%FullyIonized)) & 
+    IF((Species(ProductReac(3))%InterID.NE.4).AND.(.NOT.SpecDSMC(ProductReac(3))%FullyIonized)) & 
       Energy_new=Energy_new + PartIntEn(ReactInx(3))%EElec(1)*Weight(3)
   END IF
   ! New total momentum
@@ -1131,9 +1131,9 @@ ELSEIF(ProductReac(3).EQ.0) THEN
   IF((Species(ProductReac(2))%InterID.EQ.2).OR.(Species(ProductReac(2))%InterID.EQ.20)) &
     Energy_new = Energy_new + (PartIntEn(ReactInx(2))%EVib(1) + PartIntEn(ReactInx(2))%ERot(1)) * Weight(2) 
   IF(DSMC%ElectronicModel.GT.0) THEN
-    IF((Species(ProductReac(1))%InterID.NE.4).AND.(.NOT.SpecDSMC(ProductReac(1)%FullyIonized)) & 
+    IF((Species(ProductReac(1))%InterID.NE.4).AND.(.NOT.SpecDSMC(ProductReac(1))%FullyIonized)) & 
       Energy_new=Energy_new + PartIntEn(ReactInx(1))%EElec(1)*Weight(1)
-    IF((Species(ProductReac(2))%InterID.NE.4).AND.(.NOT.SpecDSMC(ProductReac(2)%FullyIonized)) & 
+    IF((Species(ProductReac(2))%InterID.NE.4).AND.(.NOT.SpecDSMC(ProductReac(2))%FullyIonized)) & 
       Energy_new=Energy_new + PartIntEn(ReactInx(2))%EElec(1)*Weight(2)
   END IF
   ! New total momentum

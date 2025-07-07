@@ -109,7 +109,7 @@ DO iLoop = 1, nPart
   Energy_old = Energy_old + DOTPRODUCT(PartState(4:6,iPart))*0.5*Species(iSpec)%MassIC*partWeight
   IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     ! Add internal energies (vibration, rotation) for molecules and molecular ions
-    Energy_old = Energy_old + (PartIntEn(iPart)%ERot(1) + PartIntEn(iPart)%Vib(1))*partWeight
+    Energy_old = Energy_old + (PartIntEn(iPart)%ERot(1) + PartIntEn(iPart)%EVib(1))*partWeight
   END IF
 END DO
 #endif
