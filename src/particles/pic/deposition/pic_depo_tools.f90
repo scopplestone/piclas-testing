@@ -19,30 +19,78 @@ MODULE MOD_PICDepo_Tools
 IMPLICIT NONE
 PRIVATE
 !===================================================================================================================================
-INTERFACE DepositParticleOnNodes
-  MODULE PROCEDURE DepositParticleOnNodes
-END INTERFACE
-
-INTERFACE CalcCellLocNodeVolumes
-  MODULE PROCEDURE CalcCellLocNodeVolumes
-END INTERFACE
-
-INTERFACE ReadTimeAverage
-  MODULE PROCEDURE ReadTimeAverage
-END INTERFACE
-
-INTERFACE beta
-  MODULE PROCEDURE beta
-END INTERFACE
-
-INTERFACE DepositPhotonSEEHoles
-  MODULE PROCEDURE DepositPhotonSEEHoles
-END INTERFACE
-
 PUBLIC:: DepositParticleOnNodes,CalcCellLocNodeVolumes,ReadTimeAverage,beta,DepositPhotonSEEHoles
+PUBLIC:: DepositParticleOnSurface
 !===================================================================================================================================
 
 CONTAINS
+
+!===================================================================================================================================
+!> Deposit the charge of a single particle on the face on an element.
+!===================================================================================================================================
+SUBROUTINE DepositParticleOnSurface(Charge,PartPos,GlobalElemID)
+! MODULES
+USE MOD_Globals
+USE MOD_Globals            ,ONLY: VECNORM,ElementOnProc
+USE MOD_Globals_Vars       ,ONLY: ElementaryCharge
+USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeCoords_Shared,GEO
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+#if USE_LOADBALANCE
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
+USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
+#endif /*USE_LOADBALANCE*/
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared
+#if USE_MPI
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
+#else
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt
+#endif /*USE_MPI*/
+USE MOD_PICDepo_Vars       ,ONLY: Periodic_nNodes,Periodic_offsetNode,Periodic_Nodes
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+REAL,INTENT(IN)                  :: Charge        !< Charge that is deposited on nodes
+REAL,INTENT(IN)                  :: PartPos(1:3)
+INTEGER,INTENT(IN)               :: GlobalElemID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3)
+#if USE_LOADBALANCE
+REAL                             :: tLBStart
+#endif /*USE_LOADBALANCE*/
+INTEGER                          :: NodeID(1:8),iNode,jNode,jGlobNode
+LOGICAL                          :: SucRefPos
+REAL                             :: norm,PartDistDepo(8),DistSum
+!===================================================================================================================================
+
+! Skip neutral and reflected particles. Deposit only particles that are deleted on the surface or change their charge on contact
+! (e.g. neutralization)
+IF(ABS(Charge).LE.0.0) RETURN
+
+#if USE_LOADBALANCE
+! Only measure time if particle is deposited on local proc
+IF(ElementOnProc(GlobalElemID)) CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
+
+CALL GetPositionInRefElem(PartPos, TempPartPos(1:3), GlobalElemID, ForceMode = .TRUE., isSuccessful = SucRefPos)
+
+#if USE_MPI
+CALL abort(__STAMP__,'Implement MPI for subroutine DepositParticleOnNodes()')
+ASSOCIATE( NodeSourceExt => NodeSourceExtTmp )
+#endif
+
+#if USE_MPI
+END ASSOCIATE
+#endif
+
+#if USE_LOADBALANCE
+! Only measure time if particle is deposited on local proc
+IF(ElementOnProc(GlobalElemID)) CALL LBElemPauseTime(GlobalElemID-offsetElem,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
+END SUBROUTINE DepositParticleOnSurface
+
 
 !===================================================================================================================================
 !> Deposit surface charge of positive charges (electron holes) due to SEE from a surface
@@ -131,7 +179,7 @@ LOGICAL                          :: SucRefPos
 REAL                             :: norm,PartDistDepo(8),DistSum
 !===================================================================================================================================
 
-! Skip for neutral particles and reflected particles or species swapped particles where impacting and reflecting particle carry the
+! Skip neutral and reflected particles or species swapped particles where impacting and reflecting particle carry the
 ! same charge. Deposit only particles that are deleted on the surface or change their charge on contact (e.g. neutralization)
 IF(ABS(Charge).LE.0.0) RETURN
 

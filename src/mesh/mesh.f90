@@ -896,7 +896,7 @@ IF(ABS(pAdaptionBCLevel).GT.1)THEN
       IF(N_DG_Mapping(2,GlobalNbElemID).EQ.NMax)THEN
         IF(pAdaptionBCLevel.EQ.-2)THEN
           N_DG(iElem) = NMin+1
-ELSE
+        ELSE
           N_DG(iElem) = NMax
         END IF ! pAdaptionBCLevel.EQ.-2
       END IF ! N_DG_Mapping(2,GlobalNbElemID).EQ.NMax

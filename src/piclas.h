@@ -360,6 +360,9 @@
 ! Virtual Dielectric Layer (VDL): PartBound%SurfaceModel
 #define VDL_MODEL_ID 99
 
+! 2D Surface Charge: PartBound%SurfaceModel
+#define SURF_CHARGE_ID 999
+
 ! Secondary electron emission: PartBound%SurfaceModel
 #define SEE_MODELS_ID 3,4,5,6,7,8,9,10,11,12,13
 

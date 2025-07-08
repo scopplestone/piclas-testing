@@ -510,7 +510,7 @@ END SUBROUTINE WriteSurfVDLToHDF5
 #endif /*defined(PARTICLES)*/
 
 
-#else
+#else /*not HDG*/
 #if !(USE_FV)
 SUBROUTINE WritePMLzetaGlobalToHDF5()
 !===================================================================================================================================
