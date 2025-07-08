@@ -59,6 +59,7 @@ USE MOD_Mesh_Vars               ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_TimeDisc_Vars           ,ONLY: dt
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
+USE MOD_part_operations         ,ONLY: RemoveParticle
 ! ROUTINES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_BGGas              ,ONLY: BGGas_AssignParticleProperties
@@ -607,13 +608,13 @@ END DO        ! iSpec = 1, nSpecies
 iPart = PEM%pStart(iElem)
 DO iLoop = 1, PEM%pNumber(iElem)
   IF (PDM%ParticleInside(iPart)) THEN
-    IF(BGGas%BackgroundSpecies(PartSpecies(iPart))) PDM%ParticleInside(iPart) = .FALSE.
+    IF(BGGas%BackgroundSpecies(PartSpecies(iPart))) CALL RemoveParticle(iPart)
   END IF
   iPart = PEM%pNext(iPart)
 END DO
 ! Delete the dummy particle
 IF(bggPartIndex.NE.0) THEN
-  PDM%ParticleInside(bggPartIndex) = .FALSE.
+  CALL RemoveParticle(bggPartIndex)
 END IF
 IF(DSMC%CalcQualityFactors) THEN
   ! Calculation of Mean Collision Probability
