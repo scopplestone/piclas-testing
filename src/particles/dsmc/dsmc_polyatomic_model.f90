@@ -585,6 +585,7 @@ IF(BGGas%NumberOfSpecies.GT.0) THEN
 END IF
 
 IF (DSMC%ElectronicModel.GT.0) THEN
+  IF (.NOT.ALLOCATED(PartIntEn(iPart)%EElec)) ALLOCATE(PartIntEn(iPart)%EElec(1)) 
   CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
 ENDIF
 
@@ -654,6 +655,7 @@ SELECT CASE (init_or_sf)
 END SELECT
 
 IF (DSMC%ElectronicModel.GT.0) THEN
+  IF (.NOT.ALLOCATED(PartIntEn(iPart)%EElec)) ALLOCATE(PartIntEn(iPart)%EElec(1)) 
   CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
 ENDIF
 
@@ -741,6 +743,7 @@ ElemID = PEM%LocalElemID(iPart)
   END SELECT
 
   IF (DSMC%ElectronicModel.GT.0) THEN
+    IF (.NOT.ALLOCATED(PartIntEn(iPart)%EElec)) ALLOCATE(PartIntEn(iPart)%EElec(1)) 
     CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
   ENDIF
 
@@ -828,6 +831,7 @@ SELECT CASE (init_or_sf)
 END SELECT
 
 IF (DSMC%ElectronicModel.GT.0) THEN
+  IF (.NOT.ALLOCATED(PartIntEn(iPart)%EElec)) ALLOCATE(PartIntEn(iPart)%EElec(1)) 
   CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
 ENDIF
 
