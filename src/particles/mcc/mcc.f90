@@ -697,6 +697,7 @@ END IF
 DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
   ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
   IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'XSec') THEN
+    CollEnergy = 0.
     EductReac(1:3) = ChemReac%Reactants(ReacTest,1:3); ProductReac(1:4) = ChemReac%Products(ReacTest,1:4)
 
     ! Sum of the zero-point energies of the reactants
