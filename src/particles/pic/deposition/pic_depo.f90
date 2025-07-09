@@ -29,9 +29,6 @@ PUBLIC:: Deposition, InitializeDeposition, FinalizeDeposition, DefineParametersP
 #if USE_MPI
 PUBLIC :: ExchangeNodeSourceExtTmp
 #endif /*USE_MPI*/
-#if USE_HDG
-PUBLIC :: DepositVirtualDielectricLayerParticles
-#endif /*USE_HDG*/
 !===================================================================================================================================
 
 CONTAINS
@@ -1016,65 +1013,6 @@ IF((stage.EQ.0).OR.(stage.EQ.4)) THEN
 END IF
 
 END SUBROUTINE Deposition
-
-
-#if USE_HDG
-!===================================================================================================================================
-!> Loop over all particles and find that ones that have been flagged during particle-boundary interaction and have hit a VDL
-!> boundary. They are flagged there as they might move to another process during that interaction.
-!> Here, after MPI communication, they can be deleted and deposited at the target position to form a surface charge on a (virtual)
-!> dielectric layer.
-!===================================================================================================================================
-SUBROUTINE DepositVirtualDielectricLayerParticles()
-! MODULES
-USE MOD_Particle_Vars   ,ONLY: PEM, PDM, Species, PartSpecies, usevmpf, PartMPF, PartState
-USE MOD_Particle_Vars   ,ONLY: IsVDLSpecID, SpeciesOffsetVDL
-USE MOD_PICDepo_Tools   ,ONLY: DepositParticleOnNodes
-USE MOD_part_operations ,ONLY: RemoveParticle
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT / OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER :: iPart
-REAL    :: charge,SignSwitch
-!===================================================================================================================================
-! Loop over all particles
-DO iPart=1,PDM%ParticleVecLength
-  ! Only consider un-deleted particles
-  IF (PDM%ParticleInside(iPart)) THEN
-    ! Check particle index for VDL particles
-    IF(IsVDLSpecID(iPart))THEN
-      ! Check for negative sign
-      IF(PartSpecies(iPart).LT.0)THEN
-        ! If negative sign is found in the species index, invert the deposited charge
-        SignSwitch = -1
-        ! Invert the species index so it is meaningful again
-        PartSpecies(iPart) = -PartSpecies(iPart)
-      ELSE
-        ! Use same sign for charge deposition
-        SignSwitch =  1
-      END IF ! PartSpecies(iPart).LT.0
-      ! Reset to original species index
-      PartSpecies(iPart) = PartSpecies(iPart) - SpeciesOffsetVDL
-      ! Check if vMPF is active
-      IF(usevMPF)THEN
-        ! Calculate the charge considering the MPF of the specific particle
-        charge = Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
-      ELSE
-        ! Calculate the charge considering the MPF of the species
-        charge = Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
-      END IF
-      ! Deposit the charge on the corner nodes of the element
-      CALL DepositParticleOnNodes(SignSwitch*charge, PartState(1:3,iPart), PEM%GlobalElemID(iPart))
-      ! After deposition, delete the particle from existence
-      CALL RemoveParticle(iPart)
-    END IF ! IsVDLSpecID(iPart)
-  END IF !PDM%ParticleInside(iPart)
-END DO ! iPart=1,PDM%ParticleVecLength
-
-END SUBROUTINE DepositVirtualDielectricLayerParticles
-#endif /*USE_HDG*/
 
 
 PPURE LOGICAL FUNCTION SFMeasureDistance(v1,v2)

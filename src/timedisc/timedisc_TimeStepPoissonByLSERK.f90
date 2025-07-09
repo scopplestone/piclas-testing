@@ -66,7 +66,7 @@ USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle,Calc
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_vMPF                   ,ONLY: SplitAndMerge
 USE MOD_Particle_Vars          ,ONLY: UseSplitAndMerge
-USE MOD_PICDepo                ,ONLY: DepositVirtualDielectricLayerParticles
+USE MOD_PICDepo_HDG            ,ONLY: DepositVirtualDielectricLayerParticles
 #endif /*PARTICLES*/
 USE MOD_HDG                    ,ONLY: HDG
 #if USE_LOADBALANCE

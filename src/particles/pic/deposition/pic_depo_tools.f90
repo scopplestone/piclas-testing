@@ -191,6 +191,8 @@ IF(ElementOnProc(GlobalElemID)) CALL LBStartTime(tLBStart) ! Start time measurem
 CALL GetPositionInRefElem(PartPos, TempPartPos(1:3), GlobalElemID, ForceMode = .TRUE., isSuccessful = SucRefPos)
 
 #if USE_MPI
+! Single-core: Use NodeSourceExt directly as NodeSourceExtTmp does not exist
+! Multi-core: Use local container NodeSourceExtTmp, which is later exchanged between the adjacent processes and then added to NodeSourceExt
 ASSOCIATE( NodeSourceExt => NodeSourceExtTmp )
 #endif
   ! Check if GetPositionInRefElem was able to find the reference position (via ref. mapping), else use distance-based deposition
