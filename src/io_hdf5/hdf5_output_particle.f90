@@ -71,7 +71,7 @@ USE MOD_Interpolation_Vars ,ONLY: NodeType,NodeTypeVISU,Nmin,Nmax
 USE MOD_Interpolation      ,ONLY: GetVandermonde
 USE MOD_DG_vars            ,ONLY: N_DG_Mapping,nDofsMapping
 #if USE_MPI
-USE MOD_PICDepo            ,ONLY: ExchangeNodeSourceExtTmp
+USE MOD_PICDepo_MPI        ,ONLY: ExchangeNodeSourceExtTmp
 #endif /*USE_MPI*/
 USE MOD_HDF5_Output_ElemData,ONLY: WriteAdditionalElemData
 ! IMPLICIT VARIABLE HANDLING
