@@ -2479,6 +2479,7 @@ SDEALLOCATE(PartBound%BoundaryParticleOutputEmission)
 SDEALLOCATE(PartBound%RadiativeEmissivity)
 SDEALLOCATE(PartBound%PermittivityVDL)
 SDEALLOCATE(PartBound%ThicknessVDL)
+SDEALLOCATE(PartBound%SurfaceCharge)
 
 ! Mapping arrays are allocated even if the node does not have sampling surfaces
 #if USE_MPI
