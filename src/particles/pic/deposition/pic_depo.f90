@@ -362,12 +362,13 @@ USE MOD_Globals
 USE MOD_PICDepo_Vars
 USE MOD_Particle_Mesh_Vars ,ONLY: nUniqueGlobalNodes
 USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity, offsetElem, nElems, nNonUniqueGlobalVertices
-USE MOD_Mesh_Vars          ,ONLY: VertexConnectInfo
+USE MOD_Mesh_Vars          ,ONLY: VertexConnectInfo,NGeo
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nFEMVertices,NonUniqueGlobalVertexIDToFEMVertexID
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,SideInfo_Shared,ElemInfo_Shared,VertexInfo_Shared
 USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionBCLevel,N_DG_Mapping
 USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
 USE MOD_Mesh               ,ONLY: getlocsidelist
+USE MOD_Mesh_Tools         ,ONLY: GetCornerNodeMapCGNS
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -383,7 +384,7 @@ INTEGER :: iElem,BCType,NonUniqueGlobalSideID,iGlobalElemID,BCIndex,ElemType,Off
 INTEGER :: iVertexConnect,GlobalNbElemID,GlobalNbLocVertexID,LocSideList(3),iLocSideList,iLocSide
 INTEGER :: FirstElemInd,LastElemInd
 INTEGER :: FirstVertexInd,LastVertexInd,FirstVertexConnectInd,LastVertexConnectInd
-INTEGER :: FEMVertexID,iVertexInd
+INTEGER :: FEMVertexID,iVertexInd,NonUniqueNodeID,CNS(8)
 !===================================================================================================================================
 ! Sanity check: This routine requires FEM connectivity
 IF(.NOT.readFEMconnectivity) CALL abort(__STAMP__,'Error in surface deposition init: readFEMconnectivity=T is required')
@@ -396,6 +397,9 @@ IsDepoSurfNode = .FALSE.
 ! Mapping from NonuniqueGlobalNodeID to FEMVertexID
 ALLOCATE(NonUniqueGlobalVertexIDToFEMVertexID(1:nNonUniqueGlobalVertices))
 NonUniqueGlobalVertexIDToFEMVertexID = 0
+
+! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
+CALL GetCornerNodeMapCGNS(Ngeo,CornerNodesCGNS = CNS)
 
 ! Element index
 FirstElemInd = offsetElem+1
@@ -419,9 +423,12 @@ DO iGlobalElemID = FirstElemInd, LastElemInd
   DO iVertexInd = FirstVertexInd,LastVertexInd
     ! Get topologically unique global vertex ID, includes periodicity (needed for a FEM solver)
     FEMVertexID = VertexInfo_Shared(VERTEX_FEMID,iVertexInd)
-    NonUniqueGlobalVertexIDToFEMVertexID(iVertexInd) = FEMVertexID
+    NonUniqueNodeID = CNS(iVertexInd-FirstVertexInd+1) + FirstVertexInd - 1
+    ! Store mapping iVertexInd to NonUniqueNodeID
+    VertexInfo_Shared(VERTEX_NONUNIQUENODEID,iVertexInd) = NonUniqueNodeID
+    ! Mapping from NonUniqueNodeID to FEMVertexID
+    NonUniqueGlobalVertexIDToFEMVertexID(NonUniqueNodeID) = FEMVertexID
 
-    ! IPWRITE(*,*) 'iVertexInd,NonUniqueGlobalVertexIDToFEMVertexID(iVertexInd),FEMVertexID:', iVertexInd,NonUniqueGlobalVertexIDToFEMVertexID(iVertexInd),FEMVertexID
     ! Get local vertex connectivity
     FirstVertexConnectInd = VertexInfo_Shared(VERTEX_FIRSTCONNECTIND,iVertexInd)+1
     LastVertexConnectInd  = VertexInfo_Shared(VERTEX_LASTCONNECTIND,iVertexInd)
@@ -446,7 +453,6 @@ DO iGlobalElemID = FirstElemInd, LastElemInd
     END DO ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
   END DO ! iVertexInd = iFirstVertexInd,LastVertexInd
 END DO ! iGlobalElemID = FirstElemInd, LastElemInd
-! read*
 
 ! Count the number of unique deposition nodes per processor
 nDepoSurfNodes = COUNT(IsDepoSurfNode)

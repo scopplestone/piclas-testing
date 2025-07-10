@@ -120,8 +120,8 @@ DO iNode = 1, 4
   ! UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
   ! Get the unique FEM vertex index
   FEMVertexID = NonUniqueGlobalVertexIDToFEMVertexID(NonUniqueNodeID)
-  FEMVertexID = 1
-  ! IPWRITE(*,*) 'NonUniqueNodeID,FEMVertexID:', NonUniqueNodeID,FEMVertexID
+  ! FEMVertexID = 1
+  ! IPWRITE(*,*) 'NonUniqueNodeID,FEMVertexID,NodeCoords_Shared(1:3,NonUniqueNodeID):', NonUniqueNodeID,FEMVertexID,NodeCoords_Shared(1:3,NonUniqueNodeID)
   ! NodeSource(SourceDim:4,UniqueNodeID) = 0.
   ! IPWRITE(*,*) 'PartDistDepo(iNode)/DistSum*Charge:', PartDistDepo(iNode)/DistSum*Charge
   ! Add charge contribution

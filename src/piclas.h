@@ -184,9 +184,11 @@
 
 ! VertexInfo in H5 file
 #define VERTEXINFOSIZE_H5      3
+#define VERTEXINFOSIZE         4
 #define VERTEX_FEMID           1
 #define VERTEX_FIRSTCONNECTIND 2
 #define VERTEX_LASTCONNECTIND  3
+#define VERTEX_NONUNIQUENODEID 4
 ! VertexConnectInfo
 #define VERTEXCONNECTINFOSIZE_H5  2
 #define VERTEXCONNECT_NBELEMID    1

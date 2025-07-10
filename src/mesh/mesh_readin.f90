@@ -1255,13 +1255,15 @@ EdgeConnectInfo_Shared(1:EDGECONNECTINFOSIZE_H5, 1:nEdgeConnectIDs) = EdgeConnec
 #endif /*USE_MPI*/
 
 #if USE_MPI
-CALL Allocate_Shared((/VERTEXINFOSIZE_H5,nNonUniqueGlobalVertices/),VertexInfo_Shared_Win,VertexInfo_Shared)
+CALL Allocate_Shared((/VERTEXINFOSIZE,nNonUniqueGlobalVertices/),VertexInfo_Shared_Win,VertexInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,VertexInfo_Shared_Win,IERROR)
 VertexInfo_Shared(1:VERTEXINFOSIZE_H5,offsetVertexID+1:offsetVertexID+nVertexIDs) = VertexInfo(:,:)
+VertexInfo_Shared(  VERTEXINFOSIZE   ,offsetVertexID+1:offsetVertexID+nVertexIDs) = 0
 CALL BARRIER_AND_SYNC(VertexInfo_Shared_Win,MPI_COMM_SHARED)
 #else
-ALLOCATE(VertexInfo_Shared(1:VERTEXINFOSIZE_H5, 1:nVertexIDs))
+ALLOCATE(VertexInfo_Shared(1:VERTEXINFOSIZE, 1:nVertexIDs))
 VertexInfo_Shared(1:VERTEXINFOSIZE_H5, 1:nVertexIDs) = VertexInfo(:,:)
+VertexInfo_Shared(  VERTEXINFOSIZE   ,offsetVertexID+1:offsetVertexID+nVertexIDs) = 0
 #endif /*USE_MPI*/
 
 #if USE_MPI
