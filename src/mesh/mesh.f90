@@ -28,6 +28,7 @@ PUBLIC::InitMesh
 PUBLIC::FinalizeMesh
 PUBLIC::GetMeshMinMaxBoundaries
 PUBLIC::DefineParametersMesh
+PUBLIC::getlocsidelist
 #if !(PP_TimeDiscMethod==700)
 PUBLIC::Set_N_DG_Mapping
 #endif /*!(PP_TimeDiscMethod==700)*/
@@ -598,12 +599,6 @@ IF (ABS(meshMode).GT.0) CALL BuildSideToNonUniqueGlobalSide() ! requires ElemInf
 #endif /*USE_HDG && USE_LOADBALANCE*/
 !DEALLOCATE(ElemInfo,SideInfo)
 DEALLOCATE(SideInfo)
-IF(readFEMconnectivity)THEN
-  SDEALLOCATE(EdgeInfo)
-  SDEALLOCATE(VertexInfo)
-  SDEALLOCATE(EdgeConnectInfo)
-  SDEALLOCATE(VertexConnectInfo)
-END IF
 
 MeshInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'
@@ -845,9 +840,9 @@ GlobalElemIDLoop: DO iGlobalElemID = FirstElemInd, LastElemInd
   VertexConnectLoop: DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
     ! Check if current element has already been flagged
     IF(N_DG(iElem).EQ.NMax) EXIT VertexConnectLoop
-    ! Get neighbour infos
+    ! Get neighbour infos. Note the ABS() for +/- master/slave notation
     GlobalNbElemID      = ABS(VertexConnectInfo(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
-    GlobalNbLocVertexID = VertexConnectInfo(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
+    GlobalNbLocVertexID =     VertexConnectInfo(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
     ! Set sides depending on the element type: Only implemented for Hexahedral elements
     CALL GetLocSideList(ElemType,GlobalNbLocVertexID,LocSideList)
     LocSideListLoop: DO iLocSideList = 1, 3
@@ -862,7 +857,7 @@ GlobalElemIDLoop: DO iGlobalElemID = FirstElemInd, LastElemInd
       IF(BCType.EQ.10) CYCLE LocSideListLoop ! Skip Neumann sides
       IF(pAdaptionBCLevel.EQ.-1)THEN
         N_DG(iElem) = NMin+1
-ELSE
+      ELSE
         N_DG(iElem) = NMax
       END IF ! pAdaptionBCLevel.EQ.-1
     END DO LocSideListLoop ! iLocSideList = 1, 3
@@ -1661,6 +1656,12 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
 !local variables
 !============================================================================================================================
+IF(readFEMconnectivity)THEN
+  SDEALLOCATE(EdgeInfo)
+  SDEALLOCATE(VertexInfo)
+  SDEALLOCATE(EdgeConnectInfo)
+  SDEALLOCATE(VertexConnectInfo)
+END IF
 ! Deallocate global variables, needs to go somewhere else later
 SDEALLOCATE(ElemInfo)
 ! mapping from elems to sides and vice-versa

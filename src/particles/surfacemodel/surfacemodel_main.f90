@@ -334,7 +334,7 @@ IF(DoSurfaceCharge.OR.(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCI
   ! Method 3: 2D Surface Charging
   IF (PartBound%SurfaceCharge(locBCID)) THEN
     ! Deposit the charge
-    CALL DepositParticleOnSurface(ChargeImpact, PartPosImpact, GlobalElemID)
+    CALL DepositParticleOnSurface(ChargeImpact, PartPosImpact, GlobalElemID, SideID)
   END IF ! PartBound%SurfaceCharge(locBCID)
 
 END IF ! DoDeposition.AND.DoDielectricSurfaceCharge

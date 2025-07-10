@@ -131,18 +131,38 @@ REAL,ALLOCPOINT                 :: NodeVolume(:)
 #if USE_MPI
 TYPE(MPI_Win)                   :: NodeVolume_Shared_Win
 REAL,ALLOCPOINT                 :: NodeVolume_Shared(:)
-#endif
+#endif /*USE_MPI*/
 
 REAL,ALLOCPOINT                 :: SFElemr2_Shared(:,:) ! index 1: radius, index 2: radius squared
 
+! 2D surface deposition
+REAL,ALLOCATABLE                :: SurfNodeSource(:)
+INTEGER,ALLOCATABLE             :: DepoSurfNodetoGlobalNode(:)
+INTEGER                         :: nDepoSurfNodes
+INTEGER                         :: nDepoSurfNodesTotal
+LOGICAL,ALLOCATABLE             :: IsDepoSurfNode(:)
+#if USE_MPI
+REAL,ALLOCATABLE                :: SurfNodeSourceMPI(:) ! It contains the local non-synchronized surface charge contribution (does
+!                                                       ! not consider the charge contribution from restart files). This
+!                                                       ! contribution accumulates over time, but remains local to each processor
+!                                                       ! as it is communicated via the container NodeSourceExt.
+INTEGER,ALLOCATABLE             :: SurfNodeSendDepoRankToGlobalRank(:)
+INTEGER,ALLOCATABLE             :: SurfNodeRecvDepoRankToGlobalRank(:)
+INTEGER                         :: nSurfNodeSendExchangeProcs
+INTEGER                         :: nSurfNodeRecvExchangeProcs
+#endif /*USE_MPI*/
+
+! 3D CVWM deposition
 REAL,ALLOCATABLE                :: NodeSource(:,:)
-INTEGER,ALLOCATABLE             :: NodeSendDepoRankToGlobalRank(:)
-INTEGER,ALLOCATABLE             :: NodeRecvDepoRankToGlobalRank(:)
 INTEGER,ALLOCATABLE             :: DepoNodetoGlobalNode(:)
 INTEGER                         :: nDepoNodes
 INTEGER                         :: nDepoNodesTotal
+#if USE_MPI
+INTEGER,ALLOCATABLE             :: NodeSendDepoRankToGlobalRank(:)
+INTEGER,ALLOCATABLE             :: NodeRecvDepoRankToGlobalRank(:)
 INTEGER                         :: nNodeSendExchangeProcs
 INTEGER                         :: nNodeRecvExchangeProcs
+#endif /*USE_MPI*/
 ! Additional source for cell_volweight_mean (external or surface charge) that accumulates over time in elements adjacent to
 ! dielectric interfaces.
 REAL,ALLOCATABLE                :: NodeSourceExt(:) ! It contains the global, synchronized surface charge contribution that is

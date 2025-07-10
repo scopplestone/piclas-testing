@@ -82,7 +82,7 @@ USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNo
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Interpolation_Vars     ,ONLY: N_Inter
-USE MOD_Mesh_Vars              ,ONLY: nElems,N_VolMesh, offSetElem
+USE MOD_Mesh_Vars              ,ONLY: nElems,N_VolMesh,offSetElem,nFEMVertices
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes, GEO
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
@@ -106,6 +106,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_Interpolation_Vars     ,ONLY: Nmin,Nmax
 USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
+USE MOD_Particle_Boundary_Vars ,ONLY: DoSurfaceCharge
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -310,14 +311,147 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 #else
   ALLOCATE(ChargeSFDone(1:nElems))
 #endif /*USE_MPI*/
+! ------------------------------------------------
 CASE('cell_mean')
+! ------------------------------------------------
 CASE DEFAULT
+! ------------------------------------------------
   CALL abort(__STAMP__,'Unknown DepositionType in pic_depo.f90')
 END SELECT
+
+! Surface charge model
+IF (DoSurfaceCharge) THEN
+  CALL InitDepoSurfNodes() ! Get nDepoSurfNodes
+  ! Build Mapping
+#if USE_MPI
+  CALL abort(__STAMP__,'InitializeDeposition: MPI communicator for surface node communication not implemented')
+  ! CALL InitDepoSurfNodesMPI(DoSurfNodeMapping,SendSurfNode)
+#else
+  nDepoSurfNodesTotal = nDepoSurfNodes
+  ! ALLOCATE(DepoSurfNodetoGlobalNode(1:nDepoSurfNodesTotal))
+  ! nDepoSurfNodesTotal = 0
+  ! DO iNode=1, nFEMVertices
+  !   IF (IsDepoSurfNode(iNode)) THEN
+  !     nDepoSurfNodesTotal = nDepoSurfNodesTotal + 1
+  !     DepoSurfNodetoGlobalNode(nDepoSurfNodesTotal) = iNode
+  !   END IF ! IsDepoSurfNode(iNode)
+  ! END DO
+#endif /*USE_MPI*/
+
+  ALLOCATE(SurfNodeSource(1:nDepoSurfNodesTotal))
+  SurfNodeSource=0.0
+
+END IF ! DoSurfaceCharge
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE DEPOSITION DONE!'
 
 END SUBROUTINE InitializeDeposition
+
+
+!===================================================================================================================================
+!> Find all surface nodes connected to a BC where surface deposition is active
+!>
+!> 1. Loop over the processor-local elements
+!> 2. Loop over the corner vertices of the element
+!> 3. Use VertexConnectInfo to get the neighbour element index and vertex for all possible connection (also periodic)
+!> 4. Check the sides of connected to the neighbour node and find out if the side is a BC side
+!===================================================================================================================================
+SUBROUTINE InitDepoSurfNodes()
+! MODULES
+USE MOD_Globals
+USE MOD_PICDepo_Vars
+USE MOD_Particle_Mesh_Vars ,ONLY: nUniqueGlobalNodes
+USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity, offsetElem, nElems, nNonUniqueGlobalVertices
+USE MOD_Mesh_Vars          ,ONLY: VertexConnectInfo
+USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nFEMVertices,NonUniqueGlobalVertexIDToFEMVertexID
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,SideInfo_Shared,ElemInfo_Shared,VertexInfo_Shared
+USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionBCLevel,N_DG_Mapping
+USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
+USE MOD_Mesh               ,ONLY: getlocsidelist
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+! LOGICAL,ALLOCATABLE       :: IsDepoSurfNode(:)
+#if USE_MPI
+#else
+! INTEGER                   :: iNode
+#endif /*USE_MPI*/
+INTEGER :: iElem,BCType,NonUniqueGlobalSideID,iGlobalElemID,BCIndex,ElemType,OffsetCounter
+INTEGER :: iVertexConnect,GlobalNbElemID,GlobalNbLocVertexID,LocSideList(3),iLocSideList,iLocSide
+INTEGER :: FirstElemInd,LastElemInd
+INTEGER :: FirstVertexInd,LastVertexInd,FirstVertexConnectInd,LastVertexConnectInd
+INTEGER :: FEMVertexID,iVertexInd
+!===================================================================================================================================
+! Sanity check: This routine requires FEM connectivity
+IF(.NOT.readFEMconnectivity) CALL abort(__STAMP__,'Error in surface deposition init: readFEMconnectivity=T is required')
+
+! Flag the unique deposition nodes per processor
+nDepoSurfNodes = 0
+ALLOCATE(IsDepoSurfNode(1:nFEMVertices))
+IsDepoSurfNode = .FALSE.
+
+! Mapping from NonuniqueGlobalNodeID to FEMVertexID
+ALLOCATE(NonUniqueGlobalVertexIDToFEMVertexID(1:nNonUniqueGlobalVertices))
+NonUniqueGlobalVertexIDToFEMVertexID = 0
+
+! Element index
+FirstElemInd = offsetElem+1
+LastElemInd  = offsetElem+nElems
+
+! Loop over the process-local global elements indices
+DO iGlobalElemID = FirstElemInd, LastElemInd
+  iElem = iGlobalElemID - offsetElem
+  ElemType = ElemInfo_Shared(ELEM_TYPE,iGlobalElemID)
+  ! Sanity check: currently only hexahedral elements are implemented
+  SELECT CASE(ElemType)
+  CASE(108,118,208)
+    ! Hexahedral elements
+  CASE DEFAULT
+    CALL abort(__STAMP__,'InitDepoSurfNodes(): Element type not implemented, ElemType =',IntInfoOpt=ElemType)
+  END SELECT
+  ! Get local VertexInfo of current element
+  FirstVertexInd = ElemInfo_Shared(ELEM_FIRSTVERTEXIND,iGlobalElemID)+1
+  LastVertexInd  = ElemInfo_Shared(ELEM_LASTVERTEXIND,iGlobalElemID)
+  ! Loop over all non-unique vertices (the total number via iGlobalElemID and iVertexInd corresponds to nVertices in .h5)
+  DO iVertexInd = FirstVertexInd,LastVertexInd
+    ! Get topologically unique global vertex ID, includes periodicity (needed for a FEM solver)
+    FEMVertexID = VertexInfo_Shared(VERTEX_FEMID,iVertexInd)
+    NonUniqueGlobalVertexIDToFEMVertexID(iVertexInd) = FEMVertexID
+
+    ! IPWRITE(*,*) 'iVertexInd,NonUniqueGlobalVertexIDToFEMVertexID(iVertexInd),FEMVertexID:', iVertexInd,NonUniqueGlobalVertexIDToFEMVertexID(iVertexInd),FEMVertexID
+    ! Get local vertex connectivity
+    FirstVertexConnectInd = VertexInfo_Shared(VERTEX_FIRSTCONNECTIND,iVertexInd)+1
+    LastVertexConnectInd  = VertexInfo_Shared(VERTEX_LASTCONNECTIND,iVertexInd)
+    DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+      ! Get neighbour infos. Note the ABS() for +/- master/slave notation
+      GlobalNbElemID      = ABS(VertexConnectInfo(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
+      GlobalNbLocVertexID =     VertexConnectInfo(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
+      ! Set sides depending on the element type: Only implemented for Hexahedral elements
+      CALL GetLocSideList(ElemType,GlobalNbLocVertexID,LocSideList)
+      DO iLocSideList = 1, 3
+        ! Check if current element has already been flagged
+        iLocSide = LocSideList(iLocSideList)
+        NonUniqueGlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalNbElemID) + iLocSide
+        BCIndex = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalSideID)
+        IF(BCIndex.LE.0) CYCLE ! Skip inner sides
+        BCType = BoundaryType(BCIndex,BC_TYPE)
+        ! TODO: define a list of all BCType numbers that allow surface deposition
+        IF(BCType.NE.30) CYCLE ! Skip non-DCBC sides
+        ! Depo node found
+        IsDepoSurfNode(FEMVertexID) = .TRUE.
+      END DO ! iLocSideList = 1, 3
+    END DO ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+  END DO ! iVertexInd = iFirstVertexInd,LastVertexInd
+END DO ! iGlobalElemID = FirstElemInd, LastElemInd
+! read*
+
+! Count the number of unique deposition nodes per processor
+nDepoSurfNodes = COUNT(IsDepoSurfNode)
+
+END SUBROUTINE InitDepoSurfNodes
 
 
 !===================================================================================================================================

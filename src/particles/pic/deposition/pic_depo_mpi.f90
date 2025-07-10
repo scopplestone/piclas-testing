@@ -136,9 +136,9 @@ nDepoNodes = COUNT(IsDepoNode)
 ! Add number of nodes to be sent
 nDepoNodesTotal = nDepoNodes
 DO iNode=1, nUniqueGlobalNodes
-IF (.NOT.IsDepoNode(iNode).AND.SendNode(iNode)) THEN
-  nDepoNodesTotal = nDepoNodesTotal + 1
-END IF
+  IF (.NOT.IsDepoNode(iNode).AND.SendNode(iNode)) THEN
+    nDepoNodesTotal = nDepoNodesTotal + 1
+  END IF
 END DO
 ! Create mapping from unique deposition node to global unique node
 ALLOCATE(DepoNodetoGlobalNode(1:nDepoNodesTotal))
