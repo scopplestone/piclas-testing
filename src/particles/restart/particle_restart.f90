@@ -21,14 +21,6 @@ MODULE MOD_Particle_Restart
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTERFACE ParticleRestart
-  MODULE PROCEDURE ParticleRestart
-END INTERFACE
-
-INTERFACE FinalizeParticleRestart
-  MODULE PROCEDURE FinalizeParticleRestart
-END INTERFACE
-
 PUBLIC :: ParticleRestart
 PUBLIC :: FinalizeParticleRestart
 !===================================================================================================================================

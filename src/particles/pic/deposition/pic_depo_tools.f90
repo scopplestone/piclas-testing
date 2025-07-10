@@ -31,8 +31,8 @@ CONTAINS
 SUBROUTINE DepositParticleOnSurface(Charge,PartPos,GlobalElemID,SideID)
 ! MODULES
 USE MOD_Globals
-USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeCoords_Shared
+! USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
@@ -58,9 +58,9 @@ INTEGER,INTENT(IN)               :: SideID
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
-INTEGER                          :: NodeID(1:8),iNode
+INTEGER                          :: iNode
 REAL                             :: norm,PartDistDepo(4),DistSum
-INTEGER                          :: iLocSideTest,iLocSide,NonUniqueNodeID,UniqueNodeID,CNElemID,ElemID,FEMVertexID
+INTEGER                          :: iLocSideTest,iLocSide,NonUniqueNodeID,CNElemID,ElemID,FEMVertexID
 !===================================================================================================================================
 
 ! Skip neutral and reflected particles. Deposit only particles that are deleted on the surface or change their charge on contact
@@ -72,64 +72,45 @@ IF(ABS(Charge).LE.0.0) RETURN
 IF(ElementOnProc(GlobalElemID)) CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 
-! CALL GetPositionInRefElem(PartPos, TempPartPos(1:3), GlobalElemID, ForceMode = .TRUE., isSuccessful = SucRefPos)
-
 #if USE_MPI
 CALL abort(__STAMP__,'Implement MPI for subroutine DepositParticleOnSurface()')
 ASSOCIATE( SurfNodeSource => SurfNodeSourceMPI )
 #endif
-ElemID   = SideToElem(S2E_ELEM_ID,SideID)
-! Get compute-node element index
-CNElemID = GetCNElemID(GlobalElemID)
+  ! Get local element index
+  ElemID = SideToElem(S2E_ELEM_ID,SideID)
+  ! Get compute-node element index
+  CNElemID = GetCNElemID(GlobalElemID)
 
-NodeID = ElemNodeID_Shared(:,CNElemID)
-! IPWRITE(*,*) 'NodeID:', NodeID
-DO iNode = 1, 8
-  ! IPWRITE(*,*) 'NodeCoords_Shared(1:3, NodeID(iNode):', NodeCoords_Shared(1:3, NodeID(iNode))
-END DO
+  ! Loop over all six sides and find the local side index that matches the Dirichlet side
+  DO iLocSideTest=1,6
+    iLocSide = iLocSideTest
+    IF(SideID.EQ.ElemToSide(E2S_SIDE_ID,iLocSideTest,ElemID)) EXIT
+  END DO
 
-! print*,""
-! Loop over all six sides and find the local side index that matches the Dirichlet side
-DO iLocSideTest=1,6
-  iLocSide = iLocSideTest
-  IF(SideID.EQ.ElemToSide(E2S_SIDE_ID,iLocSideTest,ElemID)) EXIT
-END DO
+  ! Loop over the four side nodes
+  DO iNode = 1, 4
+    ! Get the non-unique node index
+    NonUniqueNodeID = ElemSideNodeID_Shared(iNode,iLocSide,CNElemID) + 1
+    norm = VECNORM(NodeCoords_Shared(1:3,NonUniqueNodeID)-PartPos(1:3))
+    IF(norm.GT.0.)THEN
+      PartDistDepo(iNode) = 1./norm
+    ELSE
+      PartDistDepo(:) = 0.
+      PartDistDepo(iNode) = 1.0
+      EXIT
+    END IF ! norm.GT.0.
+  END DO ! iNode = 1, 4
+  DistSum = SUM(PartDistDepo(1:4))
 
-! Loop over the four side nodes
-DO iNode = 1, 4
-  ! Get the non-unique node index
-  NonUniqueNodeID = ElemSideNodeID_Shared(iNode,iLocSide,CNElemID) + 1
-  norm = VECNORM(NodeCoords_Shared(1:3,NonUniqueNodeID)-PartPos(1:3))
-  ! IPWRITE(*,*) 'iNode,NonUniqueNodeID,NodeCoords_Shared(1:3,NonUniqueNodeID):', iNode,NonUniqueNodeID,NodeCoords_Shared(1:3,NonUniqueNodeID)
-  IF(norm.GT.0.)THEN
-    PartDistDepo(iNode) = 1./norm
-  ELSE
-    PartDistDepo(:) = 0.
-    PartDistDepo(iNode) = 1.0
-    EXIT
-  END IF ! norm.GT.0.
-END DO ! iNode = 1, 4
-DistSum = SUM(PartDistDepo(1:4))
-
-! print*,""
-! Loop over the four side nodes
-DO iNode = 1, 4
-  ! Get the non-unique node index
-  NonUniqueNodeID = ElemSideNodeID_Shared(iNode,iLocSide,CNElemID) + 1
-  ! Get the unique node index
-  ! UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
-  ! Get the unique FEM vertex index
-  FEMVertexID = NonUniqueGlobalVertexIDToFEMVertexID(NonUniqueNodeID)
-  ! FEMVertexID = 1
-  ! IPWRITE(*,*) 'NonUniqueNodeID,FEMVertexID,NodeCoords_Shared(1:3,NonUniqueNodeID):', NonUniqueNodeID,FEMVertexID,NodeCoords_Shared(1:3,NonUniqueNodeID)
-  ! NodeSource(SourceDim:4,UniqueNodeID) = 0.
-  ! IPWRITE(*,*) 'PartDistDepo(iNode)/DistSum*Charge:', PartDistDepo(iNode)/DistSum*Charge
-  ! Add charge contribution
-  SurfNodeSource(FEMVertexID) = SurfNodeSource(FEMVertexID) + PartDistDepo(iNode)/DistSum*Charge
-  ! IPWRITE(*,*) 'SurfNodeSource(FEMVertexID):', SurfNodeSource(FEMVertexID)
-! read*
-END DO ! iNode = 1, 4
-
+  ! Loop over the four side nodes
+  DO iNode = 1, 4
+    ! Get the non-unique node index
+    NonUniqueNodeID = ElemSideNodeID_Shared(iNode,iLocSide,CNElemID) + 1
+    ! Get the unique FEM vertex index
+    FEMVertexID = NonUniqueGlobalVertexIDToFEMVertexID(NonUniqueNodeID)
+    ! Add charge contribution
+    SurfNodeSource(FEMVertexID) = SurfNodeSource(FEMVertexID) + PartDistDepo(iNode)/DistSum*Charge
+  END DO ! iNode = 1, 4
 #if USE_MPI
 END ASSOCIATE
 #endif

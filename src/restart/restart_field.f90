@@ -27,10 +27,6 @@ PRIVATE
 
 !#if USE_LOADBALANCE
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-INTERFACE FieldRestart
-  MODULE PROCEDURE FieldRestart
-END INTERFACE
-
 PUBLIC :: FieldRestart
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 !#endif /*USE_LOADBALANCE*/

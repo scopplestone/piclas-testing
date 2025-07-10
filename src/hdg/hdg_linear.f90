@@ -74,6 +74,7 @@ USE MOD_Globals_Vars       ,ONLY: ElementaryCharge,eps0
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_HDG_Tools          ,ONLY: CG_solver,DisplayConvergence
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
+USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -110,7 +111,7 @@ REAL                 :: Smatloc(nGP_face(NMax),nGP_face(NMax))
 INTEGER              :: iUniqueFPCBC
 #endif /*USE_PETSC*/
 REAL                 :: src
-INTEGER              :: iMortar, iType
+INTEGER              :: iMortar, iType,FEMVertexID
 ! INTEGER              :: iGP, jGP, ip, iq, jp, jq
 REAL                 :: chitens_face(3,3)
 !===================================================================================================================================
@@ -299,12 +300,13 @@ END DO
 
 ! Add Distributed Capacitance BC
 DO BCsideID=1,nDistriCapBCsides
-  SideID=DistriCapBC(BCsideID)
+  SideID = DistriCapBC(BCsideID)
   Nloc = N_SurfMesh(SideID)%NSide
   DO q=0,Nloc; DO p=0,Nloc
+    FEMVertexID = 1
     r=q*(Nloc+1) + p+1
-    src = N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q) * &
-         (DCPermittivity * DCBiasVoltage / DCThickness + DCSurfaceCharge/eps0)
+    src = N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q) &
+        * ( DCPermittivity * DCBiasVoltage / DCThickness + (SurfNodeSource(FEMVertexID)/2.5e-9 + DCSurfaceCharge)/eps0 )
     HDG_Surf_N(SideID)%RHS_face(1,r) = HDG_Surf_N(SideID)%RHS_face(1,r) + src
   END DO; END DO !p,q
 END DO

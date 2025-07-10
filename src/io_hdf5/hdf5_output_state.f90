@@ -77,8 +77,10 @@ USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts,TotalNbrOfMissingParti
 USE MOD_Particle_Analyze_Vars  ,ONLY: nSpecAnalyze
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcNumPartsOfSpec
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+USE MOD_Particle_Boundary_Vars ,ONLY: DoSurfaceCharge
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteNodeSourceExtToHDF5,WriteClonesToHDF5,WriteVibProbInfoToHDF5,WriteAdaptiveWallTempToHDF5
+USE MOD_HDF5_Output_Particles  ,ONLY: WriteSurfNodeSourceToHDF5
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteClonesToHDF5,WriteVibProbInfoToHDF5,WriteAdaptiveWallTempToHDF5
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteAdaptiveInfoToHDF5,WriteParticleToHDF5,WriteBoundaryParticleToHDF5
@@ -728,12 +730,17 @@ CALL WritePMLDataToHDF5(FileName)
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*(PP_nVar==8)*/
 
+#ifdef PARTICLES
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 ! ---------------------------------------------------------
 ! Write NodeSourceExt (external charge density) field to HDF5 file
 ! ---------------------------------------------------------
-#ifdef PARTICLES
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
+
+! ---------------------------------------------------------
+! Write SurfNodeSource (surface charge density) field to HDF5 file
+! ---------------------------------------------------------
+IF(DoSurfaceCharge) CALL WriteSurfNodeSourceToHDF5(OutputTime_loc)
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 ! ---------------------------------------------------------
 ! Output particle emission data to be read during subsequent restarts
