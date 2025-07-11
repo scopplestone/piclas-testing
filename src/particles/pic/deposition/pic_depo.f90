@@ -360,8 +360,8 @@ SUBROUTINE InitDepoSurfNodes()
 ! MODULES
 USE MOD_Globals
 USE MOD_PICDepo_Vars
-USE MOD_Particle_Mesh_Vars ,ONLY: nUniqueGlobalNodes
-USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity, offsetElem, nElems, nNonUniqueGlobalVertices
+USE MOD_Particle_Mesh_Vars ,ONLY: nNonUniqueGlobalNodes
+USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity, offsetElem, nElems!, nNonUniqueGlobalVertices
 USE MOD_Mesh_Vars          ,ONLY: VertexConnectInfo,NGeo
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nFEMVertices,NonUniqueGlobalVertexIDToFEMVertexID
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,SideInfo_Shared,ElemInfo_Shared,VertexInfo_Shared
@@ -382,7 +382,7 @@ IMPLICIT NONE
 #endif /*USE_MPI*/
 INTEGER :: iElem,BCType,NonUniqueGlobalSideID,iGlobalElemID,BCIndex,ElemType,OffsetCounter
 INTEGER :: iVertexConnect,GlobalNbElemID,GlobalNbLocVertexID,LocSideList(3),iLocSideList,iLocSide
-INTEGER :: FirstElemInd,LastElemInd
+INTEGER :: FirstGlobalElemID,LastGlobalElemID
 INTEGER :: FirstVertexInd,LastVertexInd,FirstVertexConnectInd,LastVertexConnectInd
 INTEGER :: FEMVertexID,iVertexInd,NonUniqueNodeID,CNS(8)
 !===================================================================================================================================
@@ -395,18 +395,18 @@ ALLOCATE(IsDepoSurfNode(1:nFEMVertices))
 IsDepoSurfNode = .FALSE.
 
 ! Mapping from NonuniqueGlobalNodeID to FEMVertexID
-ALLOCATE(NonUniqueGlobalVertexIDToFEMVertexID(1:nNonUniqueGlobalVertices))
+ALLOCATE(NonUniqueGlobalVertexIDToFEMVertexID(1:nNonUniqueGlobalNodes))
 NonUniqueGlobalVertexIDToFEMVertexID = 0
 
 ! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
 CALL GetCornerNodeMapCGNS(Ngeo,CornerNodesCGNS = CNS)
 
 ! Element index
-FirstElemInd = offsetElem+1
-LastElemInd  = offsetElem+nElems
+FirstGlobalElemID = offsetElem+1
+LastGlobalElemID  = offsetElem+nElems
 
 ! Loop over the process-local global elements indices
-DO iGlobalElemID = FirstElemInd, LastElemInd
+DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
   iElem = iGlobalElemID - offsetElem
   ElemType = ElemInfo_Shared(ELEM_TYPE,iGlobalElemID)
   ! Sanity check: currently only hexahedral elements are implemented
@@ -423,6 +423,7 @@ DO iGlobalElemID = FirstElemInd, LastElemInd
   DO iVertexInd = FirstVertexInd,LastVertexInd
     ! Get topologically unique global vertex ID, includes periodicity (needed for a FEM solver)
     FEMVertexID = VertexInfo_Shared(VERTEX_FEMID,iVertexInd)
+    ! Get the non-unique node index
     NonUniqueNodeID = CNS(iVertexInd-FirstVertexInd+1) + FirstVertexInd - 1
     ! Store mapping iVertexInd to NonUniqueNodeID
     VertexInfo_Shared(VERTEX_NONUNIQUENODEID,iVertexInd) = NonUniqueNodeID
