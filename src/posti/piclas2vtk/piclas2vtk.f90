@@ -75,7 +75,7 @@ LOGICAL                        :: CmdLineMode, NVisuDefault         ! In command
 CHARACTER(LEN=2)               :: NVisuString                       ! String containing NVisu from command line option
 CHARACTER(LEN=20)              :: fmtString                         ! String containing options for formatted write
 LOGICAL                        :: DGSolutionExists, ElemDataExists, SurfaceDataExists, VisuParticles, PartDataExists, DMDDataExists
-LOGICAL                        :: BGFieldExists, ExcitationDataExists, DVMSolutionExists
+LOGICAL                        :: BGFieldExists, ExcitationDataExists, DVMSolutionExists, SurfNodeSourceDataExists
 LOGICAL                        :: VisuAdaptiveInfo, AdaptiveInfoExists
 LOGICAL                        :: ReadMeshFinished, ElemMeshInit, SurfMeshInit
 LOGICAL                        :: ConvertPointToCellData
@@ -264,11 +264,12 @@ DO iArgs = iArgsStart,nArgs
   SWRITE(UNIT_stdOut,'(A,I3,A,I3,A)') 'Processing state ',iArgs-iArgsStart+1,' of ',nArgs-iArgsStart+1,'...'
 
   ! Open .h5 file
-  DGSolutionExists   = .FALSE.
-  ElemDataExists     = .FALSE.
-  SurfaceDataExists  = .FALSE.
-  PartDataExists     = .FALSE.
-  AdaptiveInfoExists = .FALSE.
+  DGSolutionExists         = .FALSE.
+  ElemDataExists           = .FALSE.
+  SurfaceDataExists        = .FALSE.
+  SurfNodeSourceDataExists = .FALSE.
+  PartDataExists           = .FALSE.
+  AdaptiveInfoExists       = .FALSE.
   CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   ! Get the type of the .h5 file
   CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
@@ -279,14 +280,15 @@ DO iArgs = iArgsStart,nArgs
     DGSolutionExists = .FALSE.
     VisuParticles = .TRUE.
   END IF
-  CALL DatasetExists(File_ID , 'ElemData'     , ElemDataExists)
-  CALL DatasetExists(File_ID , 'ExcitationData', ExcitationDataExists)
-  CALL DatasetExists(File_ID , 'AdaptiveInfo' , AdaptiveInfoExists)
-  CALL DatasetExists(File_ID , 'SurfaceData'  , SurfaceDataExists)
-  CALL DatasetExists(File_ID , 'PartData'     , PartDataExists)
-  CALL DatasetExists(File_ID , 'BGField'      , BGFieldExists) ! deprecated , but allow for backward compatibility
-  CALL DatasetExists(File_ID , 'DVM_Solution'  , DVMSolutionExists)
-  CALL DatasetExists(File_ID , 'Mode_001_ElectricFieldX_Img'     , DMDDataExists)
+  CALL DatasetExists(File_ID , 'ElemData'                    , ElemDataExists)
+  CALL DatasetExists(File_ID , 'ExcitationData'              , ExcitationDataExists)
+  CALL DatasetExists(File_ID , 'AdaptiveInfo'                , AdaptiveInfoExists)
+  CALL DatasetExists(File_ID , 'SurfaceData'                 , SurfaceDataExists)
+  CALL DatasetExists(File_ID , 'SurfNodeSource'              , SurfNodeSourceDataExists)
+  CALL DatasetExists(File_ID , 'PartData'                    , PartDataExists)
+  CALL DatasetExists(File_ID , 'BGField'                     , BGFieldExists) ! deprecated , but allow for backward compatibility
+  CALL DatasetExists(File_ID , 'DVM_Solution'                , DVMSolutionExists)
+  CALL DatasetExists(File_ID , 'Mode_001_ElectricFieldX_Img' , DMDDataExists)
   IF(BGFieldExists)THEN
     DGSolutionExists  = .TRUE.
     DGSolutionDataset = 'BGField'
@@ -328,7 +330,7 @@ DO iArgs = iArgsStart,nArgs
     END DO
     IF(Ngeo.GT.NVisu) THEN
       CALL abort(__STAMP__,'ERROR: Ngeo as read-in from mesh is greater than the chosen NVisu! Ngeo: ',Ngeo)
-    END IF
+    ENDIF
     ElemMeshInit = .TRUE.
   END IF
   ! Build connectivity for surface output
@@ -372,6 +374,10 @@ DO iArgs = iArgsStart,nArgs
   ! === SurfaceData ================================================================================================================
   IF(SurfaceDataExists) THEN
     CALL ConvertSurfaceData(InputStateFile)
+  END IF
+  ! === SurfaceData ================================================================================================================
+  IF(SurfNodeSourceDataExists) THEN
+    CALL ConvertSurfNodeSourceData(InputStateFile)
   END IF
   ! === PartData ===================================================================================================================
   IF(VisuParticles) THEN
@@ -1720,6 +1726,133 @@ SDEALLOCATE(tempSurfData)
 CALL CloseDataFile()
 
 END SUBROUTINE ConvertSurfaceData
+
+
+!===================================================================================================================================
+!> Convert surface charge (SurfNodeSource) results to a VTK format
+!===================================================================================================================================
+SUBROUTINE ConvertSurfNodeSourceData(InputStateFile)
+! MODULES
+USE MOD_Preproc
+USE MOD_Globals
+USE MOD_Globals_Vars            ,ONLY: ProjectName
+USE MOD_IO_HDF5                 ,ONLY: HSize
+USE MOD_HDF5_Input              ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample
+USE MOD_piclas2vtk_Vars         ,ONLY: SurfConnect, SurfOutputSideToUniqueSide
+USE MOD_Interpolation           ,ONLY: GetVandermonde
+USE MOD_Interpolation_Vars      ,ONLY: NMax,NMin
+USE MOD_ChangeBasis             ,ONLY: ChangeBasis2D
+USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVISU
+USE MOD_Mesh_Vars               ,ONLY: N_SurfMesh,NonUniqueGlobalNodeIDToFEMVertexID
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID_Shared
+USE MOD_ReadInTools             ,ONLY: PrintOption
+USE MOD_PICDepo                 ,ONLY: InitDepoSurfNodes
+#if !(PP_TimeDiscMethod==700)
+USE MOD_DG_Vars                 ,ONLY: DG_Elems_master,DG_Elems_slave
+USE MOD_PICDepo_Vars            ,ONLY: nDepoSurfNodes
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
+#endif /*!(PP_TimeDiscMethod==700)*/
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared
+USE MOD_Mesh_Vars          ,ONLY: SideToElem,ElemToSide
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)              :: FileString, File_Type
+CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
+INTEGER                         :: nDims, nVarSurf, nSurfaceSidesReadin, SideID, iSurfOutputSide, Nloc, nSurfaceNodes
+INTEGER                         :: iLocSideTest,iLocSide,NonUniqueNodeID,CNElemID,ElemID,FEMVertexID,iNode,iElem
+REAL                            :: OutputTime
+REAL, ALLOCATABLE               :: SurfNodeSource(:)
+REAL,ALLOCATABLE                :: NodeCoords_visu(:,:,:,:,:)     !< Coordinates of visualization nodes
+REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:,:)
+INTEGER,ALLOCATABLE             :: ConnectInfo(:,:)
+INTEGER,PARAMETER               :: data_size=4
+!===================================================================================================================================
+! Build vertex mappings
+CALL InitDepoSurfNodes() ! Get nDepoSurfNodes
+
+! Read in solution
+CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
+CALL ReadAttribute(File_ID , 'Project_Name'     , 1 , StrScalar  = ProjectName)
+CALL ReadAttribute(File_ID , 'File_Type'        , 1 , StrScalar  = File_Type)
+CALL ReadAttribute(File_ID , 'Time'             , 1 , RealScalar = OutputTime)
+! CALL ReadAttribute(File_ID , 'DSMC_nSurfSample' , 1 , IntScalar  = nSurfSample)
+! CALL PrintOption('DSMC_nSurfSample','HDF5',IntOpt=nSurfSample) ! 'HDF5.'
+
+CALL GetDataSize(File_ID,'SurfNodeSource',nDims,HSize)
+! nDepoSurfNodes = INT(HSize(1),2)
+nVarSurf = 1
+ALLOCATE(VarNamesSurf_HDF5(nVarSurf))
+CALL ReadAttribute(File_ID,'VarNamesSurfNodeSource',nVarSurf,StrArray=VarNamesSurf_HDF5(1:nVarSurf))
+! print*,VarNamesSurf_HDF5
+
+ALLOCATE(SurfNodeSource(1:nDepoSurfNodes))
+SurfNodeSource = 0.
+CALL ReadArray('SurfNodeSource',1,(/INT(nDepoSurfNodes,IK)/),0,1,RealArray=SurfNodeSource)
+! IPWRITE(*,*) 'SurfNodeSource:', SurfNodeSource
+
+! Get number of surface nodes
+nSurfaceNodes = 4
+
+! Get data and coordinates for visualisation
+ALLOCATE(tempSurfData(1:nVarSurf,1,1,0:0,1:nSurfaceNodes))
+tempSurfData = 0.
+
+ALLOCATE(NodeCoords_visu(1:3,0:0,0:0,0:0,1:nSurfaceNodes))
+NodeCoords_visu = 0.
+! NodeCoords_visu(1:3,0,0,0,1:nSurfaceNodes) = SurfConnect%NodeCoords(1:3,1:nSurfaceNodes)
+ElemID=1
+  SideID   = 1
+  ! Loop over all six sides and find the local side index that matches the Dirichlet side
+  DO iLocSideTest=1,6
+    iLocSide = iLocSideTest
+    IF(SideID.EQ.ElemToSide(E2S_SIDE_ID,iLocSideTest,ElemID)) EXIT
+  END DO
+CNElemID=1
+ALLOCATE(ConnectInfo(1:data_size,1))
+ConnectInfo = 0
+DO iNode = 1,nSurfaceNodes
+  ConnectInfo(iNode,SideID) = iNode ! ConnectInfo(data_size,nElems) !> Node connection information
+  ! Get the non-unique node index
+  NonUniqueNodeID = ElemSideNodeID_Shared(iNode,iLocSide,CNElemID) + 1
+  ! NonUniqueNodeID = ElemNodeID_Shared(iNode,ElemID)
+  ! Set coordinate
+  NodeCoords_visu(1:3,0,0,0,iNode) = NodeCoords_Shared(1:3,NonUniqueNodeID)
+  ! Get the unique FEM vertex index
+  FEMVertexID = NonUniqueGlobalNodeIDToFEMVertexID(NonUniqueNodeID)
+  ! Set surface charge value
+  tempSurfData(1,1,1,0,iNode) = SurfNodeSource(FEMVertexID)
+END DO ! iNode = 1,nSurfaceNodes
+
+FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_SurfNodeSource',OutputTime))//'.vtu'
+
+nSurfSample = 1 ! This is used in WriteDataToVTK_PICLas()
+CALL WriteDataToVTK_PICLas( 2                 , & ! dim
+                            data_size         , & ! data_size: 8 VTK_HEXAHEDRON, 1 VTK_VERTEX, 4 VTK_QUAD
+                            FileString        , & ! FileString
+                            nVarSurf          , & ! nVar
+                            VarNamesSurf_HDF5 , & ! VarNameVisu
+                            nSurfaceNodes     , & ! nNodes
+                            NodeCoords_visu   , & ! Coords
+                            1                 , & ! nElems
+                            tempSurfData      , & ! Array
+                            ConnectInfo)          ! ConnectInfo
+
+SDEALLOCATE(VarNamesSurf_HDF5)
+SDEALLOCATE(SurfNodeSource)
+SDEALLOCATE(tempSurfData)
+SDEALLOCATE(NodeCoords_visu)
+
+CALL CloseDataFile()
+
+END SUBROUTINE ConvertSurfNodeSourceData
 
 
 !===================================================================================================================================

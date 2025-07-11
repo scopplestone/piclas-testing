@@ -302,6 +302,9 @@ END DO
 DO BCsideID=1,nDistriCapBCsides
   SideID = DistriCapBC(BCsideID)
   Nloc = N_SurfMesh(SideID)%NSide
+  ! Map surface charge from vertices to SideID surface with N=1
+
+  ! Map from N=1 to N=Nloc
   DO q=0,Nloc; DO p=0,Nloc
     FEMVertexID = 1
     r=q*(Nloc+1) + p+1

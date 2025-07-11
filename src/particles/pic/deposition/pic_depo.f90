@@ -26,6 +26,7 @@ TYPE NodeDepoMapping
 END TYPE
 !===================================================================================================================================
 PUBLIC:: Deposition, InitializeDeposition, FinalizeDeposition, DefineParametersPICDeposition
+PUBLIC:: InitDepoSurfNodes
 !===================================================================================================================================
 
 CONTAINS
@@ -363,7 +364,7 @@ USE MOD_PICDepo_Vars
 USE MOD_Particle_Mesh_Vars ,ONLY: nNonUniqueGlobalNodes
 USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity, offsetElem, nElems!, nNonUniqueGlobalVertices
 USE MOD_Mesh_Vars          ,ONLY: VertexConnectInfo,NGeo
-USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nFEMVertices,NonUniqueGlobalVertexIDToFEMVertexID
+USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nFEMVertices,NonUniqueGlobalNodeIDToFEMVertexID
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,SideInfo_Shared,ElemInfo_Shared,VertexInfo_Shared
 USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionBCLevel,N_DG_Mapping
 USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
@@ -395,8 +396,8 @@ ALLOCATE(IsDepoSurfNode(1:nFEMVertices))
 IsDepoSurfNode = .FALSE.
 
 ! Mapping from NonuniqueGlobalNodeID to FEMVertexID
-ALLOCATE(NonUniqueGlobalVertexIDToFEMVertexID(1:nNonUniqueGlobalNodes))
-NonUniqueGlobalVertexIDToFEMVertexID = 0
+ALLOCATE(NonUniqueGlobalNodeIDToFEMVertexID(1:nNonUniqueGlobalNodes))
+NonUniqueGlobalNodeIDToFEMVertexID = 0
 
 ! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
 CALL GetCornerNodeMapCGNS(Ngeo,CornerNodesCGNS = CNS)
@@ -428,7 +429,7 @@ DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
     ! Store mapping iVertexInd to NonUniqueNodeID
     VertexInfo_Shared(VERTEX_NONUNIQUENODEID,iVertexInd) = NonUniqueNodeID
     ! Mapping from NonUniqueNodeID to FEMVertexID
-    NonUniqueGlobalVertexIDToFEMVertexID(NonUniqueNodeID) = FEMVertexID
+    NonUniqueGlobalNodeIDToFEMVertexID(NonUniqueNodeID) = FEMVertexID
 
     ! Get local vertex connectivity
     FirstVertexConnectInd = VertexInfo_Shared(VERTEX_FIRSTCONNECTIND,iVertexInd)+1

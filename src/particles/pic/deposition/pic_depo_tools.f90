@@ -27,6 +27,24 @@ CONTAINS
 
 !===================================================================================================================================
 !> Deposit the charge of a single particle on the face on an element.
+!>
+!>   Example: Relationship between NonUniqueVertexID, NonUniqueNodeID and FEMVertexID
+!>              for the same side (periodic mesh in y- and z-direction)
+!>
+!>                               5                  5                  1
+!>                             /|                 /|                 /|
+!>       |y                   / |                / |                / |
+!>       |                   /  |               /  |               /  |
+!>       |                8 /   |            7 /   |            1 /   |
+!>       |______x          |    |             |    |             |    |
+!>       /                 |   / 4            |   / 3            |   / 1
+!>      /                  |  /               |  /               |  /
+!>     /z                  | /                | /                | /
+!>                         |/                 |/                 |/
+!>                        1                  1                  1
+!>                  NonUniqueVertexID    NonUniqueNodeID      FEMVertexID
+!>                     (iVertexInd)
+!>
 !===================================================================================================================================
 SUBROUTINE DepositParticleOnSurface(Charge,PartPos,GlobalElemID,SideID)
 ! MODULES
@@ -44,7 +62,7 @@ USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSourceMPI
 #else
 USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource
 #endif /*USE_MPI*/
-USE MOD_Mesh_Vars          ,ONLY: SideToElem,ElemToSide,NonUniqueGlobalVertexIDToFEMVertexID
+USE MOD_Mesh_Vars          ,ONLY: SideToElem,ElemToSide,NonUniqueGlobalNodeIDToFEMVertexID
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID_Shared
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -107,7 +125,7 @@ ASSOCIATE( SurfNodeSource => SurfNodeSourceMPI )
     ! Get the non-unique node index
     NonUniqueNodeID = ElemSideNodeID_Shared(iNode,iLocSide,CNElemID) + 1
     ! Get the unique FEM vertex index
-    FEMVertexID = NonUniqueGlobalVertexIDToFEMVertexID(NonUniqueNodeID)
+    FEMVertexID = NonUniqueGlobalNodeIDToFEMVertexID(NonUniqueNodeID)
     ! Add charge contribution
     SurfNodeSource(FEMVertexID) = SurfNodeSource(FEMVertexID) + PartDistDepo(iNode)/DistSum*Charge
   END DO ! iNode = 1, 4

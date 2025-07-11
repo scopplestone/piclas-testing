@@ -268,7 +268,7 @@ INTEGER                        :: iElem,iMax,CNElemID
 INTEGER                        :: iDOF, nDOFOutput, offsetDOF, Nloc, i
 !===================================================================================================================================
 ALLOCATE(StrVarNames(1:nVarOut))
-StrVarNames(1)='SurfNodeSource'
+StrVarNames(1)='SurfaceChargeDensity'
 
 ! Skip MPI communication in the first step as nothing has been deposited yet
 IF(iter.NE.0)THEN
@@ -280,50 +280,27 @@ IF(iter.NE.0)THEN
 #endif /*USE_MPI*/
 end if ! iter.NE.0
 
-! Write data twice to .h5 file
-! 1. to _State_.h5 file (or restart)
-! 2. to separate file (for visu)
-#if USE_DEBUG
-iMax=2 ! write to state and to a separate file (for debugging)
-#else
-iMax=1 ! write to state file
-#endif /*USE_DEBUG*/
-DO i = 1, iMax
-  IF(i.EQ.1)THEN
-    ! Write field to _State_.h5 file (or restart)
-    FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
-    ! DataSetName='DG_SourceExt'
-  ELSE
-    ! Generate skeleton for the file with all relevant data on a single processor (MPIRoot)
-    ! Write field to separate file for debugging purposes
-    CALL GenerateFileSkeleton('SurfNodeSource',nVarOut,StrVarNames,TRIM(MeshFile),OutputTime,FileNameOut=FileName)
-#if USE_MPI
-    CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
-#endif
-    IF(MPIRoot)THEN
-      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
-      CALL WriteAttributeToHDF5(File_ID,'VarNamesSurfNodeSource',nVarOut,StrArray=StrVarNames)
-      CALL CloseDataFile()
-    END IF ! MPIRoot
-    ! DataSetName='DG_Solution'
+! Write field to _State_.h5 file (or restart)
+FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
 
-    ! Write 'Nloc' array to the .h5 file, which is required for 2D DG_Solution conversion in piclas2vtk
-    ! CALL WriteAdditionalElemData(FileName,ElementOutNloc)
-  END IF ! i.EQ.2
+IF(MPIRoot)THEN
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesSurfNodeSource',nVarOut,StrArray=StrVarNames)
+  CALL CloseDataFile()
+END IF ! MPIRoot
 
-  ! Associate construct for integer KIND=8 possibility
-  ASSOCIATE(nVarOut         => INT(nVarOut,IK)            ,&
-            nDofsMapping    => INT(nDepoSurfNodesTotal,IK),&
-            nDOFOutput      => INT(nDepoSurfNodesTotal,IK),&
-            offsetDOF       => INT(0,IK)         )
-    CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                          DataSetName = TRIM(DataSetName) , rank = 1 , &
-                          nValGlobal  = (/nDofsMapping/)  , &
-                          nVal        = (/nDOFOutput/)    , &
-                          offset      = (/offsetDOF/)     , &
-                          collective  = .TRUE. , RealArray = SurfNodeSource)
-  END ASSOCIATE
-END DO ! i = 1, 2
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE(nVarOut         => INT(nVarOut,IK)            ,&
+          nDofsMapping    => INT(nDepoSurfNodesTotal,IK),&
+          nDOFOutput      => INT(nDepoSurfNodesTotal,IK),&
+          offsetDOF       => INT(0,IK)         )
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+                        DataSetName = TRIM(DataSetName) , rank = 1 , &
+                        nValGlobal  = (/nDofsMapping/)  , &
+                        nVal        = (/nDOFOutput/)    , &
+                        offset      = (/offsetDOF/)     , &
+                        collective  = .TRUE. , RealArray = SurfNodeSource)
+END ASSOCIATE
 
 ! SDEALLOCATE(NodeSourceExtGlobal)
 SDEALLOCATE(StrVarNames)
