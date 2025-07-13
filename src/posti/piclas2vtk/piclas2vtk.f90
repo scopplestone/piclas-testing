@@ -1739,22 +1739,18 @@ USE MOD_Globals_Vars            ,ONLY: ProjectName
 USE MOD_IO_HDF5                 ,ONLY: HSize
 USE MOD_HDF5_Input              ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample
-USE MOD_piclas2vtk_Vars         ,ONLY: SurfConnect, SurfOutputSideToUniqueSide
 USE MOD_Interpolation           ,ONLY: GetVandermonde
-USE MOD_Interpolation_Vars      ,ONLY: NMax,NMin
 USE MOD_ChangeBasis             ,ONLY: ChangeBasis2D
 USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVISU
-USE MOD_Mesh_Vars               ,ONLY: N_SurfMesh,NonUniqueGlobalNodeIDToFEMVertexID
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID_Shared
+USE MOD_Mesh_Vars               ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID_Shared
 USE MOD_ReadInTools             ,ONLY: PrintOption
 USE MOD_PICDepo                 ,ONLY: InitDepoSurfNodes
 #if !(PP_TimeDiscMethod==700)
-USE MOD_DG_Vars                 ,ONLY: DG_Elems_master,DG_Elems_slave
 USE MOD_PICDepo_Vars            ,ONLY: nDepoSurfNodes
-USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared
 #endif /*!(PP_TimeDiscMethod==700)*/
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared
-USE MOD_Mesh_Vars          ,ONLY: SideToElem,ElemToSide
+USE MOD_Mesh_Vars               ,ONLY: ElemToSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1766,8 +1762,8 @@ CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)              :: FileString, File_Type
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
-INTEGER                         :: nDims, nVarSurf, nSurfaceSidesReadin, SideID, iSurfOutputSide, Nloc, nSurfaceNodes
-INTEGER                         :: iLocSideTest,iLocSide,NonUniqueNodeID,CNElemID,ElemID,FEMVertexID,iNode,iElem
+INTEGER                         :: nDims, nVarSurf, SideID, nSurfaceNodes
+INTEGER                         :: iLocSideTest,iLocSide,NonUniqueNodeID,CNElemID,ElemID,FEMVertexID,iNode
 REAL                            :: OutputTime
 REAL, ALLOCATABLE               :: SurfNodeSource(:)
 REAL,ALLOCATABLE                :: NodeCoords_visu(:,:,:,:,:)     !< Coordinates of visualization nodes
