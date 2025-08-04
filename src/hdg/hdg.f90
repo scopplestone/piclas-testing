@@ -149,7 +149,6 @@ USE MOD_Elem_Mat              ,ONLY: PETScFillSystemMatrix
 #endif /*USE_PETSC*/
 USE MOD_Mesh_Vars             ,ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
-USE MOD_Interpolation_Vars    ,ONLY: PREF_VDM
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -2125,7 +2124,7 @@ END SUBROUTINE HDG
 SUBROUTINE CalculateElectricTimeDerivative(iter,mode)
 ! MODULES
 USE MOD_PreProc
-USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Mesh_Vars              ,ONLY: nElems,offSetElem
 USE MOD_Globals_Vars           ,ONLY: eps0
 USE MOD_TimeDisc_Vars          ,ONLY: dt,dt_Min
 USE MOD_Analyze_Vars           ,ONLY: FieldAnalyzeStep
@@ -2143,9 +2142,7 @@ INTEGER,INTENT(IN) :: mode !< 1: store E^n at the beginning of the time step
                            !< 2: store E^n+1 at the end of the time step and subtract E^n to calculate the difference
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if (USE_HDG && (PP_nVar==1))
 INTEGER           :: iDir,iElem
-#endif /*(USE_HDG && (PP_nVar==1))*/
 !===================================================================================================================================
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 IF((iStage.NE.1).AND.(iStage.NE.nRKStages)) RETURN
@@ -2161,31 +2158,30 @@ IF( ( ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR. & ! Analysis dt
     DO iElem = 1, nElems
       U_N(iElem)%Dt(:,:,:,:) = U_N(iElem)%E(:,:,:,:)
     END DO ! iElem = 1, nElems
-ELSE
+  ELSE
     ! Store E^n+1 at the end of the time step and subtract E^n to calculate the difference
     IF(DoDielectric)THEN
-  DO iElem=1,PP_nElems
+      DO iElem=1,PP_nElems
         IF(isDielectricElem(iElem)) THEN
           DO iDir = 1, 3
             U_N(iElem)%Dt(iDir,:,:,:) = DielectricVol(ElemToDielectric(iElem))%DielectricEps(:,:,:)&
                 *eps0*(U_N(iElem)%E(iDir,:,:,:)-U_N(iElem)%Dt(iDir,:,:,:)) / dt
           END DO ! iDir = 1, 3
-          ELSE
+        ELSE
           U_N(iElem)%Dt(:,:,:,:) = eps0*(U_N(iElem)%E(:,:,:,:)-U_N(iElem)%Dt(:,:,:,:)) / dt
         END IF ! isDielectricElem(iElem)
       END DO ! iElem=1,PP_nElems
-            ELSE
-    DO iElem=1,PP_nElems
+    ELSE
+      DO iElem=1,PP_nElems
         U_N(iElem)%Dt(:,:,:,:) = eps0*(U_N(iElem)%E(:,:,:,:)-U_N(iElem)%Dt(:,:,:,:)) / dt
       END DO ! iElem=1,PP_nElems
     END IF ! DoDielectric
-
 #if defined(PARTICLES)
     ! Calculate the electric VDL surface potential from the particle and electric displacement current
     IF(DoVirtualDielectricLayer) CALL CalculatePhiAndEFieldFromCurrentsVDL(.TRUE.)
 #endif /*defined(PARTICLES)*/
   END IF ! mode.EQ.1
-    END IF
+END IF
 
 END SUBROUTINE CalculateElectricTimeDerivative
 

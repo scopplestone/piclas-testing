@@ -55,6 +55,7 @@ USE MOD_Interpolation_Vars ,ONLY: Nmax
 USE MOD_PML_Vars           ,ONLY: DoPML,isPMLElem
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectric,isDielectricElem
 USE MOD_Flux               ,ONLY: EvalFlux3D,EvalFlux3DDielectric              ! computes volume fluxes in local coordinates
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -67,7 +68,7 @@ LOGICAL,INTENT(IN)                                  :: dofirstElems
 ! LOCAL VARIABLES
 REAL,DIMENSION(PP_nVar,0:NMax,0:NMax,0:NMax)      :: f,g,h                ! volume fluxes at all Gauss points
 REAL,DIMENSION(PP_nVar)                           :: fTilde,gTilde,hTilde ! auxiliary variables needed to store the fluxes at one GP
-INTEGER                                           :: i,j,k,iElem
+INTEGER                                           :: i,j,k,iElem, CNElemID
 INTEGER                                           :: l                    ! row index for matrix vector product
 INTEGER                                           :: firstElemID, lastElemID
 INTEGER                                           :: Nloc

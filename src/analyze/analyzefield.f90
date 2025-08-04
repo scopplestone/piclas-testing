@@ -1179,7 +1179,6 @@ DO iElem=1,nElems
   WMag_tmp=0.
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ASSOCIATE( wGP => N_Inter(Nloc)%wGP )
-
   IF(isDielectricElem(iElem))THEN
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 #if USE_HDG
@@ -1339,7 +1338,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Dielectric_Vars ,ONLY: Dielectric_MuR_Master_inv,Dielectric_MuR_Slave_inv
 USE MOD_Dielectric_Vars ,ONLY: isDielectricElem,ElemToDielectric,DielectricVol
-USE MOD_Mesh_Vars       ,ONLY: nSides
+USE MOD_Mesh_Vars       ,ONLY: nSides,offSetElem
 USE MOD_ProlongToFace   ,ONLY: ProlongToFace
 #if USE_MPI
 USE MOD_MPI_Vars

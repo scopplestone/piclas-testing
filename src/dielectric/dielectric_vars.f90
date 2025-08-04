@@ -10,11 +10,16 @@
 !
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
+#include "piclas.h"
+
 MODULE MOD_Dielectric_Vars
 !===================================================================================================================================
 !
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE MOD_Globals
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -23,14 +28,20 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Dielectric region damping factor
-LOGICAL             :: DoDielectric                   ! True/false switch for Dielectric calculation procedures
+LOGICAL             :: DoDielectric = .FALSE.         ! True/false switch for Dielectric calculation procedures
 LOGICAL             :: DoDielectricSurfaceCharge      ! Flag set automatically if dielectric boundaries are used
 LOGICAL             :: DielectricFluxNonConserving    ! True/false switch for using conserving or non-conserving fluxes at
 !                                                     !dielectric interfaces between a dielectric region and vacuum
 LOGICAL             :: DielectricInitIsDone           ! Initialization flag
 LOGICAL             :: DielectricNoParticles          ! Do not insert/emit particles into dielectric regions (default=T).
-LOGICAL,ALLOCATABLE :: isDielectricElem(:)            ! True if iElem is an element located within the Dielectric.
-!                                                     ! This vector is allocated to (region.1:PP_nElems)
+LOGICAL,ALLOCATABLE :: isDielectricElem(:)            ! True if local element is located within the dielectric
+#ifdef PARTICLES
+LOGICAL,ALLOCATABLE :: isDielectricElem_Global(:)     ! Same but for the global elements, temporary on the compute-node root (1:nGlobalElems)
+LOGICAL,ALLOCPOINT  :: isDielectricElem_Shared(:)     ! Same but for the compute-node element, built for check during tracking (1:nComputeNodeTotalElems)
+#endif /*PARTICLES*/
+#if USE_MPI
+TYPE(MPI_Win)       :: isDielectricElem_Shared_Win
+#endif /*USE_MPI*/
 LOGICAL,ALLOCATABLE :: isDielectricFace(:)            ! True if iFace is a Face located within or on the boarder (interface) of the
 !                                                     ! Dielectric region. This vector is allocated to (1:nSides)
 LOGICAL,ALLOCATABLE :: isDielectricInterFace(:)       ! True if iFace is a Face located on the boarder (interface) of the Dielectric
