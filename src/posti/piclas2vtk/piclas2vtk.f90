@@ -380,7 +380,15 @@ DO iArgs = iArgsStart,nArgs
   END IF
   ! === SurfaceData ================================================================================================================
   IF(SurfNodeSourceDataExists) THEN
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+#if defined(PARTICLES)
     CALL ConvertSurfNodeSourceData(InputStateFile)
+#else
+    CALL abort(__STAMP__,'ERROR: ConvertSurfNodeSourceData() is not implemented for PARTICLES=OFF')
+#endif /*defined(PARTICLES)*/
+#else
+    CALL abort(__STAMP__,'ERROR: ConvertSurfNodeSourceData() is not implemented for PP_TimeDiscMethod=4,300,400,700')
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
   END IF
   ! === PartData ===================================================================================================================
   IF(VisuParticles) THEN
@@ -1733,6 +1741,8 @@ CALL CloseDataFile()
 END SUBROUTINE ConvertSurfaceData
 
 
+#if defined(PARTICLES)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 !===================================================================================================================================
 !> Convert surface charge (SurfNodeSource) results to a VTK format
 !===================================================================================================================================
@@ -1750,9 +1760,7 @@ USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVISU
 USE MOD_Mesh_Vars               ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID_Shared
 USE MOD_ReadInTools             ,ONLY: PrintOption
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_PICDepo                 ,ONLY: InitDepoSurfNodes
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #if !(PP_TimeDiscMethod==700)
 USE MOD_PICDepo_Vars            ,ONLY: nDepoSurfNodes
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared
@@ -1778,12 +1786,8 @@ REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:,:)
 INTEGER,ALLOCATABLE             :: ConnectInfo(:,:)
 INTEGER,PARAMETER               :: data_size=4
 !===================================================================================================================================
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 ! Build vertex mappings
 CALL InitDepoSurfNodes() ! Get nDepoSurfNodes
-#else
-CALL abort(__STAMP__,'ERROR: ConvertSurfNodeSourceData() is not implemented for PP_TimeDiscMethod=4,300,400')
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 ! Read in solution
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
@@ -1860,7 +1864,8 @@ SDEALLOCATE(NodeCoords_visu)
 CALL CloseDataFile()
 
 END SUBROUTINE ConvertSurfNodeSourceData
-
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
+#endif /*defined(PARTICLES)*/
 
 !===================================================================================================================================
 !> Create connectivities for matching sides
