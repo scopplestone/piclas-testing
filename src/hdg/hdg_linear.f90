@@ -74,7 +74,9 @@ USE MOD_Globals_Vars       ,ONLY: ElementaryCharge,eps0
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_HDG_Tools          ,ONLY: CG_solver,DisplayConvergence
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
+#if defined(PARTICLES)
 USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource
+#endif /*defined(PARTICLES)*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -308,8 +310,12 @@ DO BCsideID=1,nDistriCapBCsides
   DO q=0,Nloc; DO p=0,Nloc
     FEMVertexID = 1
     r=q*(Nloc+1) + p+1
+#if defined(PARTICLES)
     src = N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q) &
         * ( DCPermittivity * DCBiasVoltage / DCThickness + (SurfNodeSource(FEMVertexID)/2.5e-9 + DCSurfaceCharge)/eps0 )
+#else
+    CALL Abort(__STAMP__,'ERROR: Distributed capacitance requires PARTICLES=ON')
+#endif /*defined(PARTICLES)*/
     HDG_Surf_N(SideID)%RHS_face(1,r) = HDG_Surf_N(SideID)%RHS_face(1,r) + src
   END DO; END DO !p,q
 END DO
