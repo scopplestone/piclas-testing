@@ -40,7 +40,6 @@ CALL prms%CreateRealArrayOption( 'RayTracing-RayDirection'    , 'Direction vecto
 CALL prms%CreateIntOption(       'RayTracing-PartBound'       , 'Particle boundary ID where rays are emitted from' , '0')
 CALL prms%CreateRealOption(      'RayTracing-PulseDuration'   , 'Pulse duration tau for a Gaussian-type pulse with I~exp(-(t/tau)^2) [s]'                  )
 CALL prms%CreateIntOption(       'RayTracing-NbrOfPulses'     , 'Number of pulses [-]'                                                                     , '1')
-CALL prms%CreateRealOption(      'RayTracing-WaistRadius'     , 'Beam waist radius (in focal spot) w_b for Gaussian-type pulse with I~exp(-(r/w_b)^2) [m]' , '0.0')
 CALL prms%CreateRealOption(      'RayTracing-WaveLength'      , 'Beam wavelength [m]'                                                                      )
 CALL prms%CreateRealOption(      'RayTracing-RepetitionRate'  , 'Pulse repetition rate (pulses per second) [Hz]'                                           )
 CALL prms%CreateRealOption(      'RayTracing-PowerDensity'    , 'Average pulse power density (power per area) [W/m2]')
@@ -93,6 +92,7 @@ INTEGER,ALLOCATABLE :: RaySide2GlobalSide_temp(:)
 REAL                :: factor,SurfaceNormal(3),alpha
 CHARACTER(LEN=3)    :: hilf ! auxiliary variable for INTEGER -> CHARACTER conversion
 LOGICAL             :: FoundComputeNodeSurfSide
+REAL                :: RayEnergy
 !===================================================================================================================================
 IF(.NOT.UseRayTracing) RETURN
 LBWRITE(UNIT_StdOut,'(132("-"))')
@@ -110,7 +110,6 @@ IF(RayPartBound.LE.0) CALL CollectiveStop(__STAMP__,'RayTracing-PartBound must b
 Ray%PulseDuration  = GETREAL('RayTracing-PulseDuration')
 Ray%NbrOfPulses    = GETINT('RayTracing-NbrOfPulses')
 Ray%tShift         = SQRT(8.0) * Ray%PulseDuration
-Ray%WaistRadius    = GETREAL('RayTracing-WaistRadius')
 Ray%WaveLength     = GETREAL('RayTracing-WaveLength')
 Ray%RepetitionRate = GETREAL('RayTracing-RepetitionRate')
 Ray%Period         = 1./Ray%RepetitionRate
@@ -186,47 +185,27 @@ IF(PerformRayTracing)THEN
   LBWRITE(*,'(A,I0,A)') ' | Found ', nRaySides, ' sides for the ray emission on the specified BC.'
 END IF ! PerformRayTracing
 
-ASSOCIATE( &
-      E0      => Ray%Energy             ,&
-      wb      => Ray%WaistRadius        ,&
-      tau     => Ray%PulseDuration      ,&
-      I0      => Ray%IntensityAmplitude ,&
-      tShift  => Ray%tShift             ,&
-      Period  => Ray%Period             ,&
-      tActive => Ray%tActive            ,&
-      A       => Ray%Area               )
+! ATTENTION: Rectangle only and uses GEO min/max in x- and y-direction!
+! TODO: Ray emission area from chosen boundary surface?
+Ray%Area = (GEO%xmaxglob-GEO%xminglob) * (GEO%ymaxglob-GEO%yminglob)
+! Normal vector of the ray emission area
+SurfaceNormal = (/ 0., 0., 1. /)
+! Angle between emitted rays and emission area
+alpha = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(Ray%Direction,SurfaceNormal))))
+! Generate two base vectors perpendicular to the ray direction
+CALL OrthoNormVec(Ray%Direction,Ray%BaseVector1IC,Ray%BaseVector2IC)
 
-  ! ATTENTION: Rectangle only and uses GEO min/max in x- and y-direction!
-  ! TODO: Ray emission area from chosen boundary surface?
-  A = (GEO%xmaxglob-GEO%xminglob) * (GEO%ymaxglob-GEO%yminglob)
-  ! Normal vector of the ray emission area
-  SurfaceNormal = (/ 0., 0., 1. /)
-  ! Angle between emitted rays and emission area
-  alpha = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(Ray%Direction,SurfaceNormal))))
+! Derived quantities
+RayEnergy = Ray%PowerDensity * Ray%Area / Ray%RepetitionRate
 
-  ! Derived quantities
-  Ray%Power = Ray%PowerDensity * A ! adjust power from [W/m2] to [W]
-  E0 = Ray%Power / Ray%RepetitionRate
+! Calculate the peak intensity
+Ray%IntensityAmplitude = RayEnergy / (SQRT(PI)*Ray%PulseDuration*Ray%Area) / ERF(Ray%tShift / Ray%PulseDuration)
 
-  ! Generate two base vectors perpendicular to the ray direction
-  CALL OrthoNormVec(Ray%Direction,Ray%BaseVector1IC,Ray%BaseVector2IC)
+! Sanity check: overlapping of pulses is not implemented (use multiple emissions for this)
+IF(2.0*Ray%tShift.GT.Ray%Period) CALL abort(__STAMP__,'Pulse length (2*Ray%tShift) is greater than the pulse period. This is not implemented!')
 
-  ! Calculate the peak intensity (uncorrected)
-  I0 = E0 / (SQRT(PI)*tau*A)
-
-  ! Correction factor due to temporal cut-off of the Gaussian pulse
-  ! no need for correction in space because the function is not cut-off in space
-  ! just consider the temporal cut-off for the rectangle
-  factor = ERF(tShift/tau)
-  factor = SQRT(PI)*tau*A
-  I0 = E0 / factor
-
-  ! Sanity check: overlapping of pulses is not implemented (use multiple emissions for this)
-  IF(2.0*tShift.GT.Period) CALL abort(__STAMP__,'Pulse length (2*tShift) is greater than the pulse period. This is not implemented!')
-
-  ! Active pulse time
-  tActive = REAL(Ray%NbrOfPulses - 1)*Period + 2.0*tShift
-END ASSOCIATE
+! Active pulse time
+Ray%tActive = REAL(Ray%NbrOfPulses - 1)*Ray%Period + 2.0*Ray%tShift
 
 CALL PrintOption('Rectangular ray emission area: A [m2]'                             , 'CALCUL.' , RealOpt=Ray%Area)
 CALL PrintOption('Angle between emission area normal and ray direction: alpha [deg]' , 'CALCUL.' , RealOpt=alpha)
@@ -236,9 +215,8 @@ IF(ABS(alpha)+1e-4.LT.90.0)THEN
 ELSE
   CALL PrintOption('Enhancement factor for energy deposited in the volume [-]'       , 'CALCUL.' , RealOpt=1.0)
 END IF ! ABS(alpha).GT.0.0
-CALL PrintOption('Single pulse energy [J]'                                           , 'CALCUL.' , RealOpt=Ray%Energy)
+CALL PrintOption('Single pulse energy [J]'                                           , 'CALCUL.' , RealOpt=RayEnergy)
 CALL PrintOption('Intensity amplitude: I0 [W/m^2]'                                   , 'CALCUL.' , RealOpt=Ray%IntensityAmplitude)
-CALL PrintOption('Corrected Intensity amplitude: I0_corr [W/m^2]'                    , 'CALCUL.' , RealOpt=Ray%IntensityAmplitude)
 CALL PrintOption('Pulse period (Time between maximum of two pulses) [s]'             , 'CALCUL.' , RealOpt=Ray%Period)
 CALL PrintOption('Temporal pulse width (pulse time 2x tShift) [s]'                   , 'CALCUL.' , RealOpt=2.0*Ray%tShift)
 CALL PrintOption('Pulse will end at tActive (pulse final time) [s]'                  , 'CALCUL.' , RealOpt=Ray%tActive)

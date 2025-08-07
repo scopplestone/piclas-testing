@@ -39,13 +39,10 @@ TYPE tRayTrace
   REAL    :: tActive            !<
   REAL    :: Period             !<
   INTEGER :: NbrOfPulses        !<
-  REAL    :: WaistRadius        !<
   REAL    :: WaveLength         !<
   REAL    :: RepetitionRate     !<
   REAL    :: PowerDensity       !<
-  REAL    :: Power              !<
   REAL    :: Area               !<
-  REAL    :: Energy             !<
   REAL    :: IntensityAmplitude !<
   REAL    :: Direction(3)       !<
   REAL    :: BaseVector1IC(3)   !<
