@@ -77,7 +77,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts,TotalNbrOfMissingParti
 USE MOD_Particle_Analyze_Vars  ,ONLY: nSpecAnalyze
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcNumPartsOfSpec
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-USE MOD_Particle_Boundary_Vars ,ONLY: DoSurfaceCharge
+USE MOD_Particle_Boundary_Vars ,ONLY: Do2DSurfaceCharge
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteNodeSourceExtToHDF5,WriteClonesToHDF5,WriteVibProbInfoToHDF5,WriteAdaptiveWallTempToHDF5
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteSurfNodeSourceToHDF5
@@ -740,7 +740,7 @@ IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
 ! ---------------------------------------------------------
 ! Write SurfNodeSource (surface charge density) field to HDF5 file
 ! ---------------------------------------------------------
-IF(DoSurfaceCharge) CALL WriteSurfNodeSourceToHDF5(OutputTime_loc)
+IF(Do2DSurfaceCharge) CALL WriteSurfNodeSourceToHDF5(OutputTime_loc)
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 ! ---------------------------------------------------------
 ! Output particle emission data to be read during subsequent restarts

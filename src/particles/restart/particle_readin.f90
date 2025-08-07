@@ -47,7 +47,7 @@ USE MOD_DSMC_Vars              ,ONLY: UseDSMC,DSMC,PolyatomMolDSMC,SpecDSMC,Part
 ! Particles
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5,ReadNodeSourceExtFromHDF5,ReadSurfNodeSourceFromHDF5
-USE MOD_Particle_Boundary_Vars ,ONLY: DoSurfaceCharge
+USE MOD_Particle_Boundary_Vars ,ONLY: Do2DSurfaceCharge
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,nSpecies,Species
 ! Restart
 USE MOD_Restart_Vars           ,ONLY: RestartFile,RestartNullifySolution,DoMacroscopicRestart
@@ -593,7 +593,7 @@ ELSE
   ! ------------------------------------------------
   ! SurfNodeSource (surface charge source terms)
   ! ------------------------------------------------
-  IF(DoSurfaceCharge) CALL ReadSurfNodeSourceFromHDF5()
+  IF(Do2DSurfaceCharge) CALL ReadSurfNodeSourceFromHDF5()
 
   ! ------------------------------------------------
   ! PartInt

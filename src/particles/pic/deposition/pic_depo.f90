@@ -107,7 +107,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_Interpolation_Vars     ,ONLY: Nmin,Nmax
 USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
-USE MOD_Particle_Boundary_Vars ,ONLY: DoSurfaceCharge
+USE MOD_Particle_Boundary_Vars ,ONLY: Do2DSurfaceCharge
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -321,7 +321,7 @@ CASE DEFAULT
 END SELECT
 
 ! Surface charge model
-IF (DoSurfaceCharge) THEN
+IF (Do2DSurfaceCharge) THEN
   CALL InitDepoSurfNodes() ! Get nDepoSurfNodes
   ! Build Mapping
 #if USE_MPI
@@ -376,7 +376,6 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-! LOGICAL,ALLOCATABLE       :: IsDepoSurfNode(:)
 #if USE_MPI
 #else
 ! INTEGER                   :: iNode
@@ -396,6 +395,7 @@ ALLOCATE(IsDepoSurfNode(1:nFEMVertices))
 IsDepoSurfNode = .FALSE.
 
 ! Mapping from NonuniqueGlobalNodeID to FEMVertexID
+! TODO: Make this array SHM
 ALLOCATE(NonUniqueGlobalNodeIDToFEMVertexID(1:nNonUniqueGlobalNodes))
 NonUniqueGlobalNodeIDToFEMVertexID = 0
 
@@ -458,6 +458,7 @@ END DO ! iGlobalElemID = FirstElemInd, LastElemInd
 
 ! Count the number of unique deposition nodes per processor
 nDepoSurfNodes = COUNT(IsDepoSurfNode)
+DEALLOCATE(IsDepoSurfNode)
 
 END SUBROUTINE InitDepoSurfNodes
 
@@ -1789,6 +1790,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared,ElemNodeID_Shared
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 #endif /*USE_LOADBALANCE*/
+USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1823,6 +1825,7 @@ SDEALLOCATE(CellVolWeight_Volumes)
 SDEALLOCATE(ChargeSFDone)
 SDEALLOCATE(PeriodicSFCaseMatrix)
 SDEALLOCATE(N_ShapeTmp)
+SDEALLOCATE(NonUniqueGlobalNodeIDToFEMVertexID)
 
 #if USE_MPI
 SDEALLOCATE(FlagShapeElem)

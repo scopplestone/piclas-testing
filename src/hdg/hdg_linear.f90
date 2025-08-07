@@ -77,6 +77,9 @@ USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #if defined(PARTICLES)
 USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource
 #endif /*defined(PARTICLES)*/
+#if defined(PARTICLES)
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+#endif /*defined(PARTICLES)*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -91,7 +94,9 @@ INTEGER :: BCsideID,BCType,BCState,SideID,iLocSide
 REAL    :: RHS_facetmp(nGP_face(NMax))
 REAL    :: rtmp(nGP_vol(NMax))
 INTEGER :: DOFindices(nGP_face(NMax))
-
+#if defined(PARTICLES)
+INTEGER :: iPartBound
+#endif /*defined(PARTICLES)*/
 !LOGICAL :: converged
 #if (PP_nVar!=1)
 REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
@@ -303,6 +308,9 @@ END DO
 ! Add Distributed Capacitance BC
 DO BCsideID=1,nDistriCapBCsides
   SideID = DistriCapBC(BCsideID)
+#if defined(PARTICLES)
+  iPartBound = PartBound%MapToPartBC(BC(SideID)) ! Get particle boundary index
+#endif /*defined(PARTICLES)*/
   Nloc = N_SurfMesh(SideID)%NSide
   ! Map surface charge from vertices to SideID surface with N=1
 
@@ -311,8 +319,11 @@ DO BCsideID=1,nDistriCapBCsides
     FEMVertexID = 1
     r=q*(Nloc+1) + p+1
 #if defined(PARTICLES)
-    src = N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q) &
-        * ( DCPermittivity * DCBiasVoltage / DCThickness + (SurfNodeSource(FEMVertexID)/2.5e-9 + DCSurfaceCharge)/eps0 )
+    src = N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q) * ( &
+          PartBound%DCPermittivity(iPartBound) * PartBound%DCBiasVoltage(iPartBound) / PartBound%DCThickness(iPartBound) + & ! DCBC
+          (SurfNodeSource(FEMVertexID)/2.5e-9 +                  & ! Surface charge due to deposited particles
+                    PartBound%DCSurfaceChargeDensity(iPartBound) & ! Surface charge due to analytical expression
+          )/eps0 )
 #else
     CALL Abort(__STAMP__,'ERROR: Distributed capacitance requires PARTICLES=ON')
 #endif /*defined(PARTICLES)*/

@@ -52,7 +52,7 @@ USE MOD_Globals                   ,ONLY: myrank
 USE MOD_Globals_Vars              ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
-USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample, DoSurfaceCharge
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample, Do2DSurfaceCharge
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfModEnergyDistribution, ImpactWeight
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos
@@ -119,7 +119,7 @@ IF(usevMPF)THEN
 ELSE
   ImpactWeight = Species(PartSpecImpact)%MacroParticleFactor
 END IF ! usevMPF
-IF(DoSurfaceCharge.OR.(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID))) THEN ! Surface charging active
+IF(Do2DSurfaceCharge.OR.(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID))) THEN ! Surface charging active
   ChargeImpact = Species(PartSpecImpact)%ChargeIC*ImpactWeight
 END IF
 !===================================================================================================================================
@@ -278,7 +278,7 @@ END SELECT
 !===================================================================================================================================
 ! 4.) PIC ONLY: Deposit charges on dielectric surface (when activated), if these were removed/changed in SurfaceModel
 !===================================================================================================================================
-IF(DoSurfaceCharge.OR.(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID))) THEN ! Surface charging active
+IF(Do2DSurfaceCharge.OR.(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID))) THEN ! Surface charging active
 
   ! Method 1: PartBound%Dielectric = T (dielectric boundary)
   IF(PartBound%Dielectric(locBCID))THEN
@@ -330,10 +330,10 @@ IF(DoSurfaceCharge.OR.(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCI
 #endif /*USE_HDG*/
 
   ! Method 3: 2D Surface Charging
-  IF (PartBound%SurfaceCharge(locBCID)) THEN
+  IF (PartBound%UseSurfaceCharge(locBCID)) THEN
     ! Deposit the charge
     CALL DepositParticleOnSurface(ChargeImpact, PartPosImpact, GlobalElemID, SideID)
-  END IF ! PartBound%SurfaceCharge(locBCID)
+  END IF ! PartBound%UseSurfaceCharge(locBCID)
 
 END IF ! DoDeposition.AND.DoDielectricSurfaceCharge
 

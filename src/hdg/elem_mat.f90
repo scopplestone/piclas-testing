@@ -67,6 +67,9 @@ USE MOD_Mesh_Vars          ,ONLY: ElemToSide
 USE MOD_DG_Vars            ,ONLY: DG_Elems_slave,DG_Elems_master
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,BC
 USE MOD_Globals_Vars       ,ONLY: eps0
+#if defined(PARTICLES)
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+#endif /*defined(PARTICLES)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -292,7 +295,12 @@ DO iElem=1,PP_nElems
     IF (BC(iSide).GT.0)THEN
       BCType = BoundaryType(BC(iSide),BC_TYPE)
       IF (BCType.EQ.30) THEN ! Distributed Capacitance
-        fac = (Tau(iElem) + DCPermittivity / DCThickness)
+        fac = Tau(iElem) &
+#if defined(PARTICLES)
+          + PartBound%DCPermittivity(PartBound%MapToPartBC(BC(iSide))) / &
+            PartBound%DCThickness(PartBound%MapToPartBC(BC(iSide)))
+#endif /*defined(PARTICLES)*/
+         ; ! this is required for terminating the "&" when particles=off
       END IF
     END IF
     !Stmp1 = TRANSPOSE( MATMUL( Ehat(:,:,jLocSide,iElem) , InvDhat(:,:,iElem) ) )

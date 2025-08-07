@@ -1860,6 +1860,7 @@ SDEALLOCATE(VarNamesSurf_HDF5)
 SDEALLOCATE(SurfNodeSource)
 SDEALLOCATE(tempSurfData)
 SDEALLOCATE(NodeCoords_visu)
+SDEALLOCATE(NonUniqueGlobalNodeIDToFEMVertexID)
 
 CALL CloseDataFile()
 

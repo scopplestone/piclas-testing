@@ -86,10 +86,6 @@ CALL prms%CreateRealOption(   'HDGSkip_t0'             ,'Time during which HDGSk
 CALL prms%CreateLogicalOption('HDGDisplayConvergence'  ,'Display divergence criteria: Iterations, RunTime and Residual', '.FALSE.')
 CALL prms%CreateRealArrayOption( 'EPC-Resistance'      ,'Vector (length corresponds to the number of EPC boundaries) with the resistance for each EPC in Ohm', no=0)
 CALL prms%CreateLogicalOption('HDGNSideMin'            ,'Use the minimum polynomial degree at the sides for the HDG solver', '.FALSE.')
-CALL prms%CreateRealOption(   'DC-BiasVoltage'         ,'Distributed Capacitance bias voltage', '0.0')
-CALL prms%CreateRealOption(   'DC-Permittivity'        ,'Distributed Capacitance relative permittivity (eps_r)', '1.0')
-CALL prms%CreateRealOption(   'DC-SurfaceCharge'       ,'Distributed Capacitance surface charge density (sigma)', '0.0')
-CALL prms%CreateRealOption(   'DC-Thickness'           ,'Distributed Capacitance thickness', '1.0')
 #if defined(PARTICLES)
 CALL prms%CreateLogicalOption(  'UseBiasVoltage'              , 'Activate usage of bias voltage adjustment (for specific boundaries only)', '.FALSE.')
 CALL prms%CreateIntOption(      'BiasVoltage-NPartBoundaries' , 'Number of particle boundaries where the total ion excess is to be calculated for bias voltage model')
@@ -424,14 +420,6 @@ CALL InitEPC()
 ! BCType: 52,X for bias voltage + cos(wt) function + coupled power adjustment (for AC and not DC in this case)
 CALL InitBV()
 #endif /*defined(PARTICLES)*/
-
-IF(nDistriCapBCsides.GT.0)THEN
-  ! Read stuff like thickness, permittivity and bias voltage
-  DCThickness = GETREAL('DC-Thickness')
-  DCPermittivity = GETREAL('DC-Permittivity')
-  DCSurfaceCharge = GETREAL('DC-SurfaceCharge')
-  DCBiasVoltage = GETREAL('DC-BiasVoltage')
-END IF
 
 ! 8. BCs the second...
 ! Get the global number of Dirichlet boundaries. If there are none, the potential of a single DOF must be set.
