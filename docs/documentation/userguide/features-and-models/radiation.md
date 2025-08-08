@@ -188,7 +188,7 @@ Raytracing is activated with
 
     UseRayTracing = T
 
-It only requires only one single section in the parameter.ini file. The user must specify a single rectangular and planar particle-boundary (here with index 5)
+The user must specify a single rectangular and planar particle-boundary in an xy-plane (here with index 5)
 
     RayTracing-PartBound = 5
 
@@ -208,11 +208,8 @@ defines the pulse duration $\tau$ that defines the temporal shape of the light i
 
     RayTracing-NbrOfPulses
 
-defines the number of pulses that are performed and
+defines the number of pulses that are performed.
 
-    RayTracing-WaistRadius
-
-the waist radius $w_{b}$ that defines the spatial intensity via $I\propto\exp(-(r/w_b)^2)$ in [m].
 The wavelength in [m] is given by
 
     RayTracing-WaveLength = 50e-9
@@ -239,7 +236,7 @@ The parameter
 
     RayTracing-ForceAbsorption=T
 
-activates sampling of photons on surfaces independent of what happens to them there. They might be reflected or absorbed. If this parameter is set to `false``, then only absorbed photons will be sampled on surfaces. By also sampling reflected photons, the statistic is improved, hence, it should always be activated.
+activates sampling of photons on surfaces independent of what happens to them there. They might be reflected or absorbed. If this parameter is set to `false`, then only absorbed photons will be sampled on surfaces. By also sampling reflected photons, the statistic is improved, hence, it should always be activated.
 
 The angle under which photons are emitted from the particle-boundary is calculated from the normal vector of the boundary and the parameter
 
