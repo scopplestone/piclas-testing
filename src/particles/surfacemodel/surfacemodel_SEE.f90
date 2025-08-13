@@ -99,21 +99,21 @@ CASE(3,4,12,13) ! 3: SEE-E by square fit: a*e[eV] + b*e^2[eV] + c
                 ! 13: SEE model by M. Villemant et al 2019 EPL 127 23001. https://doi.org/10.1209/0295-5075/127/23001 - Vaughan formula
   ! Bombarding electron
   IF(PARTISELECTRON(PartID_IN))THEN
-    ! Material work function as the energy threshold: Calculate yield only when energy is sufficient
+    ! Calculate the yield
+    SELECT CASE(PartBound%SurfaceModel(locBCID))
+    CASE(3)   ! Square Fit
+      SEEYield = SurfModSEEFitCoeff(1,locBCID)*eps_e + SurfModSEEFitCoeff(2,locBCID)*eps_e*eps_e + SurfModSEEFitCoeff(3,locBCID)
+    CASE(4)   ! Power Fit
+      SEEYield = SurfModSEEFitCoeff(1,locBCID)*eps_e**SurfModSEEFitCoeff(2,locBCID) + SurfModSEEFitCoeff(3,locBCID)
+    CASE(12)  ! Yield function
+      SEEYield = SurfModSEEFitCoeff(1,locBCID)*1.11*(eps_e/SurfModSEEFitCoeff(2,locBCID))**(-0.35) &
+      * (1 - EXP(-2.3 * (eps_e/SurfModSEEFitCoeff(2,locBCID))**(1.35)))
+    CASE(13)  ! Yield function
+      SEEYield = SurfModSEEFitCoeff(1,locBCID)*(eps_e/SurfModSEEFitCoeff(2,locBCID)*EXP(1-eps_e/SurfModSEEFitCoeff(2,locBCID)))**SurfModSEEFitCoeff(3,locBCID)
+    END SELECT
+    ! Material work function as the energy threshold
     IF(eps_e.GT.SurfModSEEFitCoeff(4,locBCID)) THEN
-      ! Calculate the yield
-      SELECT CASE(PartBound%SurfaceModel(locBCID))
-      CASE(3)   ! Square Fit
-        SEEYield = SurfModSEEFitCoeff(1,locBCID)*eps_e + SurfModSEEFitCoeff(2,locBCID)*eps_e*eps_e + SurfModSEEFitCoeff(3,locBCID)
-      CASE(4)   ! Power Fit
-        SEEYield = SurfModSEEFitCoeff(1,locBCID)*eps_e**SurfModSEEFitCoeff(2,locBCID) + SurfModSEEFitCoeff(3,locBCID)
-      CASE(12)  ! Yield function
-        SEEYield = SurfModSEEFitCoeff(1,locBCID)*1.11*(eps_e/SurfModSEEFitCoeff(2,locBCID))**(-0.35) &
-                   * (1 - EXP(-2.3 * (eps_e/SurfModSEEFitCoeff(2,locBCID))**(1.35)))
-      CASE(13)  ! Yield function
-        SEEYield = SurfModSEEFitCoeff(1,locBCID)*(eps_e/SurfModSEEFitCoeff(2,locBCID)*EXP(1-eps_e/SurfModSEEFitCoeff(2,locBCID)))**SurfModSEEFitCoeff(3,locBCID)
-      END SELECT
-      ! Determine the number of secondaries to be emitted
+      ! Determine the number of secondaries to be emitted only when energy is sufficient
       IF(SurfModSEEvMPF(locBCID)) THEN
         IF(SEEYield * PartMPF(PartID_IN).GT.vMPFSplitLimit) THEN
           ! Scale the weighting factor by the yield and force the insertion of a single secondary to exactly to correspond to the yield
@@ -128,11 +128,11 @@ CASE(3,4,12,13) ! 3: SEE-E by square fit: a*e[eV] + b*e^2[eV] + c
         ! Get the number of electrons from the Poisson distribution
         CALL SamplePoissonDistri(SEEYield,ProductSpecNbr)
       END IF
-      ! Subtract work function and set emitted species, if a single electron or multiple electrons are created (ProductSpecNbr>=1)
+      ! Set emitted species, if a single electron or multiple electrons are created (ProductSpecNbr>=1)
       IF(ProductSpecNbr.GT.0) THEN
         ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)
-        ! Incident electron energy reduced by the material work function [eV]
-        eps_e = eps_e - SurfModSEEFitCoeff(4,locBCID)
+        ! ! Incident electron energy reduced by the material work function [eV]
+        ! eps_e = eps_e - SurfModSEEFitCoeff(4,locBCID)
       END IF
       ! Store the velocity [m/s] or energy [eV] depending on the energy distribution (store the total energy, which will be distributed later)
       SELECT CASE(SurfModEnergyDistribution(locBCID))
@@ -143,6 +143,14 @@ CASE(3,4,12,13) ! 3: SEE-E by square fit: a*e[eV] + b*e^2[eV] + c
       CASE DEFAULT
         CALL abort(__STAMP__,'Unknown velocity distribution for power-fit SEE model: ['//TRIM(SurfModEnergyDistribution(locBCID))//']')
       END SELECT
+    ELSE
+      CALL RANDOM_NUMBER(iRan)
+      ! Yield probability is used as reflection probability below the energy threshold
+      IF(SEEYield.GT.iRan) THEN
+        ProductSpec(1)  = SpecID
+      ELSE
+        ProductSpec(1)  = -SpecID
+      END IF
     END IF
   ELSE ! Neutral bombarding particle
     RETURN ! nothing to do
