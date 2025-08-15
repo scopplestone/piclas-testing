@@ -335,18 +335,6 @@ END TYPE
 
 TYPE(tAHO)                       :: AHO
 
-TYPE tRegion
-  CHARACTER(40)                 :: Type             ! Geometric type of the region, e.g. cylinder
-                                ! Region-Type: cylinder
-  REAL                          :: RadiusIC
-  REAL                          :: Radius2IC
-  REAL                          :: CylinderHeightIC
-  REAL                          :: BasePointIC(3)
-  REAL                          :: BaseVector1IC(3)
-  REAL                          :: BaseVector2IC(3)
-  REAL                          :: NormalVector(3)
-END TYPE tRegion
-
 TYPE tBGGas
   INTEGER                       :: NumberOfSpecies          ! Number of background gas species
   LOGICAL, ALLOCATABLE          :: BackgroundSpecies(:)     ! Flag, if a species is a background gas species, [1:nSpecies]
@@ -358,6 +346,7 @@ TYPE tBGGas
   REAL, ALLOCATABLE             :: NumberDensity(:)         ! Number densities of the background gas, [1:BGGas%NumberOfSpecies]
   INTEGER, ALLOCATABLE          :: PairingPartner(:)        ! Index of the background particle generated for the pairing with a
                                                             ! regular particle
+  ! Background gas distribution
   LOGICAL                       :: UseDistribution          ! Flag for the utilization of a background gas distribution as read-in
                                                             ! from a previous DSMC/BGK simulation result
   REAL, ALLOCATABLE             :: Distribution(:,:,:)      ! Element local background gas [1:BGGSpecies,1:10,1:nElems]
@@ -366,22 +355,21 @@ TYPE tBGGas
                                                                 ! as a background distribution [1:nSpecies]
   LOGICAL, ALLOCATABLE          :: TraceSpecies(:)          ! Flag, if species is a trace element, Input: [1:nSpecies]
   REAL                          :: MaxMPF                   ! Maximum weighting factor of the background gas species
+  ! Background gas regions
   INTEGER                       :: nRegions                 ! Number of different background gas regions (read-in)
   LOGICAL                       :: UseRegions               ! Flag for the definition of different background gas regions (set after read-in)
   INTEGER, ALLOCATABLE          :: RegionElemType(:)        ! 0: outside, positive integers: inside region number
-  TYPE(tRegion), ALLOCATABLE    :: Region(:)                ! Type for the geometry definition of the different regions [1:nRegions]
-  CHARACTER(LEN=64)                         :: DatabaseName                     ! Database name from which to coefficients where calculated
-                                                                                ! , required for SpeciesDatabase
-  REAL, ALLOCATABLE                         :: ElectronMobility(:,:) ! first column: Reduced electric field (Td) 
-                                                                    ! second column: Electron Mobility mu (UNIT)
-  REAL, ALLOCATABLE                         :: DriftDiffusionCoefficient(:,:) ! first column: Reduced electric field (Td)
-                                                                              ! second column: drift diffusion coefficient D (UNIT)
-  REAL, ALLOCATABLE                         :: ReducedTownsendCoefficient(:,:) ! first column: Reduced electric field (Td)
-                                                                              ! second column: Reduced Townsend coefficient (alpha/N) in m^2
+  ! Drift-diffusion modelling
+  CHARACTER(LEN=64)             :: DatabaseName             ! Database name from which to coefficients where calculated, required for SpeciesDatabase
+  REAL, ALLOCATABLE             :: ElectronMobility(:,:)    ! first column: Reduced electric field (Td)
+                                                            ! second column: Electron Mobility mu (UNIT)
+  REAL, ALLOCATABLE             :: DriftDiffusionCoefficient(:,:)   ! first column: Reduced electric field (Td)
+                                                                    ! second column: drift diffusion coefficient D (UNIT)
+  REAL, ALLOCATABLE             :: ReducedTownsendCoefficient(:,:)  ! first column: Reduced electric field (Td)
+                                                                    ! second column: Reduced Townsend coefficient (alpha/N) in m^2
 END TYPE tBGGas
 
 TYPE(tBGGas)                    :: BGGas
-
 
 TYPE tPairData
   REAL                          :: CRela2                       ! squared relative velo of the particles in a pair

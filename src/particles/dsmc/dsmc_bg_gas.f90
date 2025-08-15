@@ -47,13 +47,14 @@ CALL prms%CreateLogicalOption(  'Particles-BGGas-UseDistribution', &
                                       'DSMC/BGK result using Particles-MacroscopicRestart', '.FALSE.')
 ! Backgroun gas regions
 CALL prms%CreateIntOption(      'Particles-BGGas-nRegions'                   , 'Number of background gas regions'                                              , '0')
-CALL prms%CreateStringOption(   'Particles-BGGas-Region[$]-Type'             , 'Keyword for particle space condition of species [$] in case of multiple inits' , 'cylinder'            , numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Particles-BGGas-Region[$]-Type'             , 'Keyword for particle space condition of species [$] in case of multiple inits' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-RadiusIC'         , 'Outer radius'                                                                  , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-Radius2IC'        , 'Inner radius (e.g. for a ring)'                                                , '0.'                  , numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BasePointIC'      , 'Base point'                                                                    , numberedmulti=.TRUE.  , no=3)
 CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector1IC'    , 'First base vector'                                                             , numberedmulti=.TRUE.  , no=3)
 CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector2IC'    , 'Second base vector'                                                            , numberedmulti=.TRUE.  , no=3)
-CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-CylinderHeightIC' , 'Third measure of cylinder'                                                     , numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-NormalVector'     , 'Normal vector'                                                                 , numberedmulti=.TRUE.  , no=3)
+CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-HeightIC'         , 'Height/length of cylinder/prism/etc.'                                          , numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'BGGas-DriftDiff-Database'                   , 'Define database containing the drift-diffusion transport coefficients')
 END SUBROUTINE DefineParametersBGG
 
@@ -1218,10 +1219,23 @@ CHARACTER(32)                 :: hilf2
 INTEGER                       :: iElem, iSpec, bgSpec, iInit, iReg, CNElemID
 INTEGER,ALLOCATABLE           :: RegionOverlap(:)
 REAL                          :: lineVector(3), nodeVec(3), nodeRadius, nodeHeight
+REAL                          :: projectedPoint(1:3), edge1(1:3), edge2(1:3), pointVec(1:3), dot00, dot01, dot02, dot11, dot12, invDenom, u, v
+TYPE tRegion
+CHARACTER(40)                 :: Type             ! Geometric type of the region, e.g. cylinder
+REAL                          :: HeightIC
+REAL                          :: NormalVector(3)
+REAL                          :: BasePointIC(3)
+REAL                          :: BaseVector1IC(3)
+REAL                          :: BaseVector2IC(3)
+! Region-Type: cylinder
+REAL                          :: RadiusIC
+REAL                          :: Radius2IC
+END TYPE tRegion
+TYPE(tRegion), ALLOCATABLE    :: BGGRegion(:)                ! Type for the geometry definition of the different regions [1:nRegions]
 !===================================================================================================================================
 LBWRITE(UNIT_stdOut,'(A)') ' INIT BACKGROUND GAS REGIONS ...'
 
-ALLOCATE(BGGas%Region(BGGas%nRegions))
+ALLOCATE(BGGRegion(BGGas%nRegions))
 ALLOCATE(RegionOverlap(BGGas%nRegions))
 RegionOverlap = 0
 ALLOCATE(BGGas%RegionElemType(nElems))
@@ -1230,27 +1244,31 @@ BGGas%RegionElemType = 0
 ! 1) Read-in of the background gas regions
 DO iReg = 1, BGGas%nRegions
   WRITE(UNIT=hilf2,FMT='(I0)') iReg
-  BGGas%Region(iReg)%Type = TRIM(GETSTR('Particles-BGGas-Region'//TRIM(hilf2)//'-Type'))
-  SELECT CASE(TRIM(BGGas%Region(iReg)%Type))
+  BGGRegion(iReg)%Type = TRIM(GETSTR('Particles-BGGas-Region'//TRIM(hilf2)//'-Type'))
+  ! Read-in of the base / first point
+  BGGRegion(iReg)%BasePointIC   = GETREALARRAY('Particles-BGGas-Region'//TRIM(hilf2)//'-BasePointIC',3)
+  ! Read-in of the first base vector / second point
+  BGGRegion(iReg)%BaseVector1IC = GETREALARRAY('Particles-BGGas-Region'//TRIM(hilf2)//'-BaseVector1IC',3)
+  ! Read-in of the second base vector / third point
+  BGGRegion(iReg)%BaseVector2IC = GETREALARRAY('Particles-BGGas-Region'//TRIM(hilf2)//'-BaseVector2IC',3)
+  ! Read-in of the height/length of the cylinder / prism / etc.
+  BGGRegion(iReg)%HeightIC               = GETREAL('Particles-BGGas-Region'//TRIM(hilf2)//'-HeightIC')
+  SELECT CASE(TRIM(BGGRegion(iReg)%Type))
     CASE('cylinder')
-      BGGas%Region(iReg)%RadiusIC               = GETREAL('Particles-BGGas-Region'//TRIM(hilf2)//'-RadiusIC')
-      BGGas%Region(iReg)%Radius2IC              = GETREAL('Particles-BGGas-Region'//TRIM(hilf2)//'-Radius2IC')
-      BGGas%Region(iReg)%CylinderHeightIC       = GETREAL('Particles-BGGas-Region'//TRIM(hilf2)//'-CylinderHeightIC')
-      IF(BGGas%Region(iReg)%Radius2IC.GE.BGGas%Region(iReg)%RadiusIC) CALL abort(__STAMP__,&
+      BGGRegion(iReg)%RadiusIC               = GETREAL('Particles-BGGas-Region'//TRIM(hilf2)//'-RadiusIC')
+      BGGRegion(iReg)%Radius2IC              = GETREAL('Particles-BGGas-Region'//TRIM(hilf2)//'-Radius2IC')
+      IF(BGGRegion(iReg)%Radius2IC.GE.BGGRegion(iReg)%RadiusIC) CALL abort(__STAMP__,&
           'For this emission type RadiusIC must be greater than Radius2IC!')
-      !--- Get BasePointIC
-      BGGas%Region(iReg)%BasePointIC   = GETREALARRAY('Particles-BGGas-Region'//TRIM(hilf2)//'-BasePointIC',3)
-      !--- Get BaseVector1IC
-      BGGas%Region(iReg)%BaseVector1IC = GETREALARRAY('Particles-BGGas-Region'//TRIM(hilf2)//'-BaseVector1IC',3)
-      !--- Get BaseVector2IC
-      BGGas%Region(iReg)%BaseVector2IC = GETREALARRAY('Particles-BGGas-Region'//TRIM(hilf2)//'-BaseVector2IC',3)
       ! Determine the normal vector of the cylinder from base vectors
-      BGGas%Region(iReg)%NormalVector = CROSS(BGGas%Region(iReg)%BaseVector1IC,BGGas%Region(iReg)%BaseVector2IC)
-      IF (VECNORM(BGGas%Region(iReg)%NormalVector).EQ.0) THEN
+      BGGRegion(iReg)%NormalVector = CROSS(BGGRegion(iReg)%BaseVector1IC,BGGRegion(iReg)%BaseVector2IC)
+      IF (VECNORM(BGGRegion(iReg)%NormalVector).EQ.0) THEN
         CALL abort(__STAMP__,'BaseVectors are parallel!')
       ELSE
-        BGGas%Region(iReg)%NormalVector = UNITVECTOR(BGGas%Region(iReg)%NormalVector)
+        BGGRegion(iReg)%NormalVector = UNITVECTOR(BGGRegion(iReg)%NormalVector)
       END IF
+    CASE('triangular_prism')
+      ! Read-in of normal vector
+      BGGRegion(iReg)%NormalVector = GETREALARRAY('Particles-BGGas-Region'//TRIM(hilf2)//'-NormalVector',3)
     CASE DEFAULT
       CALL abort(__STAMP__,'ERROR Background gas regions: Selected region type is not implemented!')
   END SELECT
@@ -1260,23 +1278,65 @@ DO iElem = 1, nElems
   ! 2) Map elements to regions
   CNElemID = GetCNElemID(iElem+offSetElem)
   DO iReg = 1, BGGas%nRegions
-    SELECT CASE(TRIM(BGGas%Region(iReg)%Type))
+    SELECT CASE(TRIM(BGGRegion(iReg)%Type))
     CASE('cylinder')
-      lineVector = BGGas%Region(iReg)%NormalVector
+      lineVector = BGGRegion(iReg)%NormalVector
       ! Node vector relative to cylinder basepoint
-      nodeVec(1:3) = ElemMidPoint_Shared(1:3,CNElemID) - BGGas%Region(iReg)%BasePointIC
+      nodeVec(1:3) = ElemMidPoint_Shared(1:3,CNElemID) - BGGRegion(iReg)%BasePointIC
       ! Node vector projected onto cylinder normal
       nodeHeight = DOT_PRODUCT(nodeVec(1:3),lineVector)
       ! Node radius as the remainder of the node vector length and the projected node height
       nodeRadius = SQRT(DOTPRODUCT(nodeVec(1:3)) - nodeHeight**2)
       ! Check if node is outside of the region
-      IF((nodeHeight.GE.0.).AND.(nodeHeight.LE.BGGas%Region(iReg)%CylinderHeightIC) &
-        .AND.(nodeRadius.GE.BGGas%Region(iReg)%Radius2IC).AND.(nodeRadius.LE.BGGas%Region(iReg)%RadiusIC)) THEN
+      IF((nodeHeight.GE.0.).AND.(nodeHeight.LE.BGGRegion(iReg)%HeightIC) &
+        .AND.(nodeRadius.GE.BGGRegion(iReg)%Radius2IC).AND.(nodeRadius.LE.BGGRegion(iReg)%RadiusIC)) THEN
         ! Element mid point is inside (positive region number)
         IF(BGGas%RegionElemType(iElem).NE.0) THEN
           RegionOverlap(BGGas%RegionElemType(iElem)) = iReg
         END IF
         BGGas%RegionElemType(iElem) = iReg
+      END IF
+    CASE('triangular_prism')
+      lineVector = BGGRegion(iReg)%NormalVector
+      ! Node vector relative to first triangle vertex
+      nodeVec(1:3) = ElemMidPoint_Shared(1:3,CNElemID) - BGGRegion(iReg)%BasePointIC
+
+      ! Node vector projected onto prism normal (distance along prism direction)
+      nodeHeight = DOT_PRODUCT(nodeVec(1:3), lineVector)
+
+      ! Check if node is within prism length bounds
+      IF((nodeHeight.GE.0.).AND.(nodeHeight.LE.BGGRegion(iReg)%HeightIC)) THEN
+
+        ! Project the element midpoint onto the triangle base plane
+        projectedPoint(1:3) = ElemMidPoint_Shared(1:3,CNElemID) - nodeHeight * lineVector
+
+        ! Check if projected point is inside the triangle using barycentric coordinates
+        ! Edge vectors
+        edge1(1:3) = BGGRegion(iReg)%BaseVector1IC(1:3) - BGGRegion(iReg)%BasePointIC(1:3)
+        edge2(1:3) = BGGRegion(iReg)%BaseVector2IC(1:3) - BGGRegion(iReg)%BasePointIC(1:3)
+
+        ! Vector from BasePointIC to projected point
+        pointVec(1:3) = projectedPoint(1:3) - BGGRegion(iReg)%BasePointIC(1:3)
+
+        ! Calculate dot products for barycentric coordinates
+        dot00 = DOT_PRODUCT(edge2, edge2)
+        dot01 = DOT_PRODUCT(edge2, edge1)
+        dot02 = DOT_PRODUCT(edge2, pointVec)
+        dot11 = DOT_PRODUCT(edge1, edge1)
+        dot12 = DOT_PRODUCT(edge1, pointVec)
+
+        ! Calculate barycentric coordinates
+        invDenom = 1.0 / (dot00 * dot11 - dot01 * dot01)
+        u = (dot11 * dot02 - dot01 * dot12) * invDenom
+        v = (dot00 * dot12 - dot01 * dot02) * invDenom
+        ! Check if point is inside triangle (barycentric coordinates test)
+        IF((u.GE.0.).AND.(v.GE.0.).AND.(u+v.LE.1.)) THEN
+          ! Element mid point is inside the triangular prism
+          IF(BGGas%RegionElemType(iElem).NE.0) THEN
+            RegionOverlap(BGGas%RegionElemType(iElem)) = iReg
+          END IF
+          BGGas%RegionElemType(iElem) = iReg
+        END IF
       END IF
     END SELECT
   END DO    ! iReg = 1, BGGas%nRegions
@@ -1327,6 +1387,7 @@ BGGas%UseDistribution = .TRUE.
 
 LBWRITE(UNIT_stdOut,'(A)') ' BACKGROUND GAS REGIONS DONE!'
 DEALLOCATE(RegionOverlap)
+DEALLOCATE(BGGRegion)
 
 END SUBROUTINE BGGas_InitRegions
 
