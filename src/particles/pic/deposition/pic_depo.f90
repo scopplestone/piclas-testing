@@ -97,6 +97,8 @@ USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_PICDepo_MPI            ,ONLY: InitDepoNodesMPI
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,ELEM_RANK
+USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping,ElemNodeID_Shared,NodeInfo_Shared
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: nProcessors_Global
@@ -368,7 +370,7 @@ USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nFEMVertices,NonUniqueGlobalNodeI
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,SideInfo_Shared,ElemInfo_Shared,VertexInfo_Shared
 USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionBCLevel,N_DG_Mapping
 USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
-USE MOD_Mesh               ,ONLY: getlocsidelist
+USE MOD_Mesh_pAdaption     ,ONLY: getlocsidelist
 USE MOD_Mesh_Tools         ,ONLY: GetCornerNodeMapCGNS
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

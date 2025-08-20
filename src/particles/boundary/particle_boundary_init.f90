@@ -2527,10 +2527,12 @@ SDEALLOCATE(PartBound%RadiativeEmissivity)
 SDEALLOCATE(PartBound%PermittivityVDL)
 SDEALLOCATE(PartBound%ThicknessVDL)
 SDEALLOCATE(PartBound%UseSurfaceCharge)
+#if USE_HDG
 SDEALLOCATE(PartBound%DCBiasVoltage)
 SDEALLOCATE(PartBound%DCPermittivity)
 SDEALLOCATE(PartBound%DCSurfaceChargeDensity)
 SDEALLOCATE(PartBound%DCThickness)
+#endif /*USE_HDG*/
 
 ! Mapping arrays are allocated even if the node does not have sampling surfaces
 #if USE_MPI

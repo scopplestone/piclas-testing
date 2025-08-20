@@ -89,22 +89,22 @@ REAL,INTENT(IN)     :: time !time
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL    :: lambdatmp(1:nGP_face(NMax))
-INTEGER :: i,j,k,r,p,q,iElem, iVar,NSide,Nloc, jNloc, iNloc
+INTEGER :: i,j,k,r,p,q,iElem, iVar,NSide,Nloc
 INTEGER :: BCsideID,BCType,BCState,SideID,iLocSide
 REAL    :: RHS_facetmp(nGP_face(NMax))
 REAL    :: rtmp(nGP_vol(NMax))
-INTEGER :: DOFindices(nGP_face(NMax))
 #if defined(PARTICLES)
 INTEGER :: iPartBound
 #endif /*defined(PARTICLES)*/
-!LOGICAL :: converged
 #if (PP_nVar!=1)
 REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
-#endif
+#endif /*(PP_nVar!=1)*/
 #if USE_LOADBALANCE
 REAL    :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #if USE_PETSC
+INTEGER              :: DOFindices(nGP_face(NMax))
+INTEGER              :: jNloc, iNloc
 PetscErrorCode       :: ierr
 PetscScalar, POINTER :: lambda_pointer(:)
 KSPConvergedReason   :: reason
@@ -116,10 +116,10 @@ REAL                 :: timeStartPiclas,timeEndPiclas
 INTEGER              :: jLocSide
 REAL                 :: Smatloc(nGP_face(NMax),nGP_face(NMax))
 INTEGER              :: iUniqueFPCBC
+INTEGER              :: iMortar,iType
 #endif /*USE_PETSC*/
 REAL                 :: src
-INTEGER              :: iMortar, iType,FEMVertexID
-! INTEGER              :: iGP, jGP, ip, iq, jp, jq
+INTEGER              :: FEMVertexID
 REAL                 :: chitens_face(3,3)
 !===================================================================================================================================
 ! Dummy for chitens_face(:,:,p,q,SideID)
