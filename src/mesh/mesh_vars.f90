@@ -146,6 +146,7 @@ INTEGER,ALLOCATABLE :: EdgeConnectInfo(:,:)    !< array containing the nbElemID 
 INTEGER,ALLOCATABLE :: VertexInfo(:,:)         !< array containing the FEMID and connectivity of the vertices as stored in the
                                                !< mesh file
 INTEGER,ALLOCATABLE :: NonUniqueGlobalNodeIDToFEMVertexID(:) !< Mapping from nonunique vertex ID to unique FEM vertex ID
+INTEGER,ALLOCATABLE :: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(:,:) !< Mapping from nonunique Side ID to non-unique corner node IDs
 INTEGER,ALLOCATABLE :: VertexConnectInfo(:,:)  !< array containing the nbElemID and locNodeID of the vertices as stored in the
                                                !< mesh file
 INTEGER,ALLOCATABLE :: SideToNonUniqueGlobalSide(:,:)     !< maps the local SideIDs to global SideIDs (for parallel HDG load balance currently)

@@ -139,6 +139,7 @@ REAL,ALLOCPOINT                 :: SFElemr2_Shared(:,:) ! index 1: radius, index
 REAL,ALLOCATABLE                :: SurfNodeSource(:)
 INTEGER,ALLOCATABLE             :: DepoSurfNodetoGlobalNode(:)
 INTEGER                         :: nDepoSurfNodes
+INTEGER                         :: nDepoSurfSides
 INTEGER                         :: nDepoSurfNodesTotal
 LOGICAL,ALLOCATABLE             :: IsDepoSurfNode(:)
 #if USE_MPI

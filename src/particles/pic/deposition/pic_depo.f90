@@ -83,7 +83,7 @@ USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNo
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Interpolation_Vars     ,ONLY: N_Inter
-USE MOD_Mesh_Vars              ,ONLY: nElems,N_VolMesh,offSetElem,nFEMVertices
+USE MOD_Mesh_Vars              ,ONLY: nElems,N_VolMesh,offSetElem!,nFEMVertices
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes, GEO
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
@@ -365,13 +365,12 @@ USE MOD_Globals
 USE MOD_PICDepo_Vars
 USE MOD_Particle_Mesh_Vars ,ONLY: nNonUniqueGlobalNodes
 USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity, offsetElem, nElems!, nNonUniqueGlobalVertices
-USE MOD_Mesh_Vars          ,ONLY: VertexConnectInfo,NGeo
+USE MOD_Mesh_Vars          ,ONLY: VertexConnectInfo,NGeo,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nFEMVertices,NonUniqueGlobalNodeIDToFEMVertexID
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,SideInfo_Shared,ElemInfo_Shared,VertexInfo_Shared
-USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionBCLevel,N_DG_Mapping
-USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
 USE MOD_Mesh_pAdaption     ,ONLY: getlocsidelist
 USE MOD_Mesh_Tools         ,ONLY: GetCornerNodeMapCGNS
+USE MOD_Particle_Mesh_Vars ,ONLY: nNonUniqueGlobalSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -382,11 +381,12 @@ IMPLICIT NONE
 #else
 ! INTEGER                   :: iNode
 #endif /*USE_MPI*/
-INTEGER :: iElem,BCType,NonUniqueGlobalSideID,iGlobalElemID,BCIndex,ElemType,OffsetCounter
+INTEGER :: iElem,BCType,NonUniqueGlobalSideID,iGlobalElemID,BCIndex,ElemType
 INTEGER :: iVertexConnect,GlobalNbElemID,GlobalNbLocVertexID,LocSideList(3),iLocSideList,iLocSide
 INTEGER :: FirstGlobalElemID,LastGlobalElemID
 INTEGER :: FirstVertexInd,LastVertexInd,FirstVertexConnectInd,LastVertexConnectInd
-INTEGER :: FEMVertexID,iVertexInd,NonUniqueNodeID,CNS(8)
+INTEGER :: FEMVertexID,iVertexInd,NonUniqueNodeID,CNS(8),iNode
+LOGICAL,ALLOCATABLE :: IsDepoSurfSide(:)
 !===================================================================================================================================
 ! Sanity check: This routine requires FEM connectivity
 IF(.NOT.readFEMconnectivity) CALL abort(__STAMP__,'Error in surface deposition init: readFEMconnectivity=T is required')
@@ -401,8 +401,16 @@ IsDepoSurfNode = .FALSE.
 ALLOCATE(NonUniqueGlobalNodeIDToFEMVertexID(1:nNonUniqueGlobalNodes))
 NonUniqueGlobalNodeIDToFEMVertexID = 0
 
-! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
-CALL GetCornerNodeMapCGNS(Ngeo,CornerNodesCGNS = CNS)
+! For counting the number of visualisation sides
+! TODO: Make these arrays SHM
+nDepoSurfSides = 0
+ALLOCATE(IsDepoSurfSide(1:nNonUniqueGlobalSides))
+IsDepoSurfSide = .FALSE.
+ALLOCATE(NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(1:4,1:nNonUniqueGlobalSides))
+NonUniqueGlobalSideIDToNonUniqueGlobalNodeID = 0
+
+! The cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
+CALL GetCornerNodeMapCGNS(NGeo,CornerNodesCGNS = CNS)
 
 ! Element index
 FirstGlobalElemID = offsetElem+1
@@ -453,6 +461,18 @@ DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
         IF(BCType.NE.30) CYCLE ! Skip non-DCBC sides
         ! Depo node found
         IsDepoSurfNode(FEMVertexID) = .TRUE.
+        IsDepoSurfSide(NonUniqueGlobalSideID) = .TRUE.
+        iNodeLoop: DO iNode = 1,4
+          ! Do not use the same ID twice
+          IF (NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID).EQ.NonUniqueNodeID) THEN
+            EXIT iNodeLoop
+          END IF ! NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID).EQ.NonUniqueNodeID
+          ! Only fill empty spaces in the list
+          IF (NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID).EQ.0) THEN
+            NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID) = NonUniqueNodeID
+            EXIT iNodeLoop
+          END IF ! NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID).EQ.-1
+        END DO iNodeLoop! iNode  = 1,4
       END DO ! iLocSideList = 1, 3
     END DO ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
   END DO ! iVertexInd = iFirstVertexInd,LastVertexInd
@@ -461,6 +481,10 @@ END DO ! iGlobalElemID = FirstElemInd, LastElemInd
 ! Count the number of unique deposition nodes per processor
 nDepoSurfNodes = COUNT(IsDepoSurfNode)
 DEALLOCATE(IsDepoSurfNode)
+! Count the number of unique deposition sides per processor
+nDepoSurfSides = COUNT(IsDepoSurfSide)
+
+DEALLOCATE(IsDepoSurfSide)
 
 END SUBROUTINE InitDepoSurfNodes
 

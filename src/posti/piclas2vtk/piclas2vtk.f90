@@ -1757,15 +1757,17 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample
 USE MOD_Interpolation           ,ONLY: GetVandermonde
 USE MOD_ChangeBasis             ,ONLY: ChangeBasis2D
 USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVISU
-USE MOD_Mesh_Vars               ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID_Shared
+USE MOD_Mesh_Vars               ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
+! USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides
 USE MOD_ReadInTools             ,ONLY: PrintOption
 USE MOD_PICDepo                 ,ONLY: InitDepoSurfNodes
 #if !(PP_TimeDiscMethod==700)
-USE MOD_PICDepo_Vars            ,ONLY: nDepoSurfNodes
+USE MOD_PICDepo_Vars            ,ONLY: nDepoSurfNodes,nDepoSurfSides
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared
 #endif /*!(PP_TimeDiscMethod==700)*/
-USE MOD_Mesh_Vars               ,ONLY: ElemToSide
+! USE MOD_Mesh_Vars               ,ONLY: ElemToSide,NGeo
+! USE MOD_Mesh_Tools              ,ONLY: GetCornerNodeMapCGNS
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1777,14 +1779,15 @@ CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)              :: FileString, File_Type
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
-INTEGER                         :: nDims, nVarSurf, SideID, nSurfaceNodes
-INTEGER                         :: iLocSideTest,iLocSide,NonUniqueNodeID,CNElemID,ElemID,FEMVertexID,iNode
+INTEGER                         :: nDims, nVarSurf, nSurfaceNodes, NonUniqueGlobalSideID, iVisuSide
+INTEGER                         :: NonUniqueNodeID,FEMVertexID,iNode
 REAL                            :: OutputTime
 REAL, ALLOCATABLE               :: SurfNodeSource(:)
 REAL,ALLOCATABLE                :: NodeCoords_visu(:,:,:,:,:)     !< Coordinates of visualization nodes
 REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:,:)
 INTEGER,ALLOCATABLE             :: ConnectInfo(:,:)
 INTEGER,PARAMETER               :: data_size=4
+INTEGER                         :: NodeSwitch(4)
 !===================================================================================================================================
 ! Build vertex mappings
 CALL InitDepoSurfNodes() ! Get nDepoSurfNodes
@@ -1810,7 +1813,7 @@ CALL ReadArray('SurfNodeSource',1,(/INT(nDepoSurfNodes,IK)/),0,1,RealArray=SurfN
 ! IPWRITE(*,*) 'SurfNodeSource:', SurfNodeSource
 
 ! Get number of surface nodes
-nSurfaceNodes = 4
+nSurfaceNodes = 4*nDepoSurfSides
 
 ! Get data and coordinates for visualisation
 ALLOCATE(tempSurfData(1:nVarSurf,1,1,0:0,1:nSurfaceNodes))
@@ -1819,28 +1822,41 @@ tempSurfData = 0.
 ALLOCATE(NodeCoords_visu(1:3,0:0,0:0,0:0,1:nSurfaceNodes))
 NodeCoords_visu = 0.
 ! NodeCoords_visu(1:3,0,0,0,1:nSurfaceNodes) = SurfConnect%NodeCoords(1:3,1:nSurfaceNodes)
-ElemID=1
-  SideID   = 1
-  ! Loop over all six sides and find the local side index that matches the Dirichlet side
-  DO iLocSideTest=1,6
-    iLocSide = iLocSideTest
-    IF(SideID.EQ.ElemToSide(E2S_SIDE_ID,iLocSideTest,ElemID)) EXIT
-  END DO
-CNElemID=1
-ALLOCATE(ConnectInfo(1:data_size,1))
+
+! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
+! CALL GetCornerNodeMapCGNS(NGeo,CornerNodesCGNS = CNS)
+
+! DO iLocSideTest=1,6
+!   iLocSide = iLocSideTest
+!   IF(1.EQ.ElemToSide(E2S_SIDE_ID,iLocSideTest,1)) EXIT
+! END DO
+! DO iNode = 1,4
+!   NonUniqueNodeID = ElemSideNodeID_Shared(iNode,iLocSide,1) + 1
+!   IPWRITE(*,*) 'iNode,NonUniqueNodeID:', iNode,NonUniqueNodeID
+! end do
+
+! Switch the nodes (different ordering between NonUniqueVertexID and NonUniqueNodeID)
+NodeSwitch=(/1,3,4,2/)
+
+ALLOCATE(ConnectInfo(1:data_size,1:nDepoSurfSides))
 ConnectInfo = 0
-DO iNode = 1,nSurfaceNodes
-  ConnectInfo(iNode,SideID) = iNode ! ConnectInfo(data_size,nElems) !> Node connection information
-  ! Get the non-unique node index
-  NonUniqueNodeID = ElemSideNodeID_Shared(iNode,iLocSide,CNElemID) + 1
-  ! NonUniqueNodeID = ElemNodeID_Shared(iNode,ElemID)
-  ! Set coordinate
-  NodeCoords_visu(1:3,0,0,0,iNode) = NodeCoords_Shared(1:3,NonUniqueNodeID)
-  ! Get the unique FEM vertex index
-  FEMVertexID = NonUniqueGlobalNodeIDToFEMVertexID(NonUniqueNodeID)
-  ! Set surface charge value
-  tempSurfData(1,1,1,0,iNode) = SurfNodeSource(FEMVertexID)
-END DO ! iNode = 1,nSurfaceNodes
+iVisuSide = 0
+DO NonUniqueGlobalSideID = 1,nNonUniqueGlobalSides
+  IF(NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(1,NonUniqueGlobalSideID).EQ.0) CYCLE
+  iVisuSide = iVisuSide + 1
+  DO iNode = 1,4
+    ConnectInfo(iNode,iVisuSide) = iNode ! ConnectInfo(data_size,nElems) !> Node connection information
+    ! Get the non-unique node index
+    NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(NodeSwitch(iNode),NonUniqueGlobalSideID)
+    ! NonUniqueNodeID = ElemNodeID_Shared(iNode,ElemID)
+    ! Set coordinate
+    NodeCoords_visu(1:3,0,0,0,iNode) = NodeCoords_Shared(1:3,NonUniqueNodeID)
+    ! Get the unique FEM vertex index
+    FEMVertexID = NonUniqueGlobalNodeIDToFEMVertexID(NonUniqueNodeID)
+    ! Set surface charge value
+    tempSurfData(1,1,1,0,iNode) = SurfNodeSource(FEMVertexID)
+  END DO ! iNode = 1,4
+END DO ! NonUniqueGlobalSideID =  1,nNonUniqueGlobalSides
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_SurfNodeSource',OutputTime))//'.vtu'
 
@@ -1861,6 +1877,7 @@ SDEALLOCATE(SurfNodeSource)
 SDEALLOCATE(tempSurfData)
 SDEALLOCATE(NodeCoords_visu)
 SDEALLOCATE(NonUniqueGlobalNodeIDToFEMVertexID)
+SDEALLOCATE(NonUniqueGlobalSideIDToNonUniqueGlobalNodeID)
 
 CALL CloseDataFile()
 
