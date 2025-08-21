@@ -312,14 +312,6 @@ IF(DoDeposition.AND.DoDielectricSurfaceCharge) THEN ! Surface charging active
       ! This routines moves the particle away from the boundary using LastPartPos as the starting point and changes the species index
       ! and before the particle is deposited and removed, the species index cannot be used anymore
       CALL VirtualDielectricLayerDisplacement(NewPartID,SideID,n_Loc)
-    ELSEIF(PDM%ParticleInside(PartID))THEN
-      ! Particle is still inside and was not deleted
-      SELECT CASE(PartBound%SurfaceModel(locBCID))
-      CASE (VDL_MODEL_ID)  ! Virtual dielectric layer (VDL)
-        ! Particle is still inside because it possibly needs to be communicated via MPI to a different process where it is killed
-      CASE DEFAULT
-        CALL abort(__STAMP__,'Reflected particles not implemented for VDL in combination with, e.g., SEE')
-      END SELECT
     END IF ! .NOT.PDM%ParticleInside(PartID)
   END IF ! ABS(PartBound%PermittivityVDL(locBCID)).GT.0.0
 #endif /*USE_HDG*/
