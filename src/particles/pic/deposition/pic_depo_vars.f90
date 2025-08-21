@@ -137,7 +137,8 @@ REAL,ALLOCPOINT                 :: SFElemr2_Shared(:,:) ! index 1: radius, index
 
 ! 2D surface deposition
 REAL,ALLOCATABLE                :: SurfNodeSource(:)
-INTEGER,ALLOCATABLE             :: DepoSurfNodetoGlobalNode(:)
+INTEGER,ALLOCATABLE             :: DepoSurfNodeID2FEMVertexID(:)
+INTEGER,ALLOCATABLE             :: FEMVertexID2DepoSurfNodeID(:)
 INTEGER                         :: nDepoSurfNodes
 INTEGER                         :: nDepoSurfSides
 INTEGER                         :: nDepoSurfNodesTotal

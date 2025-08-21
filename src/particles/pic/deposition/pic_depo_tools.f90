@@ -63,7 +63,9 @@ USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSourceMPI
 USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars          ,ONLY: SideToElem,ElemToSide,NonUniqueGlobalNodeIDToFEMVertexID
+USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID_Shared
+USE MOD_PICDepo_Vars       ,ONLY: FEMVertexID2DepoSurfNodeID
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -78,7 +80,7 @@ REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
 INTEGER                          :: iNode
 REAL                             :: norm,PartDistDepo(4),DistSum
-INTEGER                          :: iLocSideTest,iLocSide,NonUniqueNodeID,CNElemID,ElemID,FEMVertexID
+INTEGER                          :: iLocSideTest,iLocSide,NonUniqueNodeID,CNElemID,ElemID,FEMVertexID,iDepoSurfNodeID
 !===================================================================================================================================
 
 ! Skip neutral and reflected particles. Deposit only particles that are deleted on the surface or change their charge on contact
@@ -94,21 +96,12 @@ IF(ElementOnProc(GlobalElemID)) CALL LBStartTime(tLBStart) ! Start time measurem
 CALL abort(__STAMP__,'Implement MPI for subroutine DepositParticleOnSurface()')
 ASSOCIATE( SurfNodeSource => SurfNodeSourceMPI )
 #endif
-  ! Get local element index
-  ElemID = SideToElem(S2E_ELEM_ID,SideID)
-  ! Get compute-node element index
-  CNElemID = GetCNElemID(GlobalElemID)
-
-  ! Loop over all six sides and find the local side index that matches the Dirichlet side
-  DO iLocSideTest=1,6
-    iLocSide = iLocSideTest
-    IF(SideID.EQ.ElemToSide(E2S_SIDE_ID,iLocSideTest,ElemID)) EXIT
-  END DO
-
   ! Loop over the four side nodes
   DO iNode = 1, 4
     ! Get the non-unique node index
-    NonUniqueNodeID = ElemSideNodeID_Shared(iNode,iLocSide,CNElemID) + 1
+    NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,SideID)
+    ! Sanity check
+    IF(NonUniqueNodeID.LE.0) CALL abort(__STAMP__,'Wrong NonUniqueNodeID encountered in DepositParticleOnSurface()')
     norm = VECNORM(NodeCoords_Shared(1:3,NonUniqueNodeID)-PartPos(1:3))
     IF(norm.GT.0.)THEN
       PartDistDepo(iNode) = 1./norm
@@ -123,11 +116,13 @@ ASSOCIATE( SurfNodeSource => SurfNodeSourceMPI )
   ! Loop over the four side nodes
   DO iNode = 1, 4
     ! Get the non-unique node index
-    NonUniqueNodeID = ElemSideNodeID_Shared(iNode,iLocSide,CNElemID) + 1
+    NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,SideID)
     ! Get the unique FEM vertex index
     FEMVertexID = NonUniqueGlobalNodeIDToFEMVertexID(NonUniqueNodeID)
+    ! Get surface deposition node index
+    iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
     ! Add charge contribution
-    SurfNodeSource(FEMVertexID) = SurfNodeSource(FEMVertexID) + PartDistDepo(iNode)/DistSum*Charge
+    SurfNodeSource(iDepoSurfNodeID) = SurfNodeSource(iDepoSurfNodeID) + PartDistDepo(iNode)/DistSum*Charge
   END DO ! iNode = 1, 4
 #if USE_MPI
 END ASSOCIATE

@@ -83,7 +83,7 @@ USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNo
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Interpolation_Vars     ,ONLY: N_Inter
-USE MOD_Mesh_Vars              ,ONLY: nElems,N_VolMesh,offSetElem!,nFEMVertices
+USE MOD_Mesh_Vars              ,ONLY: nElems,N_VolMesh,offSetElem
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes, GEO
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
@@ -325,25 +325,6 @@ END SELECT
 ! Surface charge model
 IF (Do2DSurfaceCharge) THEN
   CALL InitDepoSurfNodes() ! Get nDepoSurfNodes
-  ! Build Mapping
-#if USE_MPI
-  CALL abort(__STAMP__,'InitializeDeposition: MPI communicator for surface node communication not implemented')
-  ! CALL InitDepoSurfNodesMPI(DoSurfNodeMapping,SendSurfNode)
-#else
-  nDepoSurfNodesTotal = nDepoSurfNodes
-  ! ALLOCATE(DepoSurfNodetoGlobalNode(1:nDepoSurfNodesTotal))
-  ! nDepoSurfNodesTotal = 0
-  ! DO iNode=1, nFEMVertices
-  !   IF (IsDepoSurfNode(iNode)) THEN
-  !     nDepoSurfNodesTotal = nDepoSurfNodesTotal + 1
-  !     DepoSurfNodetoGlobalNode(nDepoSurfNodesTotal) = iNode
-  !   END IF ! IsDepoSurfNode(iNode)
-  ! END DO
-#endif /*USE_MPI*/
-
-  ALLOCATE(SurfNodeSource(1:nDepoSurfNodesTotal))
-  SurfNodeSource=0.0
-
 END IF ! DoSurfaceCharge
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE DEPOSITION DONE!'
@@ -441,7 +422,7 @@ DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
     ! Mapping from NonUniqueNodeID to FEMVertexID
     NonUniqueGlobalNodeIDToFEMVertexID(NonUniqueNodeID) = FEMVertexID
 
-    ! Get local vertex connectivity
+    ! Get local vertex connectivity: First and Last connected vertex index
     FirstVertexConnectInd = VertexInfo_Shared(VERTEX_FIRSTCONNECTIND,iVertexInd)+1
     LastVertexConnectInd  = VertexInfo_Shared(VERTEX_LASTCONNECTIND,iVertexInd)
     DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
@@ -450,6 +431,7 @@ DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
       GlobalNbLocVertexID =     VertexConnectInfo(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
       ! Set sides depending on the element type: Only implemented for Hexahedral elements
       CALL GetLocSideList(ElemType,GlobalNbLocVertexID,LocSideList)
+      ! Loop over the three connected sides of the neighbour element, which is connected with a corner to iVertexConnect
       DO iLocSideList = 1, 3
         ! Check if current element has already been flagged
         iLocSide = LocSideList(iLocSideList)
@@ -462,17 +444,21 @@ DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
         ! Depo node found
         IsDepoSurfNode(FEMVertexID) = .TRUE.
         IsDepoSurfSide(NonUniqueGlobalSideID) = .TRUE.
-        iNodeLoop: DO iNode = 1,4
-          ! Do not use the same ID twice
-          IF (NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID).EQ.NonUniqueNodeID) THEN
-            EXIT iNodeLoop
-          END IF ! NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID).EQ.NonUniqueNodeID
-          ! Only fill empty spaces in the list
-          IF (NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID).EQ.0) THEN
-            NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID) = NonUniqueNodeID
-            EXIT iNodeLoop
-          END IF ! NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID).EQ.-1
-        END DO iNodeLoop! iNode  = 1,4
+        ! Do not mix local unique node IDs with neighbour non unique global side IDs: Check that the element is correct
+        IF (iGlobalElemID.EQ.GlobalNbElemID) THEN
+          ! Fill the array with the IDs of the four NonUniqueNodeIDs
+          iNodeLoop: DO iNode = 1,4
+            ! Do not use the same ID twice
+            IF (NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID).EQ.NonUniqueNodeID) THEN
+              EXIT iNodeLoop
+            END IF ! NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID).EQ.NonUniqueNodeID
+            ! Only fill empty spaces in the list
+            IF (NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID).EQ.0) THEN
+              NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID) = NonUniqueNodeID
+              EXIT iNodeLoop
+            END IF ! NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID).EQ.-1
+          END DO iNodeLoop! iNode  = 1,4
+        END IF ! iGlobalElemID.EQ.GlobalNbElemID
       END DO ! iLocSideList = 1, 3
     END DO ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
   END DO ! iVertexInd = iFirstVertexInd,LastVertexInd
@@ -480,11 +466,34 @@ END DO ! iGlobalElemID = FirstElemInd, LastElemInd
 
 ! Count the number of unique deposition nodes per processor
 nDepoSurfNodes = COUNT(IsDepoSurfNode)
-DEALLOCATE(IsDepoSurfNode)
 ! Count the number of unique deposition sides per processor
 nDepoSurfSides = COUNT(IsDepoSurfSide)
 
 DEALLOCATE(IsDepoSurfSide)
+
+
+  ! Build Mapping
+#if USE_MPI
+  CALL abort(__STAMP__,'InitializeDeposition: MPI communicator for surface node communication not implemented')
+  ! CALL InitDepoSurfNodesMPI(DoSurfNodeMapping,SendSurfNode)
+#else
+  nDepoSurfNodesTotal = nDepoSurfNodes
+  ALLOCATE(DepoSurfNodeID2FEMVertexID(1:nDepoSurfNodesTotal))
+  DepoSurfNodeID2FEMVertexID = -1
+  ALLOCATE(FEMVertexID2DepoSurfNodeID(1:nFEMVertices))
+  FEMVertexID2DepoSurfNodeID = -1
+  nDepoSurfNodesTotal = 0
+  DO FEMVertexID=1, nFEMVertices
+    IF (IsDepoSurfNode(FEMVertexID)) THEN
+      nDepoSurfNodesTotal = nDepoSurfNodesTotal + 1
+      DepoSurfNodeID2FEMVertexID(nDepoSurfNodesTotal) = FEMVertexID
+      FEMVertexID2DepoSurfNodeID(FEMVertexID) = nDepoSurfNodesTotal
+    END IF
+  END DO
+  DEALLOCATE(IsDepoSurfNode)
+#endif /*USE_MPI*/
+  ALLOCATE(SurfNodeSource(1:nDepoSurfNodesTotal))
+  SurfNodeSource=0.0
 
 END SUBROUTINE InitDepoSurfNodes
 
