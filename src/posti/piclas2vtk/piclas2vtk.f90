@@ -1767,6 +1767,7 @@ USE MOD_PICDepo_Vars            ,ONLY: SurfNodeSource,FEMVertexID2DepoSurfNodeID
 USE MOD_PICDepo_Vars            ,ONLY: nDepoSurfNodes,nDepoSurfSides
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared
 #endif /*!(PP_TimeDiscMethod==700)*/
+USE MOD_VTK                     ,ONLY: WriteDataToVTK
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1803,12 +1804,8 @@ CALL GetDataSize(File_ID,'SurfNodeSource',nDims,HSize)
 nVarSurf = 1
 ALLOCATE(VarNamesSurf_HDF5(nVarSurf))
 CALL ReadAttribute(File_ID,'VarNamesSurfNodeSource',nVarSurf,StrArray=VarNamesSurf_HDF5(1:nVarSurf))
-! print*,VarNamesSurf_HDF5
-
-! ALLOCATE(SurfNodeSource(1:nDepoSurfNodes))
-! SurfNodeSource = 0.
+! Read the surface charge data on the FEM vertices
 CALL ReadArray('SurfNodeSource',1,(/INT(nDepoSurfNodes,IK)/),0,1,RealArray=SurfNodeSource)
-! IPWRITE(*,*) 'SurfNodeSource:', SurfNodeSource
 
 ! Get number of surface nodes
 nSurfaceNodes = 4*nDepoSurfSides
@@ -1820,19 +1817,25 @@ tempSurfData = 0.
 ALLOCATE(NodeCoords_visu(1:3,0:0,0:0,0:0,1:nSurfaceNodes))
 NodeCoords_visu = 0.
 
-! Switch the nodes (different ordering between NonUniqueVertexID and NonUniqueNodeID)
-NodeSwitch=(/1,3,4,2/)
+! WriteDataToVTK_PICLas: Switch the nodes (different ordering between NonUniqueVertexID and NonUniqueNodeID)
+! NodeSwitch=(/1,3,4,2/)
+
+! WriteDataToVTK: no switch required
+NodeSwitch=(/1,2,3,4/)
 
 ALLOCATE(ConnectInfo(1:data_size,1:nDepoSurfSides))
+! ALLOCATE(ConnectInfo(1:data_size,1:nSurfaceNodes))
 ConnectInfo = 0
 iVisuSide = 0
 offsetNode = 0
 DO NonUniqueGlobalSideID = 1,nNonUniqueGlobalSides
+  ! Check if side is a surface deposition side
   IF(NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(1,NonUniqueGlobalSideID).EQ.0) CYCLE
   iVisuSide = iVisuSide + 1
   DO iNode = 1,4
     iSurfNode = offsetNode + iNode
     ConnectInfo(iNode,iVisuSide) = iSurfNode ! ConnectInfo(data_size,nElems) !> Node connection information
+    ! ConnectInfo(iNode,iSurfNode) = iSurfNode ! ConnectInfo(data_size,nElems) !> Node connection information
     ! Get the non-unique node index
     NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(NodeSwitch(iNode),NonUniqueGlobalSideID)
     ! Set coordinate
@@ -1850,16 +1853,26 @@ END DO ! NonUniqueGlobalSideID =  1,nNonUniqueGlobalSides
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_SurfNodeSource',OutputTime))//'.vtu'
 
 nSurfSample = 1 ! This is used in WriteDataToVTK_PICLas()
-CALL WriteDataToVTK_PICLas( 2                 , & ! dim
-                            data_size         , & ! data_size: 8 VTK_HEXAHEDRON, 1 VTK_VERTEX, 4 VTK_QUAD
-                            FileString        , & ! FileString
-                            nVarSurf          , & ! nVar
-                            VarNamesSurf_HDF5 , & ! VarNameVisu
-                            nSurfaceNodes     , & ! nNodes
-                            NodeCoords_visu   , & ! Coords
-                            nDepoSurfSides    , & ! nElems
-                            tempSurfData      , & ! Array
-                            ConnectInfo)          ! ConnectInfo
+! CALL WriteDataToVTK_PICLas( 2                 , & ! dim
+!                             data_size         , & ! data_size: 8 VTK_HEXAHEDRON, 1 VTK_VERTEX, 4 VTK_QUAD
+!                             FileString        , & ! FileString
+!                             nVarSurf          , & ! nVar
+!                             VarNamesSurf_HDF5 , & ! VarNameVisu
+!                             nSurfaceNodes     , & ! nNodes
+!                             NodeCoords_visu   , & ! Coords
+!                             nDepoSurfSides    , & ! nElems
+!                             tempSurfData      , & ! Array
+!                             ConnectInfo(1:4,1:nDepoSurfSides))          ! ConnectInfo
+CALL WriteDataToVTK(nVarSurf         ,&
+                    1                ,&
+                    nDepoSurfSides   ,&
+                    VarNamesSurf_HDF5,&
+                    NodeCoords_visu  ,&
+                    tempSurfData     ,&
+                    FileString       ,&
+                    dim = 2          ,&
+                    DGFV = 0          &
+                    )
 
 SDEALLOCATE(VarNamesSurf_HDF5)
 SDEALLOCATE(SurfNodeSource)
