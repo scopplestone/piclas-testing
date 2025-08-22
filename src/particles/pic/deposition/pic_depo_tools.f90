@@ -51,20 +51,20 @@ SUBROUTINE DepositParticleOnSurface(Charge,PartPos,GlobalElemID,SideID)
 USE MOD_Globals
 ! USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
-USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+! USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
-USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared
+! USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared
 #if USE_MPI
 USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSourceMPI
 #else
 USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource
 #endif /*USE_MPI*/
-USE MOD_Mesh_Vars          ,ONLY: SideToElem,ElemToSide,NonUniqueGlobalNodeIDToFEMVertexID
+USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID
 USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID_Shared
+! USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID_Shared
 USE MOD_PICDepo_Vars       ,ONLY: FEMVertexID2DepoSurfNodeID
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -80,7 +80,7 @@ REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
 INTEGER                          :: iNode
 REAL                             :: norm,PartDistDepo(4),DistSum
-INTEGER                          :: iLocSideTest,iLocSide,NonUniqueNodeID,CNElemID,ElemID,FEMVertexID,iDepoSurfNodeID
+INTEGER                          :: NonUniqueNodeID,FEMVertexID,iDepoSurfNodeID
 !===================================================================================================================================
 
 ! Skip neutral and reflected particles. Deposit only particles that are deleted on the surface or change their charge on contact

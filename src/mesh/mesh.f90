@@ -144,9 +144,9 @@ USE MOD_LoadBalance_Metrics_FV ,ONLY: ExchangeVolMesh_FV,ExchangeMetrics_FV
 USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_Particle_Vars          ,ONLY: usevMPF
 #endif
-#if USE_HDG && USE_LOADBALANCE
+#if USE_HDG
 USE MOD_Mesh_Tools             ,ONLY: BuildSideToNonUniqueGlobalSide
-#endif /*USE_HDG && USE_LOADBALANCE*/
+#endif /*USE_HDG*/
 #if !(PP_TimeDiscMethod==700)
 USE MOD_DG_Vars                ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
 #endif /*!(PP_TimeDiscMethod==700)*/
@@ -581,9 +581,9 @@ IF(CalcMeshInfo)THEN
   !#endif /*PARTICLES*/
 END IF
 
-#if USE_HDG && USE_LOADBALANCE
+#if USE_HDG
 IF (ABS(meshMode).GT.0) CALL BuildSideToNonUniqueGlobalSide() ! requires ElemInfo
-#endif /*USE_HDG && USE_LOADBALANCE*/
+#endif /*USE_HDG*/
 !DEALLOCATE(ElemInfo,SideInfo)
 DEALLOCATE(SideInfo)
 

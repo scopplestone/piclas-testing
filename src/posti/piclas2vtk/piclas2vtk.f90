@@ -1753,7 +1753,6 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: ProjectName
 USE MOD_IO_HDF5                 ,ONLY: HSize
 USE MOD_HDF5_Input              ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample
 USE MOD_Interpolation           ,ONLY: GetVandermonde
 USE MOD_ChangeBasis             ,ONLY: ChangeBasis2D
 USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVISU
@@ -1796,8 +1795,6 @@ CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,c
 CALL ReadAttribute(File_ID , 'Project_Name'     , 1 , StrScalar  = ProjectName)
 CALL ReadAttribute(File_ID , 'File_Type'        , 1 , StrScalar  = File_Type)
 CALL ReadAttribute(File_ID , 'Time'             , 1 , RealScalar = OutputTime)
-! CALL ReadAttribute(File_ID , 'DSMC_nSurfSample' , 1 , IntScalar  = nSurfSample)
-! CALL PrintOption('DSMC_nSurfSample','HDF5',IntOpt=nSurfSample) ! 'HDF5.'
 
 CALL GetDataSize(File_ID,'SurfNodeSource',nDims,HSize)
 ! nDepoSurfNodes = INT(HSize(1),2)
@@ -1820,8 +1817,8 @@ NodeCoords_visu = 0.
 ! WriteDataToVTK_PICLas: Switch the nodes (different ordering between NonUniqueVertexID and NonUniqueNodeID)
 ! NodeSwitch=(/1,3,4,2/)
 
-! WriteDataToVTK: no switch required
-NodeSwitch=(/1,2,3,4/)
+! WriteDataToVTK: switch the last two node IDs
+NodeSwitch=(/1,2,4,3/)
 
 ALLOCATE(ConnectInfo(1:data_size,1:nDepoSurfSides))
 ! ALLOCATE(ConnectInfo(1:data_size,1:nSurfaceNodes))
@@ -1852,17 +1849,6 @@ END DO ! NonUniqueGlobalSideID =  1,nNonUniqueGlobalSides
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_SurfNodeSource',OutputTime))//'.vtu'
 
-nSurfSample = 1 ! This is used in WriteDataToVTK_PICLas()
-! CALL WriteDataToVTK_PICLas( 2                 , & ! dim
-!                             data_size         , & ! data_size: 8 VTK_HEXAHEDRON, 1 VTK_VERTEX, 4 VTK_QUAD
-!                             FileString        , & ! FileString
-!                             nVarSurf          , & ! nVar
-!                             VarNamesSurf_HDF5 , & ! VarNameVisu
-!                             nSurfaceNodes     , & ! nNodes
-!                             NodeCoords_visu   , & ! Coords
-!                             nDepoSurfSides    , & ! nElems
-!                             tempSurfData      , & ! Array
-!                             ConnectInfo(1:4,1:nDepoSurfSides))          ! ConnectInfo
 CALL WriteDataToVTK(nVarSurf         ,&
                     1                ,&
                     nDepoSurfSides   ,&
