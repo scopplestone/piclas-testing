@@ -266,10 +266,10 @@ USE MOD_Mesh_Vars              ,ONLY: offsetElem,nElems
 USE MOD_RayTracing_Vars        ,ONLY: N_DG_Ray_loc,Ray,nVarRay,U_N_Ray_loc,PREF_VDM_Ray,N_Inter_Ray,RayElemEmission
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_RayTracing_Vars        ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
-USE MOD_Mesh_Vars              ,ONLY: nBCSides,offsetElem,SideToElem
 USE MOD_HDF5_input             ,ONLY: ReadAttribute
 USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfSides, SurfSide2GlobalSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED,myComputeNodeRank
@@ -286,7 +286,7 @@ IMPLICIT NONE
 LOGICAL,INTENT(IN)   :: onlySurfData
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem,Nloc,iVar,k,l,m,iSurfSideHDF5,nSurfSidesHDF5,iSurfSide,iLocSide,locElemID,GlobalSideID,SideID
+INTEGER              :: iElem,Nloc,iVar,k,l,m,iSurfSideHDF5,nSurfSidesHDF5,iSurfSide,locElemID,GlobalSideID,SideID
 INTEGER              :: nSurfSampleHDF5,N_HDF5
 INTEGER              :: iDOF,offsetDOF,nDOFLocal,nDOFTotal
 LOGICAL              :: ContainerExists
@@ -377,6 +377,10 @@ DO iSurfSideHDF5 = 1, nSurfSidesHDF5
     locElemID = SideInfo_Shared(SIDE_ELEMID,SideID) - offsetElem
     ! Cycle non-local elements
     IF((locElemID.LE.0).OR.(locElemID.GT.nElems)) CYCLE
+    ! Cycle elements in dielectric regions
+    IF(DoDielectric) THEN
+      IF(isDielectricElem(locElemID)) CYCLE
+    END IF
     ! Check whether side is on the core
     IF(GlobalSideID.EQ.SideID)THEN
       PhotonSampWall_loc(1:Ray%nSurfSample,1:Ray%nSurfSample,iSurfSide) = PhotonSampWallHDF5(2,1:Ray%nSurfSample,1:Ray%nSurfSample,iSurfSideHDF5)
