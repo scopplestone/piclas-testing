@@ -172,6 +172,9 @@ def CleanSingleLines(stdfile,args):
             elif '_____________________________________________________________________________' in line_stripped:
                 # Remove '_____________________________________________________________________________'
                 changedLines+=1
+            elif '[CRAYBLAS_WARNING] Application linked against multiple cray-libsci libraries' in line_stripped:
+                # Remove '[CRAYBLAS_WARNING] Application linked against multiple cray-libsci libraries'
+                changedLines+=1
             elif not line_stripped:
                 # Remove empty lines
                 changedLines+=1
