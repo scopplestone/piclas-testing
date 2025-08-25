@@ -352,6 +352,9 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,SideInfo_Shared,ElemInfo_Share
 USE MOD_Mesh_pAdaption     ,ONLY: getlocsidelist
 USE MOD_Mesh_Tools         ,ONLY: GetCornerNodeMapCGNS,GetCNElemID
 USE MOD_Particle_Mesh_Vars ,ONLY: nNonUniqueGlobalSides,ElemSideNodeID_Shared
+USE MOD_Interpolation_Vars ,ONLY: Nmin,Nmax
+USE MOD_Interpolation_Vars ,ONLY: NodeTypeVISU,NodeType
+USE MOD_Interpolation      ,ONLY: GetVandermonde
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -368,7 +371,7 @@ INTEGER :: iVertexConnect,GlobalNbElemID,GlobalNbLocVertexID,LocSideList(3),iLoc
 INTEGER :: FirstGlobalElemID,LastGlobalElemID
 INTEGER :: FirstVertexInd,LastVertexInd,FirstVertexConnectInd,LastVertexConnectInd
 INTEGER :: FEMVertexID,iVertexInd,NonUniqueNodeID,CNS(8),iNode
-INTEGER :: firstSide,lastSide,CNElemID,LocSideID,iSide
+INTEGER :: firstSide,lastSide,CNElemID,LocSideID,iSide,Nloc
 !===================================================================================================================================
 ! Sanity check: This routine requires FEM connectivity
 IF(.NOT.readFEMconnectivity) CALL abort(__STAMP__,'Error in surface deposition init: readFEMconnectivity=T is required')
@@ -442,7 +445,7 @@ DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
         BCType = BoundaryType(BCIndex,BC_TYPE)
         ! TODO: define a list of all BCType numbers that allow surface deposition
         IF(BCType.NE.30) CYCLE ! Skip non-DCBC sides
-        ! Depo node found
+        ! Depo node/side found
         IsDepoSurfNode(FEMVertexID) = .TRUE.
         IsDepoSurfSide(NonUniqueGlobalSideID) = .TRUE.
       END DO ! iLocSideList = 1, 3
@@ -454,16 +457,21 @@ END DO ! iGlobalElemID = FirstElemInd, LastElemInd
 firstSide = 1
 lastSide = nSides ! TODO: This might only work correctly for nBCSides and not for inner BC sides (dielectric interfaces)
 DO iSide = firstSide, lastSide
-  ! Get side information
+  ! Get global side index
   NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,iSide)
+  ! Check if the side has charge deposition activated
   IF(IsDepoSurfSide(NonUniqueGlobalSideID))THEN
+    ! Get compute node element index of the side
     CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID))
+    ! Get the local side index (1-6)
     LocSideID = SideInfo_Shared(SIDE_LOCALID,NonUniqueGlobalSideID)
-    ! Loop over all 4 nodes
+    ! Loop over all 4 node of the side
     DO iNode = 1, 4
+      ! Get the non-unique global side index of the node/local side ID/compute elemen ID
       NonUniqueNodeID = ElemSideNodeID_Shared(iNode,LocSideID,CNElemID) + 1
+      ! Store the non-unique node index for the current non-unique global side index
       NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID) = NonUniqueNodeID
-    END DO
+    END DO ! iNode = 1, 4
   END IF
 END DO
 
@@ -520,6 +528,13 @@ DEALLOCATE(IsDepoSurfNode)
 #endif /*USE_MPI*/
 ALLOCATE(SurfNodeSource(1:nDepoSurfNodesTotal))
 SurfNodeSource=0.0
+
+! Build Vandermonde for mapping from N=1 (equidistant) to N=Nloc (Gauss/Gauss-Lobatto)
+ALLOCATE(Vdm_EQ_N(Nmin:Nmax))
+DO Nloc = Nmin, Nmax
+  ALLOCATE(Vdm_EQ_N(Nloc)%Vdm(0:Nloc,0:1))
+  CALL GetVandermonde(1, NodeTypeVISU, Nloc, NodeType, Vdm_EQ_N(Nloc)%Vdm(0:Nloc,0:1), modal=.FALSE.)
+END DO ! Nloc = Nmin, Nmax
 
 END SUBROUTINE InitDepoSurfNodes
 

@@ -1761,7 +1761,7 @@ USE MOD_Mesh_Vars               ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID,NonUni
 USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides
 USE MOD_ReadInTools             ,ONLY: PrintOption
 USE MOD_PICDepo                 ,ONLY: InitDepoSurfNodes
-USE MOD_PICDepo_Vars            ,ONLY: SurfNodeSource,FEMVertexID2DepoSurfNodeID,DepoSurfNodeID2FEMVertexID
+USE MOD_PICDepo_Vars            ,ONLY: SurfNodeSource,FEMVertexID2DepoSurfNodeID,DepoSurfNodeID2FEMVertexID,Vdm_EQ_N
 #if !(PP_TimeDiscMethod==700)
 USE MOD_PICDepo_Vars            ,ONLY: nDepoSurfNodes,nDepoSurfSides
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared
@@ -1860,6 +1860,7 @@ CALL WriteDataToVTK(nVarSurf         ,&
                     DGFV = 0          &
                     )
 
+SDEALLOCATE(Vdm_EQ_N)
 SDEALLOCATE(VarNamesSurf_HDF5)
 SDEALLOCATE(SurfNodeSource)
 SDEALLOCATE(DepoSurfNodeID2FEMVertexID)

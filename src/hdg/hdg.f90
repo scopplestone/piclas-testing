@@ -1238,16 +1238,16 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
     ! TODO NSideMin - What?
     lambdaLB=0.
   END ASSOCIATE
-  IF(nProcessors.GT.1) CALL GetMasteriLocSides()
+  IF(nProcessors.GT.1) CALL GetMasteriLocSides() ! Builds iLocSides, which is required in LambdaSideToMaster()
   DO iSide = 1, nSides
     NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,iSide)
 
-    CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSide)
+    CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSide) ! Requires iLocSides array
     ! Check if the same global unique side is encountered twice and store both global non-unique side IDs in the array
     ! SideToNonUniqueGlobalSide(1:2,iSide)
     IF(SideToNonUniqueGlobalSide(2,iSide).NE.-1)THEN
       NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(2,iSide)
-      CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSide)
+      CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSide) ! Requires iLocSides array
     END IF ! SideToNonUniqueGlobalSide(1,iSide).NE.-1
 
   END DO ! iSide = 1, nSides

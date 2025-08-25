@@ -136,6 +136,12 @@ REAL,ALLOCPOINT                 :: NodeVolume_Shared(:)
 REAL,ALLOCPOINT                 :: SFElemr2_Shared(:,:) ! index 1: radius, index 2: radius squared
 
 ! 2D surface deposition
+TYPE VdmType
+  REAL,ALLOCATABLE :: Vdm(:,:)                              !< Vandermonde mapping from equidistant (visu) to NodeType node set
+END TYPE VdmType
+
+TYPE(VdmType), DIMENSION(:), ALLOCATABLE :: Vdm_EQ_N        !< Array to store all Vandermonde matrices depending on Nloc
+
 REAL,ALLOCATABLE                :: SurfNodeSource(:)
 INTEGER,ALLOCATABLE             :: DepoSurfNodeID2FEMVertexID(:)
 INTEGER,ALLOCATABLE             :: FEMVertexID2DepoSurfNodeID(:)

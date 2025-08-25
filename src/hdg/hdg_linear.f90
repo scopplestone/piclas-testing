@@ -75,7 +75,9 @@ USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_HDG_Tools          ,ONLY: CG_solver,DisplayConvergence
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #if defined(PARTICLES)
-USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource
+USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource,FEMVertexID2DepoSurfNodeID,Vdm_EQ_N
+USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID,NonUniqueGlobalNodeIDToFEMVertexID
+USE MOD_Mesh_Vars          ,ONLY: SideToNonUniqueGlobalSide
 #endif /*defined(PARTICLES)*/
 #if defined(PARTICLES)
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
@@ -94,7 +96,9 @@ INTEGER :: BCsideID,BCType,BCState,SideID,iLocSide
 REAL    :: RHS_facetmp(nGP_face(NMax))
 REAL    :: rtmp(nGP_vol(NMax))
 #if defined(PARTICLES)
-INTEGER :: iPartBound
+INTEGER :: iPartBound, iNode, NonUniqueNodeID, NonUniqueGlobalSideID, iDepoSurfNodeID
+REAL    :: area
+REAL,ALLOCATABLE     :: tmp(:,:,:),tmp2(:,:,:)
 #endif /*defined(PARTICLES)*/
 #if (PP_nVar!=1)
 REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
@@ -306,29 +310,53 @@ DO BCsideID=1,nNeumannBCSides
 END DO
 
 ! Add Distributed Capacitance BC
+! TODO: DistriCapBC only includes nBCSides and not the inner BCs
+IF(nDistriCapBCsides.GT.0) ALLOCATE(tmp(1:1,0:1,0:1),tmp2(1:1,0:Nmax,0:Nmax))
 DO BCsideID=1,nDistriCapBCsides
-  SideID = DistriCapBC(BCsideID)
 #if defined(PARTICLES)
+  SideID     = DistriCapBC(BCsideID)             ! Get side index
   iPartBound = PartBound%MapToPartBC(BC(SideID)) ! Get particle boundary index
-#endif /*defined(PARTICLES)*/
-  Nloc = N_SurfMesh(SideID)%NSide
+  Nloc       = N_SurfMesh(SideID)%NSide          ! Get polynomial degree of side
+  NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,SideID) ! Get global side index
+
   ! Map surface charge from vertices to SideID surface with N=1
+  DO q=0,1; DO p=0,1
+    ! Get local node index
+    iNode = 2*q + p + 1
+    ! Mapping from non-unique global side index to non-unique global node index
+    NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID)
+    ! Mapping from NonUniqueNodeID to FEMVertexID
+    FEMVertexID = NonUniqueGlobalNodeIDToFEMVertexID(NonUniqueNodeID)
+    ! Get surface deposition node index
+    iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
+    ! Store in 2D temporary array
+    tmp(1:1,p,q) = SurfNodeSource(iDepoSurfNodeID)
+  END DO; END DO ! q=0,1; DO p=0,1
+
+  ! Map from equidistant side nodes (N=1) to side node type p-q system (Nloc)
+  CALL ChangeBasis2D(1, 1, Nloc, Vdm_EQ_N(Nloc)%Vdm, tmp(1:1,0:1,0:1), tmp2(1:1,0:Nloc,0:Nloc))
 
   ! Map from N=1 to N=Nloc
   DO q=0,Nloc; DO p=0,Nloc
-    FEMVertexID = 1
     r=q*(Nloc+1) + p+1
-#if defined(PARTICLES)
-    src = N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q) * ( &
+    IPWRITE(*,*) 'SurfElem(p,q),tmp2(1,p,q),tmp2(1,p,q)/(N_SurfMesh(SideID)%SurfElem(p,q)):', &
+                  N_SurfMesh(SideID)%SurfElem(p,q),tmp2(1,p,q),tmp2(1,p,q)/(N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q))
+    area = N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q)
+    src = area * ( &
           PartBound%DCPermittivity(iPartBound) * PartBound%DCBiasVoltage(iPartBound) / PartBound%DCThickness(iPartBound) + & ! DCBC
-          (SurfNodeSource(FEMVertexID)/2.5e-9 +                  & ! Surface charge due to deposited particles
-                    PartBound%DCSurfaceChargeDensity(iPartBound) & ! Surface charge due to analytical expression
+          (tmp2(1,p,q)/2.5e-9 +                         & ! Surface charge due to deposited particles
+           PartBound%DCSurfaceChargeDensity(iPartBound) & ! Surface charge due to analytical expression
           )/eps0 )
+    ! src = ( area*PartBound%DCPermittivity(iPartBound) * PartBound%DCBiasVoltage(iPartBound) / PartBound%DCThickness(iPartBound) + & ! DCBC
+    !       ( tmp2(1,p,q)        +                         & ! Surface charge due to deposited particles
+    !         area*PartBound%DCSurfaceChargeDensity(iPartBound) & ! Surface charge due to analytical expression
+    !       )/eps0 )
+    HDG_Surf_N(SideID)%RHS_face(1,r) = HDG_Surf_N(SideID)%RHS_face(1,r) + src
+  END DO; END DO ! p,q
+  ! read*
 #else
     CALL Abort(__STAMP__,'ERROR: Distributed capacitance requires PARTICLES=ON')
 #endif /*defined(PARTICLES)*/
-    HDG_Surf_N(SideID)%RHS_face(1,r) = HDG_Surf_N(SideID)%RHS_face(1,r) + src
-  END DO; END DO !p,q
 END DO
 
 #if USE_PETSC
