@@ -45,12 +45,11 @@ USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared,UseBezierControlPoints
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D, BezierSampleXi
 USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient, CalcNormAndTangBezier
-USE MOD_Mesh_Vars               ,ONLY: NGeo,nSides,offsetElem,SideToElem,BC
+USE MOD_Mesh_Vars               ,ONLY: NGeo,nSides,offsetElem,nElems
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_FromWorkFuncSEE
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_part_operations         ,ONLY: CreateParticle
-USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
-USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides, SurfSide2GlobalSide
 #ifdef LSERK
 USE MOD_Timedisc_Vars           ,ONLY: iStage, RK_c, nRKStages
 #endif
@@ -158,17 +157,14 @@ TimeScalingFactor = 0.5 * SQRT(PI) * tau * (ERF(t_2/tau)-ERF(t_1/tau))
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-! Loop over all sides (to include inner BCs, which are not part of nBCSides)
-DO BCSideID = 1, nSides
-  ! Skip non-BC sides
-  IF(BC(BCSideID).EQ.0) CYCLE
-  locElemID = SideToElem(S2E_ELEM_ID,BCSideID)
+! Loop over all surface sides (to include inner BCs, which are not part of nBCSides)
+DO iSurfSide = 1, nComputeNodeSurfSides
+  SideID    = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
+  locElemID = SideInfo_Shared(SIDE_ELEMID,SideID) - offsetElem
+  ! Cycle non-local elements
+  IF((locElemID.LE.0).OR.(locElemID.GT.nElems)) CYCLE
   ! Skip elements without ionization
   IF(.NOT.RayElemEmission(1,locElemID)) CYCLE
-  iLocSide  = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
-  SideID    = GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
-  iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,SideID)
-  !SideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
   iPartBound = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
   ! Skip non-reflective BC sides
   IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%ReflectiveBC) CYCLE
@@ -201,7 +197,7 @@ DO BCSideID = 1, nSides
     DO q = 1, Ray%nSurfSample
       ! Calculate the number of SEEs per subside
       !E_Intensity = PhotonSampWall(2,p,q,iSurfSide) * TimeScalingFactor
-      E_Intensity = PhotonSampWall_loc(p,q,BCSideID) * PhotonSurfSideArea(p,q,iSurfSide) * TimeScalingFactor
+      E_Intensity = PhotonSampWall_loc(p,q,iSurfSide) * PhotonSurfSideArea(p,q,iSurfSide) * TimeScalingFactor
       RealNbrOfSEE = E_Intensity / CalcPhotonEnergy(lambda) * PartBound%PhotonSEEYield(iPartBound) / MPF
       ! Add random number to calculated real/float value of SEE particles and user INT()for lower-bound cut-off
       CALL RANDOM_NUMBER(RandVal)
