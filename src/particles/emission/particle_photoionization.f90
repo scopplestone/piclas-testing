@@ -1,5 +1,5 @@
 !==================================================================================================================================
-! Copyright (c) 2023 boltzplatz - numerical plasma dynamics GmbH
+! Copyright (c) 2023-2025 boltzplatz - numerical plasma dynamics GmbH
 !
 ! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
@@ -45,7 +45,7 @@ USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared,UseBezierControlPoints
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D, BezierSampleXi
 USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient, CalcNormAndTangBezier
-USE MOD_Mesh_Vars               ,ONLY: NGeo,nBCSides,offsetElem,SideToElem
+USE MOD_Mesh_Vars               ,ONLY: NGeo,nSides,offsetElem,SideToElem,BC
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_FromWorkFuncSEE
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_part_operations         ,ONLY: CreateParticle
@@ -158,7 +158,10 @@ TimeScalingFactor = 0.5 * SQRT(PI) * tau * (ERF(t_2/tau)-ERF(t_1/tau))
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-DO BCSideID=1,nBCSides
+! Loop over all sides (to include inner BCs, which are not part of nBCSides)
+DO BCSideID = 1, nSides
+  ! Skip non-BC sides
+  IF(BC(BCSideID).EQ.0) CYCLE
   locElemID = SideToElem(S2E_ELEM_ID,BCSideID)
   ! Skip elements without ionization
   IF(.NOT.RayElemEmission(1,locElemID)) CYCLE
@@ -304,7 +307,7 @@ DO BCSideID=1,nBCSides
 #if USE_LOADBALANCE
 CALL LBElemSplitTime(locElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
-END DO
+END DO ! BCSideID = 1, nSides
 
 END ASSOCIATE
 
