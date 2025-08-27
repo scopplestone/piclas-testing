@@ -45,7 +45,7 @@ USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared,UseBezierControlPoints
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D, BezierSampleXi
 USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient, CalcNormAndTangBezier
-USE MOD_Mesh_Vars               ,ONLY: NGeo,nSides,offsetElem,nElems
+USE MOD_Mesh_Vars               ,ONLY: NGeo,offsetElem,nElems
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_FromWorkFuncSEE
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_part_operations         ,ONLY: CreateParticle
@@ -82,7 +82,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: t_1, t_2, E_Intensity,vec(3)
-INTEGER               :: NbrOfRepetitions, SideID, iSample, GlobElemID, PartID, BCSideID, iLocSide, locElemID, iSurfSide, CNElemID
+INTEGER               :: NbrOfRepetitions, SideID, iSample, GlobElemID, PartID, locElemID, iSurfSide, CNElemID
 INTEGER               :: p, q, iPartBound, SpecID, iPart, NbrOfSEE, iSEEBC
 REAL                  :: RealNbrOfSEE, TimeScalingFactor, MPF
 REAL                  :: Particle_pos(1:3), xi(2)
@@ -160,7 +160,9 @@ CALL LBStartTime(tLBStart)
 ! Loop over all surface sides (to include inner BCs, which are not part of nBCSides)
 DO iSurfSide = 1, nComputeNodeSurfSides
   SideID    = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
-  locElemID = SideInfo_Shared(SIDE_ELEMID,SideID) - offsetElem
+  ! Determine which element the particles are going to be inserted
+  GlobElemID = SideInfo_Shared(SIDE_ELEMID ,SideID)
+  locElemID = GlobElemID - offsetElem
   ! Cycle non-local elements
   IF((locElemID.LE.0).OR.(locElemID.GT.nElems)) CYCLE
   ! Skip elements without ionization
@@ -184,8 +186,6 @@ DO iSurfSide = 1, nComputeNodeSurfSides
     IPWRITE(UNIT_StdOut,*) "nSpecies   =", nSpecies
     CALL abort(__STAMP__,'Electron species index cannot greater than nSpecies!')
   END IF ! SpecID.eq.0
-  ! Determine which element the particles are going to be inserted
-  GlobElemID = SideInfo_Shared(SIDE_ELEMID ,SideID)
   ! Determine the weighting factor of the electron species
   IF(usevMPF)THEN
     MPF = PartBound%PhotonSEEMacroParticleFactor(iPartBound) ! Use SEE-specific MPF
@@ -303,7 +303,7 @@ DO iSurfSide = 1, nComputeNodeSurfSides
 #if USE_LOADBALANCE
 CALL LBElemSplitTime(locElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
-END DO ! BCSideID = 1, nSides
+END DO ! iSurfSide = 1, nComputeNodeSurfSides
 
 END ASSOCIATE
 

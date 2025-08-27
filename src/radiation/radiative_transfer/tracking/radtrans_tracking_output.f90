@@ -366,6 +366,8 @@ USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState
 USE MOD_RayTracing_Vars        ,ONLY: Ray
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem_Shared
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -377,7 +379,8 @@ IMPLICIT NONE
 CHARACTER(LEN=255)                  :: Statedummy
 CHARACTER(LEN=255)                  :: H5_Name, H5_Name2
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
-INTEGER                             :: GlobalSideID, iSurfSide, OutputCounter, SurfSideNb, p, q
+INTEGER                             :: GlobalSideID, GlobalNbSideID, iSurfSide, OutputCounter, SurfSideNb, p, q
+INTEGER                             :: CNElemID, GlobalElemID
 INTEGER,PARAMETER                   :: nVar2D=3
 REAL                                :: tstart,tend
 REAL, ALLOCATABLE                   :: helpArray(:,:,:,:)
@@ -449,25 +452,37 @@ ASSOCIATE (&
   OutputCounter = 0
   DO iSurfSide = 1,nComputeNodeSurfSides
     GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
-    IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
-      IF(GlobalSideID.LT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)) THEN
-        SurfSideNb = GlobalSide2SurfSide(SURF_SIDEID,SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))
-        ! Add your contribution to my inner BC
-        PhotonSampWall(:,:,:,iSurfSide) = PhotonSampWall(:,:,:,iSurfSide) + PhotonSampWall(:,:,:,SurfSideNb)
+    GlobalNbSideID = SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)
+    ! Treatment of inner BC's: check whether the surface side has a neighbour, indicating an inner BC
+    IF(GlobalNbSideID.GT.0) THEN
+      SurfSideNb = GlobalSide2SurfSide(SURF_SIDEID,GlobalNbSideID)
+      IF(DoDielectric) THEN
+        ! In case of a dielectric, output only the value for the element, which is not a dielectric
+        GlobalElemID = SideInfo_Shared(SIDE_ELEMID,GlobalSideID)
+        CNElemID = GetCNElemID(GlobalElemID)
+        IF(isDielectricElem_Shared(CNElemID)) CYCLE
       ELSE
-        CYCLE
+        ! Regular case without dielectric: add neighbour's contribution to my inner BC with the smaller global side index
+        IF(GlobalSideID.LT.GlobalNbSideID) THEN
+          PhotonSampWall(:,:,:,iSurfSide) = PhotonSampWall(:,:,:,iSurfSide) + PhotonSampWall(:,:,:,SurfSideNb)
+        ELSE
+          CYCLE
+        END IF
       END IF
     END IF
     OutputCounter = OutputCounter + 1
+    ! Write PhotonCount
     helpArray(1,1:nSurfSample,1:nSurfSample,OutputCounter) = PhotonSampWall(1,1:nSurfSample,1:nSurfSample,iSurfSide)
-    helpArray2(OutputCounter) = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
-    !  SurfaceArea should be changed to 1:SurfMesh%nSides if inner sampling sides exist...
+    ! Write HeatFlux
     DO p = 1, INT(nSurfSample)
       DO q = 1, INT(nSurfSample)
         helpArray(2,p,q,OutputCounter) = PhotonSampWall(2,p,q,iSurfSide)/PhotonSurfSideArea(p,q,iSurfSide)
-        helpArray(3,p,q,OutputCounter) = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
       END DO ! q = 1, nSurfSample
     END DO ! p = 1, nSurfSample
+    ! Write iBC
+    helpArray(3,1:nSurfSample,1:nSurfSample,OutputCounter) = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
+    ! Write GlobalSideID
+    helpArray2(OutputCounter) = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
   END DO
   ! WARNING: Only the sampling leaders write the data to .h5
   CALL WriteArrayToHDF5(DataSetName=H5_Name  , rank=4      ,                                  &

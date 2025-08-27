@@ -269,7 +269,6 @@ USE MOD_RayTracing_Vars        ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,Ra
 USE MOD_HDF5_input             ,ONLY: ReadAttribute
 USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfSides, SurfSide2GlobalSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED,myComputeNodeRank
@@ -278,6 +277,8 @@ USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallHDF5_Shared,PhotonSampWallHD
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem_Shared
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 !#if MPI
 !#endif /*MPI*/
 IMPLICIT NONE
@@ -286,9 +287,10 @@ IMPLICIT NONE
 LOGICAL,INTENT(IN)   :: onlySurfData
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem,Nloc,iVar,k,l,m,iSurfSideHDF5,nSurfSidesHDF5,iSurfSide,locElemID,GlobalSideID,SideID
+INTEGER              :: iElem,Nloc,iVar,k,l,m,iSurfSideHDF5,nSurfSidesHDF5,iSurfSide,locElemID,GlobalSideID,SideID,GlobalElemID,CNElemID
 INTEGER              :: nSurfSampleHDF5,N_HDF5
 INTEGER              :: iDOF,offsetDOF,nDOFLocal,nDOFTotal
+INTEGER              :: OutputCounter
 LOGICAL              :: ContainerExists
 INTEGER, ALLOCATABLE :: GlobalSideIndex(:)
 REAL, ALLOCATABLE    :: N_DG_Ray_locREAL(:)
@@ -364,6 +366,7 @@ CALL BARRIER_AND_SYNC(PhotonSampWallHDF5_Shared_Win,MPI_COMM_SHARED)
 
 ALLOCATE(PhotonSampWall_loc(1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNodeSurfSides))
 PhotonSampWall_loc = -1.0
+OutputCounter = 0
 ! Loop through large loop (TODO: can this be made cheaper?)
 DO iSurfSideHDF5 = 1, nSurfSidesHDF5
 #if USE_MPI
@@ -374,23 +377,34 @@ DO iSurfSideHDF5 = 1, nSurfSidesHDF5
   ! Loop through process-local (hopefully small) loop
   DO iSurfSide = 1, nComputeNodeSurfSides
     SideID    = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
-    locElemID = SideInfo_Shared(SIDE_ELEMID,SideID) - offsetElem
+    GlobalElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
+    locElemID = GlobalElemID - offsetElem
     ! Cycle non-local elements
     IF((locElemID.LE.0).OR.(locElemID.GT.nElems)) CYCLE
-    ! Cycle elements in dielectric regions
-    IF(DoDielectric) THEN
-      IF(isDielectricElem(locElemID)) CYCLE
-    END IF
     ! Check whether side is on the core
     IF(GlobalSideID.EQ.SideID)THEN
+      ! Store the heat flux
       PhotonSampWall_loc(1:Ray%nSurfSample,1:Ray%nSurfSample,iSurfSide) = PhotonSampWallHDF5(2,1:Ray%nSurfSample,1:Ray%nSurfSample,iSurfSideHDF5)
       ! Check if element has already been flagged an emission element (either volume or surface emission)
       IF(.NOT.RayElemEmission(1,locElemID))THEN
         IF(ANY(PhotonSampWall_loc(1:Ray%nSurfSample,1:Ray%nSurfSample,iSurfSide).GT.0.0)) RayElemEmission(1,locElemID) = .TRUE.
       END IF ! .NOT.RayElemEmission(1,locElemID)
+      OutputCounter = OutputCounter + 1
     END IF ! GlobalSideID.EQ.SideID
   END DO ! iSurfSide = 1, nComputeNodeSurfSides
 END DO ! iSurfSideHDF5 = 1, nSurfSidesHDF5
+
+! Consistency check: have all sides within the HDF5 file been identified?
+#if USE_MPI
+IF(MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE ,OutputCounter,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+ELSE
+  CALL MPI_REDUCE(OutputCounter,MPI_IN_PLACE ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+END IF
+#endif
+IF(MPIRoot)THEN
+  IF(nSurfSidesHDF5.NE.OutputCounter) CALL abort(__STAMP__,'ERROR in ReadRayTracingDataFromH5: Number of surface sides from HDF5 is not equal to the current number!')
+END IF
 
 ! Check if only the surface data is to be loaded (non-restart and non-load balance case)
 IF(onlySurfData) THEN
