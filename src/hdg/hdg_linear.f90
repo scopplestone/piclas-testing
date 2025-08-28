@@ -97,8 +97,8 @@ REAL    :: RHS_facetmp(nGP_face(NMax))
 REAL    :: rtmp(nGP_vol(NMax))
 #if defined(PARTICLES)
 INTEGER :: iPartBound, iNode, NonUniqueNodeID, NonUniqueGlobalSideID, iDepoSurfNodeID
-REAL    :: area
-REAL,ALLOCATABLE     :: tmp(:,:,:),tmp2(:,:,:)
+REAL    :: SideArea,SubArea
+REAL,ALLOCATABLE     :: SurfNodeSourceEquiN1(:,:,:),SurfNodeSourceNodeTypeNloc(:,:,:)
 #endif /*defined(PARTICLES)*/
 #if (PP_nVar!=1)
 REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
@@ -311,7 +311,7 @@ END DO
 
 ! Add Distributed Capacitance BC
 ! TODO: DistriCapBC only includes nBCSides and not the inner BCs
-IF(nDistriCapBCsides.GT.0) ALLOCATE(tmp(1:1,0:1,0:1),tmp2(1:1,0:Nmax,0:Nmax))
+IF(nDistriCapBCsides.GT.0) ALLOCATE(SurfNodeSourceEquiN1(1:1,0:1,0:1),SurfNodeSourceNodeTypeNloc(1:1,0:Nmax,0:Nmax))
 DO BCsideID=1,nDistriCapBCsides
 #if defined(PARTICLES)
   SideID     = DistriCapBC(BCsideID)             ! Get side index
@@ -330,26 +330,32 @@ DO BCsideID=1,nDistriCapBCsides
     ! Get surface deposition node index
     iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
     ! Store in 2D temporary array
-    tmp(1:1,p,q) = SurfNodeSource(iDepoSurfNodeID)
+    SurfNodeSourceEquiN1(1:1,p,q) = SurfNodeSource(iDepoSurfNodeID)
   END DO; END DO ! q=0,1; DO p=0,1
 
   ! Map from equidistant side nodes (N=1) to side node type p-q system (Nloc)
-  CALL ChangeBasis2D(1, 1, Nloc, Vdm_EQ_N(Nloc)%Vdm, tmp(1:1,0:1,0:1), tmp2(1:1,0:Nloc,0:Nloc))
+  CALL ChangeBasis2D(1, 1, Nloc, Vdm_EQ_N(Nloc)%Vdm, SurfNodeSourceEquiN1(1:1,0:1,0:1), SurfNodeSourceNodeTypeNloc(1:1,0:Nloc,0:Nloc))
+
+  ! Get SideArea
+  SideArea = 0
+  DO q=0,Nloc; DO p=0,Nloc
+    SideArea = SideArea + N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q)
+  END DO; END DO ! p,q
 
   ! Map from N=1 to N=Nloc
   DO q=0,Nloc; DO p=0,Nloc
     r=q*(Nloc+1) + p+1
-    IPWRITE(*,*) 'SurfElem(p,q),tmp2(1,p,q),tmp2(1,p,q)/(N_SurfMesh(SideID)%SurfElem(p,q)):', &
-                  N_SurfMesh(SideID)%SurfElem(p,q),tmp2(1,p,q),tmp2(1,p,q)/(N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q))
-    area = N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q)
-    src = area * ( &
+    ! IPWRITE(*,*) 'SurfElem(p,q),SurfNodeSourceNodeTypeNloc(1,p,q),SurfNodeSourceNodeTypeNloc(1,p,q)/(N_SurfMesh(SideID)%SurfElem(p,q)):', &
+    !               N_SurfMesh(SideID)%SurfElem(p,q),SurfNodeSourceNodeTypeNloc(1,p,q),SurfNodeSourceNodeTypeNloc(1,p,q)/(N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q))
+    SubArea = N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q)
+    src = SubArea * ( &
           PartBound%DCPermittivity(iPartBound) * PartBound%DCBiasVoltage(iPartBound) / PartBound%DCThickness(iPartBound) + & ! DCBC
-          (tmp2(1,p,q)/2.5e-9 +                         & ! Surface charge due to deposited particles
+          (SurfNodeSourceNodeTypeNloc(1,p,q)/SideArea +                         & ! Surface charge due to deposited particles
            PartBound%DCSurfaceChargeDensity(iPartBound) & ! Surface charge due to analytical expression
           )/eps0 )
-    ! src = ( area*PartBound%DCPermittivity(iPartBound) * PartBound%DCBiasVoltage(iPartBound) / PartBound%DCThickness(iPartBound) + & ! DCBC
-    !       ( tmp2(1,p,q)        +                         & ! Surface charge due to deposited particles
-    !         area*PartBound%DCSurfaceChargeDensity(iPartBound) & ! Surface charge due to analytical expression
+    ! src = ( SubArea*PartBound%DCPermittivity(iPartBound) * PartBound%DCBiasVoltage(iPartBound) / PartBound%DCThickness(iPartBound) + & ! DCBC
+    !       ( SurfNodeSourceNodeTypeNloc(1,p,q)        +                         & ! Surface charge due to deposited particles
+    !         SubArea*PartBound%DCSurfaceChargeDensity(iPartBound) & ! Surface charge due to analytical expression
     !       )/eps0 )
     HDG_Surf_N(SideID)%RHS_face(1,r) = HDG_Surf_N(SideID)%RHS_face(1,r) + src
   END DO; END DO ! p,q
