@@ -380,7 +380,7 @@ CHARACTER(LEN=255)                  :: Statedummy
 CHARACTER(LEN=255)                  :: H5_Name, H5_Name2
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
 INTEGER                             :: GlobalSideID, GlobalNbSideID, iSurfSide, OutputCounter, SurfSideNb, p, q
-INTEGER                             :: CNElemID, GlobalElemID
+INTEGER                             :: CNElemID, GlobalElemID, GlobalNbElemID, CNNbElemID
 INTEGER,PARAMETER                   :: nVar2D=3
 REAL                                :: tstart,tend
 REAL, ALLOCATABLE                   :: helpArray(:,:,:,:)
@@ -456,18 +456,11 @@ ASSOCIATE (&
     ! Treatment of inner BC's: check whether the surface side has a neighbour, indicating an inner BC
     IF(GlobalNbSideID.GT.0) THEN
       SurfSideNb = GlobalSide2SurfSide(SURF_SIDEID,GlobalNbSideID)
-      IF(DoDielectric) THEN
-        ! In case of a dielectric, output only the value for the element, which is not a dielectric
-        GlobalElemID = SideInfo_Shared(SIDE_ELEMID,GlobalSideID)
-        CNElemID = GetCNElemID(GlobalElemID)
-        IF(isDielectricElem_Shared(CNElemID)) CYCLE
+      ! Add neighbour's contribution to my inner BC with the smaller global side index
+      IF(GlobalSideID.LT.GlobalNbSideID) THEN
+        PhotonSampWall(:,:,:,iSurfSide) = PhotonSampWall(:,:,:,iSurfSide) + PhotonSampWall(:,:,:,SurfSideNb)
       ELSE
-        ! Regular case without dielectric: add neighbour's contribution to my inner BC with the smaller global side index
-        IF(GlobalSideID.LT.GlobalNbSideID) THEN
-          PhotonSampWall(:,:,:,iSurfSide) = PhotonSampWall(:,:,:,iSurfSide) + PhotonSampWall(:,:,:,SurfSideNb)
-        ELSE
-          CYCLE
-        END IF
+        CYCLE
       END IF
     END IF
     OutputCounter = OutputCounter + 1

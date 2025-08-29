@@ -277,6 +277,8 @@ USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallHDF5_Shared,PhotonSampWallHD
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem_Shared
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 !#if MPI
 !#endif /*MPI*/
 IMPLICIT NONE
@@ -289,7 +291,8 @@ INTEGER              :: iElem,Nloc,iVar,k,l,m,iSurfSideHDF5,nSurfSidesHDF5,iSurf
 INTEGER              :: nSurfSampleHDF5,N_HDF5
 INTEGER              :: iDOF,offsetDOF,nDOFLocal,nDOFTotal
 INTEGER              :: OutputCounter
-LOGICAL              :: ContainerExists
+INTEGER              :: CNElemID, GlobalNbSideID, GlobalNbElemID, CNNbElemID
+LOGICAL              :: ContainerExists, SideOnProc
 INTEGER, ALLOCATABLE :: GlobalSideIndex(:)
 REAL, ALLOCATABLE    :: N_DG_Ray_locREAL(:)
 REAL, ALLOCATABLE    :: UNMax(:,:,:,:,:),UNMax_loc(:,:,:,:)
@@ -374,35 +377,50 @@ DO iSurfSideHDF5 = 1, nSurfSidesHDF5
 #endif /*USE_MPI*/
   ! Loop through process-local (hopefully small) loop
   DO iSurfSide = 1, nComputeNodeSurfSides
+    SideOnProc = .FALSE.
     SideID    = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
     GlobalElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
+    CNElemID = GetCNElemID(GlobalElemID)
+    ! Get the neighbour side ID for inner BC check
+    GlobalNbSideID = SideInfo_Shared(SIDE_NBSIDEID,SideID)
     locElemID = GlobalElemID - offsetElem
-    ! Cycle non-local elements
+    ! Cycle non-process-local elements
     IF((locElemID.LE.0).OR.(locElemID.GT.nElems)) CYCLE
-    ! Check whether side is on the core
-    IF(GlobalSideID.EQ.SideID)THEN
+    IF(DoDielectric) THEN
+      ! Cycle dielectric elements
+      IF(isDielectricElem_Shared(CNElemID)) CYCLE
+      ! Only the inner BC side with the smaller index is output, hence, it could be on the side of a dielectric
+      SideOnProc = (GlobalSideID.EQ.SideID).OR.(GlobalSideID.EQ.GlobalNbSideID)
+      ! Consistency check: current element is not a dielectric, and if the current side has a neighbour (-> inner BC), the neighbour
+      ! element must be a dielectric
+      IF(GlobalNbSideID.GT.0) THEN
+        GlobalNbElemID = SideInfo_Shared(SIDE_ELEMID,GlobalNbSideID)
+        CNNbElemID = GetCNElemID(GlobalNbElemID)
+        IF(.NOT.isDielectricElem_Shared(CNNbElemID)) THEN
+          CALL abort(__STAMP__,'ERROR in ReadRayTracingDataFromH5: Inner BCs in Raytracing without dielectrics are not supported!')
+        END IF
+      END IF
+    ELSE
+      ! Regular check
+      SideOnProc = (GlobalSideID.EQ.SideID)
+      ! Consistency check: since only inner BCs with lower index number are output, RayElemEmission(1,locElemID) might be on either
+      ! side of the inner BC, additional treatment required
+      IF(GlobalNbSideID.GT.0) THEN
+        CALL abort(__STAMP__,'ERROR in ReadRayTracingDataFromH5: InnerBCs in Raytracing without dielectrics are not supported!')
+      END IF
+    END IF
+    ! Check whether read-in side is on the process
+    ! (and additional check whether the neighbour side (inner BC) corresponds to the read-in side)
+    IF(SideOnProc)THEN
       ! Store the heat flux
       PhotonSampWall_loc(1:Ray%nSurfSample,1:Ray%nSurfSample,iSurfSide) = PhotonSampWallHDF5(2,1:Ray%nSurfSample,1:Ray%nSurfSample,iSurfSideHDF5)
       ! Check if element has already been flagged an emission element (either volume or surface emission)
       IF(.NOT.RayElemEmission(1,locElemID))THEN
         IF(ANY(PhotonSampWall_loc(1:Ray%nSurfSample,1:Ray%nSurfSample,iSurfSide).GT.0.0)) RayElemEmission(1,locElemID) = .TRUE.
       END IF ! .NOT.RayElemEmission(1,locElemID)
-      OutputCounter = OutputCounter + 1
-    END IF ! GlobalSideID.EQ.SideID
+    END IF ! SideOnProc
   END DO ! iSurfSide = 1, nComputeNodeSurfSides
 END DO ! iSurfSideHDF5 = 1, nSurfSidesHDF5
-
-! Consistency check: have all sides within the HDF5 file been identified?
-#if USE_MPI
-IF(MPIRoot)THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE ,OutputCounter,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
-ELSE
-  CALL MPI_REDUCE(OutputCounter,MPI_IN_PLACE ,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
-END IF
-#endif
-IF(MPIRoot)THEN
-  IF(nSurfSidesHDF5.NE.OutputCounter) CALL abort(__STAMP__,'ERROR in ReadRayTracingDataFromH5: Number of surface sides from HDF5 is not equal to the current number!')
-END IF
 
 ! Check if only the surface data is to be loaded (non-restart and non-load balance case)
 IF(onlySurfData) THEN

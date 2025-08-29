@@ -167,8 +167,8 @@ DO iSurfSide = 1, nComputeNodeSurfSides
   IF((locElemID.LE.0).OR.(locElemID.GT.nElems)) CYCLE
   ! Skip elements without ionization
   IF(.NOT.RayElemEmission(1,locElemID)) CYCLE
-  iPartBound = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
   ! Skip non-reflective BC sides
+  iPartBound = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
   IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%ReflectiveBC) CYCLE
   ! Skip BC sides with zero yield
   IF(PartBound%PhotonSEEYield(iPartBound).LE.0.) CYCLE
@@ -195,8 +195,8 @@ DO iSurfSide = 1, nComputeNodeSurfSides
   ! Loop over the subsides
   DO p = 1, Ray%nSurfSample
     DO q = 1, Ray%nSurfSample
+      IF(PhotonSampWall_loc(p,q,iSurfSide).LT.0.0) CALL abort(__STAMP__,'ERROR in PhotoIonization_RayTracing_SEE: PhotonSampWall_loc not defined!')
       ! Calculate the number of SEEs per subside
-      !E_Intensity = PhotonSampWall(2,p,q,iSurfSide) * TimeScalingFactor
       E_Intensity = PhotonSampWall_loc(p,q,iSurfSide) * PhotonSurfSideArea(p,q,iSurfSide) * TimeScalingFactor
       RealNbrOfSEE = E_Intensity / CalcPhotonEnergy(lambda) * PartBound%PhotonSEEYield(iPartBound) / MPF
       ! Add random number to calculated real/float value of SEE particles and user INT()for lower-bound cut-off
