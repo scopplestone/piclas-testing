@@ -207,11 +207,15 @@ def CleanDoPrintStatusLine(stdfile,args):
 
     #Time = 0.8601E-07    dt = 0.1000E-10   eta =      0:44:32     |=========================================>        | [ 82.51%]
     arr = ['Time', 'dt', 'eta', '%', '|']
+    arr_ray = ['Photon =', 'TotalPhotons =', 'eta', '%', '|']
     n=0
     with open(stdfile_new, "w") as output_new:
         for line in lines:
             n+=1
             if all(c in line.strip("\n") for c in arr):
+                # Ignore this line and increase the counter by 1
+                changedLines+=1
+            elif all(c in line.strip("\n") for c in arr_ray):
                 # Ignore this line and increase the counter by 1
                 changedLines+=1
             else:
@@ -471,23 +475,12 @@ def filter_invalid_utf8(file_path):
     Returns:
         str: The cleaned content
     """
-    # Read the file in binary mode
+    # Read in binary mode
     with open(file_path, 'rb') as file:
         binary_data = file.read()
 
-    # Filter out invalid UTF-8 characters
-    cleaned_data = b''
-    for i in range(len(binary_data)):
-        # Try to decode each byte
-        try:
-            binary_data[i:i+1].decode('utf-8')
-            cleaned_data += binary_data[i:i+1]
-        except UnicodeDecodeError:
-            # Skip this byte if it can't be decoded
-            pass
-
-    # Get the decoded clean content
-    clean_content = cleaned_data.decode('utf-8')
+    # Decode with error handling
+    clean_content = binary_data.decode('utf-8', errors='ignore')
 
     # Write back to the original file
     with open(file_path, 'w', encoding='utf-8') as file:
