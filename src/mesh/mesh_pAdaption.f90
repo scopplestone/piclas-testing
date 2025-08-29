@@ -51,30 +51,31 @@ SUBROUTINE InitpAdaption()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-!USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
+USE MOD_Mesh_Vars          ,ONLY: NMaxGlobal,NMinGlobal
 #if !(PP_TimeDiscMethod==700)
 USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionType,pAdaptionBCLevel,NDGAllocationIsDone
-#endif /*!(PP_TimeDiscMethod==700)*/
 USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut,ElementOutNloc
 USE MOD_Mesh_Vars          ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC,readFEMconnectivity,NodeCoords,nGlobalDOFs
-USE MOD_Mesh_Vars          ,ONLY: NMaxGlobal,NMinGlobal
 USE MOD_ReadInTools        ,ONLY: GETINTFROMSTR
 USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
 USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity, offsetElem, nElems
+#endif /*!(PP_TimeDiscMethod==700)*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if !(PP_TimeDiscMethod==700)
 INTEGER :: iElem,BCSideID,BCType
 REAL    :: RandVal,x
 LOGICAL :: SetBCElemsToNMax
 INTEGER(KIND=8) :: nLocalDOFs
+#endif /*!(PP_TimeDiscMethod==700)*/
 !===================================================================================================================================
+#if !(PP_TimeDiscMethod==700)
 ! Set defaults
 SetBCElemsToNMax = .FALSE. ! Initialize
 
-#if !(PP_TimeDiscMethod==700)
 pAdaptionBCLevel = -1
 NDGAllocationIsDone = .FALSE.
 
@@ -201,17 +202,16 @@ nGlobalDOFs = nLocalDOFs
 
 ! Initialize element containers
 CALL Build_N_DG_Mapping()
-#else
-NMinGlobal = PP_N
-NMaxGlobal = PP_N
-#endif /*!(PP_TimeDiscMethod==700)*/
-
 ! For further layers, loop over the elements again and check for already marked elements instead of the sides. This requires
 ! a built N_DG_Mapping to account for neighbour elements in the halo region, N_DG_Mapping has to be rebuild afterwards
 IF(ABS(pAdaptionBCLevel).GT.1)THEN
   CALL SetpAdaptionBCLevel2()
   CALL Build_N_DG_Mapping()
 END IF ! pAdaptionBCLevel.GT.1
+#else
+NMinGlobal = PP_N
+NMaxGlobal = PP_N
+#endif /*!(PP_TimeDiscMethod==700)*/
 
 END SUBROUTINE InitpAdaption
 

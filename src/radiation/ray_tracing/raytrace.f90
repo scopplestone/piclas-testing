@@ -277,8 +277,6 @@ USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallHDF5_Shared,PhotonSampWallHD
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem_Shared
-USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 !#if MPI
 !#endif /*MPI*/
 IMPLICIT NONE
@@ -287,7 +285,7 @@ IMPLICIT NONE
 LOGICAL,INTENT(IN)   :: onlySurfData
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem,Nloc,iVar,k,l,m,iSurfSideHDF5,nSurfSidesHDF5,iSurfSide,locElemID,GlobalSideID,SideID,GlobalElemID,CNElemID
+INTEGER              :: iElem,Nloc,iVar,k,l,m,iSurfSideHDF5,nSurfSidesHDF5,iSurfSide,locElemID,GlobalSideID,SideID,GlobalElemID
 INTEGER              :: nSurfSampleHDF5,N_HDF5
 INTEGER              :: iDOF,offsetDOF,nDOFLocal,nDOFTotal
 INTEGER              :: OutputCounter
