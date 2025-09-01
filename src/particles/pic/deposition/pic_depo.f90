@@ -345,7 +345,7 @@ SUBROUTINE InitDepoSurfNodes()
 USE MOD_Globals
 USE MOD_PICDepo_Vars
 USE MOD_Particle_Mesh_Vars ,ONLY: nNonUniqueGlobalNodes
-USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity, offsetElem, nElems
+USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity,offsetElem,nElems,BC
 USE MOD_Mesh_Vars          ,ONLY: VertexConnectInfo,NGeo,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID,SideToNonUniqueGlobalSide
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nFEMVertices,NonUniqueGlobalNodeIDToFEMVertexID,nSides
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,SideInfo_Shared,ElemInfo_Shared,VertexInfo_Shared
@@ -366,12 +366,13 @@ IMPLICIT NONE
 ! INTEGER                   :: iNode
 #endif /*USE_MPI*/
 LOGICAL,ALLOCATABLE :: IsDepoSurfSide(:)
-INTEGER :: iElem,BCType,NonUniqueGlobalSideID,iGlobalElemID,BCIndex,ElemType
-INTEGER :: iVertexConnect,GlobalNbElemID,GlobalNbLocVertexID,LocSideList(3),iLocSideList,iLocSide
+INTEGER :: iElem,BCType,NonUniqueGlobalSideID,NonUniqueGlobalNbSideID,iGlobalElemID,BCIndex,ElemType
+INTEGER :: iVertexConnect,GlobalNbElemID,NbLocVertexID,LocSideList(3),iNeighbourLocSideList,iNeighbourLocSide
 INTEGER :: FirstGlobalElemID,LastGlobalElemID
 INTEGER :: FirstVertexInd,LastVertexInd,FirstVertexConnectInd,LastVertexConnectInd
 INTEGER :: FEMVertexID,iVertexInd,NonUniqueNodeID,CNS(8),iNode
-INTEGER :: firstSide,lastSide,CNElemID,LocSideID,iSide,Nloc
+INTEGER :: firstSide,lastSide,CNElemID,LocSideID,iSide,Nloc,iBC
+INTEGER,ALLOCATABLE :: SymmetryBCIndex(:,:)
 !===================================================================================================================================
 ! Sanity check: This routine requires FEM connectivity
 IF(.NOT.readFEMconnectivity) CALL abort(__STAMP__,'Error in surface deposition init: readFEMconnectivity=T is required')
@@ -391,6 +392,7 @@ NonUniqueGlobalNodeIDToFEMVertexID = 0
 nDepoSurfSides = 0
 ALLOCATE(IsDepoSurfSide(1:nNonUniqueGlobalSides))
 IsDepoSurfSide = .FALSE.
+! 1-4: NodeIDs
 ALLOCATE(NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(1:4,1:nNonUniqueGlobalSides))
 NonUniqueGlobalSideIDToNonUniqueGlobalNodeID = 0
 
@@ -425,35 +427,40 @@ DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
     VertexInfo_Shared(VERTEX_NONUNIQUENODEID,iVertexInd) = NonUniqueNodeID
     ! Mapping from NonUniqueNodeID to FEMVertexID
     NonUniqueGlobalNodeIDToFEMVertexID(NonUniqueNodeID) = FEMVertexID
-
     ! Get local vertex connectivity: First and Last connected vertex index
     FirstVertexConnectInd = VertexInfo_Shared(VERTEX_FIRSTCONNECTIND,iVertexInd)+1
     LastVertexConnectInd  = VertexInfo_Shared(VERTEX_LASTCONNECTIND,iVertexInd)
     DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
       ! Get neighbour infos. Note the ABS() for +/- master/slave notation
-      GlobalNbElemID      = ABS(VertexConnectInfo(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
-      GlobalNbLocVertexID =     VertexConnectInfo(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
+      GlobalNbElemID = ABS(VertexConnectInfo(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
+      NbLocVertexID  =     VertexConnectInfo(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
       ! Set sides depending on the element type: Only implemented for Hexahedral elements
-      CALL GetLocSideList(ElemType,GlobalNbLocVertexID,LocSideList)
+      CALL GetLocSideList(ElemType,NbLocVertexID,LocSideList)
       ! Loop over the three connected sides of the neighbour element, which is connected with a corner to iVertexConnect
-      DO iLocSideList = 1, 3
+      iNbSide: DO iNeighbourLocSideList = 1, 3
         ! Check if current element has already been flagged
-        iLocSide = LocSideList(iLocSideList)
-        NonUniqueGlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalNbElemID) + iLocSide
-        BCIndex = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalSideID)
-        IF(BCIndex.LE.0) CYCLE ! Skip inner sides
+        iNeighbourLocSide = LocSideList(iNeighbourLocSideList)
+        ! Get non-unique global side index of the neighbouring element that is connected to the FEMVertexID/NonUniqueNodeID
+        NonUniqueGlobalNbSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalNbElemID) + iNeighbourLocSide
+        ! Get boundary condition index
+        BCIndex = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalNbSideID)
+        IF(BCIndex.LE.0) CYCLE iNbSide ! Skip inner sides
+        ! Get boundary condition type
         BCType = BoundaryType(BCIndex,BC_TYPE)
-        ! TODO: define a list of all BCType numbers that allow surface deposition
-        IF(BCType.NE.30) CYCLE ! Skip non-DCBC sides
+        ! TODO:Implement inner BCs for surface charge deposition
+        IF(BCType.EQ.100) CALL abort(__STAMP__,'InitDepoSurfNodes(): Inner BCs not implemented for surface charge deposition')
+        ! TODO:define a list of all BCType numbers that allow surface deposition
+        IF(BCType.NE.30) CYCLE iNbSide ! Skip non-DCBC sides
         ! Depo node/side found
         IsDepoSurfNode(FEMVertexID) = .TRUE.
-        IsDepoSurfSide(NonUniqueGlobalSideID) = .TRUE.
-      END DO ! iLocSideList = 1, 3
+        IsDepoSurfSide(NonUniqueGlobalNbSideID) = .TRUE.
+      END DO iNbSide ! iNeighbourLocSideList = 1, 3
     END DO ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
   END DO ! iVertexInd = iFirstVertexInd,LastVertexInd
 END DO ! iGlobalElemID = FirstElemInd, LastElemInd
 
 ! Separate loop for setting the node IDs is needed because setting them in the loop above does not work
+! Additionally, the scalong factor is determined
 firstSide = 1
 lastSide = nSides ! TODO: This might only work correctly for nBCSides and not for inner BC sides (dielectric interfaces)
 DO iSide = firstSide, lastSide
@@ -475,31 +482,88 @@ DO iSide = firstSide, lastSide
   END IF
 END DO
 
-! DO NonUniqueGlobalSideID = 1,nNonUniqueGlobalSides
-!   ! Only check surfaces that are marked for deposition
-!   IF(IsDepoSurfSide(NonUniqueGlobalSideID))THEN
-!     ! Check if any connected unique node ID is zero, which is impossible
-!     ! IF (ANY(NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(:,NonUniqueGlobalSideID).EQ.0)) THEN
-!       IPWRITE(*,*) 'NonUniqueGlobalSideID,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(:,NonUniqueGlobalSideID):', NonUniqueGlobalSideID,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(:,NonUniqueGlobalSideID)
-!     ! END IF ! ANY()
-!   END IF
-! END DO ! NonUniqueGlobalSideID = startVar,nVar
+! Additional, separate loop for setting the symmetry scaling factor
+! Check if neighbouring sides of FEMVertexIDs are symmetry sides for the field solver, hence, increase the deposited charge there
+! TODO: Make this array SHM
+ALLOCATE(SurfNodeSymmetryFactor(1:nNonUniqueGlobalNodes))
+SurfNodeSymmetryFactor = 0
+ALLOCATE(SymmetryBCIndex(1:6,1:nNonUniqueGlobalNodes))
+SymmetryBCIndex = 0
+! Loop over the process-local global elements indices
+DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
+  iElem = iGlobalElemID - offsetElem
+  ElemType = ElemInfo_Shared(ELEM_TYPE,iGlobalElemID)
+  ! Sanity check: currently only hexahedral elements are implemented
+  SELECT CASE(ElemType)
+  CASE(108,118,208)
+    ! Hexahedral elements
+  CASE DEFAULT
+    CALL abort(__STAMP__,'InitDepoSurfNodes(): Element type not implemented, ElemType =',IntInfoOpt=ElemType)
+  END SELECT
+  ! Get local VertexInfo of current element
+  FirstVertexInd = ElemInfo_Shared(ELEM_FIRSTVERTEXIND,iGlobalElemID)+1
+  LastVertexInd  = ElemInfo_Shared(ELEM_LASTVERTEXIND,iGlobalElemID)
+  ! Loop over all non-unique vertices (the total number via iGlobalElemID and iVertexInd corresponds to nVertices in .h5)
+  iVertexIndLoop: DO iVertexInd = FirstVertexInd,LastVertexInd
+    ! Get topologically unique global vertex ID, includes periodicity (needed for a FEM solver)
+    FEMVertexID = VertexInfo_Shared(VERTEX_FEMID,iVertexInd)
+    ! Skip vertices without deposition
+    IF(.NOT.IsDepoSurfNode(FEMVertexID)) CYCLE iVertexIndLoop
+    ! Get the non-unique node index
+    NonUniqueNodeID = CNS(iVertexInd-FirstVertexInd+1) + FirstVertexInd - 1
+    ! Get local vertex connectivity: First and Last connected vertex index
+    FirstVertexConnectInd = VertexInfo_Shared(VERTEX_FIRSTCONNECTIND,iVertexInd)+1
+    LastVertexConnectInd  = VertexInfo_Shared(VERTEX_LASTCONNECTIND,iVertexInd)
+    iVertexConnectLoop: DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+      ! Get neighbour infos. Note the ABS() for +/- master/slave notation
+      GlobalNbElemID = ABS(VertexConnectInfo(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
+      ! IF(GlobalNbElemID.EQ.iGlobalElemID) CYCLE iVertexConnectLoop
+      NbLocVertexID  =     VertexConnectInfo(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
+      ! Set sides depending on the element type: Only implemented for Hexahedral elements
+      CALL GetLocSideList(ElemType,NbLocVertexID,LocSideList)
+      ! Loop over the three connected sides of the neighbour element, which is connected with a corner to iVertexConnect
+      NbSide: DO iNeighbourLocSideList = 1, 3
+        ! Check if current element has already been flagged
+        iNeighbourLocSide = LocSideList(iNeighbourLocSideList)
+        ! Get non-unique global side index of the neighbouring element that is connected to the FEMVertexID/NonUniqueNodeID
+        NonUniqueGlobalNbSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalNbElemID) + iNeighbourLocSide
+        ! Get boundary condition index
+        BCIndex = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalNbSideID)
+        IF(BCIndex.LE.0) CYCLE NbSide ! Skip inner sides
+        ! Get boundary condition type
+        BCType = BoundaryType(BCIndex,BC_TYPE)
+        ! TODO:define a list of all BCType numbers that effect the scaling factor
+        IF(BCType.NE.10) CYCLE NbSide ! Skip non-symmetry sides
+        ! Increase the scaling factor by one
+        iBCLoop: DO iBC = 1,6
+          ! Do not count the same BCIndex twice
+          IF(SymmetryBCIndex(iBC,NonUniqueNodeID).EQ.BCIndex) CYCLE NbSide
+          ! Check for empty spot to place the BCIndex
+          IF (SymmetryBCIndex(iBC,NonUniqueNodeID).EQ.0) THEN
+            SymmetryBCIndex(iBC,NonUniqueNodeID) = BCIndex
+            EXIT iBCLoop
+          END IF ! SymmetryBCIndex(iBC,NonUniqueNodeID).EQ.0
+        END DO iBCLoop ! iBC  = 1,6
+        SurfNodeSymmetryFactor(NonUniqueNodeID) = SurfNodeSymmetryFactor(NonUniqueNodeID) + 2
+      END DO NbSide ! iNeighbourLocSideList = 1, 3
+    END DO iVertexConnectLoop ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+  END DO iVertexIndLoop ! iVertexInd = iFirstVertexInd,LastVertexInd
+END DO ! iGlobalElemID = FirstElemInd, LastElemInd
+DEALLOCATE(SymmetryBCIndex)
 
-! IPWRITE(*,*) '...................................................'
 ! Sanity check: Looper over all deposition surface side IDs and make sure the mapping is correct
 DO NonUniqueGlobalSideID = 1,nNonUniqueGlobalSides
   ! Only check surfaces that are marked for deposition
   IF(IsDepoSurfSide(NonUniqueGlobalSideID))THEN
     ! Check if any connected unique node ID is zero, which is impossible
     IF (ANY(NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(:,NonUniqueGlobalSideID).EQ.0)) THEN
-      IPWRITE(*,*) 'NonUniqueGlobalSideID,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(:,NonUniqueGlobalSideID):', NonUniqueGlobalSideID,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(:,NonUniqueGlobalSideID)
+      IPWRITE(*,*) 'NonUniqueGlobalSideID,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(:,NonUniqueGlobalSideID):',&
+                    NonUniqueGlobalSideID,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(:,NonUniqueGlobalSideID)
       CALL abort(__STAMP__,'Wrong NonUniqueNodeID encountered in InitDepoSurfNodes()')
     END IF ! ANY()
   END IF
 END DO ! NonUniqueGlobalSideID = startVar,nVar
 
-
-! read*
 ! Count the number of unique deposition nodes per processor
 nDepoSurfNodes = COUNT(IsDepoSurfNode)
 ! Count the number of unique deposition sides per processor

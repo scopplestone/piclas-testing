@@ -46,7 +46,7 @@ CONTAINS
 !>                     (iVertexInd)
 !>
 !===================================================================================================================================
-SUBROUTINE DepositParticleOnSurface(Charge,PartPos,GlobalElemID,SideID)
+SUBROUTINE DepositParticleOnSurface(Charge,PartPos,GlobalElemID,NonUniqueGlobalSideID)
 ! MODULES
 USE MOD_Globals
 ! USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
@@ -65,14 +65,14 @@ USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource
 USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID
 USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
 ! USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID_Shared
-USE MOD_PICDepo_Vars       ,ONLY: FEMVertexID2DepoSurfNodeID
+USE MOD_PICDepo_Vars       ,ONLY: FEMVertexID2DepoSurfNodeID,SurfNodeSymmetryFactor
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)                  :: Charge        !< Charge that is deposited on nodes
 REAL,INTENT(IN)                  :: PartPos(1:3)
 INTEGER,INTENT(IN)               :: GlobalElemID
-INTEGER,INTENT(IN)               :: SideID
+INTEGER,INTENT(IN)               :: NonUniqueGlobalSideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if USE_LOADBALANCE
@@ -96,10 +96,11 @@ IF(ElementOnProc(GlobalElemID)) CALL LBStartTime(tLBStart) ! Start time measurem
 CALL abort(__STAMP__,'Implement MPI for subroutine DepositParticleOnSurface()')
 ASSOCIATE( SurfNodeSource => SurfNodeSourceMPI )
 #endif
+  ! TODO: Check if node is connected to one or two symmetry BCs and increase the deposited charge on these nodes
   ! Loop over the four side nodes
   DO iNode = 1, 4
     ! Get the non-unique node index
-    NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,SideID)
+    NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID)
     ! Sanity check
     IF(NonUniqueNodeID.LE.0) CALL abort(__STAMP__,'Wrong NonUniqueNodeID encountered in DepositParticleOnSurface()')
     norm = VECNORM(NodeCoords_Shared(1:3,NonUniqueNodeID)-PartPos(1:3))
@@ -116,13 +117,18 @@ ASSOCIATE( SurfNodeSource => SurfNodeSourceMPI )
   ! Loop over the four side nodes
   DO iNode = 1, 4
     ! Get the non-unique node index
-    NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,SideID)
+    NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID)
     ! Get the unique FEM vertex index
     FEMVertexID = NonUniqueGlobalNodeIDToFEMVertexID(NonUniqueNodeID)
     ! Get surface deposition node index
     iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
     ! Add charge contribution
-    SurfNodeSource(iDepoSurfNodeID) = SurfNodeSource(iDepoSurfNodeID) + PartDistDepo(iNode)/DistSum*Charge
+    IF (SurfNodeSymmetryFactor(NonUniqueNodeID).GT.0) THEN
+      SurfNodeSource(iDepoSurfNodeID) = SurfNodeSource(iDepoSurfNodeID) + PartDistDepo(iNode)/DistSum*Charge&
+                                                                          *SurfNodeSymmetryFactor(NonUniqueNodeID)
+    ELSE
+      SurfNodeSource(iDepoSurfNodeID) = SurfNodeSource(iDepoSurfNodeID) + PartDistDepo(iNode)/DistSum*Charge
+    END IF ! SurfNodeSymmetryFactor(NonUniqueNodeID).GT.0
   END DO ! iNode = 1, 4
 #if USE_MPI
 END ASSOCIATE
