@@ -125,7 +125,7 @@ ASSOCIATE( SurfNodeSource => SurfNodeSourceMPI )
     ! Add charge contribution
     IF (SurfNodeSymmetryFactor(NonUniqueNodeID).GT.0) THEN
       SurfNodeSource(iDepoSurfNodeID) = SurfNodeSource(iDepoSurfNodeID) + PartDistDepo(iNode)/DistSum*Charge&
-                                                                          *SurfNodeSymmetryFactor(NonUniqueNodeID)
+                                                                          *REAL(SurfNodeSymmetryFactor(NonUniqueNodeID))
     ELSE
       SurfNodeSource(iDepoSurfNodeID) = SurfNodeSource(iDepoSurfNodeID) + PartDistDepo(iNode)/DistSum*Charge
     END IF ! SurfNodeSymmetryFactor(NonUniqueNodeID).GT.0
