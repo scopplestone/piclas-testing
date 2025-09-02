@@ -150,6 +150,7 @@ INTEGER                         :: nDepoSurfSides
 INTEGER                         :: nDepoSurfNodesTotal
 LOGICAL,ALLOCATABLE             :: IsDepoSurfNode(:)
 INTEGER,ALLOCATABLE             :: SurfNodeSymmetryFactor(:) !< Scaling factor applied at symmetry BCs (1: no scaling, 2: one symmetry side, 4: two symmetry sides)
+INTEGER,ALLOCATABLE             :: SurfNodeSymmetryFactorFEM(:) !< Scaling factor applied at symmetry BCs (1: no scaling, 2: one symmetry side, 4: two symmetry sides)
 #if USE_MPI
 REAL,ALLOCATABLE                :: SurfNodeSourceMPI(:) ! It contains the local non-synchronized surface charge contribution (does
 !                                                       ! not consider the charge contribution from restart files). This

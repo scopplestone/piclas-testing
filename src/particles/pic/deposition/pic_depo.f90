@@ -373,7 +373,9 @@ INTEGER :: FirstVertexInd,LastVertexInd,FirstVertexConnectInd,LastVertexConnectI
 INTEGER :: FEMVertexID,iVertexInd,NonUniqueNodeID,CNS(8),iNode
 INTEGER :: firstSide,lastSide,CNElemID,LocSideID,iSide,Nloc,iBC
 INTEGER,ALLOCATABLE :: SymmetryBCIndex(:,:)
+INTEGER :: iLocSide,localSideID,NbElemID,nlocSides
 !===================================================================================================================================
+! TODO: Can the mappings that are created here be stored in .h5 for restart purposes and when running piclas2vtk to save time?
 ! Sanity check: This routine requires FEM connectivity
 IF(.NOT.readFEMconnectivity) CALL abort(__STAMP__,'Error in surface deposition init: readFEMconnectivity=T is required')
 
@@ -403,9 +405,10 @@ CALL GetCornerNodeMapCGNS(NGeo,CornerNodesCGNS = CNS)
 FirstGlobalElemID = offsetElem+1
 LastGlobalElemID  = offsetElem+nElems
 
+! 1. Identify all (FEMVertexID) nodes and (NonUniqueGlobalSideID) side sthat are needed for deposition
 ! Loop over the process-local global elements indices
 DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
-  iElem = iGlobalElemID - offsetElem
+  ! iElem = iGlobalElemID - offsetElem
   ElemType = ElemInfo_Shared(ELEM_TYPE,iGlobalElemID)
   ! Sanity check: currently only hexahedral elements are implemented
   SELECT CASE(ElemType)
@@ -414,12 +417,12 @@ DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
   CASE DEFAULT
     CALL abort(__STAMP__,'InitDepoSurfNodes(): Element type not implemented, ElemType =',IntInfoOpt=ElemType)
   END SELECT
-  ! Get local VertexInfo of current element
-  FirstVertexInd = ElemInfo_Shared(ELEM_FIRSTVERTEXIND,iGlobalElemID)+1
-  LastVertexInd  = ElemInfo_Shared(ELEM_LASTVERTEXIND,iGlobalElemID)
+  ! Get local FEMElemInfo of current element
+  FirstVertexInd = ElemInfo_Shared(ELEM_FIRSTVERTEXIND,iGlobalElemID)+1 ! this comes from FEMElemInfo() from mesh.h5
+  LastVertexInd  = ElemInfo_Shared(ELEM_LASTVERTEXIND,iGlobalElemID)    ! this comes from FEMElemInfo() from mesh.h5
   ! Loop over all non-unique vertices (the total number via iGlobalElemID and iVertexInd corresponds to nVertices in .h5)
   DO iVertexInd = FirstVertexInd,LastVertexInd
-    ! Get topologically unique global vertex ID, includes periodicity (needed for a FEM solver)
+    ! Get topologically unique global vertex ID (via VertexInfo from mesh.h5), includes periodicity (needed for a FEM solver
     FEMVertexID = VertexInfo_Shared(VERTEX_FEMID,iVertexInd)
     ! Get the non-unique node index
     NonUniqueNodeID = CNS(iVertexInd-FirstVertexInd+1) + FirstVertexInd - 1
@@ -459,6 +462,7 @@ DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
   END DO ! iVertexInd = iFirstVertexInd,LastVertexInd
 END DO ! iGlobalElemID = FirstElemInd, LastElemInd
 
+! 2. Create a mapping that returns the four (NonUniqueNodeID) nodes for a (NonUniqueGlobalSideID) side
 ! Separate loop for setting the node IDs is needed because setting them in the loop above does not work
 ! Additionally, the scalong factor is determined
 firstSide = 1
@@ -482,7 +486,7 @@ DO iSide = firstSide, lastSide
   END IF
 END DO
 
-! Additional, separate loop for setting the symmetry scaling factor
+! 3. For nodes that are connected to a Neumann BC, the deposited charge must be incrsed by a (mirror charge) scaling factor
 ! Check if neighbouring sides of FEMVertexIDs are symmetry sides for the field solver, hence, increase the deposited charge there
 ! TODO: Make this array SHM
 ALLOCATE(SurfNodeSymmetryFactor(1:nNonUniqueGlobalNodes))
@@ -491,7 +495,7 @@ ALLOCATE(SymmetryBCIndex(1:6,1:nNonUniqueGlobalNodes))
 SymmetryBCIndex = 0
 ! Loop over the process-local global elements indices
 DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
-  iElem = iGlobalElemID - offsetElem
+  ! iElem = iGlobalElemID - offsetElem
   ElemType = ElemInfo_Shared(ELEM_TYPE,iGlobalElemID)
   ! Sanity check: currently only hexahedral elements are implemented
   SELECT CASE(ElemType)
@@ -500,12 +504,12 @@ DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
   CASE DEFAULT
     CALL abort(__STAMP__,'InitDepoSurfNodes(): Element type not implemented, ElemType =',IntInfoOpt=ElemType)
   END SELECT
-  ! Get local VertexInfo of current element
-  FirstVertexInd = ElemInfo_Shared(ELEM_FIRSTVERTEXIND,iGlobalElemID)+1
-  LastVertexInd  = ElemInfo_Shared(ELEM_LASTVERTEXIND,iGlobalElemID)
+  ! Get local FEMElemInfo of current element
+  FirstVertexInd = ElemInfo_Shared(ELEM_FIRSTVERTEXIND,iGlobalElemID)+1 ! this comes from FEMElemInfo() from mesh.h5
+  LastVertexInd  = ElemInfo_Shared(ELEM_LASTVERTEXIND,iGlobalElemID)    ! this comes from FEMElemInfo() from mesh.h5
   ! Loop over all non-unique vertices (the total number via iGlobalElemID and iVertexInd corresponds to nVertices in .h5)
   iVertexIndLoop: DO iVertexInd = FirstVertexInd,LastVertexInd
-    ! Get topologically unique global vertex ID, includes periodicity (needed for a FEM solver)
+    ! Get topologically unique global vertex ID (via VertexInfo from mesh.h5), includes periodicity (needed for a FEM solver)
     FEMVertexID = VertexInfo_Shared(VERTEX_FEMID,iVertexInd)
     ! Skip vertices without deposition
     IF(.NOT.IsDepoSurfNode(FEMVertexID)) CYCLE iVertexIndLoop
@@ -551,6 +555,75 @@ DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
 END DO ! iGlobalElemID = FirstElemInd, LastElemInd
 DEALLOCATE(SymmetryBCIndex)
 
+
+
+! DO NonUniqueNodeID = 1,nNonUniqueGlobalNodes
+!     FEMVertexID = NonUniqueGlobalNodeIDToFEMVertexID(NonUniqueNodeID)
+!     IF (IsDepoSurfNode(FEMVertexID)) THEN
+!       IPWRITE(*,*) 'NonUniqueNodeID,FEMVertexID,SurfNodeSymmetryFactor(NonUniqueNodeID):', NonUniqueNodeID,FEMVertexID,SurfNodeSymmetryFactor(NonUniqueNodeID)
+!     END IF ! IsDepoSurfNode(FEMVertexID)
+! END DO ! NonUniqueNodeID = startVar,nVar
+!
+!
+! ALLOCATE(SurfNodeSymmetryFactorFEM(1:nFEMVertices))
+! SurfNodeSymmetryFactorFEM = 0
+! ! Loop over the process-local global elements indices
+! DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
+!   ! iElem = iGlobalElemID - offsetElem
+!   ElemType = ElemInfo_Shared(ELEM_TYPE,iGlobalElemID)
+!   ! Sanity check: currently only hexahedral elements are implemented
+!   SELECT CASE(ElemType)
+!   CASE(108,118,208)
+!     ! Hexahedral elements
+!   CASE DEFAULT
+!     CALL abort(__STAMP__,'InitDepoSurfNodes(): Element type not implemented, ElemType =',IntInfoOpt=ElemType)
+!   END SELECT
+!
+!
+!   nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobalElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobalElemID)
+!   LocSideLoop: DO iLocSide=1,nlocSides
+!     NonUniqueGlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobalElemID) + iLocSide
+!     localSideID = SideInfo_Shared(SIDE_LOCALID,NonUniqueGlobalSideID)
+!     IPWRITE(*,*) 'iLocSide,localSideID:', iLocSide,localSideID
+!     IF (localSideID.LE.0) CYCLE LocSideLoop ! Skip if side is not one of the 6 local sides
+!     NbElemID = SideInfo_Shared(SIDE_NBELEMID,NonUniqueGlobalSideID)
+!     IF (NbElemID.LT.0) CYCLE LocSideLoop ! Skip Mortar side
+!     ! BCIndex = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalSideID)
+!     ! IF(BCIndex.LE.0) CYCLE LocSideLoop ! Skip inner sides
+!     ! BCType = BoundaryType(BCIndex,BC_TYPE)
+!     ! IF(BCType.NE.10) CYCLE LocSideLoop ! Skip non-Neumann sides
+!     IF(.NOT.IsDepoSurfSide(NonUniqueGlobalSideID)) CYCLE LocSideLoop ! Skip non-deposition sides
+!
+!     CNElemID = GetCNElemID(iGlobalElemID)
+!     ! xNode(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,localSideID,CNElemID)+1)
+!     DO iNode = 1, 4
+!       ! Get the non-unique global side index of the node/local side ID/compute elemen ID
+!       NonUniqueNodeID = ElemSideNodeID_Shared(iNode,localSideID,CNElemID) + 1
+!       IPWRITE(*,*) 'iGlobalElemID,NonUniqueNodeID:', iGlobalElemID,NonUniqueNodeID
+!     END DO ! iNode = 1, 4
+!     read*
+!
+!
+!   END DO LocSideLoop ! iLocSide=1,nlocSides
+!
+!
+!
+!   ! ! Set sides depending on the element type: Only implemented for Hexahedral elements
+!   ! CALL GetLocSideList(ElemType,NbLocVertexID,LocSideList)
+!   !
+!   ! iLocSide = LocSideList(iLocSideList)
+!   ! NonUniqueGlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalNbElemID) + iLocSide
+! END DO ! iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
+!
+!
+!
+!
+! DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
+! IPWRITE(*,*) 'ElemInfo_Shared(:,iGlobalElemID):', ElemInfo_Shared(:,iGlobalElemID)
+! end do
+!
+! stop 1
+!
 ! Sanity check: Looper over all deposition surface side IDs and make sure the mapping is correct
 DO NonUniqueGlobalSideID = 1,nNonUniqueGlobalSides
   ! Only check surfaces that are marked for deposition
