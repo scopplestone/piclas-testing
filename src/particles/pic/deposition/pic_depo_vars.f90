@@ -191,7 +191,7 @@ INTEGER,ALLOCPOINT :: Periodic_Nodes_Shared(:)
 TYPE(MPI_Win)      :: Periodic_offsetNode_Shared_Win
 INTEGER,ALLOCPOINT :: Periodic_offsetNode_Shared(:)
 
-REAL,ALLOCATABLE                :: NodeSourceExtTmp(:) ! It contains the local non-synchronized surface charge contribution (does
+REAL,ALLOCATABLE                :: NodeSourceExtMPI(:) ! It contains the local non-synchronized surface charge contribution (does
 !                                                      ! not consider the charge contribution from restart files). This
 !                                                      ! contribution accumulates over time, but remains local to each processor
 !                                                      ! as it is communicated via the container NodeSourceExt.

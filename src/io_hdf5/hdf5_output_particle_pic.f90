@@ -55,7 +55,7 @@ USE MOD_Interpolation_Vars ,ONLY: NodeType,NodeTypeVISU,Nmin,Nmax
 USE MOD_Interpolation      ,ONLY: GetVandermonde
 USE MOD_DG_vars            ,ONLY: N_DG_Mapping,nDofsMapping
 #if USE_MPI
-USE MOD_PICDepo_MPI        ,ONLY: ExchangeNodeSourceExtTmp
+USE MOD_PICDepo_MPI        ,ONLY: ExchangeNodeSourceExtMPI
 #endif /*USE_MPI*/
 USE MOD_HDF5_Output_ElemData,ONLY: WriteAdditionalElemData
 ! IMPLICIT VARIABLE HANDLING
@@ -117,9 +117,9 @@ ALLOCATE(U_N_2D_local(1:nVarOut,1:nDOFOutput))
 IF(iter.NE.0)THEN
 
 #if USE_MPI
-! Communicate the NodeSourceExtTmp values of the last boundary interaction before the state is written to .h5
+! Communicate the NodeSourceExtMPI values of the last boundary interaction before the state is written to .h5
 ! Only call when deposition is active (otherwise this routine only writes the old array from the restart file to keep the data)
-IF(DoDeposition) CALL ExchangeNodeSourceExtTmp()
+IF(DoDeposition) CALL ExchangeNodeSourceExtMPI()
 #endif /*USE_MPI*/
 
 end if ! iter.NE.0
@@ -232,7 +232,7 @@ USE MOD_Interpolation_Vars ,ONLY: NodeType,NodeTypeVISU,Nmin,Nmax
 USE MOD_Interpolation      ,ONLY: GetVandermonde
 USE MOD_DG_vars            ,ONLY: N_DG_Mapping,nDofsMapping
 #if USE_MPI
-! USE MOD_PICDepo_MPI        ,ONLY: ExchangeNodeSourceExtTmp
+! USE MOD_PICDepo_MPI        ,ONLY: ExchangeNodeSourceExtMPI
 #endif /*USE_MPI*/
 USE MOD_HDF5_Output_ElemData,ONLY: WriteAdditionalElemData
 USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource,nDepoSurfNodesTotal,nDepoSurfSides
@@ -258,10 +258,10 @@ StrVarNames(1)='SurfaceChargeDensity'
 ! Skip MPI communication in the first step as nothing has been deposited yet
 IF(iter.NE.0)THEN
 #if USE_MPI
-  ! Communicate the NodeSourceExtTmp values of the last boundary interaction before the state is written to .h5
+  ! Communicate the NodeSourceExtMPI values of the last boundary interaction before the state is written to .h5
   ! Only call when deposition is active (otherwise this routine only writes the old array from the restart file to keep the data)
   CALL abort(__STAMP__,' WriteSurfNodeSourceToHDF5(): MPI not implemented')
-  ! IF(DoDeposition) CALL ExchangeNodeSourceExtTmp()
+  ! IF(DoDeposition) CALL ExchangeNodeSourceExtMPI()
 #endif /*USE_MPI*/
 end if ! iter.NE.0
 

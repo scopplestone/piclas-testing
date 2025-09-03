@@ -394,7 +394,7 @@ USE MOD_Part_Tools         ,ONLY: isDepositParticle
 #if USE_MPI
 USE MOD_MPI_Shared         ,ONLY: BARRIER_AND_SYNC
 USE MOD_PICDepo_Vars       ,ONLY: NodeMappingSend,NodeMappingRecv, nNodeSendExchangeProcs, NodeSendDepoRankToGlobalRank
-USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp,nNodeRecvExchangeProcs,NodeRecvDepoRankToGlobalRank
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtMPI,nNodeRecvExchangeProcs,NodeRecvDepoRankToGlobalRank
 #endif  /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
@@ -548,12 +548,12 @@ END DO ! iPart=1,PDM%ParticleVecLength
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 ! 1/2 Add the local non-synchronized surface charge contribution (does not consider the charge contribution from restart files) from
-! NodeSourceExtTmp. This contribution accumulates over time, but remains locally to each processor as it is communicated via the
+! NodeSourceExtMPI. This contribution accumulates over time, but remains locally to each processor as it is communicated via the
 ! normal NodeSource container. The synchronized part is added after communication.
 IF(DoDielectricSurfaceCharge)THEN
   DO iNode = 1, nDepoNodesTotal
     globalNode = DepoNodetoGlobalNode(iNode)
-    NodeSource(4,globalNode) = NodeSource(4,globalNode) + NodeSourceExtTmp(globalNode)
+    NodeSource(4,globalNode) = NodeSource(4,globalNode) + NodeSourceExtMPI(globalNode)
   END DO
 END IF ! DoDielectricSurfaceCharge
 #if USE_LOADBALANCE
@@ -680,7 +680,7 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 
 ! 2/2 Add the global, synchronized surface charge contribution (considers the charge contribution from restart files) from
 ! NodeSourceExt. The container NodeSourceExt is updated when it is written to .h5, where, additionally, the container
-! NodeSourceExtTmp is nullified
+! NodeSourceExtMPI is nullified
 IF(DoDielectricSurfaceCharge)THEN
   DO iNode = 1, nDepoNodesTotal
     globalNode = DepoNodetoGlobalNode(iNode)

@@ -190,7 +190,7 @@ END SUBROUTINE DepositPhotonSEEHoles
 
 !===================================================================================================================================
 !> Deposit the charge of a single particle on the nodes corresponding to the deposition method 'cell_volweight_mean', where the
-!> charge is stored in NodeSourceExtTmp, which is added to NodeSource in the standard deposition procedure.
+!> charge is stored in NodeSourceExtMPI, which is added to NodeSource in the standard deposition procedure.
 !> Note that the corresponding volumes are not accounted for yet. The volumes are applied in the deposition routine.
 !===================================================================================================================================
 SUBROUTINE DepositParticleOnNodes(Charge,PartPos,GlobalElemID)
@@ -207,7 +207,7 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared
 #if USE_MPI
-USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtMPI
 #else
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt
 #endif /*USE_MPI*/
@@ -241,9 +241,9 @@ IF(ElementOnProc(GlobalElemID)) CALL LBStartTime(tLBStart) ! Start time measurem
 CALL GetPositionInRefElem(PartPos, TempPartPos(1:3), GlobalElemID, ForceMode = .TRUE., isSuccessful = SucRefPos)
 
 #if USE_MPI
-! Single-core: Use NodeSourceExt directly as NodeSourceExtTmp does not exist
-! Multi-core: Use local container NodeSourceExtTmp, which is later exchanged between the adjacent processes and then added to NodeSourceExt
-ASSOCIATE( NodeSourceExt => NodeSourceExtTmp )
+! Single-core: Use NodeSourceExt directly as NodeSourceExtMPI does not exist
+! Multi-core: Use local container NodeSourceExtMPI, which is later exchanged between the adjacent processes and then added to NodeSourceExt
+ASSOCIATE( NodeSourceExt => NodeSourceExtMPI )
 #endif
   ! Check if GetPositionInRefElem was able to find the reference position (via ref. mapping), else use distance-based deposition
   IF(SucRefPos)THEN

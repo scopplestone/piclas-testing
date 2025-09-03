@@ -1990,7 +1990,7 @@ USE MOD_PICDepo_Vars
 #if USE_MPI
 USE MOD_MPI_Shared_vars    ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
-USE MOD_PICDepo_MPI        ,ONLY: exchangenodesourceexttmp
+USE MOD_PICDepo_MPI        ,ONLY: ExchangeNodeSourceExtMPI
 #endif
 #if USE_LOADBALANCE
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
@@ -2098,7 +2098,7 @@ IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
   !END IF ! DoDeposition
 
   IF(DoDielectricSurfaceCharge)THEN
-    IF(DoDeposition) CALL ExchangeNodeSourceExtTmp()
+    IF(DoDeposition) CALL ExchangeNodeSourceExtMPI()
     !SDEALLOCATE(NodeSourceExtEquiLB)
     !ALLOCATE(NodeSourceExtEquiLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
     ALLOCATE(NodeSourceExtEquiLB(1:N_variables,0:1,0:1,0:1,nElems))
@@ -2146,7 +2146,7 @@ SDEALLOCATE(NodeSendDepoRankToGlobalRank)
 SDEALLOCATE(NodeRecvDepoRankToGlobalRank)
 SDEALLOCATE(RecvRequest)
 SDEALLOCATE(SendRequest)
-SDEALLOCATE(NodeSourceExtTmp)
+SDEALLOCATE(NodeSourceExtMPI)
 SDEALLOCATE(NodeMappingSend)
 SDEALLOCATE(NodeMappingRecv)
 #endif /*USE_MPI*/

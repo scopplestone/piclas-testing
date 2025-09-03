@@ -27,7 +27,7 @@ TYPE NodeDepoMapping
 END TYPE
 !===================================================================================================================================
 PUBLIC :: InitDepoNodesMPI
-PUBLIC :: ExchangeNodeSourceExtTmp
+PUBLIC :: ExchangeNodeSourceExtMPI
 !===================================================================================================================================
 
 CONTAINS
@@ -82,8 +82,8 @@ TYPE(tElemNodeDepoMap), ALLOCATABLE :: ElemNodeDepoMap(:)
 TYPE (NodeDepoMapping), POINTER :: node
 !===================================================================================================================================
 IF(DoDielectricSurfaceCharge)THEN
-  ALLOCATE(NodeSourceExtTmp(1:nUniqueGlobalNodes))
-  NodeSourceExtTmp = 0.
+  ALLOCATE(NodeSourceExtMPI(1:nUniqueGlobalNodes))
+  NodeSourceExtMPI = 0.
 END IF ! DoDielectricSurfaceCharge
 
 DO iElem = 1,nComputeNodeTotalElems
@@ -380,15 +380,15 @@ END SUBROUTINE DeallocateNodeList
 
 !===================================================================================================================================
 !> Exchange the node source container between MPI processes (either during load balance or hdf5 output) and nullify the local charge
-!> container NodeSourceExtTmp. Updates the node charge container NodeSourceExt at MPI interfaces.
+!> container NodeSourceExtMPI. Updates the node charge container NodeSourceExt at MPI interfaces.
 !===================================================================================================================================
-SUBROUTINE ExchangeNodeSourceExtTmp()
+SUBROUTINE ExchangeNodeSourceExtMPI()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt
 #if USE_MPI
-USE MOD_PICDepo_Vars       ,ONLY: NodeMappingRecv,NodeMappingSend,NodeSourceExtTmp
+USE MOD_PICDepo_Vars       ,ONLY: NodeMappingRecv,NodeMappingSend,NodeSourceExtMPI
 USE MOD_PICDepo_Vars       ,ONLY: nDepoNodesTotal,nNodeSendExchangeProcs,NodeSendDepoRankToGlobalRank,DepoNodetoGlobalNode
 USE MOD_PICDepo_Vars       ,ONLY: nNodeRecvExchangeProcs
 USE MOD_PICDepo_Vars       ,ONLY: NodeRecvDepoRankToGlobalRank
@@ -418,12 +418,12 @@ REAL(KIND=8)                   :: Rate
 DO iProc = 1, nNodeRecvExchangeProcs
   ! Open receive buffer
   CALL MPI_IRECV( NodeMappingRecv(iProc)%RecvNodeSourceExt(:) &
-      , NodeMappingRecv(iProc)%nRecvUniqueNodes            &
-      , MPI_DOUBLE_PRECISION                           &
-      , NodeRecvDepoRankToGlobalRank(iProc)                &
-      , 666                                            &
-      , MPI_COMM_PICLAS                                 &
-      , RecvRequest(iProc)                             &
+      , NodeMappingRecv(iProc)%nRecvUniqueNodes               &
+      , MPI_DOUBLE_PRECISION                                  &
+      , NodeRecvDepoRankToGlobalRank(iProc)                   &
+      , 666                                                   &
+      , MPI_COMM_PICLAS                                       &
+      , RecvRequest(iProc)                                    &
       , IERROR)
 END DO
 
@@ -431,15 +431,15 @@ END DO
 DO iProc = 1, nNodeSendExchangeProcs
   ! Send message (non-blocking)
   DO iNode = 1, NodeMappingSend(iProc)%nSendUniqueNodes
-    NodeMappingSend(iProc)%SendNodeSourceExt(iNode) = NodeSourceExtTmp(NodeMappingSend(iProc)%SendNodeUniqueGlobalID(iNode))
+    NodeMappingSend(iProc)%SendNodeSourceExt(iNode) = NodeSourceExtMPI(NodeMappingSend(iProc)%SendNodeUniqueGlobalID(iNode))
   END DO
   CALL MPI_ISEND( NodeMappingSend(iProc)%SendNodeSourceExt(:) &
-      , NodeMappingSend(iProc)%nSendUniqueNodes        &
-      , MPI_DOUBLE_PRECISION                       &
-      , NodeSendDepoRankToGlobalRank(iProc)            &
-      , 666                                        &
-      , MPI_COMM_PICLAS                             &
-      , SendRequest(iProc)                         &
+      , NodeMappingSend(iProc)%nSendUniqueNodes               &
+      , MPI_DOUBLE_PRECISION                                  &
+      , NodeSendDepoRankToGlobalRank(iProc)                   &
+      , 666                                                   &
+      , MPI_COMM_PICLAS                                       &
+      , SendRequest(iProc)                                    &
       , IERROR)
 END DO
 ! Finish communication
@@ -463,20 +463,20 @@ MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
 ! 3) Extract messages
 DO iProc = 1, nNodeRecvExchangeProcs
   DO iNode = 1, NodeMappingRecv(iProc)%nRecvUniqueNodes
-    ASSOCIATE( NS => NodeSourceExtTmp(NodeMappingRecv(iProc)%RecvNodeUniqueGlobalID(iNode)))
+    ASSOCIATE( NS => NodeSourceExtMPI(NodeMappingRecv(iProc)%RecvNodeUniqueGlobalID(iNode)))
       NS = NS + NodeMappingRecv(iProc)%RecvNodeSourceExt(iNode)
     END ASSOCIATE
   END DO
 END DO
 
-! Add NodeSourceExtTmp values of the last boundary interaction
+! Add NodeSourceExtMPI values of the last boundary interaction
 DO iNode = 1, nDepoNodesTotal
   globalNode = DepoNodetoGlobalNode(iNode)
-  NodeSourceExt(globalNode) = NodeSourceExt(globalNode) + NodeSourceExtTmp(globalNode)
+  NodeSourceExt(globalNode) = NodeSourceExt(globalNode) + NodeSourceExtMPI(globalNode)
 END DO
 ! Reset local surface charge
-NodeSourceExtTmp = 0.
-END SUBROUTINE ExchangeNodeSourceExtTmp
+NodeSourceExtMPI = 0.
+END SUBROUTINE ExchangeNodeSourceExtMPI
 
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*USE_MPI*/
