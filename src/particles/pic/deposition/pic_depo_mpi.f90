@@ -80,7 +80,7 @@ TYPE tElemNodeDepoMap
   INTEGER               :: nNodes
 END TYPE
 TYPE(tElemNodeDepoMap), ALLOCATABLE :: ElemNodeDepoMap(:)
-TYPE (NodeDepoMapping), POINTER :: node
+TYPE(NodeDepoMapping), POINTER :: node
 !===================================================================================================================================
 IF(DoDielectricSurfaceCharge)THEN
   ALLOCATE(NodeSourceExtMPI(1:nUniqueGlobalNodes))
@@ -373,34 +373,36 @@ SUBROUTINE InitDepoSurfNodesMPI()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_PICDepo_Vars
+USE MOD_PICDepo_Vars           ,ONLY: IsDepoSurfNode,SurfNodeSourceMPI,nDepoSurfNodesTotal
+USE MOD_PICDepo_Vars           ,ONLY: nSurfNodeRecvExchangeProcs,nSurfNodeSendExchangeProcs
+USE MOD_PICDepo_Vars           ,ONLY: SurfRecvRequest,SurfNodeMappingRecv,SurfNodeRecvDepoRankToGlobalRank
+USE MOD_PICDepo_Vars           ,ONLY: SurfSendRequest,SurfNodeMappingSend,SurfNodeSendDepoRankToGlobalRank
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Mesh_Vars              ,ONLY: nElems,VertexConnectInfo,nFEMVertices
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,ELEM_RANK
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping,ElemNodeID_Shared,NodeInfo_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: nProcessors_Global
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared,ElemInfo_Shared,VertexInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL :: DoNodeMapping(0:nProcessors_Global-1)
-LOGICAL :: SendNode(1:nUniqueGlobalNodes)
+LOGICAL :: CommunicateWithRank(0:nProcessors_Global-1)
+! LOGICAL :: SendNode(1:nUniqueGlobalNodes)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                   :: iElem, iNode
+INTEGER                   :: iCNElem
 INTEGER                   :: UniqueNodeID, testNode
 INTEGER                   :: GlobalRankToNodeSendDepoRank(0:nProcessors_Global-1)
 INTEGER                   :: jElem,TestElemID
-INTEGER                   :: NonUniqueNodeID
 INTEGER                   :: SendNodeCount, GlobalElemRank, iProc
 INTEGER                   :: GlobalElemRankOrig, iRank
-LOGICAL,ALLOCATABLE       :: IsDepoNode(:)
+LOGICAL,ALLOCATABLE       :: IsDepoNode(:),IsSendNode(:),FEMVertexIDisDone(:)
 LOGICAL                   :: bordersMyrank
 ! Non-symmetric particle exchange
 TYPE(MPI_Request)         :: SendRequestNonSymDepo(0:nProcessors_Global-1)      , RecvRequestNonSymDepo(0:nProcessors_Global-1)
@@ -411,159 +413,182 @@ TYPE tElemNodeDepoMap
   INTEGER               :: nNodes
 END TYPE
 TYPE(tElemNodeDepoMap), ALLOCATABLE :: ElemNodeDepoMap(:)
-TYPE (NodeDepoMapping), POINTER :: node
+TYPE(NodeDepoMapping), POINTER :: node
+INTEGER :: iVertexConnect,GlobalNbElemID,NbLocVertexID,LocSideList(3),iNeighbourLocSideList,iNeighbourLocSide
+INTEGER :: FirstGlobalElemID,LastGlobalElemID,iGlobalElemRank,GlobalNBElemRank
+INTEGER :: FirstVertexInd,LastVertexInd,FirstVertexConnectInd,LastVertexConnectInd
+INTEGER :: FEMVertexID,iVertexInd,NonUniqueNodeID,CNS(8),iNode
+INTEGER :: iElem,BCType,NonUniqueGlobalSideID,NonUniqueGlobalNbSideID,iGlobalElemID,BCIndex,ElemType
 !===================================================================================================================================
+! Allocate container for flagging each FEM vertex, if it needs to be sent to at least one communication partner
+ALLOCATE(IsSendNode(1:nFEMVertices))
+IsSendNode = -1
 
-
-
-CALL abort(__STAMP__,' not implemented', IERROR)
-
-
-
-
-
-
-
+! Allocate container for storing the local non-synchronized surface charge, which is always nullified after
+! communication/synchronization with other processes
 ALLOCATE(SurfNodeSourceMPI(1:nDepoSurfNodesTotal))
-NodeSourceExtMPI = 0.
+SurfNodeSourceMPI = 0.
 
-! Loop over the elements of the complete compute-node region (including the halo region)
-DO iElem = 1,nComputeNodeTotalElems
-  IF (FlagShapeElem(iElem)) THEN
-    bordersMyrank = .FALSE.
-    ! Loop all local nodes
-    TestElemID = GetGlobalElemID(iElem)
-    GlobalElemRankOrig = ElemInfo_Shared(ELEM_RANK,TestElemID)
-    IF (DoHaloDepo.AND.(GlobalElemRankOrig.NE.myRank)) DoNodeMapping(GlobalElemRankOrig) = .TRUE.
+! Nullify container to flag each process if it will receive charge
+CommunicateWithRank = .FALSE.
 
-    DO iNode = 1, 8
-    NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
-    UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
-    ! Loop 1D array [offset + 1 : offset + NbrOfElems]
-    ! (all CN elements that are connected to the local nodes)
-    DO jElem = NodeToElemMapping(1,UniqueNodeID) + 1, NodeToElemMapping(1,UniqueNodeID) + NodeToElemMapping(2,UniqueNodeID)
-      TestElemID = GetGlobalElemID(NodeToElemInfo(jElem))
-      GlobalElemRank = ElemInfo_Shared(ELEM_RANK,TestElemID)
-      IF (DoHaloDepo) THEN
-        SendNode(UniqueNodeID) = .TRUE.
-        IF (GlobalElemRank.NE.myRank) DoNodeMapping(GlobalElemRank) = .TRUE.
-      ELSE
-        IF (GlobalElemRank.EQ.myRank) THEN
-          bordersMyrank = .TRUE.
-          SendNode(UniqueNodeID) = .TRUE.
-        END IF
-      END IF
-    END DO
-    IF (.NOT.DoHaloDepo.AND.bordersMyrank) THEN
-      DoNodeMapping(GlobalElemRankOrig) = .TRUE.
-    END IF
-    END DO
-  END IF
-END DO
+! 1.) Identify communication partners
+! Loop over the elements of the complete compute-node region (including the halo region) where the node can deposit charge
+! and find the process ranks that have a FEM vertex to which deposition from the myrank might occur
+DO iCNElem = 1,nComputeNodeTotalElems
+  ! Loop all local nodes
+  iGlobalElemID = GetGlobalElemID(iCNElem)
+  ! Get local FEMElemInfo of current element
+  FirstVertexInd = ElemInfo_Shared(ELEM_FIRSTVERTEXIND,iGlobalElemID)+1 ! this comes from FEMElemInfo() from mesh.h5
+  LastVertexInd  = ElemInfo_Shared(ELEM_LASTVERTEXIND,iGlobalElemID)    ! this comes from FEMElemInfo() from mesh.h5
+  ! Loop over all non-unique vertices (the total number via iGlobalElemID and iVertexInd corresponds to nVertices in .h5)
+  iVertexIndLoop: DO iVertexInd = FirstVertexInd,LastVertexInd
+    ! Get topologically unique global vertex ID (via VertexInfo from mesh.h5), includes periodicity (needed for a FEM solver)
+    FEMVertexID = VertexInfo_Shared(VERTEX_FEMID,iVertexInd)
+    ! Skip vertices without deposition
+    IF(.NOT.IsDepoSurfNode(FEMVertexID)) CYCLE iVertexIndLoop ! go to next vertex
+    ! Get local vertex connectivity: First and Last connected vertex index
+    FirstVertexConnectInd = VertexInfo_Shared(VERTEX_FIRSTCONNECTIND,iVertexInd)+1
+    LastVertexConnectInd  = VertexInfo_Shared(VERTEX_LASTCONNECTIND,iVertexInd)
+    iVertexConnectLoop: DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+      ! Get neighbour infos. Note the ABS() for +/- master/slave notation
+      GlobalNbElemID = ABS(VertexConnectInfo(VERTEXCONNECT_NBELEMID,iVertexConnect))
+      ! Do not consider myself
+      IF(GlobalNbElemID.EQ.iGlobalElemID) CYCLE iVertexConnectLoop ! go to next connection
+      ! Get neighbour rank
+      GlobalNBElemRank = ElemInfo_Shared(ELEM_RANK,GlobalNbElemID)
+      ! Communicate with this processes
+      IF (GlobalNBElemRank.NE.myrank) THEN
+        ! Flag the communication partner
+        CommunicateWithRank(GlobalNbElemID) = .TRUE.
+        ! Flag the vertex if there is at least one communication partner
+        IsSendNode(FEMVertexID) = .TRUE.
+      END IF ! GlobalNbElemID.NE.myrank
+    END DO iVertexConnectLoop ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+  END DO iVertexIndLoop ! iVertexInd = iFirstVertexInd,LastVertexInd
+END DO ! iCNElem = 1,nComputeNodeTotalElems
 
-! Flag the unique deposition nodes per processor
-nDepoNodes = 0
-ALLOCATE(IsDepoNode(1:nUniqueGlobalNodes))
-IsDepoNode = .FALSE.
-DO iElem =1, nElems
-  TestElemID = GetCNElemID(iElem + offsetElem)
-  DO iNode = 1, 8
-    NonUniqueNodeID = ElemNodeID_Shared(iNode,TestElemID)
-    UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
-    IsDepoNode(UniqueNodeID) = .TRUE.
-  END DO
-END DO
-! Count the number of unique deposition nodes per processor
-nDepoNodes = COUNT(IsDepoNode)
-! Add number of nodes to be sent
-nDepoNodesTotal = nDepoNodes
-DO iNode=1, nUniqueGlobalNodes
-  IF (.NOT.IsDepoNode(iNode).AND.SendNode(iNode)) THEN
-    nDepoNodesTotal = nDepoNodesTotal + 1
-  END IF
-END DO
-! Create mapping from unique deposition node to global unique node
-ALLOCATE(DepoNodetoGlobalNode(1:nDepoNodesTotal))
-nDepoNodesTotal = 0
-DO iNode=1, nUniqueGlobalNodes
-  IF (IsDepoNode(iNode)) THEN
-    nDepoNodesTotal = nDepoNodesTotal + 1
-    DepoNodetoGlobalNode(nDepoNodesTotal) = iNode
-  END IF
-END DO
-DO iNode=1, nUniqueGlobalNodes
-  IF (.NOT.IsDepoNode(iNode).AND.SendNode(iNode)) THEN
-    nDepoNodesTotal = nDepoNodesTotal + 1
-    DepoNodetoGlobalNode(nDepoNodesTotal) = iNode
-  END IF
-END DO
-! Create mapping of exchange processor rank to global rank
+! 2.) Create mapping of exchange processor rank to global rank depending on CommunicateWithRank(iRank)
+! Initialize mapping global rank to i-th communication partner
 GlobalRankToNodeSendDepoRank = -1
-nNodeSendExchangeProcs = COUNT(DoNodeMapping)
-ALLOCATE(NodeSendDepoRankToGlobalRank(1:nNodeSendExchangeProcs))
-NodeSendDepoRankToGlobalRank = 0
-nNodeSendExchangeProcs = 0
+! Count the number of processes to communicate with
+nSurfNodeSendExchangeProcs = COUNT(CommunicateWithRank)
+! Allocate and initialize mapping from i-th communication partner to global rank
+ALLOCATE(SurfNodeSendDepoRankToGlobalRank(1:nSurfNodeSendExchangeProcs))
+SurfNodeSendDepoRankToGlobalRank = 0
+! Nullify the iteration counter
+nSurfNodeSendExchangeProcs = 0
+! Loop over the global number of procsses
 DO iRank= 0, nProcessors_Global-1
+  ! Ignore myself
   IF (iRank.EQ.myRank) CYCLE
-  IF (DoNodeMapping(iRank)) THEN
-    nNodeSendExchangeProcs = nNodeSendExchangeProcs + 1
-    GlobalRankToNodeSendDepoRank(iRank) = nNodeSendExchangeProcs
-    NodeSendDepoRankToGlobalRank(nNodeSendExchangeProcs) = iRank
+  ! Only consider communication partners identified in step 1.)
+  IF (CommunicateWithRank(iRank)) THEN
+    ! Increment the exchange proc index
+    nSurfNodeSendExchangeProcs = nSurfNodeSendExchangeProcs + 1
+    ! Create mapping from global rank to i-th communication partner
+    GlobalRankToNodeSendDepoRank(iRank) = nSurfNodeSendExchangeProcs
+    ! Create opposing mapping from i-th communication partner to global rank
+    SurfNodeSendDepoRankToGlobalRank(nSurfNodeSendExchangeProcs) = iRank
   END IF
 END DO
-! ALLOCATE(NodeDepoMapping(1:nNodeSendExchangeProcs, 1:nUniqueGlobalNodes))
-! NodeDepoMapping = .FALSE.
-ALLOCATE(ElemNodeDepoMap(1:nNodeSendExchangeProcs))
+
+! 3.) Loop over the send FEM vertices and each connected processes and build linked list of node IDs and their number
+! Allocate container with entries for each communication partner
+ALLOCATE(ElemNodeDepoMap(1:nSurfNodeSendExchangeProcs))
 ElemNodeDepoMap(:)%firstNode = .TRUE.
 ElemNodeDepoMap(:)%nNodes = 0
-
-DO iNode = 1, nUniqueGlobalNodes
-  IF (SendNode(iNode)) THEN
-    ElemLoop: DO jElem = NodeToElemMapping(1,iNode) + 1, NodeToElemMapping(1,iNode) + NodeToElemMapping(2,iNode)
-      TestElemID = GetGlobalElemID(NodeToElemInfo(jElem))
-      GlobalElemRank = ElemInfo_Shared(ELEM_RANK,TestElemID)
-      IF (GlobalElemRank.NE.myRank) THEN
-        iRank = GlobalRankToNodeSendDepoRank(GlobalElemRank)
+! Initialize with false
+ALLOCATE(FEMVertexIDisDone(1:nFEMVertices))
+FEMVertexIDisDone = .FALSE.
+! Loop over all CN elements, where deposition might occur by the current process
+DO iCNElem = 1,nComputeNodeTotalElems
+  ! Loop all local nodes
+  iGlobalElemID = GetGlobalElemID(iCNElem)
+  ! Get local FEMElemInfo of current element
+  FirstVertexInd = ElemInfo_Shared(ELEM_FIRSTVERTEXIND,iGlobalElemID)+1 ! this comes from FEMElemInfo() from mesh.h5
+  LastVertexInd  = ElemInfo_Shared(ELEM_LASTVERTEXIND,iGlobalElemID)    ! this comes from FEMElemInfo() from mesh.h5
+  ! Loop over all non-unique vertices (the total number via iGlobalElemID and iVertexInd corresponds to nVertices in .h5)
+  iVertexIndLoop2: DO iVertexInd = FirstVertexInd,LastVertexInd
+    ! Get topologically unique global vertex ID (via VertexInfo from mesh.h5), includes periodicity (needed for a FEM solver)
+    FEMVertexID = VertexInfo_Shared(VERTEX_FEMID,iVertexInd)
+    ! Skip vertices without deposition
+    IF(.NOT.IsDepoSurfNode(FEMVertexID)) CYCLE iVertexIndLoop2 ! go to next vertex
+    ! Skip vertices that have already been processes
+    ! TODO: Check if this is required or if this is wrong because some vertices are then not considered and subsequently
+    ! connections are not established (might lead to deadlock in MPI_Wait or wrong surface charge)
+    IF(FEMVertexIDisDone(FEMVertexID)) CYCLE iVertexIndLoop2 ! go to next vertex
+    ! Flag the FEM vertex
+    FEMVertexIDisDone(FEMVertexID) = .TRUE.
+    ! Get local vertex connectivity: First and Last connected vertex index
+    FirstVertexConnectInd = VertexInfo_Shared(VERTEX_FIRSTCONNECTIND,iVertexInd)+1
+    LastVertexConnectInd  = VertexInfo_Shared(VERTEX_LASTCONNECTIND,iVertexInd)
+    ! Loop over the connections of the vertex
+    iVertexConnectLoop2: DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+      ! Get neighbour info. Note the ABS() for +/- master/slave notation
+      GlobalNbElemID = ABS(VertexConnectInfo(VERTEXCONNECT_NBELEMID,iVertexConnect))
+      ! Do not consider myself
+      IF(GlobalNbElemID.EQ.iGlobalElemID) CYCLE iVertexConnectLoop2 ! go to next connection
+      ! Get neighbour rank
+      GlobalNBElemRank = ElemInfo_Shared(ELEM_RANK,GlobalNbElemID)
+      ! Communicate with this processes if it is not myself
+      IF (GlobalNBElemRank.NE.myrank) THEN
+        ! Get index of the i-th connection partner
+        iRank = GlobalRankToNodeSendDepoRank(GlobalNBElemRank)
+        ! Sanity check
         IF (iRank.LT.1) CALL ABORT(__STAMP__,'Found not connected Rank!', myRank)
-        ! NodeDepoMapping(iRank, iNode) = .TRUE.
+        ! CHeck if the first node for this process is encountered
         IF (ElemNodeDepoMap(iRank)%firstNode) THEN
+          ! Flip the first node flag to false
           ElemNodeDepoMap(iRank)%firstNode = .FALSE.
+          ! Increment the number of nodes for this communication partner
           ElemNodeDepoMap(iRank)%nNodes = ElemNodeDepoMap(iRank)%nNodes + 1
+          ! Allocate the next link
           ALLOCATE(ElemNodeDepoMap(iRank)%first)
-          ElemNodeDepoMap(iRank)%first%NodeID = iNode
-        ELSE
+          ! Store the FEMVertexID
+          ElemNodeDepoMap(iRank)%first%NodeID = FEMVertexID
+        ELSE ! 2nd node encountered
           ! Check if node already exists
           node => ElemNodeDepoMap(iRank)%first
+          ! Loop over the stored FEMVertexIDs to not store the same FEMVertexID twice
           DO testNode = 1, ElemNodeDepoMap(iRank)%nNodes
-          IF (node%NodeID.EQ.iNode) CYCLE ElemLoop
-          IF (.NOT.ASSOCIATED(node%next)) EXIT
-          node => node%next
-          END DO
+            ! Check for FEMVertexID
+            IF (node%NodeID.EQ.FEMVertexID) CYCLE iVertexConnectLoop2 ! Jump to the next connection
+            ! Check if the end of the list if encountered
+            IF (.NOT.ASSOCIATED(node%next)) EXIT
+            ! Next link
+            node => node%next
+          END DO ! testNode = 1, ElemNodeDepoMap(iRank)%nNodes
           ! Add new node at the end of the list
           ALLOCATE(node%next)
-          node%next%NodeID = iNode
+          ! Store the FEMVertexID
+          node%next%NodeID = FEMVertexID
+          ! Increment the number of nodes for this communication partner
           ElemNodeDepoMap(iRank)%nNodes = ElemNodeDepoMap(iRank)%nNodes + 1
-        END IF
-      END IF
-    END DO ElemLoop
-  END IF
-END DO
-! Get number of send nodes for each proc: Size of each message for each proc for deposition
+        END IF ! ElemNodeDepoMap(iRank)%firstNode
+      END IF ! GlobalNbElemID.NE.myrank
+    END DO iVertexConnectLoop2 ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+  END DO iVertexIndLoop2 ! iVertexInd = iFirstVertexInd,LastVertexInd
+END DO ! iCNElem = 1,nComputeNodeTotalElems
+
+! 4.) Get the number of send nodes for each communication partner: Size of each message for each process for deposition
+! Initialize
 nSendUniqueNodesNonSymDepo         = 0
 nRecvUniqueNodesNonSymDepo(myrank) = 0
-ALLOCATE(NodeMappingSend(1:nNodeSendExchangeProcs))
-DO iProc = 1, nNodeSendExchangeProcs
-  NodeMappingSend(iProc)%nSendUniqueNodes = 0
-  ! DO iNode = 1, nUniqueGlobalNodes
-  !   IF (NodeDepoMapping(iProc,iNode)) NodeMappingSend(iProc)%nSendUniqueNodes = NodeMappingSend(iProc)%nSendUniqueNodes + 1
-  ! END DO
-  NodeMappingSend(iProc)%nSendUniqueNodes =  ElemNodeDepoMap(iProc)%nNodes
-  ! local to global array
-  nSendUniqueNodesNonSymDepo(NodeSendDepoRankToGlobalRank(iProc)) = NodeMappingSend(iProc)%nSendUniqueNodes
+! Allocate container for sending nodes to each communication partner
+ALLOCATE(SurfNodeMappingSend(1:nSurfNodeSendExchangeProcs))
+! Loop over each communication partner
+DO iProc = 1, nSurfNodeSendExchangeProcs
+  ! Store the number of vertices that will be sent to the i-th process
+  SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes =  ElemNodeDepoMap(iProc)%nNodes
+  ! Store the number of vertices that will be sent to SurfNodeSendDepoRankToGlobalRank(iProc)
+  nSendUniqueNodesNonSymDepo(SurfNodeSendDepoRankToGlobalRank(iProc)) = SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes
 END DO
 
+! 5.) MPI send/receive the number of deposition nodes
 ! Open receive buffer for non-symmetric exchange identification
 DO iProc = 0,nProcessors_Global-1
+  ! Ignore myself
   IF (iProc.EQ.myRank) CYCLE
   CALL MPI_IRECV( nRecvUniqueNodesNonSymDepo(iProc)  &
     , 1                                              &
@@ -575,8 +600,9 @@ DO iProc = 0,nProcessors_Global-1
     , IERROR)
 END DO
 
-! Send each proc the number of nodes that can be reached by deposition
+! Send each communication partner the number of nodes that can be reached by deposition
 DO iProc = 0,nProcessors_Global-1
+  ! Ignore myself
   IF (iProc.EQ.myRank) CYCLE
   CALL MPI_ISEND( nSendUniqueNodesNonSymDepo(iProc) &
     , 1                                             &
@@ -597,112 +623,104 @@ DO iProc = 0,nProcessors_Global-1
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 
-nNodeRecvExchangeProcs = COUNT(nRecvUniqueNodesNonSymDepo.GT.0)
-ALLOCATE(NodeMappingRecv(1:nNodeRecvExchangeProcs))
-ALLOCATE(NodeRecvDepoRankToGlobalRank(1:nNodeRecvExchangeProcs))
-NodeRecvDepoRankToGlobalRank = 0
-nNodeRecvExchangeProcs = 0
+! 6.) From the received messages, determine the message size that is sent from each communication partner.
+! Count the number of communication partners that have sent a vertex ID count greater than zero
+nSurfNodeRecvExchangeProcs = COUNT(nRecvUniqueNodesNonSymDepo.GT.0)
+! Allocate container for receiving nodes from each communication partner
+ALLOCATE(SurfNodeMappingRecv(1:nSurfNodeRecvExchangeProcs))
+! Allocate and initialize mapping from i-th communication partner to global rank
+ALLOCATE(SurfNodeRecvDepoRankToGlobalRank(1:nSurfNodeRecvExchangeProcs))
+SurfNodeRecvDepoRankToGlobalRank = 0
+! Nullify the iteration counter
+nSurfNodeRecvExchangeProcs = 0
+! Loop over the global number of procsses
 DO iRank= 0, nProcessors_Global-1
+  ! Ignore myself
   IF (iRank.EQ.myRank) CYCLE
+  ! Only consider communication partners that have sent nodes to me
   IF (nRecvUniqueNodesNonSymDepo(iRank).GT.0) THEN
-    nNodeRecvExchangeProcs = nNodeRecvExchangeProcs + 1
-    ! Store global rank of iRecvRank
-    NodeRecvDepoRankToGlobalRank(nNodeRecvExchangeProcs) = iRank
-    ! Store number of nodes of iRecvRank
-    NodeMappingRecv(nNodeRecvExchangeProcs)%nRecvUniqueNodes = nRecvUniqueNodesNonSymDepo(iRank)
+    ! Increment the exchange proc index
+    nSurfNodeRecvExchangeProcs = nSurfNodeRecvExchangeProcs + 1
+    ! Create mapping from i-th communication partner to global rank: Store global rank of i-th receive rank
+    SurfNodeRecvDepoRankToGlobalRank(nSurfNodeRecvExchangeProcs) = iRank
+    ! Store number of nodes for the i-th receive rank
+    SurfNodeMappingRecv(nSurfNodeRecvExchangeProcs)%nRecvUniqueSurfNodes = nRecvUniqueNodesNonSymDepo(iRank)
   END IF
 END DO
 
-! Open receive buffer
-ALLOCATE(RecvRequest(1:nNodeRecvExchangeProcs))
-DO iProc = 1, nNodeRecvExchangeProcs
-  ALLOCATE(NodeMappingRecv(iProc)%RecvNodeUniqueGlobalID(1:NodeMappingRecv(iProc)%nRecvUniqueNodes))
-  ALLOCATE(NodeMappingRecv(iProc)%RecvNodeSourceCharge(1:NodeMappingRecv(iProc)%nRecvUniqueNodes))
-  ALLOCATE(NodeMappingRecv(iProc)%RecvNodeSourceCurrent(1:3,1:NodeMappingRecv(iProc)%nRecvUniqueNodes))
-  IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMappingRecv(iProc)%RecvNodeSourceExt(1:NodeMappingRecv(iProc)%nRecvUniqueNodes))
-  CALL MPI_IRECV( NodeMappingRecv(iProc)%RecvNodeUniqueGlobalID &
-    , NodeMappingRecv(iProc)%nRecvUniqueNodes                   &
-    , MPI_INTEGER                                               &
-    , NodeRecvDepoRankToGlobalRank(iProc)                       &
-    , 666                                                       &
-    , MPI_COMM_PICLAS                                           &
-    , RecvRequest(iProc)                                        &
+! 7.) MPI send/receive the vertex IDs of deposition nodes
+! Open receive buffer with the number of nodes received from each process
+ALLOCATE(SurfRecvRequest(1:nSurfNodeRecvExchangeProcs))
+! Loop over each communication partner
+DO iProc = 1, nSurfNodeRecvExchangeProcs
+  ! Allocate containers for receiving the FEM vertex IDs and surface charge
+  ALLOCATE(SurfNodeMappingRecv(iProc)%RecvSurfNodeUniqueGlobalID(1:SurfNodeMappingRecv(iProc)%nRecvUniqueSurfNodes))
+  ALLOCATE(SurfNodeMappingRecv(iProc)%RecvSurfNodeSource(        1:SurfNodeMappingRecv(iProc)%nRecvUniqueSurfNodes))
+  ! Open receive buffer
+  CALL MPI_IRECV( SurfNodeMappingRecv(iProc)%RecvSurfNodeUniqueGlobalID &
+    , SurfNodeMappingRecv(iProc)%nRecvUniqueSurfNodes                   &
+    , MPI_INTEGER                                                       &
+    , SurfNodeRecvDepoRankToGlobalRank(iProc)                               &
+    , 666                                                               &
+    , MPI_COMM_PICLAS                                                   &
+    , SurfRecvRequest(iProc)                                            &
     , IERROR)
 END DO
 
 ! Open send buffer
-ALLOCATE(SendRequest(1:nNodeSendExchangeProcs))
-DO iProc = 1, nNodeSendExchangeProcs
-  ALLOCATE(NodeMappingSend(iProc)%SendNodeUniqueGlobalID(1:NodeMappingSend(iProc)%nSendUniqueNodes))
-  NodeMappingSend(iProc)%SendNodeUniqueGlobalID=-1
-  ALLOCATE(NodeMappingSend(iProc)%SendNodeSourceCharge(1:NodeMappingSend(iProc)%nSendUniqueNodes))
-  NodeMappingSend(iProc)%SendNodeSourceCharge=0.
-  ALLOCATE(NodeMappingSend(iProc)%SendNodeSourceCurrent(1:3,1:NodeMappingSend(iProc)%nSendUniqueNodes))
-  NodeMappingSend(iProc)%SendNodeSourceCurrent=0.
-  IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMappingSend(iProc)%SendNodeSourceExt(1:NodeMappingSend(iProc)%nSendUniqueNodes))
+ALLOCATE(SurfSendRequest(1:nSurfNodeSendExchangeProcs))
+! Loop over each communication partner
+DO iProc = 1, nSurfNodeSendExchangeProcs
+  ! Allocate containers for sending the FEM vertex IDs and surface charge
+  ALLOCATE(SurfNodeMappingSend(iProc)%SendSurfNodeUniqueGlobalID(1:SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes))
+  ALLOCATE(SurfNodeMappingSend(iProc)%SendSurfNodeSource(        1:SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes))
+  SurfNodeMappingSend(iProc)%SendSurfNodeUniqueGlobalID = -1
+  SurfNodeMappingSend(iProc)%SendSurfNodeSource         = 0.
+  ! Nullify iterator
   SendNodeCount = 0
-  ! DO iNode = 1, nUniqueGlobalNodes
-  !   IF (NodeDepoMapping(iProc,iNode)) THEN
-  !     SendNodeCount = SendNodeCount + 1
-  !     NodeMappingSend(iProc)%SendNodeUniqueGlobalID(SendNodeCount) = iNode
-  !   END IF
-  ! END DO
-  ! ALLOCATE(node)
-  ! node => ElemNodeDepoMap(iProc)%first
-  ! DO testNode = 1, ElemNodeDepoMap(iProc)%nNodes
-  !   SendNodeCount = SendNodeCount + 1
-  !   NodeMappingSend(iProc)%SendNodeUniqueGlobalID(SendNodeCount) = node%NodeID
-  !   node => node%next
-  ! END DO
 
-  ! First loop: Traverse the list and populate NodeMappingSend
+  ! First loop: Traverse the list and populate SurfNodeMappingSend
   node => ElemNodeDepoMap(iProc)%first
+  ! Loop until the end of the list is encountered
   DO WHILE (ASSOCIATED(node))
+    ! Increment counter
     SendNodeCount = SendNodeCount + 1
-    NodeMappingSend(iProc)%SendNodeUniqueGlobalID(SendNodeCount) = node%NodeID
+    ! Store NodeID for sending
+    SurfNodeMappingSend(iProc)%SendSurfNodeUniqueGlobalID(SendNodeCount) = node%NodeID
+    ! Next link
     node => node%next
   END DO
 
-  ! node => ElemNodeDepoMap(iProc)%first
-  ! DO testNode = 1, ElemNodeDepoMap(iProc)%nNodes
-  !   ElemNodeDepoMap(iProc)%first => ElemNodeDepoMap(iProc)%first%next
-  !   DEALLOCATE(node)
-  !   node => ElemNodeDepoMap(iProc)%first
-  ! END DO
-  ! IF(ASSOCIATED(ElemNodeDepoMap(iProc)%first)) THEN
-  !   DEALLOCATE(ElemNodeDepoMap(iProc)%first)
-  ! END IF
-  ! IF(ASSOCIATED(node)) THEN
-  !   DEALLOCATE(node)
-  ! END IF
-
   ! Deallocate the list
   CALL DeallocateNodeList(ElemNodeDepoMap(iProc)%first)
+  ! Nullify the pointer
   NULLIFY(ElemNodeDepoMap(iProc)%first)
+  ! Nullify the number of nodes
   ElemNodeDepoMap(iProc)%nNodes = 0
 
-  CALL MPI_ISEND( NodeMappingSend(iProc)%SendNodeUniqueGlobalID                   &
-    , NodeMappingSend(iProc)%nSendUniqueNodes                         &
-    , MPI_INTEGER                                                 &
-    , NodeSendDepoRankToGlobalRank(iProc)                         &
-    , 666                                                         &
-    , MPI_COMM_PICLAS                                              &
-    , SendRequest(iProc)                                          &
+  CALL MPI_ISEND( SurfNodeMappingSend(iProc)%SendSurfNodeUniqueGlobalID &
+    , SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes                   &
+    , MPI_INTEGER                                                       &
+    , SurfNodeSendDepoRankToGlobalRank(iProc)                               &
+    , 666                                                               &
+    , MPI_COMM_PICLAS                                                   &
+    , SurfSendRequest(iProc)                                            &
     , IERROR)
 END DO
 
 ! Finish send
-DO iProc = 1, nNodeSendExchangeProcs
-  CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
+DO iProc = 1, nSurfNodeSendExchangeProcs
+  CALL MPI_WAIT(SurfSendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 
 ! Finish receive
-DO iProc = 1, nNodeRecvExchangeProcs
-  CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
+DO iProc = 1, nSurfNodeRecvExchangeProcs
+  CALL MPI_WAIT(SurfRecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 
+DEALLOCATE(IsDepoSurfNode)
 END SUBROUTINE InitDepoSurfNodesMPI
 
 

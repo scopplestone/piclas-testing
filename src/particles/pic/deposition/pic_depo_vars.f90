@@ -270,6 +270,7 @@ INTEGER                         :: nShapeExchangeProcs
 
 !INTEGER             :: SendRequest
 TYPE(MPI_Request),ALLOCATABLE :: RecvRequest(:), SendRequest(:)
+TYPE(MPI_Request),ALLOCATABLE :: SurfRecvRequest(:), SurfSendRequest(:)
 INTEGER,ALLOCATABLE ::CNRankToSendRank(:)
 #endif
 

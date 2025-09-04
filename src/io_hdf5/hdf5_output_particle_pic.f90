@@ -260,10 +260,9 @@ IF(iter.NE.0)THEN
 #if USE_MPI
   ! Communicate the NodeSourceExtMPI values of the last boundary interaction before the state is written to .h5
   ! Only call when deposition is active (otherwise this routine only writes the old array from the restart file to keep the data)
-  CALL abort(__STAMP__,' WriteSurfNodeSourceToHDF5(): MPI not implemented')
-  ! IF(DoDeposition) CALL ExchangeSurfNodeSourceMPI()
+  IF(DoDeposition) CALL ExchangeSurfNodeSourceMPI()
 #endif /*USE_MPI*/
-end if ! iter.NE.0
+END IF ! iter.NE.0
 
 ! Write field to _State_.h5 file (or restart)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'

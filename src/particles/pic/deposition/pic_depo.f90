@@ -662,7 +662,7 @@ DO FEMVertexID=1, nFEMVertices
     FEMVertexID2DepoSurfNodeID(FEMVertexID) = nDepoSurfNodesTotal
   END IF
 END DO
-DEALLOCATE(IsDepoSurfNode)
+! DEALLOCATE(IsDepoSurfNode)
 #if USE_MPI
 IF(nProcessors.GT.1) CALL InitDepoSurfNodesMPI() ! Initialize MPI communicator for surface node communication
 #endif /*USE_MPI*/
