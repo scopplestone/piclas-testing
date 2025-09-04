@@ -94,6 +94,9 @@ IF(ElementOnProc(GlobalElemID)) CALL LBStartTime(tLBStart) ! Start time measurem
 
 #if USE_MPI
 CALL abort(__STAMP__,'Implement MPI for subroutine DepositParticleOnSurface()')
+! Single-core: Use SurfNodeSource directly as SurfNodeSourceMPI does not exist
+! Multi-core: Use local container SurfNodeSourceMPI, which is later exchanged
+! between the adjacent processes and then added to SurfNodeSourceExt
 ASSOCIATE( SurfNodeSource => SurfNodeSourceMPI )
 #endif
   ! TODO: Check if node is connected to one or two symmetry BCs and increase the deposited charge on these nodes
@@ -242,7 +245,8 @@ CALL GetPositionInRefElem(PartPos, TempPartPos(1:3), GlobalElemID, ForceMode = .
 
 #if USE_MPI
 ! Single-core: Use NodeSourceExt directly as NodeSourceExtMPI does not exist
-! Multi-core: Use local container NodeSourceExtMPI, which is later exchanged between the adjacent processes and then added to NodeSourceExt
+! Multi-core: Use local container NodeSourceExtMPI, which is later exchanged
+! between the adjacent processes and then added to NodeSourceExt
 ASSOCIATE( NodeSourceExt => NodeSourceExtMPI )
 #endif
   ! Check if GetPositionInRefElem was able to find the reference position (via ref. mapping), else use distance-based deposition

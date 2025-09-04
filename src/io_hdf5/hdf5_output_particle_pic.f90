@@ -232,7 +232,7 @@ USE MOD_Interpolation_Vars ,ONLY: NodeType,NodeTypeVISU,Nmin,Nmax
 USE MOD_Interpolation      ,ONLY: GetVandermonde
 USE MOD_DG_vars            ,ONLY: N_DG_Mapping,nDofsMapping
 #if USE_MPI
-! USE MOD_PICDepo_MPI        ,ONLY: ExchangeNodeSourceExtMPI
+USE MOD_PICDepo_MPI        ,ONLY: ExchangeSurfNodeSourceMPI
 #endif /*USE_MPI*/
 USE MOD_HDF5_Output_ElemData,ONLY: WriteAdditionalElemData
 USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource,nDepoSurfNodesTotal,nDepoSurfSides
@@ -261,7 +261,7 @@ IF(iter.NE.0)THEN
   ! Communicate the NodeSourceExtMPI values of the last boundary interaction before the state is written to .h5
   ! Only call when deposition is active (otherwise this routine only writes the old array from the restart file to keep the data)
   CALL abort(__STAMP__,' WriteSurfNodeSourceToHDF5(): MPI not implemented')
-  ! IF(DoDeposition) CALL ExchangeNodeSourceExtMPI()
+  ! IF(DoDeposition) CALL ExchangeSurfNodeSourceMPI()
 #endif /*USE_MPI*/
 end if ! iter.NE.0
 

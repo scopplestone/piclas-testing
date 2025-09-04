@@ -142,7 +142,9 @@ END TYPE VdmType
 
 TYPE(VdmType), DIMENSION(:), ALLOCATABLE :: Vdm_EQ_N        !< Array to store all Vandermonde matrices depending on Nloc
 
-REAL,ALLOCATABLE                :: SurfNodeSource(:)
+REAL,ALLOCATABLE                :: SurfNodeSource(:) ! It contains the global, synchronized surface charge contribution that is
+!                                                    ! read and written to .h5
+INTEGER,ALLOCATABLE             :: DepoSurfNodetoGlobalNode(:)
 INTEGER,ALLOCATABLE             :: DepoSurfNodeID2FEMVertexID(:)
 INTEGER,ALLOCATABLE             :: FEMVertexID2DepoSurfNodeID(:)
 INTEGER                         :: nDepoSurfNodes
@@ -217,6 +219,22 @@ TYPE tNodeMappingRecv
   INTEGER                       :: nRecvUniqueNodes
 END TYPE
 TYPE (tNodeMappingRecv),ALLOCATABLE      :: NodeMappingRecv(:)
+
+! Send direction of surface nodes (can be different from number of receive nodes for each processor)
+TYPE tSurfNodeMappingSend
+  INTEGER,ALLOCATABLE           :: SendSurfNodeUniqueGlobalID(:)
+  REAL,ALLOCATABLE              :: SendSurfNodeSource(:)
+  INTEGER                       :: nSendUniqueSurfNodes
+END TYPE
+TYPE (tSurfNodeMappingSend),ALLOCATABLE      :: SurfNodeMappingSend(:)
+
+! Receive direction of surface nodes (can be different from number of send nodes for each processor)
+TYPE tSurfNodeMappingRecv
+  INTEGER,ALLOCATABLE           :: RecvSurfNodeUniqueGlobalID(:)
+  REAL,ALLOCATABLE              :: RecvSurfNodeSource(:)
+  INTEGER                       :: nRecvUniqueSurfNodes
+END TYPE
+TYPE (tSurfNodeMappingRecv),ALLOCATABLE      :: SurfNodeMappingRecv(:)
 
 TYPE tShapeMapping
   INTEGER,ALLOCATABLE           :: RecvShapeElemID(:)
