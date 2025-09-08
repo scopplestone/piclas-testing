@@ -825,7 +825,8 @@ IF(readFEMconnectivity)THEN
     offsetVertexConnectID   => INT(offsetVertexConnectID,IK)  )
 #if defined(PARTICLES) && USE_LOADBALANCE
     IF (PerformLoadBalance) THEN
-      VertexConnectInfo(1:VertexConnectInfoSize,:) = VertexConnectInfo_Shared(1:VertexConnectInfoSize,offsetVertexConnectID+1:offsetVertexConnectID+nVertexConnectIDs)
+      VertexConnectInfo(1:VertexConnectInfoSize,:) = &
+        VertexConnectInfo_Shared(1:VertexConnectInfoSize,offsetVertexConnectID+1:offsetVertexConnectID+nVertexConnectIDs)
     ELSE
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
     CALL ReadArray('VertexConnectInfo',2,(/VertexConnectInfoSize,nVertexConnectIDs/),offsetVertexConnectID,2,IntegerArray_i4=VertexConnectInfo(1:VertexConnectInfoSize,:))

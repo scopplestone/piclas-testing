@@ -739,9 +739,6 @@ IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
 ! ---------------------------------------------------------
 ! Write SurfNodeSource (surface charge density) field to HDF5 file
 ! ---------------------------------------------------------
-#if USE_MPI
-IF(Do2DSurfaceCharge) CALL abort(__STAMP__,' WriteSurfNodeSourceToHDF5(): MPI not implemented')
-#endif /*USE_MPI*/
 IF(Do2DSurfaceCharge) CALL WriteSurfNodeSourceToHDF5(OutputTime_loc)
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 ! ---------------------------------------------------------

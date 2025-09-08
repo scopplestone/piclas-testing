@@ -249,8 +249,7 @@ INTEGER,PARAMETER              :: nVarOut=1
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),PARAMETER   :: DataSetName='SurfNodeSource'
-INTEGER                        :: iElem,iMax,CNElemID
-INTEGER                        :: iDOF, nDOFOutput, offsetDOF, Nloc, i
+INTEGER                        :: iElem,iMax,CNElemIDiDOF,nDOFOutput,offsetDOF,Nloc,i,firstNode,lastNode
 !===================================================================================================================================
 ALLOCATE(StrVarNames(1:nVarOut))
 StrVarNames(1)='SurfaceChargeDensity'
@@ -273,6 +272,15 @@ IF(MPIRoot)THEN
   CALL WriteAttributeToHDF5(File_ID,'nDepoSurfSides'        ,1      ,IntegerScalar = nDepoSurfSides)
   CALL CloseDataFile()
 END IF ! MPIRoot
+
+
+#if USE_MPI
+firstNode = INT(REAL( myrank   )*REAL(nDepoSurfNodesTotal)/REAL(nProcessors))+1
+lastNode  = INT(REAL((myrank+1))*REAL(nDepoSurfNodesTotal)/REAL(nProcessors))
+#else
+firstNode = 1
+lastNode  = nDepoSurfNodesTotal
+#endif /*USE_MPI*/
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE(nVarOut         => INT(nVarOut,IK)            ,&

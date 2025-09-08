@@ -345,7 +345,8 @@ SUBROUTINE InitDepoSurfNodes()
 USE MOD_Globals
 USE MOD_PICDepo_Vars
 USE MOD_Particle_Mesh_Vars ,ONLY: nNonUniqueGlobalNodes
-USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity,offsetElem,nElems,BC
+USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity,offsetElem,nElems,BC,nGlobalElems
+USE MOD_Particle_Mesh_Vars ,ONLY: VertexConnectInfo_shared
 USE MOD_Mesh_Vars          ,ONLY: VertexConnectInfo,NGeo,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID,SideToNonUniqueGlobalSide
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nFEMVertices,NonUniqueGlobalNodeIDToFEMVertexID,nSides
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,SideInfo_Shared,ElemInfo_Shared,VertexInfo_Shared
@@ -407,10 +408,12 @@ NonUniqueGlobalSideIDToNonUniqueGlobalNodeID = 0
 CALL GetCornerNodeMapCGNS(NGeo,CornerNodesCGNS = CNS)
 
 ! Element index
-FirstGlobalElemID = offsetElem+1
-LastGlobalElemID  = offsetElem+nElems
+! FirstGlobalElemID = offsetElem+1
+! LastGlobalElemID  = offsetElem+nElems
+FirstGlobalElemID = 1
+LastGlobalElemID  = nGlobalElems
 
-! 1. Identify all (FEMVertexID) nodes and (NonUniqueGlobalSideID) side sthat are needed for deposition
+! 1. Identify all (FEMVertexID) nodes and (NonUniqueGlobalSideID) sides that are needed for deposition
 ! Loop over the process-local global elements indices
 DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
   ! iElem = iGlobalElemID - offsetElem
@@ -440,8 +443,8 @@ DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
     LastVertexConnectInd  = VertexInfo_Shared(VERTEX_LASTCONNECTIND,iVertexInd)
     DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
       ! Get neighbour infos. Note the ABS() for +/- master/slave notation
-      GlobalNbElemID = ABS(VertexConnectInfo(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
-      NbLocVertexID  =     VertexConnectInfo(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
+      GlobalNbElemID = ABS(VertexConnectInfo_Shared(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
+      NbLocVertexID  =     VertexConnectInfo_Shared(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
       ! Set sides depending on the element type: Only implemented for Hexahedral elements
       CALL GetLocSideList(ElemType,NbLocVertexID,LocSideList)
       ! Loop over the three connected sides of the neighbour element, which is connected with a corner to iVertexConnect
@@ -469,12 +472,13 @@ END DO ! iGlobalElemID = FirstElemInd, LastElemInd
 
 ! 2. Create a mapping that returns the four (NonUniqueNodeID) nodes for a (NonUniqueGlobalSideID) side
 ! Separate loop for setting the node IDs is needed because setting them in the loop above does not work
-! Additionally, the scalong factor is determined
-firstSide = 1
-lastSide = nSides ! TODO: This might only work correctly for nBCSides and not for inner BC sides (dielectric interfaces)
-DO iSide = firstSide, lastSide
-  ! Get global side index
-  NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,iSide)
+! Additionally, the scaling factor is determined
+! firstSide = 1
+! lastSide = nSides ! TODO: This might only work correctly for nBCSides and not for inner BC sides (dielectric interfaces)
+! DO iSide = firstSide, lastSide
+!   ! Get global side index
+!   NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,iSide)
+DO NonUniqueGlobalSideID = 1,nNonUniqueGlobalSides
   ! Check if the side has charge deposition activated
   IF(IsDepoSurfSide(NonUniqueGlobalSideID))THEN
     ! Get compute node element index of the side
@@ -483,15 +487,16 @@ DO iSide = firstSide, lastSide
     LocSideID = SideInfo_Shared(SIDE_LOCALID,NonUniqueGlobalSideID)
     ! Loop over all 4 node of the side
     DO iNode = 1, 4
-      ! Get the non-unique global side index of the node/local side ID/compute elemen ID
+      ! Get the non-unique global side index of the node/local side ID/compute element ID
       NonUniqueNodeID = ElemSideNodeID_Shared(iNode,LocSideID,CNElemID) + 1
       ! Store the non-unique node index for the current non-unique global side index
       NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID) = NonUniqueNodeID
     END DO ! iNode = 1, 4
   END IF
-END DO
+END DO ! NonUniqueGlobalSideID = 1,nNonUniqueGlobalSides
+! END DO
 
-! 3. For nodes that are connected to a Neumann BC, the deposited charge must be incrsed by a (mirror charge) scaling factor
+! 3. For nodes that are connected to a Neumann BC, the deposited charge must be increased by a (mirror charge) scaling factor
 ! Check if neighbouring sides of FEMVertexIDs are symmetry sides for the field solver, hence, increase the deposited charge there
 ! TODO: Make this array SHM
 ALLOCATE(SurfNodeSymmetryFactor(1:nNonUniqueGlobalNodes))
@@ -510,8 +515,8 @@ DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
     CALL abort(__STAMP__,'InitDepoSurfNodes(): Element type not implemented, ElemType =',IntInfoOpt=ElemType)
   END SELECT
   ! Get local FEMElemInfo of current element
-  FirstVertexInd = ElemInfo_Shared(ELEM_FIRSTVERTEXIND,iGlobalElemID)+1 ! this comes from FEMElemInfo() from mesh.h5
-  LastVertexInd  = ElemInfo_Shared(ELEM_LASTVERTEXIND,iGlobalElemID)    ! this comes from FEMElemInfo() from mesh.h5
+  FirstVertexInd = ElemInfo_Shared(ELEM_FIRSTVERTEXIND,iGlobalElemID)+1 ! This comes from FEMElemInfo() from mesh.h5
+  LastVertexInd  = ElemInfo_Shared(ELEM_LASTVERTEXIND,iGlobalElemID)    ! This comes from FEMElemInfo() from mesh.h5
   ! Loop over all non-unique vertices (the total number via iGlobalElemID and iVertexInd corresponds to nVertices in .h5)
   iVertexIndLoop: DO iVertexInd = FirstVertexInd,LastVertexInd
     ! Get topologically unique global vertex ID (via VertexInfo from mesh.h5), includes periodicity (needed for a FEM solver)
@@ -525,9 +530,9 @@ DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
     LastVertexConnectInd  = VertexInfo_Shared(VERTEX_LASTCONNECTIND,iVertexInd)
     iVertexConnectLoop: DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
       ! Get neighbour infos. Note the ABS() for +/- master/slave notation
-      GlobalNbElemID = ABS(VertexConnectInfo(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
+      GlobalNbElemID = ABS(VertexConnectInfo_Shared(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
       ! IF(GlobalNbElemID.EQ.iGlobalElemID) CYCLE iVertexConnectLoop
-      NbLocVertexID  =     VertexConnectInfo(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
+      NbLocVertexID  =     VertexConnectInfo_Shared(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
       ! Set sides depending on the element type: Only implemented for Hexahedral elements
       CALL GetLocSideList(ElemType,NbLocVertexID,LocSideList)
       ! Loop over the three connected sides of the neighbour element, which is connected with a corner to iVertexConnect
@@ -664,7 +669,7 @@ DO FEMVertexID=1, nFEMVertices
 END DO
 ! DEALLOCATE(IsDepoSurfNode)
 #if USE_MPI
-IF(nProcessors.GT.1) CALL InitDepoSurfNodesMPI() ! Initialize MPI communicator for surface node communication
+CALL InitDepoSurfNodesMPI() ! Initialize MPI communicator for surface node communication
 #endif /*USE_MPI*/
 ALLOCATE(SurfNodeSource(1:nDepoSurfNodesTotal))
 SurfNodeSource=0.0

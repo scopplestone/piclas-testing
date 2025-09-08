@@ -93,7 +93,6 @@ IF(ElementOnProc(GlobalElemID)) CALL LBStartTime(tLBStart) ! Start time measurem
 #endif /*USE_LOADBALANCE*/
 
 #if USE_MPI
-CALL abort(__STAMP__,'Implement MPI for subroutine DepositParticleOnSurface()')
 ! Single-core: Use SurfNodeSource directly as SurfNodeSourceMPI does not exist
 ! Multi-core: Use local container SurfNodeSourceMPI, which is later exchanged
 ! between the adjacent processes and then added to SurfNodeSourceExt

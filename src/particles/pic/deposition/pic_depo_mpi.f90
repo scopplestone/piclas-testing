@@ -378,8 +378,8 @@ USE MOD_PICDepo_Vars           ,ONLY: nSurfNodeRecvExchangeProcs,nSurfNodeSendEx
 USE MOD_PICDepo_Vars           ,ONLY: SurfRecvRequest,SurfNodeMappingRecv,SurfNodeRecvDepoRankToGlobalRank
 USE MOD_PICDepo_Vars           ,ONLY: SurfSendRequest,SurfNodeMappingSend,SurfNodeSendDepoRankToGlobalRank
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_Mesh_Vars              ,ONLY: nElems,VertexConnectInfo,nFEMVertices
-USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes
+USE MOD_Mesh_Vars              ,ONLY: nElems,nFEMVertices
+USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes,VertexConnectInfo_Shared
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,ELEM_RANK
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping,ElemNodeID_Shared,NodeInfo_Shared
@@ -420,14 +420,17 @@ INTEGER :: FirstVertexInd,LastVertexInd,FirstVertexConnectInd,LastVertexConnectI
 INTEGER :: FEMVertexID,iVertexInd,NonUniqueNodeID,CNS(8),iNode
 INTEGER :: iElem,BCType,NonUniqueGlobalSideID,NonUniqueGlobalNbSideID,iGlobalElemID,BCIndex,ElemType
 !===================================================================================================================================
-! Allocate container for flagging each FEM vertex, if it needs to be sent to at least one communication partner
-ALLOCATE(IsSendNode(1:nFEMVertices))
-IsSendNode = -1
-
 ! Allocate container for storing the local non-synchronized surface charge, which is always nullified after
 ! communication/synchronization with other processes
 ALLOCATE(SurfNodeSourceMPI(1:nDepoSurfNodesTotal))
 SurfNodeSourceMPI = 0.
+
+! Olny continue to the communication part when there are multiple processes
+IF(nProcessors.LE.1) RETURN
+
+! Allocate container for flagging each FEM vertex, if it needs to be sent to at least one communication partner
+ALLOCATE(IsSendNode(1:nFEMVertices))
+IsSendNode = -1
 
 ! Nullify container to flag each process if it will receive charge
 CommunicateWithRank = .FALSE.
@@ -452,7 +455,7 @@ DO iCNElem = 1,nComputeNodeTotalElems
     LastVertexConnectInd  = VertexInfo_Shared(VERTEX_LASTCONNECTIND,iVertexInd)
     iVertexConnectLoop: DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
       ! Get neighbour infos. Note the ABS() for +/- master/slave notation
-      GlobalNbElemID = ABS(VertexConnectInfo(VERTEXCONNECT_NBELEMID,iVertexConnect))
+      GlobalNbElemID = ABS(VertexConnectInfo_Shared(VERTEXCONNECT_NBELEMID,iVertexConnect))
       ! Do not consider myself
       IF(GlobalNbElemID.EQ.iGlobalElemID) CYCLE iVertexConnectLoop ! go to next connection
       ! Get neighbour rank
@@ -460,7 +463,7 @@ DO iCNElem = 1,nComputeNodeTotalElems
       ! Communicate with this processes
       IF (GlobalNBElemRank.NE.myrank) THEN
         ! Flag the communication partner
-        CommunicateWithRank(GlobalNbElemID) = .TRUE.
+        CommunicateWithRank(GlobalNBElemRank) = .TRUE.
         ! Flag the vertex if there is at least one communication partner
         IsSendNode(FEMVertexID) = .TRUE.
       END IF ! GlobalNbElemID.NE.myrank
@@ -526,7 +529,7 @@ DO iCNElem = 1,nComputeNodeTotalElems
     ! Loop over the connections of the vertex
     iVertexConnectLoop2: DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
       ! Get neighbour info. Note the ABS() for +/- master/slave notation
-      GlobalNbElemID = ABS(VertexConnectInfo(VERTEXCONNECT_NBELEMID,iVertexConnect))
+      GlobalNbElemID = ABS(VertexConnectInfo_Shared(VERTEXCONNECT_NBELEMID,iVertexConnect))
       ! Do not consider myself
       IF(GlobalNbElemID.EQ.iGlobalElemID) CYCLE iVertexConnectLoop2 ! go to next connection
       ! Get neighbour rank
@@ -660,7 +663,7 @@ DO iProc = 1, nSurfNodeRecvExchangeProcs
   CALL MPI_IRECV( SurfNodeMappingRecv(iProc)%RecvSurfNodeUniqueGlobalID &
     , SurfNodeMappingRecv(iProc)%nRecvUniqueSurfNodes                   &
     , MPI_INTEGER                                                       &
-    , SurfNodeRecvDepoRankToGlobalRank(iProc)                               &
+    , SurfNodeRecvDepoRankToGlobalRank(iProc)                           &
     , 666                                                               &
     , MPI_COMM_PICLAS                                                   &
     , SurfRecvRequest(iProc)                                            &
@@ -992,13 +995,11 @@ SUBROUTINE ExchangeSurfNodeSourceMPI()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource
-#if USE_MPI
 USE MOD_PICDepo_Vars       ,ONLY: SurfNodeMappingRecv,SurfNodeMappingSend,SurfNodeSourceMPI
 USE MOD_PICDepo_Vars       ,ONLY: nDepoSurfNodesTotal,nSurfNodeSendExchangeProcs,SurfNodeSendDepoRankToGlobalRank
-USE MOD_PICDepo_Vars       ,ONLY: DepoSurfNodetoGlobalNode
+USE MOD_PICDepo_Vars       ,ONLY: DepoSurfNodetoGlobalNode,FEMVertexID2DepoSurfNodeID
 USE MOD_PICDepo_Vars       ,ONLY: nSurfNodeRecvExchangeProcs
 USE MOD_PICDepo_Vars       ,ONLY: SurfNodeRecvDepoRankToGlobalRank
-#endif  /*USE_MPI*/
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars  ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
@@ -1008,11 +1009,9 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if USE_MPI
 INTEGER                        :: iProc
 TYPE(MPI_Request)              :: RecvRequest(1:nSurfNodeRecvExchangeProcs),SendRequest(1:nSurfNodeSendExchangeProcs)
-#endif /*USE_MPI*/
-INTEGER                        :: globalNode, iNode
+INTEGER                        :: globalNode, iNode, iDepoSurfNodeID, FEMVertexID
 #if defined(MEASURE_MPI_WAIT)
 INTEGER(KIND=8)                :: CounterStart,CounterEnd
 REAL(KIND=8)                   :: Rate
@@ -1034,7 +1033,12 @@ END DO
 DO iProc = 1, nSurfNodeSendExchangeProcs
   ! Send message (non-blocking)
   DO iNode = 1, SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes
-    SurfNodeMappingSend(iProc)%SendSurfNodeSource(iNode) = SurfNodeSourceMPI(SurfNodeMappingSend(iProc)%SendSurfNodeUniqueGlobalID(iNode))
+    ! Get FEMVertexID from mapping
+    FEMVertexID = SurfNodeMappingSend(iProc)%SendSurfNodeUniqueGlobalID(iNode)
+    ! Get surface deposition node index
+    iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
+    ! Store in send array
+    SurfNodeMappingSend(iProc)%SendSurfNodeSource(iNode) = SurfNodeSourceMPI(iDepoSurfNodeID)
   END DO
   CALL MPI_ISEND( SurfNodeMappingSend(iProc)%SendSurfNodeSource(:)    &
       , SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes               &
@@ -1066,17 +1070,21 @@ MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
 ! 3) Extract messages
 DO iProc = 1, nSurfNodeRecvExchangeProcs
   DO iNode = 1, SurfNodeMappingRecv(iProc)%nRecvUniqueSurfNodes
-    ASSOCIATE( NS => SurfNodeSourceMPI(SurfNodeMappingRecv(iProc)%RecvSurfNodeUniqueGlobalID(iNode)))
+    ! Get FEMVertexID from mapping
+    FEMVertexID = SurfNodeMappingRecv(iProc)%RecvSurfNodeUniqueGlobalID(iNode)
+    ! Get surface deposition node index
+    iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
+    ! Unpack in recv array
+    ASSOCIATE( NS => SurfNodeSourceMPI(iDepoSurfNodeID) )
       NS = NS + SurfNodeMappingRecv(iProc)%RecvSurfNodeSource(iNode)
     END ASSOCIATE
   END DO
 END DO
 
 ! Add SurfNodeSourceMPI values of the last boundary interaction
-CALL abort(__STAMP__,' SurfNodeSourceMPI to SurfNodeSource', IERROR)
-DO iNode = 1, nDepoSurfNodesTotal
-  globalNode = DepoSurfNodetoGlobalNode(iNode)
-  SurfNodeSource(globalNode) = SurfNodeSource(globalNode) + SurfNodeSourceMPI(globalNode)
+DO iDepoSurfNodeID = 1, nDepoSurfNodesTotal
+  ! Add contribution
+  SurfNodeSource(iDepoSurfNodeID) = SurfNodeSource(iDepoSurfNodeID) + SurfNodeSourceMPI(iDepoSurfNodeID)
 END DO
 ! Reset local surface charge
 SurfNodeSourceMPI = 0.
