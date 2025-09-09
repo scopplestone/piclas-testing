@@ -430,7 +430,7 @@ IF(nProcessors.LE.1) RETURN
 
 ! Allocate container for flagging each FEM vertex, if it needs to be sent to at least one communication partner
 ALLOCATE(IsSendNode(1:nFEMVertices))
-IsSendNode = -1
+IsSendNode = .FALSE.
 
 ! Nullify container to flag each process if it will receive charge
 CommunicateWithRank = .FALSE.

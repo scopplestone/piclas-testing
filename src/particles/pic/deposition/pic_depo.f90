@@ -684,6 +684,8 @@ END DO ! Nloc = Nmin, Nmax
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE!',DisplayLine=.FALSE.)
 
+InitDepoSurfNodesIsDone = .TRUE.
+
 END SUBROUTINE InitDepoSurfNodes
 
 

@@ -142,6 +142,7 @@ END TYPE VdmType
 
 TYPE(VdmType), DIMENSION(:), ALLOCATABLE :: Vdm_EQ_N        !< Array to store all Vandermonde matrices depending on Nloc
 
+LOGICAL                         :: InitDepoSurfNodesIsDone !< Flag to check whether InitDepoSurfNodes() has already been called
 REAL,ALLOCATABLE                :: SurfNodeSource(:) ! It contains the global, synchronized surface charge contribution that is
 !                                                    ! read and written to .h5
 INTEGER,ALLOCATABLE             :: DepoSurfNodetoGlobalNode(:)

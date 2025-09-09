@@ -64,6 +64,9 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: ElemNodeID_Shared_Win
 USE MOD_MPI_Shared_vars       ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
 #endif /*USE_MPI*/
+#if defined(PARTICLES) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+USE MOD_PICDepo_Vars          ,ONLY: InitDepoSurfNodesIsDone
+#endif /*defined(PARTICLES) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -247,6 +250,9 @@ END IF
 ReadMeshFinished = .FALSE.
 ElemMeshInit = .FALSE.
 SurfMeshInit = .FALSE.
+#if defined(PARTICLES) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+InitDepoSurfNodesIsDone = .FALSE.
+#endif /*defined(PARTICLES) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 
 #if USE_MPI
   CALL InitMPIShared()
@@ -440,6 +446,9 @@ END IF ! ReadMeshFinished
 
 SDEALLOCATE(NodeCoords_Connect)
 SDEALLOCATE(ElemUniqueNodeID)
+#if defined(PARTICLES) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+IF(InitDepoSurfNodesIsDone) CALL FinalizeDepoSurfNodes()
+#endif /*defined(PARTICLES) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 
 ! Measure processing duration
 GETTIME(Time)
@@ -1762,7 +1771,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides
 USE MOD_ReadInTools             ,ONLY: PrintOption
 USE MOD_PICDepo                 ,ONLY: InitDepoSurfNodes
 USE MOD_PICDepo_Vars            ,ONLY: SurfNodeSource,FEMVertexID2DepoSurfNodeID,DepoSurfNodeID2FEMVertexID,Vdm_EQ_N
-USE MOD_PICDepo_Vars            ,ONLY: SurfNodeSymmetryFactor
+USE MOD_PICDepo_Vars            ,ONLY: SurfNodeSymmetryFactor,InitDepoSurfNodesIsDone
 #if !(PP_TimeDiscMethod==700)
 USE MOD_PICDepo_Vars            ,ONLY: nDepoSurfNodes,nDepoSurfSides
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared
@@ -1790,7 +1799,7 @@ INTEGER,PARAMETER               :: data_size=4
 INTEGER                         :: NodeSwitch(4),iDepoSurfNodeID,offsetNode,iSurfNode,iSide,Nloc,p,q
 !===================================================================================================================================
 ! Build vertex mappings
-CALL InitDepoSurfNodes() ! Get nDepoSurfNodes: TODO: for multiple files, this function should only be called a single time
+IF(.NOT.InitDepoSurfNodesIsDone) CALL InitDepoSurfNodes() ! Get nDepoSurfNodes
 
 ! Read in solution
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
@@ -1879,20 +1888,38 @@ CALL WriteDataToVTK(nVarSurf         ,&
                     DGFV = 0          &
                     )
 
-SDEALLOCATE(Vdm_EQ_N)
+CALL CloseDataFile()
+
 SDEALLOCATE(VarNamesSurf_HDF5)
+SDEALLOCATE(SurfOutputData)
+SDEALLOCATE(NodeCoords_visu)
+END SUBROUTINE ConvertSurfNodeSourceData
+
+
+!===================================================================================================================================
+!> Deallocate the surface charge containser used for conversion to vtu
+!===================================================================================================================================
+SUBROUTINE FinalizeDepoSurfNodes()
+! MODULES
+USE MOD_Mesh_Vars               ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
+USE MOD_Mesh_Vars               ,ONLY: SideToNonUniqueGlobalSide,N_SurfMesh
+USE MOD_PICDepo_Vars            ,ONLY: SurfNodeSource,FEMVertexID2DepoSurfNodeID,DepoSurfNodeID2FEMVertexID,Vdm_EQ_N
+USE MOD_PICDepo_Vars            ,ONLY: SurfNodeSymmetryFactor
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+SDEALLOCATE(Vdm_EQ_N)
 SDEALLOCATE(SurfNodeSource)
 SDEALLOCATE(SurfNodeSymmetryFactor)
 SDEALLOCATE(DepoSurfNodeID2FEMVertexID)
 SDEALLOCATE(FEMVertexID2DepoSurfNodeID)
-SDEALLOCATE(SurfOutputData)
-SDEALLOCATE(NodeCoords_visu)
 SDEALLOCATE(NonUniqueGlobalNodeIDToFEMVertexID)
 SDEALLOCATE(NonUniqueGlobalSideIDToNonUniqueGlobalNodeID)
-
-CALL CloseDataFile()
-
-END SUBROUTINE ConvertSurfNodeSourceData
+END SUBROUTINE FinalizeDepoSurfNodes
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 #endif /*defined(PARTICLES)*/
 
