@@ -58,6 +58,7 @@ USE MOD_Equation_Vars      ,ONLY: B, E
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #if USE_PETSC
+USE MOD_Globals_Vars       ,ONLY: eps0
 USE PETSc
 USE MOD_Mesh_Vars          ,ONLY: SideToElem,nGlobalMortarSides
 USE MOD_HDG_Vars_PETSc
@@ -70,11 +71,12 @@ USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG
 #if USE_MPI
 USE MOD_MPI_HDG            ,ONLY: Mask_MPIsides
 #endif
-USE MOD_Globals_Vars       ,ONLY: ElementaryCharge,eps0
+USE MOD_Globals_Vars       ,ONLY: ElementaryCharge
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_HDG_Tools          ,ONLY: CG_solver,DisplayConvergence
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #if defined(PARTICLES)
+USE MOD_Globals_Vars       ,ONLY: eps0
 #if USE_MPI
 USE MOD_PICDepo_MPI        ,ONLY: ExchangeSurfNodeSourceMPI
 USE MOD_Particle_Boundary_Vars ,ONLY: Do2DSurfaceCharge
@@ -100,6 +102,8 @@ INTEGER :: BCsideID,BCType,BCState,SideID,iLocSide
 REAL    :: RHS_facetmp(nGP_face(NMax))
 REAL    :: rtmp(nGP_vol(NMax))
 #if defined(PARTICLES)
+REAL                 :: src
+INTEGER              :: FEMVertexID
 INTEGER :: iPartBound, iNode, NonUniqueNodeID, NonUniqueGlobalSideID, iDepoSurfNodeID
 REAL    :: SideArea,SubArea
 REAL,ALLOCATABLE     :: SurfNodeSourceEquiN1(:,:,:),SurfNodeSourceNodeTypeNloc(:,:,:)
@@ -126,8 +130,6 @@ REAL                 :: Smatloc(nGP_face(NMax),nGP_face(NMax))
 INTEGER              :: iUniqueFPCBC
 INTEGER              :: iMortar,iType
 #endif /*USE_PETSC*/
-REAL                 :: src
-INTEGER              :: FEMVertexID
 REAL                 :: chitens_face(3,3)
 !===================================================================================================================================
 ! Dummy for chitens_face(:,:,p,q,SideID)
@@ -313,16 +315,15 @@ DO BCsideID=1,nNeumannBCSides
   HDG_Surf_N(SideID)%RHS_face(:,:) = HDG_Surf_N(SideID)%RHS_face(:,:) + HDG_Surf_N(SideID)%qn_face(:,:)
 END DO
 
-! Add Distributed Capacitance BC
-#if USE_MPI && defined(PARTICLES)
-IF(Do2DSurfaceCharge) CALL ExchangeSurfNodeSourceMPI()
-#endif /*USE_MPI && defined(PARTICLES)*/
-! TODO: DistriCapBC only includes nBCSides and not the inner BCs
-IF(nDistriCapBCsides.GT.0) THEN
-  ALLOCATE(SurfNodeSourceEquiN1(1:1,0:1,0:1),SurfNodeSourceNodeTypeNloc(1:1,0:Nmax,0:Nmax))
-END IF
-DO BCsideID=1,nDistriCapBCsides
 #if defined(PARTICLES)
+! Add Distributed Capacitance BC
+#if USE_MPI
+IF(Do2DSurfaceCharge) CALL ExchangeSurfNodeSourceMPI()
+#endif /*USE_MPI*/
+! TODO: DistriCapBC only includes nBCSides and not the inner BCs
+IF(nDistriCapBCsides.GT.0) ALLOCATE(SurfNodeSourceEquiN1(1:1,0:1,0:1),SurfNodeSourceNodeTypeNloc(1:1,0:Nmax,0:Nmax))
+! Loop over all local BC sides, where the DCBC model is active
+DO BCsideID=1,nDistriCapBCsides
   SideID     = DistriCapBC(BCsideID)             ! Get side index
   iPartBound = PartBound%MapToPartBC(BC(SideID)) ! Get particle boundary index
   Nloc       = N_SurfMesh(SideID)%NSide          ! Get polynomial degree of side
@@ -369,10 +370,10 @@ DO BCsideID=1,nDistriCapBCsides
     HDG_Surf_N(SideID)%RHS_face(1,r) = HDG_Surf_N(SideID)%RHS_face(1,r) + src
   END DO; END DO ! p,q
   ! read*
-#else
-    CALL Abort(__STAMP__,'ERROR: Distributed capacitance requires PARTICLES=ON')
-#endif /*defined(PARTICLES)*/
 END DO
+#else
+IF(nDistriCapBCsides.GT.0) CALL Abort(__STAMP__,'ERROR: Distributed capacitance requires PARTICLES=ON')
+#endif /*defined(PARTICLES)*/
 
 #if USE_PETSC
 ! add Dirichlet contribution
