@@ -251,9 +251,6 @@ CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),PARAMETER   :: DataSetName='SurfNodeSource'
 INTEGER                        :: iElem,iMax,CNElemIDiDOF,nDOFOutput,offsetDOF,Nloc,i,firstNode,lastNode
 !===================================================================================================================================
-ALLOCATE(StrVarNames(1:nVarOut))
-StrVarNames(1)='SurfaceChargeDensity'
-
 ! Skip MPI communication in the first step as nothing has been deposited yet
 IF(iter.NE.0)THEN
 #if USE_MPI
@@ -267,36 +264,42 @@ END IF ! iter.NE.0
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
 
 IF(MPIRoot)THEN
+  ALLOCATE(StrVarNames(1:nVarOut))
+  StrVarNames(1)='SurfaceChargeDensity'
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurfNodeSource',nVarOut,StrArray      = StrVarNames)
   CALL WriteAttributeToHDF5(File_ID,'nDepoSurfSides'        ,1      ,IntegerScalar = nDepoSurfSides)
-  CALL CloseDataFile()
+
+
+  ! #if USE_MPI
+  ! firstNode = INT(REAL( myrank   )*REAL(nDepoSurfNodesTotal)/REAL(nProcessors))+1
+  ! lastNode  = INT(REAL((myrank+1))*REAL(nDepoSurfNodesTotal)/REAL(nProcessors))
+  ! #else
+  firstNode = 1
+  lastNode  = nDepoSurfNodesTotal
+  ! #endif /*USE_MPI*/
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE(nVarOut         => INT(nVarOut,IK)            ,&
+            nDofsMapping    => INT(nDepoSurfNodesTotal,IK),&
+            nDOFOutput      => INT(nDepoSurfNodesTotal,IK),&
+            offsetDOF       => INT(0,IK)         )
+    ! CALL GatheredWriteArray(FileName,create=.FALSE.,&
+    !                       DataSetName = TRIM(DataSetName) , rank = 1 , &
+    !                       nValGlobal  = (/nDofsMapping/)  , &
+    !                       nVal        = (/nDOFOutput/)    , &
+    !                       offset      = (/offsetDOF/)     , &
+    !                       collective  = .TRUE. , RealArray = SurfNodeSource)
+    CALL WriteArrayToHDF5(DataSetName = TRIM(DataSetName) , &
+                          rank        = 1                 , &
+                          nValGlobal  = (/nDofsMapping/)  , &
+                          nVal        = (/nDOFOutput/)    , &
+                          offset      = (/offsetDOF/)     , &
+                          collective  = .FALSE. , RealArray = SurfNodeSource)
+    CALL CloseDataFile()
+  END ASSOCIATE
 END IF ! MPIRoot
 
-
-#if USE_MPI
-firstNode = INT(REAL( myrank   )*REAL(nDepoSurfNodesTotal)/REAL(nProcessors))+1
-lastNode  = INT(REAL((myrank+1))*REAL(nDepoSurfNodesTotal)/REAL(nProcessors))
-#else
-firstNode = 1
-lastNode  = nDepoSurfNodesTotal
-#endif /*USE_MPI*/
-
-! Associate construct for integer KIND=8 possibility
-ASSOCIATE(nVarOut         => INT(nVarOut,IK)            ,&
-          nDofsMapping    => INT(nDepoSurfNodesTotal,IK),&
-          nDOFOutput      => INT(nDepoSurfNodesTotal,IK),&
-          offsetDOF       => INT(0,IK)         )
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName = TRIM(DataSetName) , rank = 1 , &
-                        nValGlobal  = (/nDofsMapping/)  , &
-                        nVal        = (/nDOFOutput/)    , &
-                        offset      = (/offsetDOF/)     , &
-                        collective  = .TRUE. , RealArray = SurfNodeSource)
-END ASSOCIATE
-
-! SDEALLOCATE(NodeSourceExtGlobal)
-SDEALLOCATE(StrVarNames)
 END SUBROUTINE WriteSurfNodeSourceToHDF5
 
 

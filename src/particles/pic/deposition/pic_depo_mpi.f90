@@ -403,7 +403,7 @@ INTEGER                   :: jElem,TestElemID
 INTEGER                   :: SendNodeCount, GlobalElemRank, iProc
 INTEGER                   :: GlobalElemRankOrig, iRank
 LOGICAL,ALLOCATABLE       :: IsDepoNode(:),IsSendNode(:),FEMVertexIDisDone(:)
-LOGICAL                   :: bordersMyrank
+LOGICAL                   :: bordersMyrank,NodeAlreadyAssignedToRoot
 ! Non-symmetric particle exchange
 TYPE(MPI_Request)         :: SendRequestNonSymDepo(0:nProcessors_Global-1)      , RecvRequestNonSymDepo(0:nProcessors_Global-1)
 INTEGER                   :: nSendUniqueNodesNonSymDepo(0:nProcessors_Global-1) , nRecvUniqueNodesNonSymDepo(0:nProcessors_Global-1)
@@ -434,6 +434,9 @@ IsSendNode = -1
 
 ! Nullify container to flag each process if it will receive charge
 CommunicateWithRank = .FALSE.
+! TODO: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
+! Step 1 of 2: Force every process to establish a communication with MPIRoot
+CommunicateWithRank(0) = .TRUE.
 
 ! 1.) Identify communication partners
 ! Loop over the elements of the complete compute-node region (including the halo region) where the node can deposit charge
@@ -571,6 +574,51 @@ DO iCNElem = 1,nComputeNodeTotalElems
         END IF ! ElemNodeDepoMap(iRank)%firstNode
       END IF ! GlobalNbElemID.NE.myrank
     END DO iVertexConnectLoop2 ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+    ! ========================================================================================================
+    ! TODO: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
+    ! Step 2 of 2: Force every process to send this FEMVertexID to MPIRoot
+    ! Remove this link in the furute and replace with a gathered I/O or something different
+    GlobalNBElemRank = 0 ! Create artificial link to MPIRoot
+    ! Communicate with this processes if it is not myself
+    IF (GlobalNBElemRank.NE.myrank) THEN
+      ! Get index of the i-th connection partner
+      iRank = GlobalRankToNodeSendDepoRank(GlobalNBElemRank)
+      ! Sanity check
+      IF (iRank.LT.1) CALL ABORT(__STAMP__,'Found not connected Rank!', myRank)
+      ! CHeck if the first node for this process is encountered
+      IF (ElemNodeDepoMap(iRank)%firstNode) THEN
+        ! Flip the first node flag to false
+        ElemNodeDepoMap(iRank)%firstNode = .FALSE.
+        ! Increment the number of nodes for this communication partner
+        ElemNodeDepoMap(iRank)%nNodes = ElemNodeDepoMap(iRank)%nNodes + 1
+        ! Allocate the next link
+        ALLOCATE(ElemNodeDepoMap(iRank)%first)
+        ! Store the FEMVertexID
+        ElemNodeDepoMap(iRank)%first%NodeID = FEMVertexID
+      ELSE ! 2nd node encountered
+        ! Check if node already exists
+        node => ElemNodeDepoMap(iRank)%first
+        ! Loop over the stored FEMVertexIDs to not store the same FEMVertexID twice
+        NodeAlreadyAssignedToRoot=.FALSE.
+        DO testNode = 1, ElemNodeDepoMap(iRank)%nNodes
+          ! Check for FEMVertexID
+          IF (node%NodeID.EQ.FEMVertexID) NodeAlreadyAssignedToRoot=.TRUE.
+          ! Check if the end of the list if encountered
+          IF (.NOT.ASSOCIATED(node%next)) EXIT
+          ! Next link
+          node => node%next
+        END DO ! testNode = 1, ElemNodeDepoMap(iRank)%nNodes
+        IF (.NOT.NodeAlreadyAssignedToRoot) THEN
+          ! Add new node at the end of the list
+          ALLOCATE(node%next)
+          ! Store the FEMVertexID
+          node%next%NodeID = FEMVertexID
+          ! Increment the number of nodes for this communication partner
+          ElemNodeDepoMap(iRank)%nNodes = ElemNodeDepoMap(iRank)%nNodes + 1
+        END IF ! NodeAlreadyMappedToRoot
+      END IF ! ElemNodeDepoMap(iRank)%firstNode
+    END IF ! GlobalNbElemID.NE.myrank
+    ! ========================================================================================================
   END DO iVertexIndLoop2 ! iVertexInd = iFirstVertexInd,LastVertexInd
 END DO ! iCNElem = 1,nComputeNodeTotalElems
 
