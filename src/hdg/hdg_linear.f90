@@ -75,6 +75,9 @@ USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_HDG_Tools          ,ONLY: CG_solver,DisplayConvergence
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #if defined(PARTICLES)
+#if USE_MPI
+USE MOD_PICDepo_MPI        ,ONLY: ExchangeSurfNodeSourceMPI
+#endif /*USE_MPI*/
 USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource,FEMVertexID2DepoSurfNodeID,Vdm_EQ_N
 USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID,NonUniqueGlobalNodeIDToFEMVertexID
 USE MOD_Mesh_Vars          ,ONLY: SideToNonUniqueGlobalSide
@@ -311,7 +314,12 @@ END DO
 
 ! Add Distributed Capacitance BC
 ! TODO: DistriCapBC only includes nBCSides and not the inner BCs
-IF(nDistriCapBCsides.GT.0) ALLOCATE(SurfNodeSourceEquiN1(1:1,0:1,0:1),SurfNodeSourceNodeTypeNloc(1:1,0:Nmax,0:Nmax))
+IF(nDistriCapBCsides.GT.0) THEN
+  ALLOCATE(SurfNodeSourceEquiN1(1:1,0:1,0:1),SurfNodeSourceNodeTypeNloc(1:1,0:Nmax,0:Nmax))
+#if USE_MPI && defined(PARTICLES)
+  CALL ExchangeSurfNodeSourceMPI()
+#endif /*USE_MPI && defined(PARTICLES)*/
+END IF
 DO BCsideID=1,nDistriCapBCsides
 #if defined(PARTICLES)
   SideID     = DistriCapBC(BCsideID)             ! Get side index
