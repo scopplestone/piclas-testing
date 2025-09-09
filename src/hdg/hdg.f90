@@ -958,7 +958,7 @@ LOGICAL          :: UpdatePhiF
 !     interpolate the vector field E = (/Ex, Ey, Ez/) to the boundary face
 DO SideID=1,nBCSides
   ! Get the local element index
-    ElemID    = SideToElem(S2E_ELEM_ID,SideID)
+  ElemID    = SideToElem(S2E_ELEM_ID,SideID)
   ! Get local polynomial degree of the element
   Nloc   = N_DG_Mapping(2,ElemID+offSetElem)
   ! Get particle boundary index

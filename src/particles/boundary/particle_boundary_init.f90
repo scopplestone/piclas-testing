@@ -868,7 +868,7 @@ SUBROUTINE InitParticleBoundarySurfSides()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,DoVirtualDielectricLayer
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide,SurfSide2GlobalSide
 #if USE_MPI
@@ -897,7 +897,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                :: iSide,firstSide,lastSide,iSurfSide,GlobalSideID
+INTEGER                                :: iSide,firstSide,lastSide,iSurfSide,GlobalSideID,iPartBound
 INTEGER                                :: nSurfSidesProc
 INTEGER                                :: offsetSurfTotalSidesProc
 INTEGER,ALLOCATABLE                    :: GlobalSide2SurfSideProc(:,:)
@@ -1102,6 +1102,14 @@ IF(nComputeNodeSurfTotalSides.GT.0)THEN
       GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
       ! Check if the surface side has a neighbor (and is therefore an inner BCs)
       IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
+        ! Abort inner BC + VDL
+        IF(DoVirtualDielectricLayer) THEN
+          iPartBound = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
+          IF(PartBound%PermittivityVDL(iPartBound).GT.0.0) THEN
+            CALL abort(__STAMP__,'ERROR in InitParticleBoundarySurfSides: VDL on an inner BC is not implemented! Found VDL on boundary: '&
+                        //TRIM(PartBound%SourceBoundName(iPartBound)))
+          END IF
+        END IF
         ! Abort inner BC + Mortar! (too complex and confusing to implement)
         ! This test catches large Mortar sides, i.e.,  SideInfo_Shared(SIDE_NBELEMID,NonUniqueGlobalSideID) gives the 2 or 4
         ! connecting small Mortar sides. It is assumed that inner BC result in being flagged as a "SurfSide" and therefore are checked
@@ -1128,7 +1136,8 @@ IF(nComputeNodeSurfTotalSides.GT.0)THEN
             nComputeNodeInnerBCs(1) = nComputeNodeInnerBCs(1) + 1
           END IF
 #endif
-          CYCLE! Skip sides with the larger index
+          ! Skip sides with the larger index
+          CYCLE
         END IF
       END IF
       ! Skip rotationally periodic boundary sides for the output
