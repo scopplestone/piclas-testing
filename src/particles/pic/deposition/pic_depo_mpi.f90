@@ -368,6 +368,14 @@ END SUBROUTINE InitDepoNodesMPI
 
 !===================================================================================================================================
 !> Initialize the MPI communication for the 2D surface node deposition
+!>
+! 1.) Identify communication partners
+! 2.) Create mapping of exchange processor rank to global rank depending on CommunicateWithRank(iRank)
+! 3.) Loop over the send FEM vertices and each connected processes and build linked list of node IDs and count them
+! 4.) Get the number of send nodes for each communication partner: Size of each message for each process for deposition
+! 5.) MPI send/receive the number of deposition nodes
+! 6.) From the received messages, determine the message size that is sent from each communication partner.
+! 7.) MPI send/receive the vertex IDs of deposition nodes
 !===================================================================================================================================
 SUBROUTINE InitDepoSurfNodesMPI()
 ! MODULES
@@ -377,33 +385,30 @@ USE MOD_PICDepo_Vars           ,ONLY: IsDepoSurfNode,SurfNodeSourceMPI,nDepoSurf
 USE MOD_PICDepo_Vars           ,ONLY: nSurfNodeRecvExchangeProcs,nSurfNodeSendExchangeProcs
 USE MOD_PICDepo_Vars           ,ONLY: SurfRecvRequest,SurfNodeMappingRecv,SurfNodeRecvDepoRankToGlobalRank
 USE MOD_PICDepo_Vars           ,ONLY: SurfSendRequest,SurfNodeMappingSend,SurfNodeSendDepoRankToGlobalRank
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_Mesh_Vars              ,ONLY: nElems,nFEMVertices
-USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes,VertexConnectInfo_Shared
+USE MOD_Mesh_Vars              ,ONLY: nFEMVertices
+USE MOD_Particle_Mesh_Vars     ,ONLY: VertexConnectInfo_Shared
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
-USE MOD_Mesh_Vars              ,ONLY: offsetElem,ELEM_RANK
-USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping,ElemNodeID_Shared,NodeInfo_Shared
+USE MOD_Mesh_Vars              ,ONLY: ELEM_RANK
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: nProcessors_Global
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared,ElemInfo_Shared,VertexInfo_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,VertexInfo_Shared
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,nElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 LOGICAL :: CommunicateWithRank(0:nProcessors_Global-1)
-! LOGICAL :: SendNode(1:nUniqueGlobalNodes)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                   :: iCNElem
-INTEGER                   :: UniqueNodeID, testNode
+INTEGER                   :: testNode
 INTEGER                   :: GlobalRankToNodeSendDepoRank(0:nProcessors_Global-1)
-INTEGER                   :: jElem,TestElemID
-INTEGER                   :: SendNodeCount, GlobalElemRank, iProc
-INTEGER                   :: GlobalElemRankOrig, iRank
-LOGICAL,ALLOCATABLE       :: IsDepoNode(:),IsSendNode(:),FEMVertexIDisDone(:)
-LOGICAL                   :: bordersMyrank,NodeAlreadyAssignedToRoot
+INTEGER                   :: SendNodeCount,iProc
+INTEGER                   :: iRank
+LOGICAL,ALLOCATABLE       :: IsSendNode(:),FEMVertexIDisDone(:)
+LOGICAL                   :: NodeAlreadyAssignedToRoot
 ! Non-symmetric particle exchange
 TYPE(MPI_Request)         :: SendRequestNonSymDepo(0:nProcessors_Global-1)      , RecvRequestNonSymDepo(0:nProcessors_Global-1)
 INTEGER                   :: nSendUniqueNodesNonSymDepo(0:nProcessors_Global-1) , nRecvUniqueNodesNonSymDepo(0:nProcessors_Global-1)
@@ -414,11 +419,11 @@ TYPE tElemNodeDepoMap
 END TYPE
 TYPE(tElemNodeDepoMap), ALLOCATABLE :: ElemNodeDepoMap(:)
 TYPE(NodeDepoMapping), POINTER :: node
-INTEGER :: iVertexConnect,GlobalNbElemID,NbLocVertexID,LocSideList(3),iNeighbourLocSideList,iNeighbourLocSide
-INTEGER :: FirstGlobalElemID,LastGlobalElemID,iGlobalElemRank,GlobalNBElemRank
+INTEGER :: iVertexConnect,GlobalNbElemID
+INTEGER :: GlobalNBElemRank
 INTEGER :: FirstVertexInd,LastVertexInd,FirstVertexConnectInd,LastVertexConnectInd
-INTEGER :: FEMVertexID,iVertexInd,NonUniqueNodeID,CNS(8),iNode
-INTEGER :: iElem,BCType,NonUniqueGlobalSideID,NonUniqueGlobalNbSideID,iGlobalElemID,BCIndex,ElemType
+INTEGER :: FEMVertexID,iVertexInd
+INTEGER :: iGlobalElemID
 !===================================================================================================================================
 ! Allocate container for storing the local non-synchronized surface charge, which is always nullified after
 ! communication/synchronization with other processes
@@ -475,7 +480,7 @@ DO iCNElem = 1,nComputeNodeTotalElems
 END DO ! iCNElem = 1,nComputeNodeTotalElems
 
 ! 2.) Create mapping of exchange processor rank to global rank depending on CommunicateWithRank(iRank)
-! Initialize mapping global rank to i-th communication partner
+!     Initialize mapping global rank to i-th communication partner
 GlobalRankToNodeSendDepoRank = -1
 ! Count the number of processes to communicate with
 nSurfNodeSendExchangeProcs = COUNT(CommunicateWithRank)
@@ -771,6 +776,8 @@ DO iProc = 1, nSurfNodeRecvExchangeProcs
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 
+! TODO:Check if the received FEMVertexIDs are actually on the receiving process
+
 DEALLOCATE(IsDepoSurfNode)
 END SUBROUTINE InitDepoSurfNodesMPI
 
@@ -1045,7 +1052,7 @@ USE MOD_PreProc
 USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource
 USE MOD_PICDepo_Vars       ,ONLY: SurfNodeMappingRecv,SurfNodeMappingSend,SurfNodeSourceMPI
 USE MOD_PICDepo_Vars       ,ONLY: nDepoSurfNodesTotal,nSurfNodeSendExchangeProcs,SurfNodeSendDepoRankToGlobalRank
-USE MOD_PICDepo_Vars       ,ONLY: DepoSurfNodetoGlobalNode,FEMVertexID2DepoSurfNodeID
+USE MOD_PICDepo_Vars       ,ONLY: FEMVertexID2DepoSurfNodeID
 USE MOD_PICDepo_Vars       ,ONLY: nSurfNodeRecvExchangeProcs
 USE MOD_PICDepo_Vars       ,ONLY: SurfNodeRecvDepoRankToGlobalRank
 #if defined(MEASURE_MPI_WAIT)
@@ -1059,7 +1066,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                        :: iProc
 TYPE(MPI_Request)              :: RecvRequest(1:nSurfNodeRecvExchangeProcs),SendRequest(1:nSurfNodeSendExchangeProcs)
-INTEGER                        :: globalNode, iNode, iDepoSurfNodeID, FEMVertexID
+INTEGER                        :: iNode, iDepoSurfNodeID, FEMVertexID
 #if defined(MEASURE_MPI_WAIT)
 INTEGER(KIND=8)                :: CounterStart,CounterEnd
 REAL(KIND=8)                   :: Rate
@@ -1122,6 +1129,7 @@ DO iProc = 1, nSurfNodeRecvExchangeProcs
     FEMVertexID = SurfNodeMappingRecv(iProc)%RecvSurfNodeUniqueGlobalID(iNode)
     ! Get surface deposition node index
     iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
+    if(FEMVertexID.LE.0) CALL abort(__STAMP__,' FEMVertexID <= 0',FEMVertexID)
     ! Unpack in recv array
     ASSOCIATE( NS => SurfNodeSourceMPI(iDepoSurfNodeID) )
       NS = NS + SurfNodeMappingRecv(iProc)%RecvSurfNodeSource(iNode)

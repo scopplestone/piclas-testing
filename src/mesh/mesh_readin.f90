@@ -247,8 +247,10 @@ USE MOD_Mesh_Vars            ,ONLY: MeshInitIsDone
 USE MOD_Mesh_Vars            ,ONLY: Elems!,Nodes
 USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE
 USE MOD_Mesh_Vars            ,ONLY: ElemInfo,SideInfo,EdgeInfo,EdgeConnectInfo,VertexInfo,VertexConnectInfo
+USE MOD_Mesh_Vars            ,ONLY: VertexInfoGlobal,VertexConnectInfoGlobal
 USE MOD_Particle_Mesh_Vars   ,ONLY: nComputeNodeElems,nNonUniqueGlobalSides,nNonUniqueGlobalNodes,nUniqueGlobalNodes
 #if USE_MPI
+USE MOD_MPI_Shared_Vars      ,ONLY: myComputeNodeRank
 USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc,offsetElemMPI
 USE MOD_Particle_Mesh_Vars   ,ONLY: offsetComputeNodeElem
 USE MOD_LoadBalance_Tools    ,ONLY: DomainDecomposition
@@ -787,10 +789,10 @@ END IF ! readFEMconnectivity
 !                              VERTICES
 !----------------------------------------------------------------------------------------------------------------------------
 IF(readFEMconnectivity)THEN
-  ! get offset of local side indices in the global sides
+  ! Get offset of local vertex indices in the global vertices
   offsetVertexID = ElemInfo(ELEM_FIRSTVERTEXIND,FirstElemInd) ! hdf5 array starts at 0-> -1
   nVertexIDs     = ElemInfo(ELEM_LASTVERTEXIND,LastElemInd)-ElemInfo(ELEM_FIRSTVERTEXIND,FirstElemInd)
-  !read local VertexInfo from data file
+  ! Read local VertexInfo from data file
   FirstVertexInd = offsetVertexID+1
   LastVertexInd  = offsetVertexID+nVertexIDs
   ALLOCATE(VertexInfo(VERTEXINFOSIZE_H5,FirstVertexInd:LastVertexInd))
@@ -820,7 +822,7 @@ IF(readFEMconnectivity)THEN
 
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (&
-    VertexConnectInfoSize   => INT(VERTEXCONNECTINFOSIZE_H5,IK)   ,&
+    VertexConnectInfoSize   => INT(VERTEXCONNECTINFOSIZE_H5,IK),&
     nVertexConnectIDs       => INT(nVertexConnectIDs,IK)       ,&
     offsetVertexConnectID   => INT(offsetVertexConnectID,IK)  )
 #if defined(PARTICLES) && USE_LOADBALANCE
@@ -830,13 +832,54 @@ IF(readFEMconnectivity)THEN
     ELSE
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
     CALL ReadArray('VertexConnectInfo',2,(/VertexConnectInfoSize,nVertexConnectIDs/),offsetVertexConnectID,2,IntegerArray_i4=VertexConnectInfo(1:VertexConnectInfoSize,:))
-    CALL CloseDataFile()
 #if defined(PARTICLES) && USE_LOADBALANCE
     END IF
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
   END ASSOCIATE
 
-  CALL ReadMeshEdgedAndVertices()
+#if USE_MPI
+#if USE_LOADBALANCE
+! Only read the data once as it is global and stored in the SHM array on each node
+IF (.NOT.PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+  ! Read global VertexInfo from data file. Divide equally among all compute-nodes processes
+  FirstVertexInd = INT(REAL( myComputeNodeRank   )*REAL(nNonUniqueGlobalVertices)/REAL(nComputeNodeProcessors))+1
+  LastVertexInd  = INT(REAL((myComputeNodeRank+1))*REAL(nNonUniqueGlobalVertices)/REAL(nComputeNodeProcessors))
+  offsetVertexID = FirstVertexInd - 1
+  nVertexIDs     = LastVertexInd  - offsetVertexID
+  ALLOCATE(VertexInfoGlobal(VERTEXINFOSIZE_H5,FirstVertexInd:LastVertexInd))
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        VertexInfoSize           => INT(VERTEXINFOSIZE_H5,IK)       ,&
+        nNonUniqueGlobalVertices => INT(nNonUniqueGlobalVertices,IK),&
+        offsetVertexID           => INT(offsetVertexID,IK)  )
+      CALL ReadArray('VertexInfo',2,(/VertexInfoSize,nVertexIDs/),offsetVertexID,2,IntegerArray_i4=&
+                      VertexInfoGlobal(1:VertexInfoSize,:))
+  END ASSOCIATE
+
+  ! Read global VertexConnectInfo from data file. Divide equally among all compute-nodes processes
+  FirstVertexConnectInd = INT(REAL( myComputeNodeRank   )*REAL(nFEMVertexConnections)/REAL(nComputeNodeProcessors))+1
+  LastVertexConnectInd  = INT(REAL((myComputeNodeRank+1))*REAL(nFEMVertexConnections)/REAL(nComputeNodeProcessors))
+  offsetVertexConnectID = FirstVertexConnectInd - 1
+  nVertexConnectIDs     = LastVertexConnectInd  - offsetVertexConnectID
+  ALLOCATE(VertexConnectInfoGlobal(VERTEXCONNECTINFOSIZE_H5,FirstVertexConnectInd:LastVertexConnectInd))
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        VertexConnectInfoSize => INT(VERTEXCONNECTINFOSIZE_H5,IK),&
+        nFEMVertexConnections => INT(nFEMVertexConnections,IK)   ,&
+        offsetVertexConnectID => INT(offsetVertexConnectID,IK)  )
+      CALL ReadArray('VertexConnectInfo',2,(/VertexConnectInfoSize,nVertexConnectIDs/),offsetVertexConnectID,2,IntegerArray_i4=&
+                      VertexConnectInfoGlobal(1:VertexConnectInfoSize,:))
+  END ASSOCIATE
+  CALL CloseDataFile()
+#if USE_LOADBALANCE
+END IF ! .NOT.PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+#endif /*USE_MPI*/
+
+  CALL ReadMeshEdgesAndVertices()
 END IF ! readFEMconnectivity
 
 !----------------------------------------------------------------------------------------------------------------------------
@@ -1179,7 +1222,7 @@ END SUBROUTINE ReadMeshSides
 #endif /*defined(PARTICLES)*/
 
 
-SUBROUTINE ReadMeshEdgedAndVertices()
+SUBROUTINE ReadMeshEdgesAndVertices()
 !===================================================================================================================================
 !> Create particle mesh arrays for sides:
 !> - SideInfo_Shared(1:SIDEINFOSIZE+1,1:nNonUniqueGlobalSides)
@@ -1238,6 +1281,8 @@ LastVertexConnectInd  = offsetVertexConnectID+nVertexConnectIDs
 #if USE_MPI
 CALL Allocate_Shared((/EDGEINFOSIZE_H5,nNonUniqueGlobalEdges/),EdgeInfo_Shared_Win,EdgeInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,EdgeInfo_Shared_Win,IERROR)
+IF (myComputeNodeRank.EQ.0) EdgeInfo_Shared = -1
+CALL BARRIER_AND_SYNC(EdgeInfo_Shared_Win,MPI_COMM_SHARED)
 EdgeInfo_Shared(1:EDGEINFOSIZE_H5,offsetEdgeID+1:offsetEdgeID+nEdgeIDs) = EdgeInfo(:,:)
 CALL BARRIER_AND_SYNC(EdgeInfo_Shared_Win,MPI_COMM_SHARED)
 #else
@@ -1248,6 +1293,8 @@ EdgeInfo_Shared(1:EDGEINFOSIZE_H5, 1:nEdgeIDs) = EdgeInfo(:,:)
 #if USE_MPI
 CALL Allocate_Shared((/EDGECONNECTINFOSIZE_H5,nFEMEdgeConnections/),EdgeConnectInfo_Shared_Win,EdgeConnectInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,EdgeConnectInfo_Shared_Win,IERROR)
+IF (myComputeNodeRank.EQ.0) EdgeConnectInfo_Shared = -1
+CALL BARRIER_AND_SYNC(EdgeConnectInfo_Shared_Win,MPI_COMM_SHARED)
 EdgeConnectInfo_Shared(1:EDGECONNECTINFOSIZE_H5,offsetEdgeConnectID+1:offsetEdgeConnectID+nEdgeConnectIDs) = EdgeConnectInfo(:,:)
 CALL BARRIER_AND_SYNC(EdgeConnectInfo_Shared_Win,MPI_COMM_SHARED)
 #else
@@ -1256,34 +1303,47 @@ EdgeConnectInfo_Shared(1:EDGECONNECTINFOSIZE_H5, 1:nEdgeConnectIDs) = EdgeConnec
 #endif /*USE_MPI*/
 
 #if USE_MPI
+! Map global VertexInfo from data file. Divide equally among all compute-nodes processes
+FirstVertexInd = INT(REAL( myComputeNodeRank   )*REAL(nNonUniqueGlobalVertices)/REAL(nComputeNodeProcessors))+1
+LastVertexInd  = INT(REAL((myComputeNodeRank+1))*REAL(nNonUniqueGlobalVertices)/REAL(nComputeNodeProcessors))
+offsetVertexID = FirstVertexInd - 1
+nVertexIDs     = LastVertexInd  - offsetVertexID
+
 CALL Allocate_Shared((/VERTEXINFOSIZE,nNonUniqueGlobalVertices/),VertexInfo_Shared_Win,VertexInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,VertexInfo_Shared_Win,IERROR)
-VertexInfo_Shared(1:VERTEXINFOSIZE_H5,offsetVertexID+1:offsetVertexID+nVertexIDs) = VertexInfo(:,:)
-VertexInfo_Shared(  VERTEXINFOSIZE   ,offsetVertexID+1:offsetVertexID+nVertexIDs) = 0
+IF (myComputeNodeRank.EQ.0) VertexInfo_Shared = -1
 CALL BARRIER_AND_SYNC(VertexInfo_Shared_Win,MPI_COMM_SHARED)
+VertexInfo_Shared(1:VERTEXINFOSIZE_H5,offsetVertexID+1:offsetVertexID+nVertexIDs) = VertexInfoGlobal(:,:) ! VertexInfo(:,:) only contains process-local elements
+! TODO: Note that VERTEX_NONUNIQUENODEID is not filled for elements that are not on the compute node. Only the CN with MPIRoot has
+! all info, because the MPIRoot processes loops over all global elements
+VertexInfo_Shared(  VERTEXINFOSIZE   ,offsetVertexID+1:offsetVertexID+nVertexIDs) = 0 ! For storing VERTEX_NONUNIQUENODEID
+CALL BARRIER_AND_SYNC(VertexInfo_Shared_Win,MPI_COMM_SHARED)
+DEALLOCATE(VertexInfoGlobal)
 #else
 ALLOCATE(VertexInfo_Shared(1:VERTEXINFOSIZE, 1:nVertexIDs))
-VertexInfo_Shared(1:VERTEXINFOSIZE_H5, 1:nVertexIDs) = VertexInfo(:,:)
-VertexInfo_Shared(  VERTEXINFOSIZE   ,offsetVertexID+1:offsetVertexID+nVertexIDs) = 0
+VertexInfo_Shared(1:VERTEXINFOSIZE_H5, 1:nVertexIDs) = VertexInfo(:,:) ! only contains process-local elements
+VertexInfo_Shared(  VERTEXINFOSIZE   ,offsetVertexID+1:offsetVertexID+nVertexIDs) = 0 ! For storing VERTEX_NONUNIQUENODEID
 #endif /*USE_MPI*/
 
 #if USE_MPI
+! Map global VertexConnectInfo from data file. Divide equally among all compute-nodes processes
+FirstVertexConnectInd = INT(REAL( myComputeNodeRank   )*REAL(nFEMVertexConnections)/REAL(nComputeNodeProcessors))+1
+LastVertexConnectInd  = INT(REAL((myComputeNodeRank+1))*REAL(nFEMVertexConnections)/REAL(nComputeNodeProcessors))
+offsetVertexConnectID = FirstVertexConnectInd - 1
+nVertexConnectIDs     = LastVertexConnectInd  - offsetVertexConnectID
 CALL Allocate_Shared((/VERTEXCONNECTINFOSIZE_H5,nFEMVertexConnections/),VertexConnectInfo_Shared_Win,VertexConnectInfo_Shared)
 CALL MPI_WIN_LOCK_ALL(0,VertexConnectInfo_Shared_Win,IERROR)
-VertexConnectInfo_Shared(1:VERTEXCONNECTINFOSIZE_H5,offsetVertexConnectID+1:offsetVertexConnectID+nVertexConnectIDs) = VertexConnectInfo(:,:)
+IF (myComputeNodeRank.EQ.0) VertexConnectInfo_Shared = -1
 CALL BARRIER_AND_SYNC(VertexConnectInfo_Shared_Win,MPI_COMM_SHARED)
+VertexConnectInfo_Shared(1:VERTEXCONNECTINFOSIZE_H5,offsetVertexConnectID+1:offsetVertexConnectID+nVertexConnectIDs) = VertexConnectInfoGlobal(:,:)
+CALL BARRIER_AND_SYNC(VertexConnectInfo_Shared_Win,MPI_COMM_SHARED)
+DEALLOCATE(VertexConnectInfoGlobal)
 #else
 ALLOCATE(VertexConnectInfo_Shared(1:VERTEXCONNECTINFOSIZE_H5, 1:nVertexConnectIDs))
 VertexConnectInfo_Shared(1:VERTEXCONNECTINFOSIZE_H5, 1:nVertexConnectIDs) = VertexConnectInfo(:,:)
 #endif /*USE_MPI*/
 
-END SUBROUTINE ReadMeshEdgedAndVertices
-
-
-
-
-
-
+END SUBROUTINE ReadMeshEdgesAndVertices
 
 
 SUBROUTINE ReadMeshNodes()

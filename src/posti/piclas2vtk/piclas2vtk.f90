@@ -1770,8 +1770,8 @@ USE MOD_Mesh_Vars               ,ONLY: SideToNonUniqueGlobalSide,N_SurfMesh
 USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides
 USE MOD_ReadInTools             ,ONLY: PrintOption
 USE MOD_PICDepo                 ,ONLY: InitDepoSurfNodes
-USE MOD_PICDepo_Vars            ,ONLY: SurfNodeSource,FEMVertexID2DepoSurfNodeID,DepoSurfNodeID2FEMVertexID,Vdm_EQ_N
-USE MOD_PICDepo_Vars            ,ONLY: SurfNodeSymmetryFactor,InitDepoSurfNodesIsDone
+USE MOD_PICDepo_Vars            ,ONLY: SurfNodeSource,FEMVertexID2DepoSurfNodeID
+USE MOD_PICDepo_Vars            ,ONLY: InitDepoSurfNodesIsDone
 #if !(PP_TimeDiscMethod==700)
 USE MOD_PICDepo_Vars            ,ONLY: nDepoSurfNodes,nDepoSurfSides
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared
@@ -1902,7 +1902,6 @@ END SUBROUTINE ConvertSurfNodeSourceData
 SUBROUTINE FinalizeDepoSurfNodes()
 ! MODULES
 USE MOD_Mesh_Vars               ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
-USE MOD_Mesh_Vars               ,ONLY: SideToNonUniqueGlobalSide,N_SurfMesh
 USE MOD_PICDepo_Vars            ,ONLY: SurfNodeSource,FEMVertexID2DepoSurfNodeID,DepoSurfNodeID2FEMVertexID,Vdm_EQ_N
 USE MOD_PICDepo_Vars            ,ONLY: SurfNodeSymmetryFactor
 ! IMPLICIT VARIABLE HANDLING

@@ -97,8 +97,7 @@ USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_PICDepo_MPI            ,ONLY: InitDepoNodesMPI
-USE MOD_Mesh_Vars              ,ONLY: offsetElem,ELEM_RANK
-USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping,ElemNodeID_Shared,NodeInfo_Shared
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: nProcessors_Global
@@ -345,22 +344,26 @@ SUBROUTINE InitDepoSurfNodes()
 USE MOD_Globals
 USE MOD_PICDepo_Vars
 USE MOD_Particle_Mesh_Vars ,ONLY: nNonUniqueGlobalNodes
-USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity,offsetElem,nElems,BC,nGlobalElems
+USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity,offsetElem,nElems,nGlobalElems
 USE MOD_Particle_Mesh_Vars ,ONLY: VertexConnectInfo_shared
-USE MOD_Mesh_Vars          ,ONLY: VertexConnectInfo,NGeo,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID,SideToNonUniqueGlobalSide
-USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nFEMVertices,NonUniqueGlobalNodeIDToFEMVertexID,nSides
+USE MOD_Mesh_Vars          ,ONLY: NGeo,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID!,SideToNonUniqueGlobalSide
+USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nFEMVertices,NonUniqueGlobalNodeIDToFEMVertexID!,nSides
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,SideInfo_Shared,ElemInfo_Shared,VertexInfo_Shared
 USE MOD_Mesh_pAdaption     ,ONLY: getlocsidelist
-USE MOD_Mesh_Tools         ,ONLY: GetCornerNodeMapCGNS,GetCNElemID
+USE MOD_Mesh_Tools         ,ONLY: GetCornerNodeMapCGNS,GetCNElemID,GetGlobalElemID
 USE MOD_Particle_Mesh_Vars ,ONLY: nNonUniqueGlobalSides,ElemSideNodeID_Shared
 USE MOD_Interpolation_Vars ,ONLY: Nmin,Nmax
 USE MOD_Interpolation_Vars ,ONLY: NodeTypeVISU,NodeType
 USE MOD_Interpolation      ,ONLY: GetVandermonde
 #if USE_MPI
 USE MOD_PICDepo_MPI        ,ONLY: InitDepoSurfNodesMPI
+USE MOD_MPI_Shared_Vars    ,ONLY: myComputeNodeRank,nComputeNodeTotalElems,nComputeNodeProcessors
+USE MOD_MPI_Shared_vars    ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared         ,ONLY: BARRIER_AND_SYNC
+USE MOD_Particle_Mesh_Vars ,ONLY: VertexInfo_Shared_Win
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -369,15 +372,17 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL,ALLOCATABLE :: IsDepoSurfSide(:)
-INTEGER :: iElem,BCType,NonUniqueGlobalSideID,NonUniqueGlobalNbSideID,iGlobalElemID,BCIndex,ElemType
+INTEGER :: BCType,NonUniqueGlobalSideID,NonUniqueGlobalNbSideID,iGlobalElemID,BCIndex,ElemType
 INTEGER :: iVertexConnect,GlobalNbElemID,NbLocVertexID,LocSideList(3),iNeighbourLocSideList,iNeighbourLocSide
-INTEGER :: FirstGlobalElemID,LastGlobalElemID
+! INTEGER :: FirstGlobalElemID,LastGlobalElemID
 INTEGER :: FirstVertexInd,LastVertexInd,FirstVertexConnectInd,LastVertexConnectInd
 INTEGER :: FEMVertexID,iVertexInd,NonUniqueNodeID,CNS(8),iNode
-INTEGER :: firstSide,lastSide,CNElemID,LocSideID,iSide,Nloc,iBC
+! INTEGER :: firstSide,lastSide
+INTEGER :: CNElemID,LocSideID,Nloc,iBC
 INTEGER,ALLOCATABLE :: SymmetryBCIndex(:,:)
-INTEGER :: iLocSide,localSideID,NbElemID,nlocSides
-REAL              :: StartT,EndT
+! INTEGER :: iLocSide,localSideID,NbElemID,nlocSides
+INTEGER :: FirstCNElemID,LastCNElemID,iCNELemID
+REAL    :: StartT,EndT
 !===================================================================================================================================
 LBWRITE(UNIT_stdOut,'(A,I0,A)',ADVANCE='NO') ' | Initializing node mappings for 2D surface deposition...'
 GETTIME(StartT)
@@ -407,15 +412,38 @@ NonUniqueGlobalSideIDToNonUniqueGlobalNodeID = 0
 ! The cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
 CALL GetCornerNodeMapCGNS(NGeo,CornerNodesCGNS = CNS)
 
-! Element index
-! FirstGlobalElemID = offsetElem+1
-! LastGlobalElemID  = offsetElem+nElems
-FirstGlobalElemID = 1
-LastGlobalElemID  = nGlobalElems
+! Consider all compute-node elements where deposition takes place (this leads to sending to processes in the halo region)
+! and which are required for the field solver source terms (element-local vertices, which can lead to receiving from other
+! processes)
+#if USE_MPI
+! With SHM array: Divide the loop into sections to split the workload
+FirstCNElemID = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+LastCNElemID  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+! Without SHM array: Every process loops over all elements on the CN node
+FirstCNElemID = 1
+LastCNElemID  = nComputeNodeTotalElems
+#else
+FirstCNElemID = 1
+LastCNElemID  = nElems
+#endif
+
+! The MPIRoot misuses the following two variables as it needs all FEMVertexIDs for outptut to .h5 because all processes send their
+! FEMVertexIDs
+IF (MPIRoot) THEN
+  FirstCNElemID = 1
+  LastCNElemID  = nGlobalElems
+END IF ! MPIRoot
 
 ! 1. Identify all (FEMVertexID) nodes and (NonUniqueGlobalSideID) sides that are needed for deposition
 ! Loop over the process-local global elements indices
-DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
+DO iCNELemID = FirstCNElemID, LastCNElemID
+  ! Get global element index
+  IF (MPIRoot) THEN
+    ! Little hack: switch CN and global variable name in loop
+    iGlobalElemID = iCNELemID
+  ELSE
+    iGlobalElemID = GetGlobalElemID(iCNELemID)
+  END IF ! MPIRoot
   ! iElem = iGlobalElemID - offsetElem
   ElemType = ElemInfo_Shared(ELEM_TYPE,iGlobalElemID)
   ! Sanity check: currently only hexahedral elements are implemented
@@ -468,21 +496,25 @@ DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
       END DO iNbSide ! iNeighbourLocSideList = 1, 3
     END DO ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
   END DO ! iVertexInd = iFirstVertexInd,LastVertexInd
-END DO ! iGlobalElemID = FirstElemInd, LastElemInd
+END DO !  iCNELemID = FirstCNElemID, LastCNElemID
+#if USE_MPI
+! TODO: Note that VERTEX_NONUNIQUENODEID is not filled for elements that are not on the compute node. Only the CN with MPIRoot has
+! all info, because the MPIRoot processes loops over all global elements
+CALL BARRIER_AND_SYNC(VertexInfo_Shared_Win,MPI_COMM_SHARED)
+#endif /*USE_MPI*/
 
 ! 2. Create a mapping that returns the four (NonUniqueNodeID) nodes for a (NonUniqueGlobalSideID) side
 ! Separate loop for setting the node IDs is needed because setting them in the loop above does not work
 ! Additionally, the scaling factor is determined
-! firstSide = 1
-! lastSide = nSides ! TODO: This might only work correctly for nBCSides and not for inner BC sides (dielectric interfaces)
-! DO iSide = firstSide, lastSide
-!   ! Get global side index
-!   NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,iSide)
 DO NonUniqueGlobalSideID = 1,nNonUniqueGlobalSides
   ! Check if the side has charge deposition activated
   IF(IsDepoSurfSide(NonUniqueGlobalSideID))THEN
+    ! Get global element index
+    iGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID)
     ! Get compute node element index of the side
-    CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID))
+    CNElemID  = GetCNElemID(iGlobalElemID)
+    ! Skip global elements, which are not on the compute node and not inside the halo region by checking if the CN element index is
+    IF(CNElemID.EQ.-1) CYCLE
     ! Get the local side index (1-6)
     LocSideID = SideInfo_Shared(SIDE_LOCALID,NonUniqueGlobalSideID)
     ! Loop over all 4 node of the side
@@ -498,13 +530,27 @@ END DO ! NonUniqueGlobalSideID = 1,nNonUniqueGlobalSides
 
 ! 3. For nodes that are connected to a Neumann BC, the deposited charge must be increased by a (mirror charge) scaling factor
 ! Check if neighbouring sides of FEMVertexIDs are symmetry sides for the field solver, hence, increase the deposited charge there
+#if USE_MPI
+! With SHM array: Divide the loop into sections to split the workload
+FirstCNElemID = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+LastCNElemID  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+! Without SHM array: Every process loops over all elements on the CN node
+FirstCNElemID = 1
+LastCNElemID  = nComputeNodeTotalElems
+#else
+FirstCNElemID = 1
+LastCNElemID  = nElems
+#endif
 ! TODO: Make this array SHM
+! TODO: Check if there are any Neumann BC sides, if not, skip this step
 ALLOCATE(SurfNodeSymmetryFactor(1:nNonUniqueGlobalNodes))
 SurfNodeSymmetryFactor = 0
 ALLOCATE(SymmetryBCIndex(1:6,1:nNonUniqueGlobalNodes))
 SymmetryBCIndex = 0
 ! Loop over the process-local global elements indices
-DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
+DO iCNELemID = FirstCNElemID, LastCNElemID
+  ! Get global element index
+  iGlobalElemID = GetGlobalElemID(iCNELemID)
   ! iElem = iGlobalElemID - offsetElem
   ElemType = ElemInfo_Shared(ELEM_TYPE,iGlobalElemID)
   ! Sanity check: currently only hexahedral elements are implemented
@@ -562,7 +608,7 @@ DO iGlobalElemID = FirstGlobalElemID, LastGlobalElemID
       END DO NbSide ! iNeighbourLocSideList = 1, 3
     END DO iVertexConnectLoop ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
   END DO iVertexIndLoop ! iVertexInd = iFirstVertexInd,LastVertexInd
-END DO ! iGlobalElemID = FirstElemInd, LastElemInd
+END DO ! iCNELemID = FirstCNElemID, LastCNElemID
 DEALLOCATE(SymmetryBCIndex)
 
 
@@ -638,6 +684,12 @@ DEALLOCATE(SymmetryBCIndex)
 DO NonUniqueGlobalSideID = 1,nNonUniqueGlobalSides
   ! Only check surfaces that are marked for deposition
   IF(IsDepoSurfSide(NonUniqueGlobalSideID))THEN
+    ! Get global element index
+    iGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID)
+    ! Get compute node element index of the side
+    CNElemID  = GetCNElemID(iGlobalElemID)
+    ! Skip global elements, which are not on the compute node and not inside the halo region by checking if the CN element index is
+    IF(CNElemID.EQ.-1) CYCLE
     ! Check if any connected unique node ID is zero, which is impossible
     IF (ANY(NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(:,NonUniqueGlobalSideID).EQ.0)) THEN
       IPWRITE(*,*) 'NonUniqueGlobalSideID,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(:,NonUniqueGlobalSideID):',&
