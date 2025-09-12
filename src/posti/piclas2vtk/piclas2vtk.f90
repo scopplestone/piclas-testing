@@ -1808,6 +1808,7 @@ CALL ReadAttribute(File_ID , 'File_Type'        , 1 , StrScalar  = File_Type)
 CALL ReadAttribute(File_ID , 'Time'             , 1 , RealScalar = OutputTime)
 
 CALL GetDataSize(File_ID,'SurfNodeSource',nDims,HSize)
+DEALLOCATE(HSize)
 ! nDepoSurfNodes = INT(HSize(1),2)
 nVarSurf = 1
 ALLOCATE(VarNamesSurf_HDF5(nVarSurf))

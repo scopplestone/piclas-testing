@@ -392,7 +392,6 @@ USE MOD_Mesh_Vars              ,ONLY: ELEM_RANK
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: nProcessors_Global
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,VertexInfo_Shared
-USE MOD_Mesh_Vars              ,ONLY: offsetElem,nElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -727,6 +726,8 @@ END DO
 ALLOCATE(SurfSendRequest(1:nSurfNodeSendExchangeProcs))
 ! Loop over each communication partner
 DO iProc = 1, nSurfNodeSendExchangeProcs
+  ! Skip MPIRoot, which can happen as it is forced as communication partner even though no nodes for this process are found
+  IF(SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes.EQ.0) CYCLE
   ! Allocate containers for sending the FEM vertex IDs and surface charge
   ALLOCATE(SurfNodeMappingSend(iProc)%SendSurfNodeUniqueGlobalID(1:SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes))
   ALLOCATE(SurfNodeMappingSend(iProc)%SendSurfNodeSource(        1:SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes))
@@ -737,6 +738,8 @@ DO iProc = 1, nSurfNodeSendExchangeProcs
 
   ! First loop: Traverse the list and populate SurfNodeMappingSend
   node => ElemNodeDepoMap(iProc)%first
+  ! Sanity check: This can happen when MPIRoot is forced as communication partner even though no nodes for this process are found
+  IF(.NOT.ASSOCIATED(node)) CALL abort(__STAMP__,' Error in InitDepoSurfNodesMPI: node pointer not associated')
   ! Loop until the end of the list is encountered
   DO WHILE (ASSOCIATED(node))
     ! Increment counter
@@ -766,6 +769,8 @@ END DO
 
 ! Finish send
 DO iProc = 1, nSurfNodeSendExchangeProcs
+  ! Skip MPIRoot, which can happen as it is forced as communication partner even though no nodes for this process are found
+  IF(SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes.EQ.0) CYCLE
   CALL MPI_WAIT(SurfSendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
@@ -1086,6 +1091,8 @@ DO iProc = 1, nSurfNodeRecvExchangeProcs
 END DO
 
 DO iProc = 1, nSurfNodeSendExchangeProcs
+  ! Skip MPIRoot, which can happen as it is forced as communication partner even though no nodes for this process are found
+  IF(SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes.EQ.0) CYCLE
   ! Send message (non-blocking)
   DO iNode = 1, SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes
     ! Get FEMVertexID from mapping
@@ -1109,6 +1116,8 @@ END DO
 CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 DO iProc = 1, nSurfNodeSendExchangeProcs
+  ! Skip MPIRoot, which can happen as it is forced as communication partner even though no nodes for this process are found
+  IF(SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes.EQ.0) CYCLE
   CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
