@@ -31,6 +31,7 @@ PUBLIC :: InitDepoSurfNodesMPI
 PUBLIC :: ExchangeNodeSource
 PUBLIC :: ExchangeNodeSourceExtMPI
 PUBLIC :: ExchangeSurfNodeSourceMPI
+PUBLIC :: LBReverseExchangeSurfNodeSource
 !===================================================================================================================================
 
 CONTAINS
@@ -629,7 +630,7 @@ END DO ! iCNElem = 1,nComputeNodeTotalElems
 ! 4.) Get the number of send nodes for each communication partner: Size of each message for each process for deposition
 ! Initialize
 nSendUniqueNodesNonSymDepo         = 0
-nRecvUniqueNodesNonSymDepo(myrank) = 0
+nRecvUniqueNodesNonSymDepo(myrank) = 0 ! Nullify myself
 ! Allocate container for sending nodes to each communication partner
 ALLOCATE(SurfNodeMappingSend(1:nSurfNodeSendExchangeProcs))
 ! Loop over each communication partner
@@ -726,6 +727,7 @@ END DO
 ALLOCATE(SurfSendRequest(1:nSurfNodeSendExchangeProcs))
 ! Loop over each communication partner
 DO iProc = 1, nSurfNodeSendExchangeProcs
+  ! TODO: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
   ! Skip MPIRoot, which can happen as it is forced as communication partner even though no nodes for this process are found
   IF(SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes.EQ.0) CYCLE
   ! Allocate containers for sending the FEM vertex IDs and surface charge
@@ -760,7 +762,7 @@ DO iProc = 1, nSurfNodeSendExchangeProcs
   CALL MPI_ISEND( SurfNodeMappingSend(iProc)%SendSurfNodeUniqueGlobalID &
     , SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes                   &
     , MPI_INTEGER                                                       &
-    , SurfNodeSendDepoRankToGlobalRank(iProc)                               &
+    , SurfNodeSendDepoRankToGlobalRank(iProc)                           &
     , 666                                                               &
     , MPI_COMM_PICLAS                                                   &
     , SurfSendRequest(iProc)                                            &
@@ -769,6 +771,7 @@ END DO
 
 ! Finish send
 DO iProc = 1, nSurfNodeSendExchangeProcs
+  ! TODO: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
   ! Skip MPIRoot, which can happen as it is forced as communication partner even though no nodes for this process are found
   IF(SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes.EQ.0) CYCLE
   CALL MPI_WAIT(SurfSendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
@@ -782,6 +785,7 @@ DO iProc = 1, nSurfNodeRecvExchangeProcs
 END DO
 
 ! TODO:Check if the received FEMVertexIDs are actually on the receiving process
+  ! Skip MPIRoot, as this process receves all nodes from the other processes for .h5 output
 
 DEALLOCATE(IsDepoSurfNode)
 END SUBROUTINE InitDepoSurfNodesMPI
@@ -1077,7 +1081,7 @@ INTEGER(KIND=8)                :: CounterStart,CounterEnd
 REAL(KIND=8)                   :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
-! 1) Receive charge density
+! 1) Receive surface node source data
 DO iProc = 1, nSurfNodeRecvExchangeProcs
   ! Open receive buffer
   CALL MPI_IRECV( SurfNodeMappingRecv(iProc)%RecvSurfNodeSource(:)    &
@@ -1091,6 +1095,7 @@ DO iProc = 1, nSurfNodeRecvExchangeProcs
 END DO
 
 DO iProc = 1, nSurfNodeSendExchangeProcs
+  ! TODO: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
   ! Skip MPIRoot, which can happen as it is forced as communication partner even though no nodes for this process are found
   IF(SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes.EQ.0) CYCLE
   ! Send message (non-blocking)
@@ -1111,11 +1116,13 @@ DO iProc = 1, nSurfNodeSendExchangeProcs
       , SendRequest(iProc)                                            &
       , IERROR)
 END DO
+
 ! Finish communication
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 DO iProc = 1, nSurfNodeSendExchangeProcs
+  ! TODO: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
   ! Skip MPIRoot, which can happen as it is forced as communication partner even though no nodes for this process are found
   IF(SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes.EQ.0) CYCLE
   CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
@@ -1155,6 +1162,138 @@ END DO
 SurfNodeSourceMPI = 0.
 END SUBROUTINE ExchangeSurfNodeSourceMPI
 
+
+#if USE_LOADBALANCE
+!===================================================================================================================================
+!> MPIRoot sends all sending processes the NodeSource data during load balancing because the MPIRoot process has all information
+!> ATTENTION: Send/Receive containers are used in reverse in this routine
+!===================================================================================================================================
+SUBROUTINE LBReverseExchangeSurfNodeSource()
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource
+USE MOD_PICDepo_Vars       ,ONLY: SurfNodeMappingRecv,SurfNodeMappingSend,SurfNodeSourceMPI
+USE MOD_PICDepo_Vars       ,ONLY: nDepoSurfNodesTotal,nSurfNodeSendExchangeProcs,SurfNodeSendDepoRankToGlobalRank
+USE MOD_PICDepo_Vars       ,ONLY: FEMVertexID2DepoSurfNodeID
+USE MOD_PICDepo_Vars       ,ONLY: nSurfNodeRecvExchangeProcs
+USE MOD_PICDepo_Vars       ,ONLY: SurfNodeRecvDepoRankToGlobalRank
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_Particle_MPI_Vars  ,ONLY: MPIW8TimePart,MPIW8CountPart
+#endif /*defined(MEASURE_MPI_WAIT)*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: iProc
+TYPE(MPI_Request)              :: RecvRequest(1:nSurfNodeSendExchangeProcs),SendRequest(1:nSurfNodeRecvExchangeProcs) !> ATTENTION:
+! Send/Receive containers are used in reverse here
+INTEGER                        :: iNode, iDepoSurfNodeID, FEMVertexID
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)                :: CounterStart,CounterEnd
+REAL(KIND=8)                   :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
+!===================================================================================================================================
+IPWRITE(UNIT_StdOut,'(I0,A,I0)') ': v '//TRIM(__FILE__)//' +',__LINE__
+IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+! 1) Receive surface charge density
+! Skip MPIRoot because this process only sends
+IF (.NOT.MPIRoot) THEN
+  ! ATTENTION: Send/Receive containers are used in reverse in this routine
+  DO iProc = 1, nSurfNodeSendExchangeProcs
+    ! Only open buffer with MPIRoot
+    IF(SurfNodeSendDepoRankToGlobalRank(iProc).NE.0) CYCLE
+    ! Open receive buffer
+    CALL MPI_IRECV( SurfNodeMappingSend(iProc)%SendSurfNodeSource(:)    &
+        , SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes               &
+        , MPI_DOUBLE_PRECISION                                          &
+        , SurfNodeSendDepoRankToGlobalRank(iProc)                       &
+        , 666                                                           &
+        , MPI_COMM_PICLAS                                               &
+        , RecvRequest(iProc)                                            &
+        , IERROR)
+  END DO
+END IF ! .NOT.MPIRoot
+
+! Only MPIRoot sends data to all other processes that normally send data to MPIRoot
+IF (MPIRoot) THEN
+  ! ATTENTION: Send/Receive containers are used in reverse in this routine
+  DO iProc = 1, nSurfNodeRecvExchangeProcs
+    ! Send message (non-blocking)
+    DO iNode = 1, SurfNodeMappingRecv(iProc)%nRecvUniqueSurfNodes
+      ! Get FEMVertexID from mapping
+      FEMVertexID = SurfNodeMappingRecv(iProc)%RecvSurfNodeUniqueGlobalID(iNode)
+      ! Get surface deposition node index
+      iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
+      ! Store in send array
+      SurfNodeMappingRecv(iProc)%RecvSurfNodeSource(iNode) = SurfNodeSource(iDepoSurfNodeID)
+    END DO
+    CALL MPI_ISEND( SurfNodeMappingRecv(iProc)%RecvSurfNodeSource(:)    &
+        , SurfNodeMappingRecv(iProc)%nRecvUniqueSurfNodes               &
+        , MPI_DOUBLE_PRECISION                                          &
+        , SurfNodeRecvDepoRankToGlobalRank(iProc)                       &
+        , 666                                                           &
+        , MPI_COMM_PICLAS                                               &
+        , SendRequest(iProc)                                            &
+        , IERROR)
+  END DO
+END IF ! MPIRoot
+
+! Finish communication
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
+! Only MPIRoot sends data to all other processes that normally send data to MPIRoot
+IF (MPIRoot) THEN
+  ! ATTENTION: Send/Receive containers are used in reverse in this routine
+  DO iProc = 1, nSurfNodeRecvExchangeProcs
+    CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
+    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END DO
+END IF ! MPIRoot
+! Skip MPIRoot because this process only sends
+IF (.NOT.MPIRoot) THEN
+  ! ATTENTION: Send/Receive containers are used in reverse in this routine
+  DO iProc = 1, nSurfNodeSendExchangeProcs
+    CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
+    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END DO
+END IF ! .NOT.MPIRoot
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+MPIW8TimePart(6)  = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
+! 3) Extract messages
+! Skip MPIRoot because this process only sends
+IF (.NOT.MPIRoot) THEN
+  DO iProc = 1, nSurfNodeSendExchangeProcs
+    ! Only extract buffer from MPIRoot
+    IF(SurfNodeSendDepoRankToGlobalRank(iProc).NE.0) CYCLE
+    DO iNode = 1, SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes
+      ! Get FEMVertexID from mapping
+      FEMVertexID = SurfNodeMappingSend(iProc)%SendSurfNodeUniqueGlobalID(iNode)
+      ! Get surface deposition node index
+      iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
+      if(FEMVertexID.LE.0) CALL abort(__STAMP__,' FEMVertexID <= 0',FEMVertexID)
+      ! Unpack in recv array
+      SurfNodeSource(iDepoSurfNodeID) = SurfNodeMappingSend(iProc)%SendSurfNodeSource(iNode)
+    END DO
+  END DO
+END IF ! .NOT.MPIRoot
+
+! Add SurfNodeSourceMPI values of the last boundary interaction
+! DO iDepoSurfNodeID = 1, nDepoSurfNodesTotal
+  ! Add contribution
+  ! SurfNodeSource(iDepoSurfNodeID) = SurfNodeSource(iDepoSurfNodeID) + SurfNodeSourceMPI(iDepoSurfNodeID)
+! END DO
+! Reset local surface charge
+! SurfNodeSourceMPI = 0.
+END SUBROUTINE LBReverseExchangeSurfNodeSource
+#endif /*USE_LOADBALANCE*/
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*USE_MPI*/
 END MODULE MOD_PICDepo_MPI

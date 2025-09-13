@@ -364,6 +364,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: VertexInfo_Shared_Win
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+USE MOD_PICDepo_MPI        ,ONLY: LBReverseExchangeSurfNodeSource
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -723,8 +724,16 @@ END DO
 #if USE_MPI
 CALL InitDepoSurfNodesMPI() ! Initialize MPI communicator for surface node communication
 #endif /*USE_MPI*/
-ALLOCATE(SurfNodeSource(1:nDepoSurfNodesTotal))
-SurfNodeSource=0.0
+#if USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance.OR.(.NOT.MPIRoot)) THEN
+#endif /*USE_LOADBALANCE*/
+  ALLOCATE(SurfNodeSource(1:nDepoSurfNodesTotal))
+  SurfNodeSource=0.0
+#if USE_LOADBALANCE
+END IF
+! MPIRoot sends SurfNodeSource to all processes
+IF(PerformLoadBalance) CALL LBReverseExchangeSurfNodeSource()
+#endif /*USE_LOADBALANCE*/
 
 ! Build Vandermonde for mapping from N=1 (equidistant) to N=Nloc (Gauss/Gauss-Lobatto)
 ALLOCATE(Vdm_EQ_N(Nmin:Nmax))
@@ -2182,8 +2191,12 @@ IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
   END IF ! DoDielectricSurfaceCharge
 
   IF (Do2DSurfaceCharge) THEN
-     CALL abort(__STAMP__,' LB for surface node charge depo not implemented', IERROR)
-    IF(DoDeposition) CALL ExchangeSurfNodeSourceMPI()
+    ! IF(DoDeposition) CALL ExchangeSurfNodeSourceMPI()
+    ! The root process keeps all the data
+    IF (.NOT.MPIRoot) THEN
+      ! DEALLOCATE(SurfNodeSource)
+      ! DEALLOCATE(SurfNodeSourceMPI)
+    END IF ! .NOT.MPIRoot
   END IF ! Do2DSurfaceCharge
 
 
