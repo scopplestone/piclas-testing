@@ -1202,6 +1202,8 @@ IF (.NOT.MPIRoot) THEN
   DO iProc = 1, nSurfNodeSendExchangeProcs
     ! Only open buffer with MPIRoot
     IF(SurfNodeSendDepoRankToGlobalRank(iProc).NE.0) CYCLE
+    ! MPIRoot will not send anything, if the process has zero send nodes
+    IF(SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes.EQ.0) CYCLE
     ! Open receive buffer
     CALL MPI_IRECV( SurfNodeMappingSend(iProc)%SendSurfNodeSource(:)    &
         , SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes               &
@@ -1228,6 +1230,7 @@ IF (MPIRoot) THEN
       ! Store in send array
       SurfNodeMappingRecv(iProc)%RecvSurfNodeSource(iNode) = SurfNodeSource(iDepoSurfNodeID)
     END DO
+
     CALL MPI_ISEND( SurfNodeMappingRecv(iProc)%RecvSurfNodeSource(:)    &
         , SurfNodeMappingRecv(iProc)%nRecvUniqueSurfNodes               &
         , MPI_DOUBLE_PRECISION                                          &
@@ -1256,6 +1259,10 @@ END IF ! MPIRoot
 IF (.NOT.MPIRoot) THEN
   ! ATTENTION: Send/Receive containers are used in reverse in this routine
   DO iProc = 1, nSurfNodeSendExchangeProcs
+    ! Only open buffer with MPIRoot
+    IF(SurfNodeSendDepoRankToGlobalRank(iProc).NE.0) CYCLE
+    ! MPIRoot will not send anything, if the process has zero send nodes
+    IF(SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes.EQ.0) CYCLE
     CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' LBReverseExchangeSurfNodeSource: MPI Communication error. IERROR=', IERROR)
   END DO
