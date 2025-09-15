@@ -1211,6 +1211,7 @@ IF (.NOT.MPIRoot) THEN
         , MPI_COMM_PICLAS                                               &
         , RecvRequest(iProc)                                            &
         , IERROR)
+    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' LBReverseExchangeSurfNodeSource: MPI Communication error. IERROR=', IERROR)
   END DO
 END IF ! .NOT.MPIRoot
 
@@ -1235,6 +1236,7 @@ IF (MPIRoot) THEN
         , MPI_COMM_PICLAS                                               &
         , SendRequest(iProc)                                            &
         , IERROR)
+    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' LBReverseExchangeSurfNodeSource: MPI Communication error. IERROR=', IERROR)
   END DO
 END IF ! MPIRoot
 
@@ -1247,7 +1249,7 @@ IF (MPIRoot) THEN
   ! ATTENTION: Send/Receive containers are used in reverse in this routine
   DO iProc = 1, nSurfNodeRecvExchangeProcs
     CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
-    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' LBReverseExchangeSurfNodeSource: MPI Communication error. IERROR=', IERROR)
   END DO
 END IF ! MPIRoot
 ! Skip MPIRoot because this process only sends
@@ -1255,7 +1257,7 @@ IF (.NOT.MPIRoot) THEN
   ! ATTENTION: Send/Receive containers are used in reverse in this routine
   DO iProc = 1, nSurfNodeSendExchangeProcs
     CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
-    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' LBReverseExchangeSurfNodeSource: MPI Communication error. IERROR=', IERROR)
   END DO
 END IF ! .NOT.MPIRoot
 #if defined(MEASURE_MPI_WAIT)

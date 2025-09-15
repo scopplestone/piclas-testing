@@ -2062,7 +2062,6 @@ SDEALLOCATE(CellVolWeight_Volumes)
 SDEALLOCATE(ChargeSFDone)
 SDEALLOCATE(PeriodicSFCaseMatrix)
 SDEALLOCATE(N_ShapeTmp)
-SDEALLOCATE(NonUniqueGlobalNodeIDToFEMVertexID)
 
 #if USE_MPI
 SDEALLOCATE(FlagShapeElem)
