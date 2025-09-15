@@ -441,7 +441,7 @@ IsSendNode = .FALSE.
 CommunicateWithRank = .FALSE.
 ! TODO: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
 ! Step 1 of 2: Force every process to establish a communication with MPIRoot
-CommunicateWithRank(0) = .TRUE.
+IF(myrank.NE.0) CommunicateWithRank(0) = .TRUE.
 
 ! 1.) Identify communication partners
 ! Loop over the elements of the complete compute-node region (including the halo region) where the node can deposit charge
@@ -787,7 +787,7 @@ END DO
 ! TODO:Check if the received FEMVertexIDs are actually on the receiving process
   ! Skip MPIRoot, as this process receves all nodes from the other processes for .h5 output
 
-DEALLOCATE(IsDepoSurfNode)
+IF(myrank.NE.0) DEALLOCATE(IsDepoSurfNode)
 END SUBROUTINE InitDepoSurfNodesMPI
 
 
@@ -813,11 +813,10 @@ SUBROUTINE ExchangeNodeSource(SourceDim,doCalculateCurrentDensity)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_PICDepo_Vars ,ONLY: NodeSource
-USE MOD_PICDepo_Vars ,ONLY: NodeMappingRecv,NodeMappingSend
 USE MOD_PICDepo_Vars ,ONLY: nNodeSendExchangeProcs,NodeSendDepoRankToGlobalRank
 USE MOD_PICDepo_Vars ,ONLY: nNodeRecvExchangeProcs
 USE MOD_PICDepo_Vars ,ONLY: NodeRecvDepoRankToGlobalRank
-USE MOD_PICDepo_Vars ,ONLY: NodeMappingSend,NodeMappingRecv, nNodeSendExchangeProcs, NodeSendDepoRankToGlobalRank
+USE MOD_PICDepo_Vars ,ONLY: NodeMappingSend,NodeMappingRecv,nNodeSendExchangeProcs,NodeSendDepoRankToGlobalRank
 USE MOD_PICDepo_Vars ,ONLY: nNodeRecvExchangeProcs,NodeRecvDepoRankToGlobalRank
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars  ,ONLY: MPIW8TimePart,MPIW8CountPart
@@ -1196,8 +1195,6 @@ INTEGER(KIND=8)                :: CounterStart,CounterEnd
 REAL(KIND=8)                   :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
-IPWRITE(UNIT_StdOut,'(I0,A,I0)') ': v '//TRIM(__FILE__)//' +',__LINE__
-IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 ! 1) Receive surface charge density
 ! Skip MPIRoot because this process only sends
 IF (.NOT.MPIRoot) THEN

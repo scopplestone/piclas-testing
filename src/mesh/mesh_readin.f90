@@ -774,7 +774,8 @@ IF(readFEMconnectivity)THEN
     offsetEdgeConnectID   => INT(offsetEdgeConnectID,IK)  )
 #if defined(PARTICLES) && USE_LOADBALANCE
     IF (PerformLoadBalance) THEN
-      EdgeConnectInfo(1:EdgeConnectInfoSize,:) = EdgeConnectInfo_Shared(1:EdgeConnectInfoSize,offsetEdgeConnectID+1:offsetEdgeConnectID+nEdgeConnectIDs)
+      ! TODO:this does not work when using multi-node because the array is only filled for elements on the compute node
+      ! EdgeConnectInfo(1:EdgeConnectInfoSize,:) = EdgeConnectInfo_Shared(1:EdgeConnectInfoSize,offsetEdgeConnectID+1:offsetEdgeConnectID+nEdgeConnectIDs)
     ELSE
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
       CALL ReadArray('EdgeConnectInfo',2,(/EdgeConnectInfoSize,nEdgeConnectIDs/),offsetEdgeConnectID,2,IntegerArray_i4=EdgeConnectInfo(1:EdgeConnectInfoSize,:))
