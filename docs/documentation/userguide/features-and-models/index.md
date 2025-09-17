@@ -19,7 +19,8 @@ SpeciesDatabase.md
 Fokker-Planck.md
 Bhatnagar-Gross-Krook.md
 features-particle-solver.md
-radiation.md
+radiation-transport.md
+raytracing-photoionization.md
 ```
 
 The goal of PICLas is to enable to approximation of the complete Boltzmann equation:
