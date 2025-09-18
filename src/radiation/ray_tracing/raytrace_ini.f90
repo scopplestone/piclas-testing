@@ -38,6 +38,7 @@ CALL prms%SetSection("Ray Tracing")
 CALL prms%CreateIntOption(       'RayTracing-NumRays'         , 'Number of emitted rays from particle boundary with index [RayTracing-PartBound]')
 CALL prms%CreateRealArrayOption( 'RayTracing-RayDirection'    , 'Direction vector for ray emission. Will be normalized after read-in.' , no=3)
 CALL prms%CreateIntOption(       'RayTracing-PartBound'       , 'Particle boundary ID where rays are emitted from' , '0')
+CALL prms%CreateStringOption(    'RayTracing-PulseType'       , 'Pulse type for photoionization: square, Gaussian', 'Gaussian')
 CALL prms%CreateRealOption(      'RayTracing-PulseDuration'   , 'Pulse duration tau for a Gaussian-type pulse with I~exp(-(t/tau)^2) [s]'                  )
 CALL prms%CreateIntOption(       'RayTracing-NbrOfPulses'     , 'Number of pulses [-]'                                                                     , '1')
 CALL prms%CreateRealOption(      'RayTracing-WaveLength'      , 'Beam wavelength [m]'                                                                      )
@@ -90,10 +91,10 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN, BezierSampleXi
 ! LOCAL VARIABLES
 INTEGER             :: iSurfSide, iBC, NonUniqueGlobalSideID,iSample
 INTEGER,ALLOCATABLE :: RaySide2GlobalSide_temp(:)
-REAL                :: factor,SurfaceNormal(3),alpha
+REAL                :: SurfaceNormal(3),alpha
 CHARACTER(LEN=3)    :: hilf ! auxiliary variable for INTEGER -> CHARACTER conversion
 LOGICAL             :: FoundComputeNodeSurfSide
-REAL                :: RayEnergy
+REAL                :: RayEnergy,PulsePowerCycle
 !===================================================================================================================================
 IF(.NOT.UseRayTracing) RETURN
 LBWRITE(UNIT_StdOut,'(132("-"))')
@@ -108,9 +109,9 @@ RayPartBound = GETINT('RayTracing-PartBound')
 IF(RayPartBound.LE.0) CALL CollectiveStop(__STAMP__,'RayTracing-PartBound must be > 0 to activate ray tracing on this boundary!')
 
 ! Get ray parameters
+Ray%PulseType       = TRIM(GETSTR('RayTracing-PulseType'))
 Ray%PulseDuration  = GETREAL('RayTracing-PulseDuration')
 Ray%NbrOfPulses    = GETINT('RayTracing-NbrOfPulses')
-Ray%tShift         = SQRT(8.0) * Ray%PulseDuration
 Ray%WaveLength     = GETREAL('RayTracing-WaveLength')
 Ray%RepetitionRate = GETREAL('RayTracing-RepetitionRate')
 Ray%Period         = 1./Ray%RepetitionRate
@@ -209,14 +210,26 @@ CALL OrthoNormVec(Ray%Direction,Ray%BaseVector1IC,Ray%BaseVector2IC)
 ! Derived quantities
 RayEnergy = Ray%PowerDensity * Ray%Area / Ray%RepetitionRate
 
-! Calculate the peak intensity
-Ray%IntensityAmplitude = RayEnergy / (SQRT(PI)*Ray%PulseDuration*Ray%Area) / ERF(Ray%tShift / Ray%PulseDuration)
+! Set the shift (if required) and calculate the peak intensity
+SELECT CASE(TRIM(Ray%PulseType))
+CASE('square')
+  Ray%tShift         = 0.
+  PulsePowerCycle    = Ray%PulseDuration
+  Ray%IntensityAmplitude = RayEnergy / (Ray%PulseDuration*Ray%Area)
+CASE('Gaussian')
+  Ray%tShift         = SQRT(8.0) * Ray%PulseDuration
+  PulsePowerCycle    = 2.0 * Ray%tShift
+  ! Correction of the finite Gauss pulse with the error function
+  Ray%IntensityAmplitude = RayEnergy / (SQRT(PI)*Ray%PulseDuration*Ray%Area) / ERF(Ray%tShift / Ray%PulseDuration)
+CASE DEFAULT
+  CALL CollectiveStop(__STAMP__,'Unknown pulse type for ray tracing: '//TRIM(Ray%PulseType)//'. Select square or Gaussian!')
+END SELECT
 
 ! Sanity check: overlapping of pulses is not implemented (use multiple emissions for this)
 IF(2.0*Ray%tShift.GT.Ray%Period) CALL abort(__STAMP__,'Pulse length (2*Ray%tShift) is greater than the pulse period. This is not implemented!')
 
 ! Active pulse time
-Ray%tActive = REAL(Ray%NbrOfPulses - 1)*Ray%Period + 2.0*Ray%tShift
+Ray%tActive = REAL(Ray%NbrOfPulses - 1)*Ray%Period + PulsePowerCycle
 
 CALL PrintOption('Rectangular ray emission area: A [m2]'                             , 'CALCUL.' , RealOpt=Ray%Area)
 CALL PrintOption('Angle between emission area normal and ray direction: alpha [deg]' , 'CALCUL.' , RealOpt=alpha)
@@ -229,8 +242,8 @@ END IF ! ABS(alpha).GT.0.0
 CALL PrintOption('Single pulse energy [J]'                                           , 'CALCUL.' , RealOpt=RayEnergy)
 CALL PrintOption('Intensity amplitude: I0 [W/m^2]'                                   , 'CALCUL.' , RealOpt=Ray%IntensityAmplitude)
 CALL PrintOption('Pulse period (Time between maximum of two pulses) [s]'             , 'CALCUL.' , RealOpt=Ray%Period)
-CALL PrintOption('Temporal pulse width (pulse time 2x tShift) [s]'                   , 'CALCUL.' , RealOpt=2.0*Ray%tShift)
-CALL PrintOption('Pulse will end at tActive (pulse final time) [s]'                  , 'CALCUL.' , RealOpt=Ray%tActive)
+CALL PrintOption('Temporal pulse width / power cycle (2x tShift) [s]'                , 'CALCUL.' , RealOpt=PulsePowerCycle)
+CALL PrintOption('Pulse power cycle will end at tActive (final time) [s]'            , 'CALCUL.' , RealOpt=Ray%tActive)
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT RAY TRACING MODEL DONE!'
 LBWRITE(UNIT_StdOut,'(132("-"))')

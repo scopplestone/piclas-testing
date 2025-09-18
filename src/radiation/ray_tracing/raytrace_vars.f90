@@ -34,19 +34,22 @@ INTEGER               :: nRaySides
 INTEGER,ALLOCATABLE   :: RaySide2GlobalSide(:)
 
 TYPE tRayTrace
-  REAL    :: PulseDuration      !<
-  REAL    :: tShift             !<
-  REAL    :: tActive            !<
-  REAL    :: Period             !<
-  INTEGER :: NbrOfPulses        !<
-  REAL    :: WaveLength         !<
-  REAL    :: RepetitionRate     !<
-  REAL    :: PowerDensity       !<
-  REAL    :: Area               !<
-  REAL    :: IntensityAmplitude !<
-  REAL    :: Direction(3)       !<
-  REAL    :: BaseVector1IC(3)   !<
-  REAL    :: BaseVector2IC(3)   !<
+  ! User-input
+  INTEGER             :: NbrOfPulses        !< Maximum number of pulses to be performed during simulation run
+  CHARACTER(LEN=255)  :: PulseType          !< Pulse type for photoionization: square, Gaussian
+  REAL                :: PulseDuration      !< Duration of the power cycle (square), or temporal width (Gaussian, actual duration is 2*SQRT(8)*PulseDuration)
+  REAL                :: RepetitionRate     !< Pulse frequency [Hz]
+  REAL                :: WaveLength         !< Wave length of photons to determine the energy
+  REAL                :: PowerDensity       !<
+  REAL                :: Direction(3)       !<
+  ! Derived variables
+  REAL                :: tShift             !< Gaussian: Shift of the pulse by SQRT(8)*PulseDuration
+  REAL                :: Period             !< 1/RepetitionRate, Time between pulses (pulse duration must be within)
+  REAL                :: tActive            !< Time of at the end of the last power cycle
+  REAL                :: Area               !<
+  REAL                :: IntensityAmplitude !<
+  REAL                :: BaseVector1IC(3)   !<
+  REAL                :: BaseVector2IC(3)   !<
 
   ! Output of high-order p-adaptive info
   INTEGER :: NMin               !< Minimum polynomial degree for the high-order volume sampling (p-adaption)

@@ -366,8 +366,6 @@ USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState
 USE MOD_RayTracing_Vars        ,ONLY: Ray
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem_Shared
-USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -380,7 +378,6 @@ CHARACTER(LEN=255)                  :: Statedummy
 CHARACTER(LEN=255)                  :: H5_Name, H5_Name2
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
 INTEGER                             :: GlobalSideID, GlobalNbSideID, iSurfSide, OutputCounter, SurfSideNb, p, q
-INTEGER                             :: CNElemID, GlobalElemID, GlobalNbElemID, CNNbElemID
 INTEGER,PARAMETER                   :: nVar2D=3
 REAL                                :: tstart,tend
 REAL, ALLOCATABLE                   :: helpArray(:,:,:,:)

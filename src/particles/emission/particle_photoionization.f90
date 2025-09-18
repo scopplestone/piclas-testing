@@ -28,16 +28,98 @@ PUBLIC :: PhotoIonization_RayTracing_SEE, PhotoIonization_RayTracing_Volume
 !===================================================================================================================================
 CONTAINS
 
+!===================================================================================================================================
+!> Calculate the time-dependent scaling factor for the maximum intensity, depending on the pulse type
+!===================================================================================================================================
+SUBROUTINE GetPulseIntensity(TimeScalingFactor)
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars            ,ONLY: PI
+USE MOD_Timedisc_Vars           ,ONLY: dt,time
+USE MOD_RayTracing_Vars         ,ONLY: Ray
+#ifdef LSERK
+USE MOD_Timedisc_Vars           ,ONLY: iStage, RK_c, nRKStages
+#endif
+!-----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)     :: TimeScalingFactor        !< Scaling factor of the maximum intensity: I(t) = I_max * factor
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                  :: t_1, t_2
+INTEGER               :: NbrOfRepetitions
+!===================================================================================================================================
+! Initialize
+TimeScalingFactor = 0.
+
+! Determine the time interval
+#ifdef LSERK
+IF (iStage.EQ.1) THEN
+  t_1 = Time
+  t_2 = Time + RK_c(2) * dt
+ELSE
+  IF (iStage.NE.nRKStages) THEN
+    t_1 = Time + RK_c(iStage) * dt
+    t_2 = Time + RK_c(iStage+1) * dt
+  ELSE
+    t_1 = Time + RK_c(iStage) * dt
+    t_2 = Time + dt
+  END IF
+END IF
+#else
+t_1 = Time
+t_2 = Time + dt
+#endif
+
+! Calculate the current pulse, starting at zero
+NbrOfRepetitions = INT(Time/Ray%Period)
+
+! Leave the subroutine if the maximum number of pulses has been reached
+IF((NbrOfRepetitions+1).GT.Ray%NbrOfPulses) THEN
+  TimeScalingFactor = 0.
+  RETURN
+END IF
+
+! Gaussian pulse only: Add time shift of -SQRT(8) * Ray%PulseDuration so that I_max is after half of the pulse duration
+! For the square pulse, this reduces to dt, Ray%tShift = 0.
+! In case of multiple pulses, shift the time interval accordingly
+t_1 = t_1 - Ray%tShift - NbrOfRepetitions * Ray%Period
+t_2 = t_2 - Ray%tShift - NbrOfRepetitions * Ray%Period
+
+! Calculate the time-dependent ray intensity
+SELECT CASE(Ray%PulseType)
+CASE('Gaussian')
+  ! check if t_2 is outside of the pulse
+  IF(t_2.GT.2.0*Ray%tShift) t_2 = 2.0*Ray%tShift
+  ! Determine the time scaling factor
+  TimeScalingFactor = 0.5 * SQRT(PI) * Ray%PulseDuration * (ERF(t_2/Ray%PulseDuration)-ERF(t_1/Ray%PulseDuration))
+CASE('square')
+  IF(t_1.LT.Ray%PulseDuration) THEN
+    ! check if t_2 is outside of the pulse
+    IF(t_2.GT.Ray%PulseDuration) t_2 = Ray%PulseDuration
+    TimeScalingFactor = t_2 - t_1
+  ELSE
+    TimeScalingFactor = 0.
+  END IF
+CASE DEFAULT
+  CALL Abort(__STAMP__,'Unknown pulse type for ray tracing: '//TRIM(Ray%PulseType)//'. Select square or Gaussian!')
+END SELECT
+
+END SUBROUTINE GetPulseIntensity
+
+
 SUBROUTINE PhotoIonization_RayTracing_SEE()
 !===================================================================================================================================
 !> Routine calculates the number of secondary electrons to be emitted and inserts them on the surface, utilizing the cell-local
 !> photon energy from the raytracing
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: PI
-USE MOD_Timedisc_Vars           ,ONLY: dt,time
 USE MOD_Particle_Boundary_Vars  ,ONLY: Partbound,DoBoundaryParticleOutputRay
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF,SpeciesOffsetVDL
 USE MOD_RayTracing_Vars         ,ONLY: Ray,UseRayTracing,RayElemEmission
@@ -53,12 +135,6 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides, SurfSide2GlobalSid
 #ifdef LSERK
 USE MOD_Timedisc_Vars           ,ONLY: iStage, RK_c, nRKStages
 #endif
-! #if USE_MPI
-! USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides
-! USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors,myComputeNodeRank
-! #else
-! USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalSurfSides
-! #endif /*USE_MPI*/
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_loc,PhotonSurfSideArea
 #if USE_HDG
 USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
@@ -81,10 +157,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                  :: t_1, t_2, E_Intensity,vec(3)
-INTEGER               :: NbrOfRepetitions, SideID, GlobElemID, PartID, locElemID, iSurfSide, CNElemID
+REAL                  :: E_Intensity,vec(3)
+INTEGER               :: SideID, GlobElemID, PartID, locElemID, iSurfSide, CNElemID
 INTEGER               :: p, q, iPartBound, SpecID, iPart, NbrOfSEE, iSEEBC
-REAL                  :: RealNbrOfSEE, TimeScalingFactor, MPF
+REAL                  :: RealNbrOfSEE, TimeScalingFactor, MPF,PhotonEnergy
 REAL                  :: Particle_pos(1:3), xi(2)
 REAL                  :: RandVal, RandVal2(2), xiab(1:2,1:2), nVec(3), tang1(3), tang2(3), Velo3D(3)
 #if USE_HDG
@@ -100,50 +176,11 @@ IF(.NOT.UseRayTracing) RETURN
 ! 2) SEE yield for any BC greater than zero
 IF(.NOT.ANY(PartBound%PhotonSEEYield(:).GT.0.)) RETURN
 
-! Surf sides are shared, array calculation can be distributed
-!#if USE_MPI
-!firstSide = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
-!lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
-!#else
-!firstSide = 1
-!lastSide  = nGlobalSurfSides
-!#endif /*USE_MPI*/
+! Get the time-dependent pulse intensity factor based on the pulse type (square, Gaussian, etc.)
+CALL GetPulseIntensity(TimeScalingFactor)
 
-ASSOCIATE( tau         => Ray%PulseDuration      ,&
-           tShift      => Ray%tShift             ,&
-           lambda      => Ray%WaveLength         ,&
-           Period      => Ray%Period)
-! Temporal bound of integration
-#ifdef LSERK
-IF (iStage.EQ.1) THEN
-t_1 = Time
-t_2 = Time + RK_c(2) * dt
-ELSE
-  IF (iStage.NE.nRKStages) THEN
-    t_1 = Time + RK_c(iStage) * dt
-    t_2 = Time + RK_c(iStage+1) * dt
-  ELSE
-    t_1 = Time + RK_c(iStage) * dt
-    t_2 = Time + dt
-  END IF
-END IF
-#else
-t_1 = Time
-t_2 = Time + dt
-#endif
-
-! Calculate the current pulse
-NbrOfRepetitions = INT(Time/Period)
-
-! Add arbitrary time shift (-4 sigma_t) so that I_max is not at t=0s
-! Note that sigma_t = tau / sqrt(2)
-t_1 = t_1 - tShift - NbrOfRepetitions * Period
-t_2 = t_2 - tShift - NbrOfRepetitions * Period
-
-! check if t_2 is outside of the pulse
-IF(t_2.GT.2.0*tShift) t_2 = 2.0*tShift
-
-TimeScalingFactor = 0.5 * SQRT(PI) * tau * (ERF(t_2/tau)-ERF(t_1/tau))
+! Get the photon energy (currently: single, fixed wave length -> calculate energy once)
+PhotonEnergy = CalcPhotonEnergy(Ray%WaveLength)
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
@@ -190,7 +227,7 @@ DO iSurfSide = 1, nComputeNodeSurfSides
       IF(PhotonSampWall_loc(p,q,iSurfSide).LT.0.0) CALL abort(__STAMP__,'ERROR in PhotoIonization_RayTracing_SEE: PhotonSampWall_loc not defined!')
       ! Calculate the number of SEEs per subside
       E_Intensity = PhotonSampWall_loc(p,q,iSurfSide) * PhotonSurfSideArea(p,q,iSurfSide) * TimeScalingFactor
-      RealNbrOfSEE = E_Intensity / CalcPhotonEnergy(lambda) * PartBound%PhotonSEEYield(iPartBound) / MPF
+      RealNbrOfSEE = E_Intensity / PhotonEnergy * PartBound%PhotonSEEYield(iPartBound) / MPF
       ! Add random number to calculated real/float value of SEE particles and user INT()for lower-bound cut-off
       CALL RANDOM_NUMBER(RandVal)
       NbrOfSEE = INT(RealNbrOfSEE+RandVal)
@@ -297,8 +334,6 @@ CALL LBElemSplitTime(locElemID,tLBStart)
 #endif /*USE_LOADBALANCE*/
 END DO ! iSurfSide = 1, nComputeNodeSurfSides
 
-END ASSOCIATE
-
 END SUBROUTINE PhotoIonization_RayTracing_SEE
 
 
@@ -311,7 +346,7 @@ SUBROUTINE PhotoIonization_RayTracing_Volume()
 USE MOD_Globals
 ! Variables
 USE MOD_Globals_Vars            ,ONLY: PI, c
-USE MOD_Timedisc_Vars           ,ONLY: dt,time
+USE MOD_Timedisc_Vars           ,ONLY: dt
 USE MOD_Mesh_Vars               ,ONLY: nElems, offsetElem
 USE MOD_Mesh_Vars               ,ONLY: NGeo,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo
 USE MOD_RayTracing_Vars         ,ONLY: UseRayTracing, Ray,RayElemEmission
@@ -348,9 +383,8 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER               :: iElem,k,l,m,iReac,iPair,iGlobalElem,iVar
 INTEGER               :: SpecID,nPair,NRayLoc,BGGSpecID
-INTEGER               :: NbrOfRepetitions
 INTEGER               :: PartID,newPartID
-REAL                  :: t_1, t_2, E_Intensity, TimeScalingFactor
+REAL                  :: E_Intensity, TimeScalingFactor, PhotonEnergy
 REAL                  :: density, NbrOfPhotons, NbrOfReactions
 REAL                  :: RandNum,RandVal(3),Xi(3)
 REAL                  :: RandomPos(1:3),MPF
@@ -368,42 +402,11 @@ IF(CollisMode.NE.3) RETURN
 
 IF(.NOT.ChemReac%AnyPhIonReaction) RETURN
 
-! Determine the time-dependent ray intensity
-ASSOCIATE(tau         => Ray%PulseDuration      ,&
-          tShift      => Ray%tShift             ,&
-          lambda      => Ray%WaveLength         ,&
-          Period      => Ray%Period)
+! Get the time-dependent pulse intensity factor based on the pulse type (square, Gaussian, etc.)
+CALL GetPulseIntensity(TimeScalingFactor)
 
-#ifdef LSERK
-IF (iStage.EQ.1) THEN
-t_1 = Time
-t_2 = Time + RK_c(2) * dt
-ELSE
-  IF (iStage.NE.nRKStages) THEN
-    t_1 = Time + RK_c(iStage) * dt
-    t_2 = Time + RK_c(iStage+1) * dt
-  ELSE
-    t_1 = Time + RK_c(iStage) * dt
-    t_2 = Time + dt
-  END IF
-END IF
-#else
-t_1 = Time
-t_2 = Time + dt
-#endif
-
-! Calculate the current pulse
-NbrOfRepetitions = INT(Time/Period)
-
-! Add arbitrary time shift (-4 sigma_t) so that I_max is not at t=0s
-! Note that sigma_t = tau / sqrt(2)
-t_1 = t_1 - tShift - NbrOfRepetitions * Period
-t_2 = t_2 - tShift - NbrOfRepetitions * Period
-
-! check if t_2 is outside of the pulse
-IF(t_2.GT.2.0*tShift) t_2 = 2.0*tShift
-
-TimeScalingFactor = 0.5 * SQRT(PI) * tau * (ERF(t_2/tau)-ERF(t_1/tau))
+! Get the photon energy (currently: single, fixed wave length -> calculate energy once)
+PhotonEnergy = CalcPhotonEnergy(Ray%WaveLength)
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
@@ -440,7 +443,7 @@ DO iVar = 1, 2
         DO k=0,NRayLoc
           E_Intensity = U_N_Ray_loc(iElem)%U(iVar,k,l,m) * TimeScalingFactor
           ! Number of photons (TODO: spectrum)
-          NbrOfPhotons = E_Intensity / (CalcPhotonEnergy(lambda) * c * dt)
+          NbrOfPhotons = E_Intensity / (PhotonEnergy * c * dt)
           DO iReac = 1, ChemReac%NumOfReact
             SpecID = ChemReac%Reactants(iReac,1)
             ! TODO: Background gas density distribution
@@ -575,9 +578,6 @@ DO iVar = 1, 2
 #endif /*USE_LOADBALANCE*/
   END DO            ! iElem = 1, nElems
 END DO              ! iVar = 1, 2
-
-
-END ASSOCIATE
 
 END SUBROUTINE PhotoIonization_RayTracing_Volume
 
