@@ -292,7 +292,7 @@ INTEGER              :: nSurfSampleHDF5,N_HDF5
 INTEGER              :: iDOF,offsetDOF,nDOFLocal,nDOFTotal
 INTEGER              :: OutputCounter
 INTEGER              :: CNElemID, GlobalNbSideID, GlobalNbElemID, CNNbElemID
-LOGICAL              :: ContainerExists, SideOnProc
+LOGICAL              :: ContainerExists, SideOnProc, AttributeExists
 INTEGER, ALLOCATABLE :: GlobalSideIndex(:)
 REAL, ALLOCATABLE    :: N_DG_Ray_locREAL(:)
 REAL, ALLOCATABLE    :: UNMax(:,:,:,:,:),UNMax_loc(:,:,:,:)
@@ -301,6 +301,7 @@ REAL, ALLOCATABLE    :: U_N_Ray_2D_local(:,:)                     !< for read-in
 INTEGER              :: sendbuf,recvbuf
 #endif /*USE_MPI*/
 REAL                 :: StartT,EndT
+REAL                 :: IntensityAmplitudeReadin
 !===================================================================================================================================
 
 LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' Reading ray tracing result from file...'
@@ -353,6 +354,11 @@ IF(myComputeNodeRank.EQ.0)THEN
     CALL abort(__STAMP__,'Number of nSurfSample in .h5 file differs from the ini file parameter "RayTracing-nSurfSample"!')
   END IF ! nSurfSampleHDF5.NE.Ray%nSurfSample
   CALL ReadArray('SurfaceData',4,(/3_IK,INT(Ray%nSurfSample,IK),INT(Ray%nSurfSample,IK),INT(nSurfSidesHDF5,IK)/),0_IK,1,RealArray=PhotonSampWallHDF5)
+  CALL DatasetExists(File_ID,'IntensityAmplitude',AttributeExists,attrib=.TRUE.)
+  IF(AttributeExists) THEN
+    CALL ReadAttribute(File_ID,'IntensityAmplitude',1,RealScalar=IntensityAmplitudeReadin)
+    Ray%IntensityAmplitudeFactor = Ray%IntensityAmplitude / IntensityAmplitudeReadin
+  END IF
   CALL CloseDataFile()
   ! Small hack: replace 3rd index with global ID
   DO iSurfSideHDF5 = 1, nSurfSidesHDF5
@@ -440,6 +446,13 @@ N_DG_Ray_loc = INT(N_DG_Ray_locREAL)
 DEALLOCATE(N_DG_Ray_locREAL)
 ! Sanity check
 IF(ANY(N_DG_Ray_loc.LE.0)) CALL abort(__STAMP__,'N_DG_Ray_loc cannot contain zeros!')
+
+! Read-in the intensity amplitude and calculate the scaling factor
+CALL DatasetExists(File_ID,'IntensityAmplitude',AttributeExists,attrib=.TRUE.)
+IF(AttributeExists) THEN
+  CALL ReadAttribute(File_ID,'IntensityAmplitude',1,RealScalar=IntensityAmplitudeReadin)
+  Ray%IntensityAmplitudeFactor = Ray%IntensityAmplitude / IntensityAmplitudeReadin
+END IF
 
 ! Read HDF5
 CALL DatasetExists(File_ID,'DG_Solution',ContainerExists)

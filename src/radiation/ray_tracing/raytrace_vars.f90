@@ -46,8 +46,9 @@ TYPE tRayTrace
   REAL                :: tShift             !< Gaussian: Shift of the pulse by SQRT(8)*PulseDuration
   REAL                :: Period             !< 1/RepetitionRate, Time between pulses (pulse duration must be within)
   REAL                :: tActive            !< Time of at the end of the last power cycle
-  REAL                :: Area               !<
-  REAL                :: IntensityAmplitude !<
+  REAL                :: Area               !< Area of the surface emitting the rays
+  REAL                :: IntensityAmplitude !< Calculated from power density, repetition rate and area
+  REAL                :: IntensityAmplitudeFactor = 1. !< Factor between read-in intensity amplitude and user-input in case of a different power density
   REAL                :: BaseVector1IC(3)   !<
   REAL                :: BaseVector2IC(3)   !<
 

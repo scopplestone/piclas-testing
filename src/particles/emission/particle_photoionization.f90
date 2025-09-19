@@ -109,6 +109,9 @@ CASE DEFAULT
   CALL Abort(__STAMP__,'Unknown pulse type for ray tracing: '//TRIM(Ray%PulseType)//'. Select square or Gaussian!')
 END SELECT
 
+! Additional scaling in case the power density has been changed
+TimeScalingFactor = TimeScalingFactor * Ray%IntensityAmplitudeFactor
+
 END SUBROUTINE GetPulseIntensity
 
 

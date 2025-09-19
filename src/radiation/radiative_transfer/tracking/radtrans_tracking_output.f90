@@ -50,7 +50,7 @@ USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergy_Shared,RayElemOffset,Ray
 USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergy
 #endif /*USE_MPI*/
 USE MOD_io_HDF5
-USE MOD_HDF5_output          ,ONLY: GenerateFileSkeleton
+USE MOD_HDF5_output          ,ONLY: GenerateFileSkeleton,WriteAttributeToHDF5
 USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
 USE MOD_Mesh_Vars            ,ONLY: offsetElem,nGlobalElems
 USE MOD_ChangeBasis          ,ONLY: ChangeBasis3D
@@ -277,7 +277,12 @@ END IF
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 ! Write file after last abort to prevent a corrupt output file (which might be used when restarting the simulation)
-IF(MPIRoot) CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=RadiationVolState,NodeType_in=Ray%NodeType)
+IF(MPIRoot) THEN
+  CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=RadiationVolState,NodeType_in=Ray%NodeType)
+  CALL OpenDataFile(RadiationVolState,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  CALL WriteAttributeToHDF5(File_ID, 'IntensityAmplitude', 1, RealScalar = Ray%IntensityAmplitude)
+  CALL CloseDataFile()
+END IF
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
@@ -405,12 +410,13 @@ IF (mySurfRank.EQ.0) THEN
   Statedummy = 'RadiationSurfState'
   ! Write file header
   CALL WriteHDF5Header(Statedummy,File_ID)
-  CALL WriteAttributeToHDF5(File_ID , 'DSMC_nSurfSample' , 1       , IntegerScalar = Ray%nSurfSample        )
-  CALL WriteAttributeToHDF5(File_ID , 'MeshFile'         , 1       , StrScalar     = (/TRIM(MeshFile)/) )
-  CALL WriteAttributeToHDF5(File_ID , 'BC_Surf'          , nSurfBC , StrArray      = SurfBCName         )
-  CALL WriteAttributeToHDF5(File_ID , 'N'                , 1       , IntegerScalar = Ray%nSurfSample        )
-  CALL WriteAttributeToHDF5(File_ID , 'NodeType'         , 1       , StrScalar     = (/Ray%NodeType/)   )
-  CALL WriteAttributeToHDF5(File_ID , 'Time'             , 1       , RealScalar    = 0.                 )
+  CALL WriteAttributeToHDF5(File_ID , 'DSMC_nSurfSample'  , 1       , IntegerScalar = Ray%nSurfSample       )
+  CALL WriteAttributeToHDF5(File_ID , 'MeshFile'          , 1       , StrScalar     = (/TRIM(MeshFile)/)    )
+  CALL WriteAttributeToHDF5(File_ID , 'BC_Surf'           , nSurfBC , StrArray      = SurfBCName            )
+  CALL WriteAttributeToHDF5(File_ID , 'N'                 , 1       , IntegerScalar = Ray%nSurfSample       )
+  CALL WriteAttributeToHDF5(File_ID , 'NodeType'          , 1       , StrScalar     = (/Ray%NodeType/)      )
+  CALL WriteAttributeToHDF5(File_ID , 'Time'              , 1       , RealScalar    = 0.                    )
+  CALL WriteAttributeToHDF5(File_ID , 'IntensityAmplitude', 1       , RealScalar    = Ray%IntensityAmplitude)
 
   ALLOCATE(Str2DVarNames(1:nVar2D))
   ! fill varnames for total values
