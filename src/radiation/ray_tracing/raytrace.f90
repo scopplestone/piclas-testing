@@ -366,6 +366,8 @@ IF(myComputeNodeRank.EQ.0)THEN
   END DO ! iSurfSideHDF5 = 1, nSurfSidesHDF5
 #if USE_MPI
 END IF
+! Communicate the factor to the other processes on the node
+CALL MPI_BCAST(Ray%IntensityAmplitudeFactor,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
 ! This sync/barrier is required as it cannot be guaranteed that the zeros have been written to memory by the time the MPI_REDUCE
 ! is executed (see MPI specification). Until the Sync is complete, the status is undefined, i.e., old or new value or utter nonsense.
 CALL BARRIER_AND_SYNC(PhotonSampWallHDF5_Shared_Win,MPI_COMM_SHARED)
