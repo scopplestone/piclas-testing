@@ -71,7 +71,7 @@ USE MOD_io_hdf5
 USE MOD_DSMC_Vars             ,ONLY: BGGas
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Vars         ,ONLY: PDM, Species, nSpecies, UseVarTimeStep, VarTimeStep
-USE MOD_Restart_Vars          ,ONLY: DoMacroscopicRestart, MacroRestartFileName
+USE MOD_Restart_Vars          ,ONLY: DoRestart, DoMacroscopicRestart, MacroRestartFileName
 #ifdef drift_diffusion
 USE MOD_HDF5_Input            ,ONLY: DatasetExists
 USE MOD_StringTools           ,ONLY: STRICMP
@@ -113,7 +113,10 @@ REAL                                                  :: eps_rel=5e-5
 !===================================================================================================================================
 
 ! 0.) Variable read-in
-IF(BGGas%UseDistribution) MacroRestartFileName = GETSTR('Particles-MacroscopicRestart-Filename')
+IF(BGGas%UseDistribution) THEN
+  ! MacroRestartFileName has been already read-in in case of a macroscopic restart
+  IF(.NOT.(DoRestart.AND.DoMacroscopicRestart)) MacroRestartFileName = GETSTR('Particles-MacroscopicRestart-Filename')
+END IF
 
 ! 1.) Check compatibility with other features and whether required parameters have been read-in
 IF(UseVarTimeStep) THEN
@@ -129,8 +132,6 @@ DO iSpec = 1, nSpecies
     END IF ! .NOT.BGGas%UseDistribution
   END IF
 END DO
-
-IF(DoMacroscopicRestart) CALL abort(__STAMP__, 'Constant background gas and macroscopic restart are not compatible!')
 
 ! 2.) Allocation
 IF(BGGas%UseDistribution.OR.BGGas%UseRegions) THEN
