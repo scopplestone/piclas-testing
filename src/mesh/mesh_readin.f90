@@ -338,8 +338,9 @@ IF (.NOT.PerformLoadBalance) THEN
   IF(readFEMconnectivity)THEN
     CALL DatasetExists(File_ID,'nFEMEdges',nFEMEdgesExists,attrib=.TRUE.)
     IF(.NOT.nFEMEdgesExists)THEN
-      CALL abort(__STAMP__,'nFEMEdges not found in the mesh file, which is required when using readFEMconnectivity=T.'//&
-          'The mesh must be created with hopr using the flag generateFEMconnectivity=T (hopr Release 1.3.0 or higher)')
+      CALL CollectiveStop(__STAMP__,'\n\nnFEMEdges not found in the mesh file, which is required when using readFEMconnectivity=T.\n'//&
+          'The mesh must be created with 1) hopr using the flag generateFEMconnectivity=T (hopr Release 1.3.0 or higher) or \n'//&
+          '2) PyHOPE using the flag doFEMConnect=T (version 0.1.1 [commit 7e2a398] or higher).\n')
     END IF ! .NOT.nFEMEdgesExists
     CALL ReadAttribute(File_ID,'nFEMEdges',1,IntScalar=nFEMEdges)
     CALL ReadAttribute(File_ID,'nFEMVertices',1,IntScalar=nFEMVertices)
