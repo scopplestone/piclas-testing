@@ -81,7 +81,7 @@ USE MOD_Globals_Vars       ,ONLY: eps0
 USE MOD_PICDepo_MPI        ,ONLY: ExchangeSurfNodeSourceMPI
 USE MOD_Particle_Boundary_Vars ,ONLY: Do2DSurfaceCharge
 #endif /*USE_MPI*/
-USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource,FEMVertexID2DepoSurfNodeID,Vdm_EQ_N
+USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource,FEMVertexID2DepoSurfNodeID,Vdm_EQ_N,IsDepoSurfSide
 USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID,NonUniqueGlobalNodeIDToFEMVertexID
 USE MOD_Mesh_Vars          ,ONLY: SideToNonUniqueGlobalSide
 #endif /*defined(PARTICLES)*/
@@ -339,6 +339,12 @@ DO BCsideID=1,nDistriCapBCsides
     FEMVertexID = NonUniqueGlobalNodeIDToFEMVertexID(NonUniqueNodeID)
     ! Get surface deposition node index
     iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
+    ! Sanity check
+    IF (iDepoSurfNodeID.LE.0) THEN
+      IPWRITE(*,*) 'NonUniqueNodeID,FEMVertexID,iDepoSurfNodeID,NonUniqueGlobalSideID,IsDepoSurfSide(NonUniqueGlobalSideID),SideID:',&
+                    NonUniqueNodeID,FEMVertexID,iDepoSurfNodeID,NonUniqueGlobalSideID,IsDepoSurfSide(NonUniqueGlobalSideID),SideID
+      CALL abort(__STAMP__,' iDepoSurfNodeID <= 0')
+    END IF ! iDepoSurfNodeID.LE.0
     ! Store in 2D temporary array
     SurfNodeSourceEquiN1(1:1,p,q) = SurfNodeSource(iDepoSurfNodeID)
   END DO; END DO ! q=0,1; DO p=0,1

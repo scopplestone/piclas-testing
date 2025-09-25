@@ -475,6 +475,13 @@ DO iCNELemID = FirstCNElemID, LastCNElemID
   ! Get local FEMElemInfo of current element
   FirstVertexInd = ElemInfo_Shared(ELEM_FIRSTVERTEXIND,iGlobalElemID)+1 ! this comes from FEMElemInfo() from mesh.h5
   LastVertexInd  = ElemInfo_Shared(ELEM_LASTVERTEXIND,iGlobalElemID)    ! this comes from FEMElemInfo() from mesh.h5
+  ! Sanity check
+  IF (FirstVertexInd.GE.LastVertexInd) THEN
+    IPWRITE(*,*) 'iGlobalElemID :', iGlobalElemID
+    IPWRITE(*,*) 'FirstVertexInd:', FirstVertexInd
+    IPWRITE(*,*) 'LastVertexInd :', LastVertexInd
+    CALL abort(__STAMP__,' FirstVertexInd >= LastVertexInd')
+  END IF ! FirstVertexInd.GE.LastVertexInd
   ! Loop over all non-unique vertices (the total number via iGlobalElemID and iVertexInd corresponds to nVertices in .h5)
   DO iVertexInd = FirstVertexInd,LastVertexInd
     ! Get topologically unique global vertex ID (via VertexInfo from mesh.h5), includes periodicity (needed for a FEM solver
@@ -655,20 +662,22 @@ IF (InitializeSurfNodeArrays) THEN
   nDepoSurfNodes = COUNT(IsDepoSurfNode)
   ! Count the number of unique deposition sides per processor
   nDepoSurfSides = COUNT(IsDepoSurfSide)
-  DEALLOCATE(IsDepoSurfSide)
+  ! DEALLOCATE(IsDepoSurfSide)
 
   ! Build Mappings between FEM vertices and surface deposition node IDs
   nDepoSurfNodesTotal = nDepoSurfNodes
   ALLOCATE(DepoSurfNodeID2FEMVertexID(1:nDepoSurfNodesTotal))
   DepoSurfNodeID2FEMVertexID = -1
   ALLOCATE(FEMVertexID2DepoSurfNodeID(1:nFEMVertices))
-  FEMVertexID2DepoSurfNodeID = -1
+  FEMVertexID2DepoSurfNodeID = 0
   nDepoSurfNodesTotal = 0
   DO FEMVertexID=1, nFEMVertices
     IF (IsDepoSurfNode(FEMVertexID)) THEN
       nDepoSurfNodesTotal = nDepoSurfNodesTotal + 1
       DepoSurfNodeID2FEMVertexID(nDepoSurfNodesTotal) = FEMVertexID
       FEMVertexID2DepoSurfNodeID(FEMVertexID) = nDepoSurfNodesTotal
+    ELSE
+      FEMVertexID2DepoSurfNodeID(FEMVertexID) = -1
     END IF
   END DO
 END IF ! InitializeSurfNodeArrays
