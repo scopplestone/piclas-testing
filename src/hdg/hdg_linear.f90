@@ -335,6 +335,12 @@ DO BCsideID=1,nDistriCapBCsides
     iNode = 2*q + p + 1
     ! Mapping from non-unique global side index to non-unique global node index
     NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID)
+    ! Sanity check
+    IF (NonUniqueNodeID.LE.0) THEN
+      IPWRITE(*,*) 'NonUniqueNodeID,NonUniqueGlobalSideID,IsDepoSurfSide(NonUniqueGlobalSideID),SideID:',&
+                    NonUniqueNodeID,NonUniqueGlobalSideID,IsDepoSurfSide(NonUniqueGlobalSideID),SideID
+      CALL abort(__STAMP__,' NonUniqueNodeID <= 0')
+    END IF ! NonUniqueNodeID.LE.0
     ! Mapping from NonUniqueNodeID to FEMVertexID
     FEMVertexID = NonUniqueGlobalNodeIDToFEMVertexID(NonUniqueNodeID)
     ! Get surface deposition node index
