@@ -662,7 +662,7 @@ IF (InitializeSurfNodeArrays) THEN
   nDepoSurfNodes = COUNT(IsDepoSurfNode)
   ! Count the number of unique deposition sides per processor
   nDepoSurfSides = COUNT(IsDepoSurfSide)
-  ! DEALLOCATE(IsDepoSurfSide)
+  DEALLOCATE(IsDepoSurfSide)
 
   ! Build Mappings between FEM vertices and surface deposition node IDs
   nDepoSurfNodesTotal = nDepoSurfNodes
