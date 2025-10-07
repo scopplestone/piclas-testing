@@ -538,7 +538,7 @@ DO iCNELemID = FirstCNElemID, LastCNElemID
           ! Get boundary condition type
           BCType = BoundaryType(BCIndex,BC_TYPE)
           ! TODO:Implement inner BCs for surface charge deposition
-          IF(BCType.EQ.100) CALL abort(__STAMP__,'InitDepoSurfNodes(): Inner BCs not implemented for surface charge deposition')
+          ! IF(BCType.EQ.100) CALL abort(__STAMP__,'InitDepoSurfNodes(): Inner BCs not implemented for surface charge deposition')
           ! TODO:define a list of all BCType numbers that allow surface deposition
           IF(BCType.NE.30) CYCLE iNbSide ! Skip non-DCBC sides
           ! Depo node/side found
