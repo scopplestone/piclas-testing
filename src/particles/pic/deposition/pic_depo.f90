@@ -2066,8 +2066,8 @@ USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeInfo_Shared,ElemNodeID_Shared
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
-USE MOD_Particle_Boundary_Vars ,ONLY: Do2DSurfaceCharge
 #endif /*USE_LOADBALANCE*/
+USE MOD_Particle_Boundary_Vars ,ONLY: Do2DSurfaceCharge
 USE MOD_Mesh_Vars              ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
