@@ -96,7 +96,7 @@ CALL prms%CreateRealOption('AvgPotential-Plane-x-coord', 'x-coordinate of the av
 CALL prms%CreateRealOption('AvgPotential-Plane-Tolerance', 'Absolute tolerance for checking the averaged electric potential plane '&
                                                          , '1E-5')
 CALL prms%CreateLogicalOption( 'CalcElectricTimeDerivative' ,"Calculate the time derivative of the electric displacement field D=eps*E and output to .h5 and .csv files.",".FALSE.")
-CALL prms%CreateLogicalOption( 'CalcElectricPotentialExtrema' ,"Calculate the electric potential extrema (min/max) on all BC except periodic and Neumann BC and output them to .csv file.",".FALSE.")
+CALL prms%CreateLogicalOption( 'CalcElectricPotentialExtrema' ,"Calculate the electric potential extrema (min/max) on all BC except periodic, Neumann and FPC BC and output them to .csv file.",".FALSE.")
 #endif /*USE_HDG*/
 !-- TimeAverage
 CALL prms%CreateLogicalOption( 'CalcTimeAverage'            , 'Flag if time averaging should be performed','.FALSE.')

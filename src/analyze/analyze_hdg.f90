@@ -155,7 +155,8 @@ END SUBROUTINE InitCalcElectricTimeDerivativeSurface
 
 !===================================================================================================================================
 !> Create containers and communicators for each boundary on which the electric potential extema (EPE) are calculated (min/max
-!> values). This is done for all normal BCs except periodic and Neumann BCs.
+!> values). This is done for all normal BCs except periodic, Neumann and FPC BCs.
+!> Skips the BC_TYPE 1 (periodic) + 10,11,12 (Neumann) + FPC (20)
 !>
 !> 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
 !>     contribute to the electric potential extrema (EPE). If yes, then this processor is part of the communicator

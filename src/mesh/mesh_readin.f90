@@ -247,9 +247,9 @@ USE MOD_Mesh_Vars            ,ONLY: MeshInitIsDone
 USE MOD_Mesh_Vars            ,ONLY: Elems!,Nodes
 USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE
 USE MOD_Mesh_Vars            ,ONLY: ElemInfo,SideInfo,EdgeInfo,EdgeConnectInfo,VertexInfo,VertexConnectInfo
-USE MOD_Mesh_Vars            ,ONLY: VertexInfoGlobal,VertexConnectInfoGlobal
 USE MOD_Particle_Mesh_Vars   ,ONLY: nComputeNodeElems,nNonUniqueGlobalSides,nNonUniqueGlobalNodes,nUniqueGlobalNodes
 #if USE_MPI
+USE MOD_Mesh_Vars            ,ONLY: VertexInfoGlobal,VertexConnectInfoGlobal
 USE MOD_MPI_Shared_Vars      ,ONLY: myComputeNodeRank
 USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc,offsetElemMPI
 USE MOD_Particle_Mesh_Vars   ,ONLY: offsetComputeNodeElem
