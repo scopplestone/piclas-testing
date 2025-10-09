@@ -344,7 +344,7 @@ SUBROUTINE InitDepoSurfNodes()
 USE MOD_Globals
 USE MOD_PICDepo_Vars
 USE MOD_Particle_Mesh_Vars ,ONLY: nNonUniqueGlobalNodes
-USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity,offsetElem,nElems,nGlobalElems
+USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity,nGlobalElems
 USE MOD_Particle_Mesh_Vars ,ONLY: VertexConnectInfo_shared
 USE MOD_Mesh_Vars          ,ONLY: NGeo,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID!,SideToNonUniqueGlobalSide
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nFEMVertices,NonUniqueGlobalNodeIDToFEMVertexID!,nSides
@@ -361,6 +361,8 @@ USE MOD_MPI_Shared_Vars    ,ONLY: myComputeNodeRank,nComputeNodeTotalElems,nComp
 USE MOD_MPI_Shared_vars    ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared         ,ONLY: BARRIER_AND_SYNC
 USE MOD_Particle_Mesh_Vars ,ONLY: VertexInfo_Shared_Win
+#else
+USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
