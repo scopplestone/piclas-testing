@@ -212,7 +212,7 @@ USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_ReadInTools
-USE MOD_StringTools            ,ONLY: LowCase
+USE MOD_StringTools            ,ONLY: STRICMP
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
@@ -248,8 +248,7 @@ REAL                  :: omegaTemp, RotFreq
 CHARACTER(32)         :: hilf,hilf2
 CHARACTER(200)        :: tmpString
 CHARACTER(LEN=64)     :: dsetname
-LOGICAL               :: StickingCoefficientExists,NameCheck,LengthCheck
-CHARACTER(LEN=255)    :: currBoundaryName, currPartBoundaryName
+LOGICAL               :: StickingCoefficientExists
 LOGICAL               :: FoundPartBoundPhotonSEE,BoundaryUsesSEE,AnyBoundaryUsesSEE
 INTEGER               :: ALLOCSTAT
 !===================================================================================================================================
@@ -671,13 +670,8 @@ DO iPBC=1,nPartBound
         CALL abort(__STAMP__,' Analyze-BCs cannot be used for internal reflection in general cases! ')
       END IF
     END IF
-    ! Check if BoundaryName(iBC) == PartBound%SourceBoundName(iPBC)
-    CALL LowCase(BoundaryName(iBC)               ,currBoundaryName)
-    CALL LowCase(PartBound%SourceBoundName(iPBC) ,currPartBoundaryName)
-    NameCheck = INDEX(TRIM(currBoundaryName),TRIM(currPartBoundaryName)).NE.0
-    ! Check if both strings have equal length
-    LengthCheck = LEN(TRIM(BoundaryName(iBC))).EQ.LEN(TRIM(PartBound%SourceBoundName(iPBC)))
-    IF (NameCheck.AND.LengthCheck) THEN
+    ! Check if BoundaryName(iBC) == PartBound%SourceBoundName(iPBC) names are equal: Use case insensitive string comparison
+    IF (STRICMP(BoundaryName(iBC),PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
       PartBound%MapToFieldBC(iPBC) = iBC ! part BC to field BC
       LBWRITE(*,*) "| Mapped PartBound",iPBC,"on FieldBound", iBC,", i.e.: ",TRIM(BoundaryName(iBC))
