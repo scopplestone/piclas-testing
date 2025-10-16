@@ -525,6 +525,9 @@ END SUBROUTINE Build_N_DG_Mapping
 
 !===================================================================================================================================
 !> Returns a list of sides (depending on the CGNS ordering) for a given local corner node index
+!> The ordering is described in the HOPR documentation: https://hopr.readthedocs.io/en/latest/_images/CGNS_edges.jpg
+!> iVertexID are CGNS sorted and NonUniqueGlobalNodeID are not (use the CNS - corner node switch - to map between the two in the
+!> local system)
 !===================================================================================================================================
 SUBROUTINE GetLocSideList(ElemType,iLocNode,LocSideList)
 ! MODULES
@@ -542,6 +545,28 @@ INTEGER, INTENT(OUT) :: LocSideList(3)
 SELECT CASE(ElemType)
 CASE(108,118,208)
   ! Hexahedral elements
+  !                      CGNS sides and corner nodes
+  !
+  !                       c8                       c7
+  !                         +---------------------+
+  !                        /|                    /|
+  !   Top: S6             / |                   / |
+  !   Bot: S1            /  |        /         /  |
+  ! Front: S2           /   |    --S6--       /   |
+  !  Back: S4          /    |     /   S4     /    |
+  !  Left: S5         /     |               /     |
+  ! Right: S3     c5 +---------------------+ c6   |
+  !                  |  S5  |              |  S3  |
+  !   zeta,k         |   c4 +--------------|------+ c3
+  !      |   eta,j   |     /               |     /
+  !      |  /        |    /    S2    /     |    /
+  !      | /         |   /       --S1--    |   /
+  !      |/_____xi,i |  /         /        |  /
+  !                  | /                   | /
+  !                  |/                    |/
+  !                  +---------------------+
+  !               c1                        c2
+  !
   SELECT CASE(iLocNode)
   CASE(1)
     LocSideList=(/1,2,5/)
