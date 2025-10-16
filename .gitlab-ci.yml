@@ -1059,12 +1059,11 @@ NIG_PIC_poisson_RK3:
   script:
     - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_RK3/
 
-# TODO: Re-name/structure NIG_PIC_poisson_Boris-Leapfrog to WEK_PIC_poisson_Boris-Leapfrog in branch feature.p.adaption
-NIG_PIC_poisson_Boris-Leapfrog:
+WEK_PIC_poisson_Boris-Leapfrog:
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_Boris-Leapfrog/
+    - cd build ; reggie ../regressioncheck/WEK_PIC_poisson_Boris-Leapfrog/
 
 NIG_PIC_poisson_Leapfrog_Release:
   <<: *defaults_nightly
