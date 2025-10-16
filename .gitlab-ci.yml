@@ -813,7 +813,7 @@ run_build_petsc_in_piclas:
   <<: *defaults_poisson_build_petsc_lib
   stage: reggie_weekly
   script:
-    - cd build_petsc_lib ; reggie ../regressioncheck/NIG_poisson_PETSC -e ./bin/piclas
+    - cd build_petsc_lib ; reggie ../regressioncheck/WEK_poisson_PETSC -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
@@ -1096,12 +1096,11 @@ NIG_poisson:
   script:
     - cd build ; reggie ../regressioncheck/NIG_poisson/
 
-# TODO: Re-name/structure NIG_poisson_PETSC-Leapfrog to WEK_poisson_PETSC-Leapfrog in branch feature.p.adaption
-NIG_poisson_PETSC:
+WEK_poisson_PETSC:
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build ; reggie ../regressioncheck/NIG_poisson_PETSC/
+    - cd build ; reggie ../regressioncheck/WEK_poisson_PETSC/
 
 NIG_maxwell_RK4:
   <<: *defaults_nightly
