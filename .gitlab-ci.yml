@@ -1041,19 +1041,17 @@ NIG_convtest_t_poisson:
   script:
     - cd build ;  reggie ../regressioncheck/NIG_convtest_t_poisson
 
-# TODO: Re-name/structure NIG_convtest_poisson_Release to WEK_convtest_poisson_Release in branch feature.p.adaption
-NIG_convtest_poisson_Release:
+WEK_convtest_poisson_Release:
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build ;  reggie ../regressioncheck/NIG_convtest_poisson
+    - cd build ;  reggie ../regressioncheck/WEK_convtest_poisson
 
-# TODO: Re-name/structure NIG_convtest_poisson_Debug to WEK_convtest_poisson_Debug in branch feature.p.adaption
-NIG_convtest_poisson_Debug: # This uses the same reggie as /NIG_convtest_poisson but compile everything with CMAKE_BUILD_TYPE = Debug
+WEK_convtest_poisson_Debug: # This uses the same reggie as WEK_convtest_poisson but compile everything with CMAKE_BUILD_TYPE = Debug
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build ;  reggie -t Debug ../regressioncheck/NIG_convtest_poisson
+    - cd build ;  reggie -t Debug ../regressioncheck/WEK_convtest_poisson
 
 NIG_PIC_poisson_RK3:
   <<: *defaults_nightly
