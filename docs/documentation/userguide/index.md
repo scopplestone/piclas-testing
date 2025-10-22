@@ -10,7 +10,7 @@ Each of these models, some of which can be combined, offer distinctive features 
   Statistical) models for continuum gas flows
 * Line-by-line radiation solver and photon Monte Carlo radiation transport
 * Raytracing and photo-ionization module
-* Arbitrary order nodal polynomial tensor product basis using Gauss or Gauss Lobatto collocation points for electrostatic and
+* Variable order nodal polynomial tensor product basis using Gauss or Gauss Lobatto collocation points for electrostatic and
   electromagnetic solvers
 * Matching high order curved mesh generation from external mesh formats (CGNS, GMSH) or
   simple analytic blocks via the open source preprocessor [HOPR](https://github.com/hopr-framework/hopr) {cite}`Hindenlang2015`

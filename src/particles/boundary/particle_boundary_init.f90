@@ -78,6 +78,13 @@ CALL prms%CreateLogicalOption('Part-Boundary[$]-Dielectric' , 'Define if particl
                               , '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Part-Boundary[$]-PermittivityVDL', 'Permittivity of the virtual dielectric layer model. Impacting particles will be removed and deposited in the volume via CVWM.', '0.0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Part-Boundary[$]-ThicknessVDL'   , 'Thickness of the real dielectric layer in the virtual dielectric layer model. Impacting particles will be removed and deposited in the volume via CVWM.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption('Part-Boundary[$]-UseSurfaceCharge' , '2D surface charging via particle deposition on surfaces (PIC). ', '.FALSE.', numberedmulti=.TRUE.)
+#if USE_HDG
+CALL prms%CreateRealOption(   'Part-Boundary[$]-DC-BiasVoltage'         ,'Distributed Capacitance bias voltage (phi)'             , '0.0' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Part-Boundary[$]-DC-Permittivity'        ,'Distributed Capacitance relative permittivity (eps_r)'  , '1.0' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Part-Boundary[$]-DC-SurfaceChargeDensity','Distributed Capacitance surface charge density (sigma)' , '0.0' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Part-Boundary[$]-DC-Thickness'           ,'Distributed Capacitance thickness (d)'                  , '1.0' , numberedmulti=.TRUE.)
+#endif /*USE_HDG*/
 CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput' , 'Define if the properties of particles impacting on '//&
                               'boundary [$] are to be stored in an additional .h5 file for post-processing analysis [.TRUE.] '//&
                               'or not [.FALSE.].', '.FALSE.', numberedmulti=.TRUE.)
@@ -212,6 +219,7 @@ USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_ReadInTools
+USE MOD_StringTools            ,ONLY: STRICMP
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
@@ -219,7 +227,7 @@ USE MOD_Particle_Vars          ,ONLY: nSpecies, PartMeshHasPeriodicBCs, RotRefFr
 USE MOD_Particle_Vars          ,ONLY: InterPlanePartIndx, PDM
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,DoVirtualDielectricLayer
-USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
+USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary,Do2DSurfaceCharge
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesBoundary
@@ -378,6 +386,20 @@ PartBound%PermittivityVDL = 0.0
 ALLOCATE(PartBound%ThicknessVDL(1:nPartBound))
 PartBound%ThicknessVDL = 0.0
 DoVirtualDielectricLayer  = .FALSE.
+! 2D surface charging
+ALLOCATE(PartBound%UseSurfaceCharge(1:nPartBound))
+PartBound%UseSurfaceCharge = .FALSE.
+Do2DSurfaceCharge = .FALSE.
+#if USE_HDG
+ALLOCATE(PartBound%DCBiasVoltage(1:nPartBound))
+PartBound%DCBiasVoltage = 0.0
+ALLOCATE(PartBound%DCPermittivity(1:nPartBound))
+PartBound%DCPermittivity = 0.0
+ALLOCATE(PartBound%DCSurfaceChargeDensity(1:nPartBound))
+PartBound%DCSurfaceChargeDensity = 0.0
+ALLOCATE(PartBound%DCThickness(1:nPartBound))
+PartBound%DCThickness = 0.0
+#endif /*USE_HDG*/
 ! Surface particle output to .h5
 ALLOCATE(PartBound%BoundaryParticleOutputHDF5(1:nPartBound))
 PartBound%BoundaryParticleOutputHDF5=.FALSE.
@@ -523,6 +545,8 @@ DO iPartBound=1,nPartBound
         AnyBoundaryUsesSEE = .TRUE.
       CASE (VDL_MODEL_ID) ! VDL - cannot be actively selected! See ./src/piclas.h for numbers
         CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-SurfaceModel = VDL_MODEL_ID,SEE_VDL_MODEL_ID cannot be selected!')
+      CASE (SURF_CHARGE_ID) ! SURF_CHARGE_ID - cannot be actively selected! See ./src/piclas.h for numbers
+        CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-SurfaceModel = SURF_CHARGE_ID cannot be selected!')
       CASE DEFAULT
         CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,1,2,20,SEE_MODELS_ID! SurfaceModel=',&
                   IntInfoOpt=PartBound%SurfaceModel(iPartBound))
@@ -562,8 +586,7 @@ DO iPartBound=1,nPartBound
     ! Virtual dielectric layer (VDL)
     PartBound%PermittivityVDL(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-PermittivityVDL')
     IF(PartBound%PermittivityVDL(iPartBound).GT.0.0)THEN
-      IF(.NOT.DoDeposition) CALL abort(__STAMP__,&
-        'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires PIC-DoDeposition=T')
+      IF(.NOT.DoDeposition) CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires PIC-DoDeposition=T')
       IF(TRIM(DepositionType).NE.'cell_volweight_mean') CALL CollectiveStop(__STAMP__,&
         'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires cell_volweight_mean (12) as deposition method')
       IF(PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0) CALL CollectiveStop(__STAMP__,&
@@ -582,13 +605,49 @@ DO iPartBound=1,nPartBound
       DoDielectricSurfaceCharge          = .TRUE. ! Global setting indicating surface charging via VDL or PartBound%Dielectric
       DoHaloDepo                         = .TRUE. ! Activate deposition in the halo region (shape function)
       ! Check if pure VDL or SEE+VDL boundary. Only set SurfaceModel=99 when not other model is present
-      IF(.NOT.BoundaryUsesSEE) PartBound%SurfaceModel(iPartBound) = 99 ! VDL only
+      IF(.NOT.BoundaryUsesSEE) PartBound%SurfaceModel(iPartBound) = VDL_MODEL_ID ! VDL only
 #if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))
       CALL abort(__STAMP__,'VDL model not implemented for the given time discretisation!')
 #endif /*!((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))*/
     ELSEIF(PartBound%PermittivityVDL(iPartBound).LT.0.0)THEN
       CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL cannot be negative')
     END IF ! PartBound%PermittivityVDL(iPartBound)
+
+    ! 2D Surface charging
+    PartBound%UseSurfaceCharge(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseSurfaceCharge')
+    IF (PartBound%UseSurfaceCharge(iPartBound)) THEN
+      IF(.NOT.DoDeposition) CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires PIC-DoDeposition=T')
+      IF(TRIM(DepositionType).NE.'cell_volweight_mean') CALL CollectiveStop(__STAMP__,&
+        'Part-Boundary'//TRIM(hilf)//'-UseSurfaceCharge = T requires cell_volweight_mean (12) as deposition method')
+      IF(PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0) CALL CollectiveStop(__STAMP__,&
+        'Part-Boundary'//TRIM(hilf)//'-UseSurfaceCharge = T cannot be combined with Part-Boundary'//TRIM(hilf)//'-NbrOfSpeciesSwaps')
+      IF(PartBound%Dielectric(iPartBound)) CALL CollectiveStop(__STAMP__,&
+        'Part-Boundary'//TRIM(hilf)//'-UseSurfaceCharge = T cannot be combined with Part-Boundary'//TRIM(hilf)//'-Dielectric')
+      IF(PartBound%PermittivityVDL(iPartBound).GT.0.0) CALL CollectiveStop(__STAMP__,&
+        'Part-Boundary'//TRIM(hilf)//'-UseSurfaceCharge = T cannot be combined with Part-Boundary'//TRIM(hilf)//'-PermittivityVDL')
+#if USE_HDG
+      ! TODO: What should be done with DoDirichletDeposition=T/F (can both options be used or must it be either T or F?)
+      ! IF(DoDirichletDeposition) CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires PIC-DoDirichletDeposition=F')
+#endif /*USE_HDG*/
+      ! VDL settings
+      Do2DSurfaceCharge              = .TRUE. ! Global setting indicating that 2d surface charging is active
+      PartBound%Reactive(iPartBound) = .TRUE. ! Surface charge requires reactive BC for analysis
+      DoHaloDepo                     = .TRUE. ! Activate deposition in the halo region (shape function)
+      ! Check if pure 2D surface charging or SEE+surface charging boundary. Only set SurfaceModel=999 when not other model is present
+      IF(.NOT.BoundaryUsesSEE) PartBound%SurfaceModel(iPartBound) = SURF_CHARGE_ID ! surface charging only
+#if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))
+      CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-UseSurfaceCharge = T model not implemented for the given time discretisation!')
+#endif /*!((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))*/
+    END IF ! PartBound%UseSurfaceCharge(iPartBound)
+
+#if USE_HDG
+    ! DCBC - Distributed Capacitance BC
+    PartBound%DCBiasVoltage(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-DC-BiasVoltage')
+    PartBound%DCPermittivity(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-DC-Permittivity')
+    PartBound%DCSurfaceChargeDensity(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-DC-SurfaceChargeDensity')
+    PartBound%DCThickness(iPartBound)            = GETREAL('Part-Boundary'//TRIM(hilf)//'-DC-Thickness')
+    IF(PartBound%DCThickness(iPartBound).LE.0.0) CALL CollectiveStop(__STAMP__, 'ERROR: DC-Thickness <= 0')
+#endif /*USE_HDG*/
 
 
   CASE('periodic')
@@ -624,6 +683,8 @@ DO iPartBound=1,nPartBound
     SWRITE(*,*) ' Boundary does not exist: ', TRIM(tmpString)
     CALL abort(__STAMP__,'Particle Boundary Condition does not exist')
   END SELECT
+
+  ! Get boundary condition name
   PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
   ! Surface particle output to .h5
   PartBound%BoundaryParticleOutputHDF5(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput')
@@ -631,7 +692,8 @@ DO iPartBound=1,nPartBound
     DoBoundaryParticleOutputHDF5=.TRUE.
     PartBound%BoundaryParticleOutputEmission(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput-Emission')
   END IF
-END DO
+
+END DO ! iPartBound=1,nPartBound
 
 ! Check if there is an particle init with photon SEE
 FoundPartBoundPhotonSEE=.FALSE.
@@ -645,7 +707,7 @@ SpecLoop: DO iSpec=1,nSpecies
 END DO SpecLoop
 
 ! Connect emission inits to particle boundaries for output
-IF(DoBoundaryParticleOutputHDF5.OR.FoundPartBoundPhotonSEE) CALL InitializeVariablesSpeciesBoundary()
+CALL InitializeVariablesSpeciesBoundary(FoundPartBoundPhotonSEE)
 
 PartBound%AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
@@ -669,11 +731,31 @@ DO iPBC=1,nPartBound
         CALL abort(__STAMP__,' Analyze-BCs cannot be used for internal reflection in general cases! ')
       END IF
     END IF
-    IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
+    ! Check if names are equal: Use case insensitive string comparison
+    IF (STRICMP(BoundaryName(iBC),PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
       PartBound%MapToFieldBC(iPBC) = iBC ! part BC to field BC
       LBWRITE(*,*) "| Mapped PartBound",iPBC,"on FieldBound", iBC,", i.e.: ",TRIM(BoundaryName(iBC))
+
+#if USE_HDG
+      ! DCBC - Distributed Capacitance BC - requires boundary condition reflective
+    IF (BoundaryType(iBC,BC_TYPE).EQ.30) THEN
+      WRITE(UNIT=hilf,FMT='(I0)') iPBC
+      ! Check if BC is reflective
+      IF (PartBound%TargetBoundCond(iPBC).NE.PartBound%ReflectiveBC) THEN
+        SWRITE(*,*) 'BoundaryType(iBC,BC_TYPE):      ', BoundaryType(iBC,BC_TYPE)
+        SWRITE(*,*) 'PartBound%TargetBoundCond(iPBC):', (PartBound%TargetBoundCond(iPBC))
+        SWRITE(*,*) 'PartBound%ReflectiveBC:         ', PartBound%ReflectiveBC
+        CALL CollectiveStop(__STAMP__, 'ERROR: BCType=30 requires Part-Boundary'//TRIM(hilf)//'-Condition = reflective')
+      END IF ! PartBound%TargetBoundCond(iPBC).NE.PartBound%ReflectiveBC
+      ! Check that surface charging is actiavted as well
+      IF (.NOT.Do2DSurfaceCharge) THEN
+        CALL CollectiveStop(__STAMP__, 'ERROR: BCType=30 requires Part-Boundary'//TRIM(hilf)//'-UseSurfaceCharge = T')
+      END IF ! .NOT.Do2DSurfaceCharge
+    END IF ! BoundaryType(iBC,BC_TYPE).EQ.30
+#endif /*USE_HDG*/
     END IF
+
   END DO
 END DO
 ! Errorhandler for PartBound-Types that could not be mapped to the FieldBound-Types
@@ -691,7 +773,7 @@ DO iPartBound=1,nPartBound
   BCdata_auxSF(iPartBound)%SideNumber=-1 ! initial value deactivates the mapping of sides (when required for surface flux is set to 0)
   BCdata_auxSF(iPartBound)%GlobalArea=0.
   BCdata_auxSF(iPartBound)%LocalArea=0.
-END DO
+END DO ! iPartBound=1,nPartBound
 
 !-- Surface model: Sticking coefficient
 IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
@@ -2455,6 +2537,13 @@ SDEALLOCATE(PartBound%BoundaryParticleOutputEmission)
 SDEALLOCATE(PartBound%RadiativeEmissivity)
 SDEALLOCATE(PartBound%PermittivityVDL)
 SDEALLOCATE(PartBound%ThicknessVDL)
+SDEALLOCATE(PartBound%UseSurfaceCharge)
+#if USE_HDG
+SDEALLOCATE(PartBound%DCBiasVoltage)
+SDEALLOCATE(PartBound%DCPermittivity)
+SDEALLOCATE(PartBound%DCSurfaceChargeDensity)
+SDEALLOCATE(PartBound%DCThickness)
+#endif /*USE_HDG*/
 
 ! Mapping arrays are allocated even if the node does not have sampling surfaces
 #if USE_MPI

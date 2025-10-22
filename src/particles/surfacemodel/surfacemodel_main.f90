@@ -52,7 +52,7 @@ USE MOD_Globals                   ,ONLY: myrank
 USE MOD_Globals_Vars              ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
-USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample, nSurfSample
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample, Do2DSurfaceCharge, nSurfSample
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSideSamplingMidPoints
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfModEnergyDistribution, ImpactWeight
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
@@ -66,7 +66,7 @@ USE MOD_SurfaceModel_Chemistry    ,ONLY: SurfaceModelChemistry, SurfaceModelEven
 USE MOD_SEE                       ,ONLY: SecondaryElectronEmissionYield
 USE MOD_SurfaceModel_Porous       ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
-USE MOD_PICDepo_Tools             ,ONLY: DepositParticleOnNodes
+USE MOD_PICDepo_Tools             ,ONLY: DepositParticleOnNodes,DepositParticleOnSurface
 USE MOD_part_operations           ,ONLY: RemoveParticle, CreateParticle
 USE MOD_part_tools                ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF, VeloFromDistribution, GetParticleWeight
 USE MOD_PICDepo_Vars              ,ONLY: DoDeposition
@@ -120,7 +120,7 @@ IF(usevMPF)THEN
 ELSE
   ImpactWeight = Species(PartSpecImpact)%MacroParticleFactor
 END IF ! usevMPF
-IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) THEN ! Surface charging active + dielectric surface contact
+IF(Do2DSurfaceCharge.OR.(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID))) THEN ! Surface charging active
   ChargeImpact = Species(PartSpecImpact)%ChargeIC*ImpactWeight
 END IF
 !===================================================================================================================================
@@ -281,6 +281,11 @@ CASE (VDL_MODEL_ID)  ! Virtual dielectric layer (VDL)
   ! and before the particle is deposited and removed, the species index cannot be used anymore
   CALL VirtualDielectricLayerDisplacement(PartID,SideID,n_Loc)
 #endif /*USE_HDG*/
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE (SURF_CHARGE_ID)  ! 2D Surface Charging
+!-----------------------------------------------------------------------------------------------------------------------------------
+  ! Kill the impacting particle: This routine also calls UpdateBPO()
+  CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
 CASE DEFAULT
   CALL abort(__STAMP__,'Unknown surface model. PartBound%SurfaceModel(locBCID) = ',IntInfoOpt=PartBound%SurfaceModel(locBCID))
 END SELECT
@@ -288,7 +293,7 @@ END SELECT
 !===================================================================================================================================
 ! 4.) PIC ONLY: Deposit charges on dielectric surface (when activated), if these were removed/changed in SurfaceModel
 !===================================================================================================================================
-IF(DoDeposition.AND.DoDielectricSurfaceCharge) THEN ! Surface charging active
+IF(Do2DSurfaceCharge.OR.(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID))) THEN ! Surface charging active
 
   ! Method 1: PartBound%Dielectric = T (dielectric boundary)
   IF(PartBound%Dielectric(locBCID))THEN
@@ -330,6 +335,13 @@ IF(DoDeposition.AND.DoDielectricSurfaceCharge) THEN ! Surface charging active
     END IF ! .NOT.PDM%ParticleInside(PartID)
   END IF ! ABS(PartBound%PermittivityVDL(locBCID)).GT.0.0
 #endif /*USE_HDG*/
+
+  ! Method 3: 2D Surface Charging
+  IF (PartBound%UseSurfaceCharge(locBCID)) THEN
+    ! Deposit the charge
+    CALL DepositParticleOnSurface(ChargeImpact, PartPosImpact, GlobalElemID, SideID)
+  END IF ! PartBound%UseSurfaceCharge(locBCID)
+
 END IF ! DoDeposition.AND.DoDielectricSurfaceCharge
 
 !===================================================================================================================================

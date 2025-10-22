@@ -27,6 +27,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: ReadNodeSourceExtFromHDF5
+PUBLIC :: ReadSurfNodeSourceFromHDF5
 PUBLIC :: ReadEmissionVariablesFromHDF5
 !===================================================================================================================================
 
@@ -64,7 +65,6 @@ USE MOD_Interpolation_Vars     ,ONLY: NMax,NMin
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
@@ -251,6 +251,57 @@ IF(DG_SourceExtExists)THEN
 END IF ! DG_SourceExtExists
 
 END SUBROUTINE ReadNodeSourceExtFromHDF5
+
+
+!===================================================================================================================================
+!> Read SurfNodeSource from State.h5 file, which is stored as SurfNodeSource (FEMVertex type field).
+!===================================================================================================================================
+SUBROUTINE ReadSurfNodeSourceFromHDF5()
+USE MOD_Globals
+USE MOD_PreProc
+! USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
+USE MOD_HDF5_Input             ,ONLY: ReadArray,GetDataSize,nDims,HSize
+USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists
+USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource,nDepoSurfNodesTotal
+! USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
+! USE MOD_Interpolation          ,ONLY: GetVandermonde
+! USE MOD_Mesh_Vars              ,ONLY: offsetElem,nElems
+! USE MOD_Mesh_Tools             ,ONLY: GetCNElemID,GetGlobalElemID
+! USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes!,NodeToElemMapping,NodeToElemInfo
+! USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt,NodeVolume,DoDeposition
+! USE MOD_Restart_Vars           ,ONLY: N_Restart
+! USE MOD_DG_vars                ,ONLY: N_DG_Mapping
+! USE MOD_Interpolation_Vars     ,ONLY: NMax,NMin
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255),PARAMETER :: SurfNodeSourceDataset='SurfNodeSource'
+INTEGER                      :: offsetFEMVertex
+LOGICAL                      :: SurfNodeSourceExists
+!===================================================================================================================================
+#if USE_MPI
+CALL abort(__STAMP__,'MPI read-in not implemented in ReadSurfNodeSourceFromHDF5()')
+#endif /*USE_MPI*/
+
+CALL DatasetExists(File_ID,TRIM(SurfNodeSourceDataset),SurfNodeSourceExists)
+
+IF(SurfNodeSourceExists)THEN
+  ! Get process offset
+  offsetFEMVertex = 0
+  ! Sanity check
+  IF(.NOT.ALLOCATED(SurfNodeSource)) CALL abort(__STAMP__,'Error in ReadSurfNodeSourceFromHDF5(): SurfNodeSource not allocated.')
+  IF(nDepoSurfNodesTotal.LE.0) CALL abort(__STAMP__,'Error in ReadSurfNodeSourceFromHDF5(): nDepoSurfNodesTotal<=0')
+  ! Allocate local 2D array
+  CALL ReadArray(TRIM(SurfNodeSourceDataset),1,(/INT(nDepoSurfNodesTotal,IK)/),INT(offsetFEMVertex,IK),1,RealArray=SurfNodeSource)
+ELSE
+  CALL abort(__STAMP__,'Error in ReadSurfNodeSourceFromHDF5(): Cannot find '//TRIM(SurfNodeSourceDataset)//' in state file.')
+END IF ! SurfNodeSourceExists
+
+END SUBROUTINE ReadSurfNodeSourceFromHDF5
 
 
 !===================================================================================================================================

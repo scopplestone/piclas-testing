@@ -66,7 +66,7 @@ CALL prms%CreateIntOption(    'HDGSkip'                ,'Number of time step ite
 CALL prms%CreateIntOption(    'HDGSkipInit'            ,'Number of time step iterations until the HDG solver is called (i.e. all intermediate calls are skipped) while time < HDGSkip_t0 (if HDGSkip > 0)', '0')
 CALL prms%CreateRealOption(   'HDGSkip_t0'             ,'Time during which HDGSkipInit is used instead of HDGSkip (if HDGSkip > 0)', '0.')
 CALL prms%CreateLogicalOption('HDGDisplayConvergence'  ,'Display divergence criteria: Iterations, RunTime and Residual', '.FALSE.')
-CALL prms%CreateRealArrayOption( 'EPC-Resistance'      , 'Vector (length corresponds to the number of EPC boundaries) with the resistance for each EPC in Ohm', no=0)
+CALL prms%CreateRealArrayOption( 'EPC-Resistance'      ,'Vector (length corresponds to the number of EPC boundaries) with the resistance for each EPC in Ohm', no=0)
 CALL prms%CreateLogicalOption('HDGNSideMin'            ,'Use the minimum polynomial degree at the sides for the HDG solver', '.FALSE.')
 #if defined(PARTICLES)
 CALL prms%CreateLogicalOption(  'UseBiasVoltage'              , 'Activate usage of bias voltage adjustment (for specific boundaries only)', '.FALSE.')
@@ -376,6 +376,7 @@ END IF !mortarMesh
 nDirichletBCsides=0
 nNeumannBCsides  =0
 nConductorBCsides=0
+nDistriCapBCsides=0
 DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
@@ -386,6 +387,9 @@ DO SideID=1,nBCSides
     nNeumannBCsides=nNeumannBCsides+1
   CASE(20) ! Conductor: Floating Boundary Condition (FPC)
     nConductorBCsides=nConductorBCsides+1
+  CASE(30) ! Distributed Capacitance
+    ! TODO DC
+    nDistriCapBCsides=nDistriCapBCsides+1
   CASE DEFAULT ! unknown BCType
     CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
   END SELECT ! BCType
@@ -422,12 +426,14 @@ IF(nNeumannBCsides  .GT.0)THEN
   ALLOCATE(NeumannBC(nNeumannBCsides))
 END IF
 IF(nConductorBCsides.GT.0)ALLOCATE(ConductorBC(nConductorBCsides))
+IF(nDistriCapBCsides.GT.0)ALLOCATE(DistriCapBC(nDistriCapBCsides))
 #if (PP_nVar!=1)
   IF(nDirichletBCsides.GT.0)ALLOCATE(qn_face_MagStat(PP_nVar, nGP_face(PP_N),nDirichletBCsides))
 #endif
 nDirichletBCsides=0
 nNeumannBCsides  =0
 nConductorBCsides=0
+nDistriCapBCsides=0
 DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
@@ -443,6 +449,10 @@ DO SideID=1,nBCSides
     nConductorBCsides=nConductorBCsides+1
     ConductorBC(nConductorBCsides)=SideID
     MaskedSide(SideID)=2
+  CASE(30) ! Distributed Capacitance
+    ! TODO DC
+    nDistriCapBCsides=nDistriCapBCsides+1
+    DistriCapBC(nDistriCapBCsides)=SideID
   CASE DEFAULT ! unknown BCType
     CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
   END SELECT ! BCType
@@ -1181,6 +1191,7 @@ SDEALLOCATE(FPC%Group)
 SDEALLOCATE(FPC%BCState)
 SDEALLOCATE(FPC%VoltageProc)
 SDEALLOCATE(FPC%ChargeProc)
+SDEALLOCATE(DistriCapBC)
 #if USE_MPI
 DO iBC = 1, FPC%nUniqueFPCBounds
   IF(FPC%COMM(iBC)%UNICATOR.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(FPC%COMM(iBC)%UNICATOR,iERROR)
@@ -1227,16 +1238,16 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
     ! TODO NSideMin - What?
     lambdaLB=0.
   END ASSOCIATE
-  IF(nProcessors.GT.1) CALL GetMasteriLocSides()
+  IF(nProcessors.GT.1) CALL GetMasteriLocSides() ! Builds iLocSides, which is required in LambdaSideToMaster()
   DO iSide = 1, nSides
     NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,iSide)
 
-    CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSide)
+    CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSide) ! Requires iLocSides array
     ! Check if the same global unique side is encountered twice and store both global non-unique side IDs in the array
     ! SideToNonUniqueGlobalSide(1:2,iSide)
     IF(SideToNonUniqueGlobalSide(2,iSide).NE.-1)THEN
       NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(2,iSide)
-      CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSide)
+      CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSide) ! Requires iLocSides array
     END IF ! SideToNonUniqueGlobalSide(1,iSide).NE.-1
 
   END DO ! iSide = 1, nSides

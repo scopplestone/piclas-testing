@@ -25,8 +25,9 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: InitpAdaption
+PUBLIC :: GetLocSideList
 #if !(PP_TimeDiscMethod==700)
-PUBLIC::Set_N_DG_Mapping
+PUBLIC :: Set_N_DG_Mapping
 #endif /*!(PP_TimeDiscMethod==700)*/
 
 INTEGER,PARAMETER,PUBLIC :: PRM_P_ADAPTION_DBG2 = -2 ! Debugging
@@ -280,7 +281,7 @@ GlobalElemIDLoop: DO iGlobalElemID = FirstElemInd, LastElemInd
   VertexConnectLoop: DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
     ! Check if current element has already been flagged
     IF(N_DG(iElem).EQ.NMax) EXIT VertexConnectLoop
-    ! Get neighbour infos
+    ! Get neighbour infos. Note the ABS() for +/- master/slave notation
     GlobalNbElemID      = ABS(VertexConnectInfo(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
     GlobalNbLocVertexID = VertexConnectInfo(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
     ! Set sides depending on the element type: Only implemented for Hexahedral elements
@@ -550,10 +551,14 @@ ELSE
 END IF
 #endif /*USE_LOADBALANCE*/
 END SUBROUTINE Build_N_DG_Mapping
+#endif /*!(PP_TimeDiscMethod==700)*/
 
 
 !===================================================================================================================================
 !> Returns a list of sides (depending on the CGNS ordering) for a given local corner node index
+!> The ordering is described in the HOPR documentation: https://hopr.readthedocs.io/en/latest/_images/CGNS_edges.jpg
+!> iVertexID are CGNS sorted and NonUniqueGlobalNodeID are not (use the CNS - corner node switch - to map between the two in the
+!> local system)
 !===================================================================================================================================
 SUBROUTINE GetLocSideList(ElemType,iLocNode,LocSideList)
 ! MODULES
@@ -571,6 +576,28 @@ INTEGER, INTENT(OUT) :: LocSideList(3)
 SELECT CASE(ElemType)
 CASE(108,118,208)
   ! Hexahedral elements
+  !                      CGNS sides and corner nodes
+  !
+  !                       c8                       c7
+  !                         +---------------------+
+  !                        /|                    /|
+  !   Top: S6             / |                   / |
+  !   Bot: S1            /  |        /         /  |
+  ! Front: S2           /   |    --S6--       /   |
+  !  Back: S4          /    |     /   S4     /    |
+  !  Left: S5         /     |               /     |
+  ! Right: S3     c5 +---------------------+ c6   |
+  !                  |  S5  |              |  S3  |
+  !   zeta,k         |   c4 +--------------|------+ c3
+  !      |   eta,j   |     /               |     /
+  !      |  /        |    /    S2    /     |    /
+  !      | /         |   /       --S1--    |   /
+  !      |/_____xi,i |  /         /        |  /
+  !                  | /                   | /
+  !                  |/                    |/
+  !                  +---------------------+
+  !               c1                        c2
+  !
   SELECT CASE(iLocNode)
   CASE(1)
     LocSideList=(/1,2,5/)
@@ -595,6 +622,5 @@ CASE DEFAULT
   CALL abort(__STAMP__,'Element type not implemented: ElemType =',IntInfoOpt=ElemType)
 END SELECT
 END SUBROUTINE GetLocSideList
-#endif /*!(PP_TimeDiscMethod==700)*/
 
 END MODULE MOD_Mesh_pAdaption

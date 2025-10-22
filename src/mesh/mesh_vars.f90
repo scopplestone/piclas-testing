@@ -145,6 +145,13 @@ INTEGER,ALLOCATABLE :: EdgeConnectInfo(:,:)    !< array containing the nbElemID 
                                                !< mesh file
 INTEGER,ALLOCATABLE :: VertexInfo(:,:)         !< array containing the FEMID and connectivity of the vertices as stored in the
                                                !< mesh file
+#if USE_MPI
+INTEGER,ALLOCATABLE :: VertexInfoGlobal(:,:)         !< array containing the global FEMID and connectivity of the FEM vertices
+INTEGER,ALLOCATABLE :: VertexConnectInfoGlobal(:,:)  !< array containing the global nbElemID and locNodeID of the FEM vertices
+#endif /*USE_MPI*/
+INTEGER,ALLOCATABLE :: NonUniqueGlobalNodeIDToFEMVertexID(:) !< Mapping from nonunique vertex ID to unique FEM vertex ID
+INTEGER,ALLOCATABLE :: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(:,:) !< Mapping from nonunique Side ID to non-unique corner node IDs
+                                                                         !< 1-4: NodeIDs
 INTEGER,ALLOCATABLE :: VertexConnectInfo(:,:)  !< array containing the nbElemID and locNodeID of the vertices as stored in the
                                                !< mesh file
 INTEGER,ALLOCATABLE :: SideToNonUniqueGlobalSide(:,:)     !< maps the local SideIDs to global SideIDs (for parallel HDG load balance currently)
@@ -191,7 +198,7 @@ INTEGER          :: nFEMVertices
 INTEGER          :: nFEMEdgeConnections
 INTEGER          :: nFEMVertexConnections
 INTEGER          :: nNonUniqueGlobalEdges
-INTEGER          :: nNonUniqueGlobalVertices
+INTEGER          :: nNonUniqueGlobalVertices !< This is 'nVertices' from mesh.h5
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Define index ranges for all sides in consecutive order for easier access
 INTEGER             :: firstBCSide             !< First SideID of BCs (in general 1)

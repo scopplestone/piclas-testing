@@ -19,30 +19,130 @@ MODULE MOD_PICDepo_Tools
 IMPLICIT NONE
 PRIVATE
 !===================================================================================================================================
-INTERFACE DepositParticleOnNodes
-  MODULE PROCEDURE DepositParticleOnNodes
-END INTERFACE
-
-INTERFACE CalcCellLocNodeVolumes
-  MODULE PROCEDURE CalcCellLocNodeVolumes
-END INTERFACE
-
-INTERFACE ReadTimeAverage
-  MODULE PROCEDURE ReadTimeAverage
-END INTERFACE
-
-INTERFACE beta
-  MODULE PROCEDURE beta
-END INTERFACE
-
-INTERFACE DepositPhotonSEEHoles
-  MODULE PROCEDURE DepositPhotonSEEHoles
-END INTERFACE
-
 PUBLIC:: DepositParticleOnNodes,CalcCellLocNodeVolumes,ReadTimeAverage,beta,DepositPhotonSEEHoles
+PUBLIC:: DepositParticleOnSurface
 !===================================================================================================================================
 
 CONTAINS
+
+!===================================================================================================================================
+!> Deposit the charge of a single particle on the face on an element.
+!>
+!>   Example: Relationship between NonUniqueVertexID, NonUniqueNodeID and FEMVertexID
+!>              for the same side (periodic mesh in y- and z-direction)
+!>
+!>                               5                  5                  1
+!>                             /|                 /|                 /|
+!>       |y                   / |                / |                / |
+!>       |                   /  |               /  |               /  |
+!>       |                8 /   |            7 /   |            1 /   |
+!>       |______x          |    |             |    |             |    |
+!>       /                 |   / 4            |   / 3            |   / 1
+!>      /                  |  /               |  /               |  /
+!>     /z                  | /                | /                | /
+!>                         |/                 |/                 |/
+!>                        1                  1                  1
+!>                  NonUniqueVertexID    NonUniqueNodeID      FEMVertexID
+!>                     (iVertexInd)
+!>
+!===================================================================================================================================
+SUBROUTINE DepositParticleOnSurface(Charge,PartPos,GlobalElemID,NonUniqueGlobalSideID)
+! MODULES
+USE MOD_Globals
+! USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
+! USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+#if USE_LOADBALANCE
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
+USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
+#endif /*USE_LOADBALANCE*/
+! USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared
+#if USE_MPI
+USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSourceMPI
+#else
+USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource
+#endif /*USE_MPI*/
+USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID
+USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
+! USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID_Shared
+USE MOD_PICDepo_Vars       ,ONLY: FEMVertexID2DepoSurfNodeID,SurfNodeSymmetryFactor
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+REAL,INTENT(IN)                  :: Charge        !< Charge that is deposited on nodes
+REAL,INTENT(IN)                  :: PartPos(1:3)
+INTEGER,INTENT(IN)               :: GlobalElemID
+INTEGER,INTENT(IN)               :: NonUniqueGlobalSideID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+#if USE_LOADBALANCE
+REAL                             :: tLBStart
+#endif /*USE_LOADBALANCE*/
+INTEGER                          :: iNode
+REAL                             :: norm,PartDistDepo(4),DistSum
+INTEGER                          :: NonUniqueNodeID,FEMVertexID,iDepoSurfNodeID
+!===================================================================================================================================
+
+! Skip neutral and reflected particles. Deposit only particles that are deleted on the surface or change their charge on contact
+! (e.g. neutralization)
+IF(ABS(Charge).LE.0.0) RETURN
+
+#if USE_LOADBALANCE
+! Only measure time if particle is deposited on local proc
+IF(ElementOnProc(GlobalElemID)) CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
+
+#if USE_MPI
+! Single-core: Use SurfNodeSource directly as SurfNodeSourceMPI does not exist
+! Multi-core: Use local container SurfNodeSourceMPI, which is later exchanged
+! between the adjacent processes and then added to SurfNodeSourceExt
+ASSOCIATE( SurfNodeSource => SurfNodeSourceMPI )
+#endif
+  ! TODO: Check if node is connected to one or two symmetry BCs and increase the deposited charge on these nodes
+  ! Loop over the four side nodes
+  DO iNode = 1, 4
+    ! Get the non-unique node index
+    NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID)
+    ! Sanity check
+    IF(NonUniqueNodeID.LE.0) CALL abort(__STAMP__,'Wrong NonUniqueNodeID encountered in DepositParticleOnSurface()')
+    norm = VECNORM(NodeCoords_Shared(1:3,NonUniqueNodeID)-PartPos(1:3))
+    IF(norm.GT.0.)THEN
+      PartDistDepo(iNode) = 1./norm
+    ELSE
+      PartDistDepo(:) = 0.
+      PartDistDepo(iNode) = 1.0
+      EXIT
+    END IF ! norm.GT.0.
+  END DO ! iNode = 1, 4
+  DistSum = SUM(PartDistDepo(1:4))
+
+  ! Loop over the four side nodes
+  DO iNode = 1, 4
+    ! Get the non-unique node index
+    NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID)
+    ! Get the unique FEM vertex index
+    FEMVertexID = NonUniqueGlobalNodeIDToFEMVertexID(NonUniqueNodeID)
+    ! Get surface deposition node index
+    iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
+    ! Add charge contribution
+    IF (SurfNodeSymmetryFactor(NonUniqueNodeID).GT.0) THEN
+      SurfNodeSource(iDepoSurfNodeID) = SurfNodeSource(iDepoSurfNodeID) + PartDistDepo(iNode)/DistSum*Charge&
+                                                                          *REAL(SurfNodeSymmetryFactor(NonUniqueNodeID))
+    ELSE
+      SurfNodeSource(iDepoSurfNodeID) = SurfNodeSource(iDepoSurfNodeID) + PartDistDepo(iNode)/DistSum*Charge
+    END IF ! SurfNodeSymmetryFactor(NonUniqueNodeID).GT.0
+  END DO ! iNode = 1, 4
+#if USE_MPI
+END ASSOCIATE
+#endif
+
+#if USE_LOADBALANCE
+! Only measure time if particle is deposited on local proc
+IF(ElementOnProc(GlobalElemID)) CALL LBElemPauseTime(GlobalElemID-offsetElem,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
+END SUBROUTINE DepositParticleOnSurface
+
 
 !===================================================================================================================================
 !> Deposit surface charge of positive charges (electron holes) due to SEE from a surface
@@ -92,7 +192,7 @@ END SUBROUTINE DepositPhotonSEEHoles
 
 !===================================================================================================================================
 !> Deposit the charge of a single particle on the nodes corresponding to the deposition method 'cell_volweight_mean', where the
-!> charge is stored in NodeSourceExtTmp, which is added to NodeSource in the standard deposition procedure.
+!> charge is stored in NodeSourceExtMPI, which is added to NodeSource in the standard deposition procedure.
 !> Note that the corresponding volumes are not accounted for yet. The volumes are applied in the deposition routine.
 !===================================================================================================================================
 SUBROUTINE DepositParticleOnNodes(Charge,PartPos,GlobalElemID)
@@ -109,7 +209,7 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared
 #if USE_MPI
-USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtMPI
 #else
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt
 #endif /*USE_MPI*/
@@ -131,7 +231,7 @@ LOGICAL                          :: SucRefPos
 REAL                             :: norm,PartDistDepo(8),DistSum
 !===================================================================================================================================
 
-! Skip for neutral particles and reflected particles or species swapped particles where impacting and reflecting particle carry the
+! Skip neutral and reflected particles or species swapped particles where impacting and reflecting particle carry the
 ! same charge. Deposit only particles that are deleted on the surface or change their charge on contact (e.g. neutralization)
 IF(ABS(Charge).LE.0.0) RETURN
 
@@ -143,7 +243,10 @@ IF(ElementOnProc(GlobalElemID)) CALL LBStartTime(tLBStart) ! Start time measurem
 CALL GetPositionInRefElem(PartPos, TempPartPos(1:3), GlobalElemID, ForceMode = .TRUE., isSuccessful = SucRefPos)
 
 #if USE_MPI
-ASSOCIATE( NodeSourceExt => NodeSourceExtTmp )
+! Single-core: Use NodeSourceExt directly as NodeSourceExtMPI does not exist
+! Multi-core: Use local container NodeSourceExtMPI, which is later exchanged
+! between the adjacent processes and then added to NodeSourceExt
+ASSOCIATE( NodeSourceExt => NodeSourceExtMPI )
 #endif
   ! Check if GetPositionInRefElem was able to find the reference position (via ref. mapping), else use distance-based deposition
   IF(SucRefPos)THEN

@@ -26,12 +26,7 @@ TYPE NodeDepoMapping
 END TYPE
 !===================================================================================================================================
 PUBLIC:: Deposition, InitializeDeposition, FinalizeDeposition, DefineParametersPICDeposition
-#if USE_MPI
-PUBLIC :: ExchangeNodeSourceExtTmp
-#endif /*USE_MPI*/
-#if USE_HDG
-PUBLIC :: DepositVirtualDielectricLayerParticles
-#endif /*USE_HDG*/
+PUBLIC:: InitDepoSurfNodes
 !===================================================================================================================================
 
 CONTAINS
@@ -88,7 +83,7 @@ USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNo
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Interpolation_Vars     ,ONLY: N_Inter
-USE MOD_Mesh_Vars              ,ONLY: nElems,N_VolMesh, offSetElem
+USE MOD_Mesh_Vars              ,ONLY: nElems,N_VolMesh,offSetElem
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes, GEO
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
@@ -101,19 +96,19 @@ USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
 USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_MPI
-USE MOD_Mesh_Vars              ,ONLY: offsetElem,ELEM_RANK
-USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping,ElemNodeID_Shared,NodeInfo_Shared
+USE MOD_PICDepo_MPI            ,ONLY: InitDepoNodesMPI
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: nProcessors_Global
-USE MOD_MPI_Shared
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
+! USE MOD_MPI_Shared
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_Interpolation_Vars     ,ONLY: Nmin,Nmax
 USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
+USE MOD_Particle_Boundary_Vars ,ONLY: Do2DSurfaceCharge
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -122,32 +117,12 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
-INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm, iNode, Nloc
+INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm, Nloc
 CHARACTER(255)            :: TimeAverageFile
 #if USE_MPI
-INTEGER                   :: UniqueNodeID, testNode
-INTEGER                   :: GlobalRankToNodeSendDepoRank(0:nProcessors_Global-1)
-INTEGER                   :: jElem,TestElemID
-INTEGER                   :: NonUniqueNodeID
-INTEGER                   :: SendNodeCount, GlobalElemRank, iProc
-INTEGER                   :: GlobalElemRankOrig, iRank
-LOGICAL,ALLOCATABLE       :: DoNodeMapping(:), SendNode(:), IsDepoNode(:)
-LOGICAL                   :: bordersMyrank
-! Non-symmetric particle exchange
-TYPE(MPI_Request)         :: SendRequestNonSymDepo(0:nProcessors_Global-1)      , RecvRequestNonSymDepo(0:nProcessors_Global-1)
-INTEGER                   :: nSendUniqueNodesNonSymDepo(0:nProcessors_Global-1) , nRecvUniqueNodesNonSymDepo(0:nProcessors_Global-1)
-! TYPE NodeDepoMapping
-!   INTEGER               :: NodeID
-!   TYPE (NodeDepoMapping), POINTER :: next => NULL()
-! END TYPE
-TYPE tElemNodeDepoMap
-  TYPE (NodeDepoMapping), POINTER :: first => NULL()
-  LOGICAL               :: firstNode
-  INTEGER               :: nNodes
-END TYPE
-TYPE(tElemNodeDepoMap), ALLOCATABLE :: ElemNodeDepoMap(:)
-TYPE (NodeDepoMapping), POINTER :: node
+LOGICAL,ALLOCATABLE       :: DoNodeMapping(:), SendNode(:)
+#else
+INTEGER                   :: iNode
 #endif
 !===================================================================================================================================
 
@@ -290,285 +265,7 @@ CASE('cell_volweight_mean')
       )
 
 #if USE_MPI
-  IF(DoDielectricSurfaceCharge)THEN
-    ALLOCATE(NodeSourceExtTmp(1:nUniqueGlobalNodes))
-    NodeSourceExtTmp = 0.
-  END IF ! DoDielectricSurfaceCharge
-
-  DO iElem = 1,nComputeNodeTotalElems
-    IF (FlagShapeElem(iElem)) THEN
-      bordersMyrank = .FALSE.
-      ! Loop all local nodes
-      TestElemID = GetGlobalElemID(iElem)
-      GlobalElemRankOrig = ElemInfo_Shared(ELEM_RANK,TestElemID)
-      IF (DoHaloDepo.AND.(GlobalElemRankOrig.NE.myRank)) DoNodeMapping(GlobalElemRankOrig) = .TRUE.
-
-      DO iNode = 1, 8
-        NonUniqueNodeID = ElemNodeID_Shared(iNode,iElem)
-        UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
-        ! Loop 1D array [offset + 1 : offset + NbrOfElems]
-        ! (all CN elements that are connected to the local nodes)
-        DO jElem = NodeToElemMapping(1,UniqueNodeID) + 1, NodeToElemMapping(1,UniqueNodeID) + NodeToElemMapping(2,UniqueNodeID)
-          TestElemID = GetGlobalElemID(NodeToElemInfo(jElem))
-          GlobalElemRank = ElemInfo_Shared(ELEM_RANK,TestElemID)
-          IF (DoHaloDepo) THEN
-            SendNode(UniqueNodeID) = .TRUE.
-            IF (GlobalElemRank.NE.myRank) DoNodeMapping(GlobalElemRank) = .TRUE.
-          ELSE
-            IF (GlobalElemRank.EQ.myRank) THEN
-              bordersMyrank = .TRUE.
-              SendNode(UniqueNodeID) = .TRUE.
-            END IF
-          END IF
-        END DO
-        IF (.NOT.DoHaloDepo.AND.bordersMyrank) THEN
-          DoNodeMapping(GlobalElemRankOrig) = .TRUE.
-        END IF
-      END DO
-    END IF
-  END DO
-
-  ! Flag the unique deposition nodes per processor
-  nDepoNodes = 0
-  ALLOCATE(IsDepoNode(1:nUniqueGlobalNodes))
-  IsDepoNode = .FALSE.
-  DO iElem =1, nElems
-    TestElemID = GetCNElemID(iElem + offsetElem)
-    DO iNode = 1, 8
-      NonUniqueNodeID = ElemNodeID_Shared(iNode,TestElemID)
-      UniqueNodeID = NodeInfo_Shared(NonUniqueNodeID)
-      IsDepoNode(UniqueNodeID) = .TRUE.
-    END DO
-  END DO
-  ! Count the number of unique deposition nodes per processor
-  nDepoNodes = COUNT(IsDepoNode)
-  ! Add number of nodes to be sent
-  nDepoNodesTotal = nDepoNodes
-  DO iNode=1, nUniqueGlobalNodes
-    IF (.NOT.IsDepoNode(iNode).AND.SendNode(iNode)) THEN
-      nDepoNodesTotal = nDepoNodesTotal + 1
-    END IF
-  END DO
-  ! Create mapping from unique deposition node to global unique node
-  ALLOCATE(DepoNodetoGlobalNode(1:nDepoNodesTotal))
-  nDepoNodesTotal = 0
-  DO iNode=1, nUniqueGlobalNodes
-    IF (IsDepoNode(iNode)) THEN
-      nDepoNodesTotal = nDepoNodesTotal + 1
-      DepoNodetoGlobalNode(nDepoNodesTotal) = iNode
-    END IF
-  END DO
-  DO iNode=1, nUniqueGlobalNodes
-    IF (.NOT.IsDepoNode(iNode).AND.SendNode(iNode)) THEN
-      nDepoNodesTotal = nDepoNodesTotal + 1
-      DepoNodetoGlobalNode(nDepoNodesTotal) = iNode
-    END IF
-  END DO
-  ! Create mapping of exchange processor rank to global rank
-  GlobalRankToNodeSendDepoRank = -1
-  nNodeSendExchangeProcs = COUNT(DoNodeMapping)
-  ALLOCATE(NodeSendDepoRankToGlobalRank(1:nNodeSendExchangeProcs))
-  NodeSendDepoRankToGlobalRank = 0
-  nNodeSendExchangeProcs = 0
-  DO iRank= 0, nProcessors_Global-1
-    IF (iRank.EQ.myRank) CYCLE
-    IF (DoNodeMapping(iRank)) THEN
-      nNodeSendExchangeProcs = nNodeSendExchangeProcs + 1
-      GlobalRankToNodeSendDepoRank(iRank) = nNodeSendExchangeProcs
-      NodeSendDepoRankToGlobalRank(nNodeSendExchangeProcs) = iRank
-    END IF
-  END DO
-  ! ALLOCATE(NodeDepoMapping(1:nNodeSendExchangeProcs, 1:nUniqueGlobalNodes))
-  ! NodeDepoMapping = .FALSE.
-  ALLOCATE(ElemNodeDepoMap(1:nNodeSendExchangeProcs))
-  ElemNodeDepoMap(:)%firstNode = .TRUE.
-  ElemNodeDepoMap(:)%nNodes = 0
-
-  DO iNode = 1, nUniqueGlobalNodes
-    IF (SendNode(iNode)) THEN
-      ElemLoop: DO jElem = NodeToElemMapping(1,iNode) + 1, NodeToElemMapping(1,iNode) + NodeToElemMapping(2,iNode)
-        TestElemID = GetGlobalElemID(NodeToElemInfo(jElem))
-        GlobalElemRank = ElemInfo_Shared(ELEM_RANK,TestElemID)
-        IF (GlobalElemRank.NE.myRank) THEN
-          iRank = GlobalRankToNodeSendDepoRank(GlobalElemRank)
-          IF (iRank.LT.1) CALL ABORT(__STAMP__,'Found not connected Rank!', myRank)
-          ! NodeDepoMapping(iRank, iNode) = .TRUE.
-          IF (ElemNodeDepoMap(iRank)%firstNode) THEN
-            ElemNodeDepoMap(iRank)%firstNode = .FALSE.
-            ElemNodeDepoMap(iRank)%nNodes = ElemNodeDepoMap(iRank)%nNodes + 1
-            ALLOCATE(ElemNodeDepoMap(iRank)%first)
-            ElemNodeDepoMap(iRank)%first%NodeID = iNode
-          ELSE
-            ! Check if node already exists
-            node => ElemNodeDepoMap(iRank)%first
-            DO testNode = 1, ElemNodeDepoMap(iRank)%nNodes
-              IF (node%NodeID.EQ.iNode) CYCLE ElemLoop
-              IF (.NOT.ASSOCIATED(node%next)) EXIT
-              node => node%next
-            END DO
-             ! Add new node at the end of the list
-            ALLOCATE(node%next)
-            node%next%NodeID = iNode
-            ElemNodeDepoMap(iRank)%nNodes = ElemNodeDepoMap(iRank)%nNodes + 1
-          END IF
-        END IF
-      END DO ElemLoop
-    END IF
-  END DO
-  ! Get number of send nodes for each proc: Size of each message for each proc for deposition
-  nSendUniqueNodesNonSymDepo         = 0
-  nRecvUniqueNodesNonSymDepo(myrank) = 0
-  ALLOCATE(NodeMappingSend(1:nNodeSendExchangeProcs))
-  DO iProc = 1, nNodeSendExchangeProcs
-    NodeMappingSend(iProc)%nSendUniqueNodes = 0
-    ! DO iNode = 1, nUniqueGlobalNodes
-    !   IF (NodeDepoMapping(iProc,iNode)) NodeMappingSend(iProc)%nSendUniqueNodes = NodeMappingSend(iProc)%nSendUniqueNodes + 1
-    ! END DO
-    NodeMappingSend(iProc)%nSendUniqueNodes =  ElemNodeDepoMap(iProc)%nNodes
-    ! local to global array
-    nSendUniqueNodesNonSymDepo(NodeSendDepoRankToGlobalRank(iProc)) = NodeMappingSend(iProc)%nSendUniqueNodes
-  END DO
-
-  ! Open receive buffer for non-symmetric exchange identification
-  DO iProc = 0,nProcessors_Global-1
-    IF (iProc.EQ.myRank) CYCLE
-    CALL MPI_IRECV( nRecvUniqueNodesNonSymDepo(iProc)  &
-                  , 1                            &
-                  , MPI_INTEGER                  &
-                  , iProc                        &
-                  , 2000                         &
-                  , MPI_COMM_PICLAS               &
-                  , RecvRequestNonSymDepo(iProc)           &
-                  , IERROR)
-  END DO
-
-  ! Send each proc the number of nodes that can be reached by deposition
-  DO iProc = 0,nProcessors_Global-1
-    IF (iProc.EQ.myRank) CYCLE
-    CALL MPI_ISEND( nSendUniqueNodesNonSymDepo(iProc) &
-                  , 1                                 &
-                  , MPI_INTEGER                       &
-                  , iProc                             &
-                  , 2000                              &
-                  , MPI_COMM_PICLAS                    &
-                  , SendRequestNonSymDepo(iProc)      &
-                  , IERROR)
-  END DO
-
-  ! Finish communication
-  DO iProc = 0,nProcessors_Global-1
-    IF (iProc.EQ.myRank) CYCLE
-    CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-    CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
-    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-  END DO
-
-  nNodeRecvExchangeProcs = COUNT(nRecvUniqueNodesNonSymDepo.GT.0)
-  ALLOCATE(NodeMappingRecv(1:nNodeRecvExchangeProcs))
-  ALLOCATE(NodeRecvDepoRankToGlobalRank(1:nNodeRecvExchangeProcs))
-  NodeRecvDepoRankToGlobalRank = 0
-  nNodeRecvExchangeProcs = 0
-  DO iRank= 0, nProcessors_Global-1
-    IF (iRank.EQ.myRank) CYCLE
-    IF (nRecvUniqueNodesNonSymDepo(iRank).GT.0) THEN
-      nNodeRecvExchangeProcs = nNodeRecvExchangeProcs + 1
-      ! Store global rank of iRecvRank
-      NodeRecvDepoRankToGlobalRank(nNodeRecvExchangeProcs) = iRank
-      ! Store number of nodes of iRecvRank
-      NodeMappingRecv(nNodeRecvExchangeProcs)%nRecvUniqueNodes = nRecvUniqueNodesNonSymDepo(iRank)
-    END IF
-  END DO
-
-  ! Open receive buffer
-  ALLOCATE(RecvRequest(1:nNodeRecvExchangeProcs))
-  DO iProc = 1, nNodeRecvExchangeProcs
-    ALLOCATE(NodeMappingRecv(iProc)%RecvNodeUniqueGlobalID(1:NodeMappingRecv(iProc)%nRecvUniqueNodes))
-    ALLOCATE(NodeMappingRecv(iProc)%RecvNodeSourceCharge(1:NodeMappingRecv(iProc)%nRecvUniqueNodes))
-    ALLOCATE(NodeMappingRecv(iProc)%RecvNodeSourceCurrent(1:3,1:NodeMappingRecv(iProc)%nRecvUniqueNodes))
-    IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMappingRecv(iProc)%RecvNodeSourceExt(1:NodeMappingRecv(iProc)%nRecvUniqueNodes))
-    CALL MPI_IRECV( NodeMappingRecv(iProc)%RecvNodeUniqueGlobalID                   &
-                  , NodeMappingRecv(iProc)%nRecvUniqueNodes                         &
-                  , MPI_INTEGER                                                 &
-                  , NodeRecvDepoRankToGlobalRank(iProc)                         &
-                  , 666                                                         &
-                  , MPI_COMM_PICLAS                                              &
-                  , RecvRequest(iProc)                                          &
-                  , IERROR)
-  END DO
-
-  ! Open send buffer
-  ALLOCATE(SendRequest(1:nNodeSendExchangeProcs))
-  DO iProc = 1, nNodeSendExchangeProcs
-    ALLOCATE(NodeMappingSend(iProc)%SendNodeUniqueGlobalID(1:NodeMappingSend(iProc)%nSendUniqueNodes))
-    NodeMappingSend(iProc)%SendNodeUniqueGlobalID=-1
-    ALLOCATE(NodeMappingSend(iProc)%SendNodeSourceCharge(1:NodeMappingSend(iProc)%nSendUniqueNodes))
-    NodeMappingSend(iProc)%SendNodeSourceCharge=0.
-    ALLOCATE(NodeMappingSend(iProc)%SendNodeSourceCurrent(1:3,1:NodeMappingSend(iProc)%nSendUniqueNodes))
-    NodeMappingSend(iProc)%SendNodeSourceCurrent=0.
-    IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMappingSend(iProc)%SendNodeSourceExt(1:NodeMappingSend(iProc)%nSendUniqueNodes))
-    SendNodeCount = 0
-    ! DO iNode = 1, nUniqueGlobalNodes
-    !   IF (NodeDepoMapping(iProc,iNode)) THEN
-    !     SendNodeCount = SendNodeCount + 1
-    !     NodeMappingSend(iProc)%SendNodeUniqueGlobalID(SendNodeCount) = iNode
-    !   END IF
-    ! END DO
-    ! ALLOCATE(node)
-    ! node => ElemNodeDepoMap(iProc)%first
-    ! DO testNode = 1, ElemNodeDepoMap(iProc)%nNodes
-    !   SendNodeCount = SendNodeCount + 1
-    !   NodeMappingSend(iProc)%SendNodeUniqueGlobalID(SendNodeCount) = node%NodeID
-    !   node => node%next
-    ! END DO
-
-    ! First loop: Traverse the list and populate NodeMappingSend
-    node => ElemNodeDepoMap(iProc)%first
-    DO WHILE (ASSOCIATED(node))
-      SendNodeCount = SendNodeCount + 1
-      NodeMappingSend(iProc)%SendNodeUniqueGlobalID(SendNodeCount) = node%NodeID
-      node => node%next
-    END DO
-
-    ! node => ElemNodeDepoMap(iProc)%first
-    ! DO testNode = 1, ElemNodeDepoMap(iProc)%nNodes
-    !   ElemNodeDepoMap(iProc)%first => ElemNodeDepoMap(iProc)%first%next
-    !   DEALLOCATE(node)
-    !   node => ElemNodeDepoMap(iProc)%first
-    ! END DO
-    ! IF(ASSOCIATED(ElemNodeDepoMap(iProc)%first)) THEN
-    !   DEALLOCATE(ElemNodeDepoMap(iProc)%first)
-    ! END IF
-    ! IF(ASSOCIATED(node)) THEN
-    !   DEALLOCATE(node)
-    ! END IF
-
-    ! Deallocate the list
-    CALL DeallocateNodeList(ElemNodeDepoMap(iProc)%first)
-    NULLIFY(ElemNodeDepoMap(iProc)%first)
-    ElemNodeDepoMap(iProc)%nNodes = 0
-
-    CALL MPI_ISEND( NodeMappingSend(iProc)%SendNodeUniqueGlobalID                   &
-                  , NodeMappingSend(iProc)%nSendUniqueNodes                         &
-                  , MPI_INTEGER                                                 &
-                  , NodeSendDepoRankToGlobalRank(iProc)                         &
-                  , 666                                                         &
-                  , MPI_COMM_PICLAS                                              &
-                  , SendRequest(iProc)                                          &
-                  , IERROR)
-  END DO
-
-  ! Finish send
-  DO iProc = 1, nNodeSendExchangeProcs
-    CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
-    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-  END DO
-
-  ! Finish receive
-  DO iProc = 1, nNodeRecvExchangeProcs
-    CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
-    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-  END DO
+  CALL InitDepoNodesMPI(DoNodeMapping,SendNode)
 #else
   nDepoNodes      = nUniqueGlobalNodes
   nDepoNodesTotal = nDepoNodes
@@ -616,14 +313,434 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 #else
   ALLOCATE(ChargeSFDone(1:nElems))
 #endif /*USE_MPI*/
+! ------------------------------------------------
 CASE('cell_mean')
+! ------------------------------------------------
 CASE DEFAULT
+! ------------------------------------------------
   CALL abort(__STAMP__,'Unknown DepositionType in pic_depo.f90')
 END SELECT
+
+! Surface charge model
+IF (Do2DSurfaceCharge) THEN
+  CALL InitDepoSurfNodes() ! Get nDepoSurfNodes
+END IF ! DoSurfaceCharge
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE DEPOSITION DONE!'
 
 END SUBROUTINE InitializeDeposition
+
+
+!===================================================================================================================================
+!> Find all surface nodes connected to a BC where surface deposition is active
+!>
+!> 1. Loop over the processor-local elements
+!> 2. Loop over the corner vertices of the element
+!> 3. Use VertexConnectInfo to get the neighbour element index and vertex for all possible connection (also periodic)
+!> 4. Check the sides of connected to the neighbour node and find out if the side is a BC side
+!===================================================================================================================================
+SUBROUTINE InitDepoSurfNodes()
+! MODULES
+USE MOD_Globals
+USE MOD_PICDepo_Vars
+USE MOD_Particle_Mesh_Vars ,ONLY: nNonUniqueGlobalNodes
+USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity,nGlobalElems
+USE MOD_Particle_Mesh_Vars ,ONLY: VertexConnectInfo_shared
+USE MOD_Mesh_Vars          ,ONLY: NGeo,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID!,SideToNonUniqueGlobalSide
+USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nFEMVertices,NonUniqueGlobalNodeIDToFEMVertexID!,nSides
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,SideInfo_Shared,ElemInfo_Shared,VertexInfo_Shared
+USE MOD_Mesh_pAdaption     ,ONLY: getlocsidelist
+USE MOD_Mesh_Tools         ,ONLY: GetCornerNodeMapCGNS,GetCNElemID,GetGlobalElemID
+USE MOD_Particle_Mesh_Vars ,ONLY: nNonUniqueGlobalSides,ElemSideNodeID_Shared
+USE MOD_Interpolation_Vars ,ONLY: Nmin,Nmax
+USE MOD_Interpolation_Vars ,ONLY: NodeTypeVISU,NodeType
+USE MOD_Interpolation      ,ONLY: GetVandermonde
+#if USE_MPI
+USE MOD_PICDepo_MPI        ,ONLY: InitDepoSurfNodesMPI
+USE MOD_MPI_Shared_Vars    ,ONLY: myComputeNodeRank,nComputeNodeTotalElems,nComputeNodeProcessors
+USE MOD_MPI_Shared_vars    ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared         ,ONLY: BARRIER_AND_SYNC
+USE MOD_Particle_Mesh_Vars ,ONLY: VertexInfo_Shared_Win
+#else
+USE MOD_Mesh_Vars          ,ONLY: nElems
+#endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+USE MOD_PICDepo_MPI        ,ONLY: LBReverseExchangeSurfNodeSource
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+#if USE_LOADBALANCE
+LOGICAL             :: InitializeSurfNodeArrays
+#else
+LOGICAL,PARAMETER   :: InitializeSurfNodeArrays=.TRUE.
+#endif /*USE_LOADBALANCE*/
+INTEGER :: BCType,NonUniqueGlobalSideID,NonUniqueGlobalNbSideID,iGlobalElemID,BCIndex,ElemType
+INTEGER :: iVertexConnect,GlobalNbElemID,NbLocVertexID,LocSideList(3),iNeighbourLocSideList,iNeighbourLocSide
+INTEGER :: iLocSideList,iLocSide
+INTEGER :: FirstVertexInd,LastVertexInd,FirstVertexConnectInd,LastVertexConnectInd
+INTEGER :: FEMVertexID,iVertexInd,NonUniqueNodeID,CNS(8),iNode
+INTEGER :: CNElemID,LocSideID,Nloc,iBC
+INTEGER,ALLOCATABLE :: SymmetryBCIndex(:,:)
+INTEGER :: FirstCNElemID,LastCNElemID,iCNELemID,localVertexID
+REAL    :: StartT,EndT
+!===================================================================================================================================
+LBWRITE(UNIT_stdOut,'(A,I0,A)',ADVANCE='NO') ' | Initializing node mappings for 2D surface deposition...'
+GETTIME(StartT)
+! TODO: Can the mappings that are created here be stored in .h5 for restart purposes and when running piclas2vtk to save time?
+! Sanity check: This routine requires FEM connectivity
+IF(.NOT.readFEMconnectivity) CALL abort(__STAMP__,'Error in surface deposition init: readFEMconnectivity=T is required')
+
+#if USE_LOADBALANCE
+! Set flag when performinggg load balancing: The MPIRoot keeps all arrays and does not deallocate them as it has the global mappings
+InitializeSurfNodeArrays = .FALSE.
+IF (.NOT.PerformLoadBalance.OR.(PerformLoadBalance.AND.(.NOT.MPIRoot))) InitializeSurfNodeArrays = .TRUE.
+! IF(XOR(PerformLoadBalance,MPIRoot)) InitializeSurfNodeArrays = .TRUE.
+#endif /*USE_LOADBALANCE*/
+
+IF (InitializeSurfNodeArrays) THEN
+  ! Flag the unique deposition nodes per processor
+  nDepoSurfNodes = 0
+  ALLOCATE(IsDepoSurfNode(1:nFEMVertices))
+  IsDepoSurfNode = .FALSE.
+
+  ! Mapping from NonuniqueGlobalNodeID to FEMVertexID
+  ! TODO: Make this array SHM
+  ALLOCATE(NonUniqueGlobalNodeIDToFEMVertexID(1:nNonUniqueGlobalNodes))
+  NonUniqueGlobalNodeIDToFEMVertexID = 0
+
+  ! For counting the number of visualisation sides
+  ! TODO: Make these arrays SHM
+  nDepoSurfSides = 0
+  ALLOCATE(IsDepoSurfSide(1:nNonUniqueGlobalSides))
+  IsDepoSurfSide = .FALSE.
+  ! 1-4: NodeIDs
+  ALLOCATE(NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(1:4,1:nNonUniqueGlobalSides))
+  NonUniqueGlobalSideIDToNonUniqueGlobalNodeID = 0
+
+  ! The cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
+  CALL GetCornerNodeMapCGNS(NGeo,CornerNodesCGNS = CNS)
+END IF ! InitializeSurfNodeArrays
+
+! Consider all compute-node elements where deposition takes place (this leads to sending to processes in the halo region)
+! and which are required for the field solver source terms (element-local vertices, which can lead to receiving from other
+! processes)
+#if USE_MPI
+! With SHM array: Divide the loop into sections to split the workload
+FirstCNElemID = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+LastCNElemID  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+! Without SHM array: Every process loops over all elements on the CN node
+FirstCNElemID = 1
+LastCNElemID  = nComputeNodeTotalElems
+#else
+FirstCNElemID = 1
+LastCNElemID  = nElems
+#endif
+
+! The MPIRoot misuses the following two variables as it needs all FEMVertexIDs for outptut to .h5 because all processes send their
+! FEMVertexIDs
+IF (MPIRoot) THEN
+  IF (InitializeSurfNodeArrays) THEN
+    FirstCNElemID = 1
+    LastCNElemID  = nGlobalElems
+  ELSE
+    FirstCNElemID = 1
+    LastCNElemID  = -1
+  END IF ! InitializeSurfNodeArrays
+END IF ! MPIRoot
+
+! 1. Identify all (FEMVertexID) nodes and (NonUniqueGlobalSideID or NonUniqueGlobalNbSideID) sides that are needed for deposition
+! Loop over the process-local global elements indices
+DO iCNELemID = FirstCNElemID, LastCNElemID
+  ! Get global element index
+  IF (MPIRoot) THEN
+    ! Little hack: switch CN and global variable name in loop
+    iGlobalElemID = iCNELemID
+  ELSE
+    iGlobalElemID = GetGlobalElemID(iCNELemID)
+  END IF ! MPIRoot
+  ! iElem = iGlobalElemID - offsetElem
+  ElemType = ElemInfo_Shared(ELEM_TYPE,iGlobalElemID)
+  ! Sanity check: currently only hexahedral elements are implemented
+  SELECT CASE(ElemType)
+  CASE(108,118,208)
+    ! Hexahedral elements
+  CASE DEFAULT
+    CALL abort(__STAMP__,'InitDepoSurfNodes(): Element type not implemented, ElemType =',IntInfoOpt=ElemType)
+  END SELECT
+  ! Get local FEMElemInfo of current element
+  FirstVertexInd = ElemInfo_Shared(ELEM_FIRSTVERTEXIND,iGlobalElemID)+1 ! this comes from FEMElemInfo() from mesh.h5
+  LastVertexInd  = ElemInfo_Shared(ELEM_LASTVERTEXIND,iGlobalElemID)    ! this comes from FEMElemInfo() from mesh.h5
+  ! Sanity check
+  IF (FirstVertexInd.GE.LastVertexInd) THEN
+    IPWRITE(*,*) 'iGlobalElemID :', iGlobalElemID
+    IPWRITE(*,*) 'FirstVertexInd:', FirstVertexInd
+    IPWRITE(*,*) 'LastVertexInd :', LastVertexInd
+    CALL abort(__STAMP__,' FirstVertexInd >= LastVertexInd')
+  END IF ! FirstVertexInd.GE.LastVertexInd
+  ! Loop over all non-unique vertices (the total number via iGlobalElemID and iVertexInd corresponds to nVertices in .h5)
+  DO iVertexInd = FirstVertexInd,LastVertexInd
+    ! Get topologically unique global vertex ID (via VertexInfo from mesh.h5), includes periodicity (needed for a FEM solver
+    FEMVertexID = VertexInfo_Shared(VERTEX_FEMID,iVertexInd)
+    ! Get the local vertex index
+    localVertexID = iVertexInd-FirstVertexInd+1
+    ! Get the non-unique node index
+    NonUniqueNodeID = CNS(localVertexID) + FirstVertexInd - 1
+    ! Store mapping iVertexInd to NonUniqueNodeID
+    VertexInfo_Shared(VERTEX_NONUNIQUENODEID,iVertexInd) = NonUniqueNodeID
+    ! Mapping from NonUniqueNodeID to FEMVertexID
+    NonUniqueGlobalNodeIDToFEMVertexID(NonUniqueNodeID) = FEMVertexID
+    ! Get local vertex connectivity: First and Last connected vertex index
+    FirstVertexConnectInd = VertexInfo_Shared(VERTEX_FIRSTCONNECTIND,iVertexInd)+1
+    LastVertexConnectInd  = VertexInfo_Shared(VERTEX_LASTCONNECTIND,iVertexInd)
+    ! Check nodes without connections
+    IF (FirstVertexConnectInd.GT.LastVertexConnectInd) THEN
+      ! Check if any of the three connected sides is a deposition side
+      ! Set sides depending on the element type: Only implemented for Hexahedral elements
+      CALL GetLocSideList(ElemType,localVertexID,LocSideList)
+      ! Loop over the three connected sides of the element
+      iSide: DO iLocSideList = 1, 3
+        ! Check if current element has already been flagged
+        iLocSide = LocSideList(iLocSideList)
+        ! Get non-unique global side index of the element that is connected to the FEMVertexID/NonUniqueNodeID
+        NonUniqueGlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobalElemID) + iLocSide
+        ! Get boundary condition index
+        BCIndex = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalSideID)
+        IF(BCIndex.LE.0) CYCLE iSide ! Skip inner sides
+        ! Get boundary condition type
+        BCType = BoundaryType(BCIndex,BC_TYPE)
+        ! TODO:Implement inner BCs for surface charge deposition
+        IF(BCType.EQ.100) CALL abort(__STAMP__,'InitDepoSurfNodes(): Inner BCs not implemented for surface charge deposition')
+        ! TODO:define a list of all BCType numbers that allow surface deposition
+        IF(BCType.NE.30) CYCLE iSide ! Skip non-DCBC sides
+        ! Depo node/side found
+        IsDepoSurfNode(FEMVertexID) = .TRUE.
+        IsDepoSurfSide(NonUniqueGlobalSideID) = .TRUE.
+      END DO iSide ! iLocSideList = 1, 3
+    ELSE
+      DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+        ! Get neighbour infos. Note the ABS() for +/- master/slave notation
+        GlobalNbElemID = ABS(VertexConnectInfo_Shared(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
+        NbLocVertexID  =     VertexConnectInfo_Shared(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
+        ! Set sides depending on the element type: Only implemented for Hexahedral elements
+        CALL GetLocSideList(ElemType,NbLocVertexID,LocSideList)
+        ! Loop over the three connected sides of the neighbour element, which is connected with a corner to iVertexConnect
+        iNbSide: DO iNeighbourLocSideList = 1, 3
+          ! Check if current element has already been flagged
+          iNeighbourLocSide = LocSideList(iNeighbourLocSideList)
+          ! Get non-unique global side index of the neighbouring element that is connected to the FEMVertexID/NonUniqueNodeID
+          NonUniqueGlobalNbSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalNbElemID) + iNeighbourLocSide
+          ! Get boundary condition index
+          BCIndex = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalNbSideID)
+          IF(BCIndex.LE.0) CYCLE iNbSide ! Skip inner sides
+          ! Get boundary condition type
+          BCType = BoundaryType(BCIndex,BC_TYPE)
+          ! TODO:Implement inner BCs for surface charge deposition
+          ! IF(BCType.EQ.100) CALL abort(__STAMP__,'InitDepoSurfNodes(): Inner BCs not implemented for surface charge deposition')
+          ! TODO:define a list of all BCType numbers that allow surface deposition
+          IF(BCType.NE.30) CYCLE iNbSide ! Skip non-DCBC sides
+          ! Depo node/side found
+          IsDepoSurfNode(FEMVertexID) = .TRUE.
+          IsDepoSurfSide(NonUniqueGlobalNbSideID) = .TRUE.
+        END DO iNbSide ! iNeighbourLocSideList = 1, 3
+      END DO ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+    END IF ! FirstVertexConnectInd.GT.LastVertexConnectInd
+  END DO ! iVertexInd = iFirstVertexInd,LastVertexInd
+END DO !  iCNELemID = FirstCNElemID, LastCNElemID
+#if USE_MPI
+! TODO: Note that VERTEX_NONUNIQUENODEID is not filled for elements that are not on the compute node. Only the CN with MPIRoot has
+! all info, because the MPIRoot processes loops over all global elements
+CALL BARRIER_AND_SYNC(VertexInfo_Shared_Win,MPI_COMM_SHARED)
+
+#endif /*USE_MPI*/
+
+IF (InitializeSurfNodeArrays) THEN
+  ! 2. Create a mapping that returns the four (NonUniqueNodeID) nodes for a (NonUniqueGlobalSideID) side
+  ! Separate loop for setting the node IDs is needed because setting them in the loop above does not work
+  ! Additionally, the scaling factor is determined
+  DO NonUniqueGlobalSideID = 1,nNonUniqueGlobalSides
+    ! Check if the side has charge deposition activated
+    IF(IsDepoSurfSide(NonUniqueGlobalSideID))THEN
+      ! Get global element index
+      iGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID)
+      ! Get compute node element index of the side
+      CNElemID  = GetCNElemID(iGlobalElemID)
+      ! Skip global elements, which are not on the compute node and not inside the halo region by checking if the CN element index is
+      IF(CNElemID.EQ.-1) CYCLE
+      ! Get the local side index (1-6)
+      LocSideID = SideInfo_Shared(SIDE_LOCALID,NonUniqueGlobalSideID)
+      ! Loop over all 4 node of the side
+      DO iNode = 1, 4
+        ! Get the non-unique global side index of the node/local side ID/compute element ID
+        NonUniqueNodeID = ElemSideNodeID_Shared(iNode,LocSideID,CNElemID) + 1
+        ! Store the non-unique node index for the current non-unique global side index
+        NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID) = NonUniqueNodeID
+      END DO ! iNode = 1, 4
+    END IF
+  END DO ! NonUniqueGlobalSideID = 1,nNonUniqueGlobalSides
+  ! END DO
+
+  ! 3. For nodes that are connected to a Neumann BC, the deposited charge must be increased by a (mirror charge) scaling factor
+  ! Check if neighbouring sides of FEMVertexIDs are symmetry sides for the field solver, hence, increase the deposited charge there
+#if USE_MPI
+  ! With SHM array: Divide the loop into sections to split the workload
+  FirstCNElemID = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+  LastCNElemID  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+  ! Without SHM array: Every process loops over all elements on the CN node
+  FirstCNElemID = 1
+  LastCNElemID  = nComputeNodeTotalElems
+#else
+  FirstCNElemID = 1
+  LastCNElemID  = nElems
+#endif
+  ! TODO: Make this array SHM
+  ! TODO: Check if there are any Neumann BC sides, if not, skip this step
+  ! TODO: Alternative: Similar to NodeSource, calculate a "volume" (in this case "surface area") container for all contributing
+  ! faces, which assumes symmetry automatically from all sides, hence, eliminating the need for a symmetry factor
+  ALLOCATE(SurfNodeSymmetryFactor(1:nNonUniqueGlobalNodes))
+  SurfNodeSymmetryFactor = 0
+  ALLOCATE(SymmetryBCIndex(1:6,1:nNonUniqueGlobalNodes))
+  SymmetryBCIndex = 0
+  ! Loop over the process-local global elements indices
+  DO iCNELemID = FirstCNElemID, LastCNElemID
+    ! Get global element index
+    iGlobalElemID = GetGlobalElemID(iCNELemID)
+    ! iElem = iGlobalElemID - offsetElem
+    ElemType = ElemInfo_Shared(ELEM_TYPE,iGlobalElemID)
+    ! Sanity check: currently only hexahedral elements are implemented
+    SELECT CASE(ElemType)
+    CASE(108,118,208)
+      ! Hexahedral elements
+    CASE DEFAULT
+      CALL abort(__STAMP__,'InitDepoSurfNodes(): Element type not implemented, ElemType =',IntInfoOpt=ElemType)
+    END SELECT
+    ! Get local FEMElemInfo of current element
+    FirstVertexInd = ElemInfo_Shared(ELEM_FIRSTVERTEXIND,iGlobalElemID)+1 ! This comes from FEMElemInfo() from mesh.h5
+    LastVertexInd  = ElemInfo_Shared(ELEM_LASTVERTEXIND,iGlobalElemID)    ! This comes from FEMElemInfo() from mesh.h5
+    ! Loop over all non-unique vertices (the total number via iGlobalElemID and iVertexInd corresponds to nVertices in .h5)
+    iVertexIndLoop: DO iVertexInd = FirstVertexInd,LastVertexInd
+      ! Get topologically unique global vertex ID (via VertexInfo from mesh.h5), includes periodicity (needed for a FEM solver)
+      FEMVertexID = VertexInfo_Shared(VERTEX_FEMID,iVertexInd)
+      ! Skip vertices without deposition
+      IF(.NOT.IsDepoSurfNode(FEMVertexID)) CYCLE iVertexIndLoop
+      ! Get the local vertex index
+      localVertexID = iVertexInd-FirstVertexInd+1
+      ! Get the non-unique node index
+      NonUniqueNodeID = CNS(localVertexID) + FirstVertexInd - 1
+      ! Get local vertex connectivity: First and Last connected vertex index
+      FirstVertexConnectInd = VertexInfo_Shared(VERTEX_FIRSTCONNECTIND,iVertexInd)+1
+      LastVertexConnectInd  = VertexInfo_Shared(VERTEX_LASTCONNECTIND,iVertexInd)
+      iVertexConnectLoop: DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+        ! Get neighbour infos. Note the ABS() for +/- master/slave notation
+        GlobalNbElemID = ABS(VertexConnectInfo_Shared(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
+        ! IF(GlobalNbElemID.EQ.iGlobalElemID) CYCLE iVertexConnectLoop
+        NbLocVertexID  =     VertexConnectInfo_Shared(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
+        ! Set sides depending on the element type: Only implemented for Hexahedral elements
+        CALL GetLocSideList(ElemType,NbLocVertexID,LocSideList)
+        ! Loop over the three connected sides of the neighbour element, which is connected with a corner to iVertexConnect
+        NbSide: DO iNeighbourLocSideList = 1, 3
+          ! Check if current element has already been flagged
+          iNeighbourLocSide = LocSideList(iNeighbourLocSideList)
+          ! Get non-unique global side index of the neighbouring element that is connected to the FEMVertexID/NonUniqueNodeID
+          NonUniqueGlobalNbSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalNbElemID) + iNeighbourLocSide
+          ! Get boundary condition index
+          BCIndex = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalNbSideID)
+          IF(BCIndex.LE.0) CYCLE NbSide ! Skip inner sides
+          ! Get boundary condition type
+          BCType = BoundaryType(BCIndex,BC_TYPE)
+          ! TODO:define a list of all BCType numbers that effect the scaling factor
+          IF(BCType.NE.10) CYCLE NbSide ! Skip non-symmetry sides
+          ! Increase the scaling factor by one
+          iBCLoop: DO iBC = 1,6
+            ! Do not count the same BCIndex twice
+            IF(SymmetryBCIndex(iBC,NonUniqueNodeID).EQ.BCIndex) CYCLE NbSide
+            ! Check for empty spot to place the BCIndex
+            IF (SymmetryBCIndex(iBC,NonUniqueNodeID).EQ.0) THEN
+              SymmetryBCIndex(iBC,NonUniqueNodeID) = BCIndex
+              EXIT iBCLoop
+            END IF ! SymmetryBCIndex(iBC,NonUniqueNodeID).EQ.0
+          END DO iBCLoop ! iBC  = 1,6
+          SurfNodeSymmetryFactor(NonUniqueNodeID) = SurfNodeSymmetryFactor(NonUniqueNodeID) + 2
+        END DO NbSide ! iNeighbourLocSideList = 1, 3
+      END DO iVertexConnectLoop ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+    END DO iVertexIndLoop ! iVertexInd = iFirstVertexInd,LastVertexInd
+  END DO ! iCNELemID = FirstCNElemID, LastCNElemID
+  DEALLOCATE(SymmetryBCIndex)
+
+  ! Sanity check: Looper over all deposition surface side IDs and make sure the mapping is correct
+  DO NonUniqueGlobalSideID = 1,nNonUniqueGlobalSides
+    ! Only check surfaces that are marked for deposition
+    IF(IsDepoSurfSide(NonUniqueGlobalSideID))THEN
+      ! Get global element index
+      iGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID)
+      ! Get compute node element index of the side
+      CNElemID  = GetCNElemID(iGlobalElemID)
+      ! Skip global elements, which are not on the compute node and not inside the halo region by checking if the CN element index is
+      IF(CNElemID.EQ.-1) CYCLE
+      ! Check if any connected unique node ID is zero, which is impossible
+      IF (ANY(NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(:,NonUniqueGlobalSideID).EQ.0)) THEN
+        IPWRITE(*,*) 'NonUniqueGlobalSideID,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(:,NonUniqueGlobalSideID):',&
+                      NonUniqueGlobalSideID,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(:,NonUniqueGlobalSideID)
+        CALL abort(__STAMP__,'Wrong NonUniqueNodeID encountered in InitDepoSurfNodes()')
+      END IF ! ANY()
+    END IF
+  END DO ! NonUniqueGlobalSideID = startVar,nVar
+
+  ! Count the number of unique deposition nodes per processor
+  nDepoSurfNodes = COUNT(IsDepoSurfNode)
+  ! Count the number of unique deposition sides per processor
+  nDepoSurfSides = COUNT(IsDepoSurfSide)
+  ! DEALLOCATE(IsDepoSurfSide)
+
+  ! Build Mappings between FEM vertices and surface deposition node IDs
+  nDepoSurfNodesTotal = nDepoSurfNodes
+  ALLOCATE(DepoSurfNodeID2FEMVertexID(1:nDepoSurfNodesTotal))
+  DepoSurfNodeID2FEMVertexID = -1
+  ALLOCATE(FEMVertexID2DepoSurfNodeID(1:nFEMVertices))
+  FEMVertexID2DepoSurfNodeID = 0
+  nDepoSurfNodesTotal = 0
+  DO FEMVertexID=1, nFEMVertices
+    IF (IsDepoSurfNode(FEMVertexID)) THEN
+      nDepoSurfNodesTotal = nDepoSurfNodesTotal + 1
+      DepoSurfNodeID2FEMVertexID(nDepoSurfNodesTotal) = FEMVertexID
+      FEMVertexID2DepoSurfNodeID(FEMVertexID) = nDepoSurfNodesTotal
+    ELSE
+      FEMVertexID2DepoSurfNodeID(FEMVertexID) = -1
+    END IF
+  END DO
+END IF ! InitializeSurfNodeArrays
+! DEALLOCATE(IsDepoSurfNode)
+#if USE_MPI
+CALL InitDepoSurfNodesMPI() ! Initialize MPI communicator for surface node communication
+#endif /*USE_MPI*/
+IF (InitializeSurfNodeArrays) THEN
+  ALLOCATE(SurfNodeSource(1:nDepoSurfNodesTotal))
+  SurfNodeSource=0.0
+END IF ! InitializeSurfNodeArrays
+#if USE_LOADBALANCE
+! MPIRoot sends SurfNodeSource to all processes
+IF(PerformLoadBalance) CALL LBReverseExchangeSurfNodeSource()
+#endif /*USE_LOADBALANCE*/
+
+IF (InitializeSurfNodeArrays) THEN
+! Build Vandermonde for mapping from N=1 (equidistant) to N=Nloc (Gauss/Gauss-Lobatto)
+ALLOCATE(Vdm_EQ_N(Nmin:Nmax))
+  DO Nloc = Nmin, Nmax
+    ALLOCATE(Vdm_EQ_N(Nloc)%Vdm(0:Nloc,0:1))
+    CALL GetVandermonde(1, NodeTypeVISU, Nloc, NodeType, Vdm_EQ_N(Nloc)%Vdm(0:Nloc,0:1), modal=.FALSE.)
+  END DO ! Nloc = Nmin, Nmax
+END IF ! InitializeSurfNodeArrays
+
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE!',DisplayLine=.FALSE.)
+
+InitDepoSurfNodesIsDone = .TRUE.
+
+END SUBROUTINE InitDepoSurfNodes
 
 
 !===================================================================================================================================
@@ -1018,65 +1135,6 @@ END IF
 END SUBROUTINE Deposition
 
 
-#if USE_HDG
-!===================================================================================================================================
-!> Loop over all particles and find that ones that have been flagged during particle-boundary interaction and have hit a VDL
-!> boundary. They are flagged there as they might move to another process during that interaction.
-!> Here, after MPI communication, they can be deleted and deposited at the target position to form a surface charge on a (virtual)
-!> dielectric layer.
-!===================================================================================================================================
-SUBROUTINE DepositVirtualDielectricLayerParticles()
-! MODULES
-USE MOD_Particle_Vars   ,ONLY: PEM, PDM, Species, PartSpecies, usevmpf, PartMPF, PartState
-USE MOD_Particle_Vars   ,ONLY: IsVDLSpecID, SpeciesOffsetVDL
-USE MOD_PICDepo_Tools   ,ONLY: DepositParticleOnNodes
-USE MOD_part_operations ,ONLY: RemoveParticle
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT / OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER :: iPart
-REAL    :: charge,SignSwitch
-!===================================================================================================================================
-! Loop over all particles
-DO iPart=1,PDM%ParticleVecLength
-  ! Only consider un-deleted particles
-  IF (PDM%ParticleInside(iPart)) THEN
-    ! Check particle index for VDL particles
-    IF(IsVDLSpecID(iPart))THEN
-      ! Check for negative sign
-      IF(PartSpecies(iPart).LT.0)THEN
-        ! If negative sign is found in the species index, invert the deposited charge
-        SignSwitch = -1
-        ! Invert the species index so it is meaningful again
-        PartSpecies(iPart) = -PartSpecies(iPart)
-      ELSE
-        ! Use same sign for charge deposition
-        SignSwitch =  1
-      END IF ! PartSpecies(iPart).LT.0
-      ! Reset to original species index
-      PartSpecies(iPart) = PartSpecies(iPart) - SpeciesOffsetVDL
-      ! Check if vMPF is active
-      IF(usevMPF)THEN
-        ! Calculate the charge considering the MPF of the specific particle
-        charge = Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
-      ELSE
-        ! Calculate the charge considering the MPF of the species
-        charge = Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
-      END IF
-      ! Deposit the charge on the corner nodes of the element
-      CALL DepositParticleOnNodes(SignSwitch*charge, PartState(1:3,iPart), PEM%GlobalElemID(iPart))
-      ! After deposition, delete the particle from existence
-      CALL RemoveParticle(iPart)
-    END IF ! IsVDLSpecID(iPart)
-  END IF !PDM%ParticleInside(iPart)
-END DO ! iPart=1,PDM%ParticleVecLength
-
-END SUBROUTINE DepositVirtualDielectricLayerParticles
-#endif /*USE_HDG*/
-
-
 PPURE LOGICAL FUNCTION SFMeasureDistance(v1,v2)
 !============================================================================================================================
 ! Check if the two position vectors coincide in the 1D or 2D projection. If yes, then return .FALSE., else return .TRUE.
@@ -1107,109 +1165,6 @@ CASE (2)
 END SELECT
 
 END FUNCTION SFMeasureDistance
-
-
-#if USE_MPI
-!===================================================================================================================================
-!> Exchange the node source container between MPI processes (either during load balance or hdf5 output) and nullify the local charge
-!> container NodeSourceExtTmp. Updates the node charge container NodeSourceExt at MPI interfaces.
-!===================================================================================================================================
-SUBROUTINE ExchangeNodeSourceExtTmp()
-! MODULES
-USE MOD_Globals
-USE MOD_PreProc
-USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt
-#if USE_MPI
-USE MOD_PICDepo_Vars       ,ONLY: NodeMappingRecv,NodeMappingSend,NodeSourceExtTmp
-USE MOD_PICDepo_Vars       ,ONLY: nDepoNodesTotal,nNodeSendExchangeProcs,NodeSendDepoRankToGlobalRank,DepoNodetoGlobalNode
-USE MOD_PICDepo_Vars       ,ONLY: nNodeRecvExchangeProcs
-USE MOD_PICDepo_Vars       ,ONLY: NodeRecvDepoRankToGlobalRank
-#endif  /*USE_MPI*/
-#if defined(MEASURE_MPI_WAIT)
-USE MOD_Particle_MPI_Vars  ,ONLY: MPIW8TimePart,MPIW8CountPart
-#endif /*defined(MEASURE_MPI_WAIT)*/
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-#if USE_MPI
-INTEGER                        :: iProc
-!INTEGER                        :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
-TYPE(MPI_Request)              :: RecvRequest(1:nNodeRecvExchangeProcs),SendRequest(1:nNodeSendExchangeProcs)
-!INTEGER                        :: MessageSize
-#endif /*USE_MPI*/
-INTEGER                        :: globalNode, iNode
-#if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)                :: CounterStart,CounterEnd
-REAL(KIND=8)                   :: Rate
-#endif /*defined(MEASURE_MPI_WAIT)*/
-!===================================================================================================================================
-! 1) Receive charge density
-DO iProc = 1, nNodeRecvExchangeProcs
-  ! Open receive buffer
-  CALL MPI_IRECV( NodeMappingRecv(iProc)%RecvNodeSourceExt(:) &
-      , NodeMappingRecv(iProc)%nRecvUniqueNodes            &
-      , MPI_DOUBLE_PRECISION                           &
-      , NodeRecvDepoRankToGlobalRank(iProc)                &
-      , 666                                            &
-      , MPI_COMM_PICLAS                                 &
-      , RecvRequest(iProc)                             &
-      , IERROR)
-END DO
-
-
-DO iProc = 1, nNodeSendExchangeProcs
-  ! Send message (non-blocking)
-  DO iNode = 1, NodeMappingSend(iProc)%nSendUniqueNodes
-    NodeMappingSend(iProc)%SendNodeSourceExt(iNode) = NodeSourceExtTmp(NodeMappingSend(iProc)%SendNodeUniqueGlobalID(iNode))
-  END DO
-  CALL MPI_ISEND( NodeMappingSend(iProc)%SendNodeSourceExt(:) &
-      , NodeMappingSend(iProc)%nSendUniqueNodes        &
-      , MPI_DOUBLE_PRECISION                       &
-      , NodeSendDepoRankToGlobalRank(iProc)            &
-      , 666                                        &
-      , MPI_COMM_PICLAS                             &
-      , SendRequest(iProc)                         &
-      , IERROR)
-END DO
-! Finish communication
-#if defined(MEASURE_MPI_WAIT)
-CALL SYSTEM_CLOCK(count=CounterStart)
-#endif /*defined(MEASURE_MPI_WAIT)*/
-DO iProc = 1, nNodeSendExchangeProcs
-  CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
-  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-END DO
-DO iProc = 1, nNodeRecvExchangeProcs
-  CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
-  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-END DO
-#if defined(MEASURE_MPI_WAIT)
-CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-MPIW8TimePart(6)  = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
-MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
-#endif /*defined(MEASURE_MPI_WAIT)*/
-
-! 3) Extract messages
-DO iProc = 1, nNodeRecvExchangeProcs
-  DO iNode = 1, NodeMappingRecv(iProc)%nRecvUniqueNodes
-    ASSOCIATE( NS => NodeSourceExtTmp(NodeMappingRecv(iProc)%RecvNodeUniqueGlobalID(iNode)))
-      NS = NS + NodeMappingRecv(iProc)%RecvNodeSourceExt(iNode)
-    END ASSOCIATE
-  END DO
-END DO
-
-! Add NodeSourceExtTmp values of the last boundary interaction
-DO iNode = 1, nDepoNodesTotal
-  globalNode = DepoNodetoGlobalNode(iNode)
-  NodeSourceExt(globalNode) = NodeSourceExt(globalNode) + NodeSourceExtTmp(globalNode)
-END DO
-! Reset local surface charge
-NodeSourceExtTmp = 0.
-END SUBROUTINE ExchangeNodeSourceExtTmp
-#endif /*USE_MPI*/
 
 
 !===================================================================================================================================
@@ -1472,21 +1427,21 @@ END IF
 
 DO iProc = 0,nProcessors_Global-1
   IF (iProc.EQ.myRank) CYCLE
-  CALL MPI_IRECV( RecvPeriodicNodes(iProc)                 &
-                , 1          &
-                , MPI_INTEGER                                                 &
+  CALL MPI_IRECV( RecvPeriodicNodes(iProc)     &
+                , 1                            &
+                , MPI_INTEGER                  &
                 , iProc                        &
-                , 1667                                                         &
-                , MPI_COMM_PICLAS                                              &
-                , RecvRequestNonSymDepo(iProc)                                          &
+                , 1667                         &
+                , MPI_COMM_PICLAS              &
+                , RecvRequestNonSymDepo(iProc) &
                 , IERROR)
-  CALL MPI_ISEND( SendPeriodicNodes(iProc) &
-                , 1         &
-                , MPI_INTEGER                       &
-                , iProc                             &
-                , 1667                              &
-                , MPI_COMM_PICLAS                    &
-                , SendRequestNonSymDepo(iProc)      &
+  CALL MPI_ISEND( SendPeriodicNodes(iProc)     &
+                , 1                            &
+                , MPI_INTEGER                  &
+                , iProc                        &
+                , 1667                         &
+                , MPI_COMM_PICLAS              &
+                , SendRequestNonSymDepo(iProc) &
                 , IERROR)
 END DO
 
@@ -1503,23 +1458,23 @@ DO iProc = 0,nProcessors_Global-1
   IF (iProc.EQ.myRank) CYCLE
   IF (RecvPeriodicNodes(iProc).NE.0) THEN
     ALLOCATE(PeriodicSendRecv(iProc)%Recv(2*GEO%nPeriodicVectors+1,RecvPeriodicNodes(iProc)))
-    CALL MPI_IRECV( PeriodicSendRecv(iProc)%Recv(:,:)                  &
-                  , RecvPeriodicNodes(iProc)*(2*GEO%nPeriodicVectors+1)           &
-                  , MPI_INTEGER                                                 &
-                  , iProc                        &
-                  , 667                                                         &
-                  , MPI_COMM_PICLAS                                              &
-                  , RecvRequestNonSymDepo(iProc)                                          &
+    CALL MPI_IRECV( PeriodicSendRecv(iProc)%Recv(:,:)                   &
+                  , RecvPeriodicNodes(iProc)*(2*GEO%nPeriodicVectors+1) &
+                  , MPI_INTEGER                                         &
+                  , iProc                                               &
+                  , 667                                                 &
+                  , MPI_COMM_PICLAS                                     &
+                  , RecvRequestNonSymDepo(iProc)                        &
                   , IERROR)
   END IF
   IF (SendPeriodicNodes(iProc).NE.0) THEN
-    CALL MPI_ISEND( PeriodicSendRecv(iProc)%Send &
-                  , SendPeriodicNodes(iProc)*(2*GEO%nPeriodicVectors+1)           &
-                  , MPI_INTEGER                       &
-                  , iProc                             &
-                  , 667                              &
-                  , MPI_COMM_PICLAS                    &
-                  , SendRequestNonSymDepo(iProc)      &
+    CALL MPI_ISEND( PeriodicSendRecv(iProc)%Send                        &
+                  , SendPeriodicNodes(iProc)*(2*GEO%nPeriodicVectors+1) &
+                  , MPI_INTEGER                                         &
+                  , iProc                                               &
+                  , 667                                                 &
+                  , MPI_COMM_PICLAS                                     &
+                  , SendRequestNonSymDepo(iProc)                        &
                   , IERROR)
   END IF
 END DO
@@ -1563,9 +1518,6 @@ IF (ALLOCATED(NodewoBCSide)) THEN
   END DO
   DEALLOCATE(NodewoBCSide)
 END IF
-
-
-
 
 iSendNode = 0
 SendPeriodicNodes = 0; RecvPeriodicNodes =0
@@ -1611,21 +1563,21 @@ END DO
 
 DO iProc = 0,nProcessors_Global-1
   IF (iProc.EQ.myRank) CYCLE
-  CALL MPI_IRECV( RecvPeriodicNodes(iProc)                 &
-                , 1          &
-                , MPI_INTEGER                                                 &
+  CALL MPI_IRECV( RecvPeriodicNodes(iProc)     &
+                , 1                            &
+                , MPI_INTEGER                  &
                 , iProc                        &
-                , 1667                                                         &
-                , MPI_COMM_PICLAS                                              &
-                , RecvRequestNonSymDepo(iProc)                                          &
+                , 1667                         &
+                , MPI_COMM_PICLAS              &
+                , RecvRequestNonSymDepo(iProc) &
                 , IERROR)
-  CALL MPI_ISEND( SendPeriodicNodes(iProc) &
-                , 1         &
-                , MPI_INTEGER                       &
-                , iProc                             &
-                , 1667                              &
-                , MPI_COMM_PICLAS                    &
-                , SendRequestNonSymDepo(iProc)      &
+  CALL MPI_ISEND( SendPeriodicNodes(iProc)     &
+                , 1                            &
+                , MPI_INTEGER                  &
+                , iProc                        &
+                , 1667                         &
+                , MPI_COMM_PICLAS              &
+                , SendRequestNonSymDepo(iProc) &
                 , IERROR)
 END DO
 
@@ -1642,23 +1594,23 @@ DO iProc = 0,nProcessors_Global-1
   IF (iProc.EQ.myRank) CYCLE
   IF (RecvPeriodicNodes(iProc).NE.0) THEN
     ALLOCATE(PeriodicSendRecv(iProc)%SendNodes(RecvPeriodicNodes(iProc)))
-    CALL MPI_IRECV( PeriodicSendRecv(iProc)%SendNodes(:)                  &
-                  , RecvPeriodicNodes(iProc)           &
-                  , MPI_INTEGER                                                 &
-                  , iProc                        &
-                  , 667                                                         &
-                  , MPI_COMM_PICLAS                                              &
-                  , RecvRequestNonSymDepo(iProc)                                          &
+    CALL MPI_IRECV( PeriodicSendRecv(iProc)%SendNodes(:) &
+                  , RecvPeriodicNodes(iProc)             &
+                  , MPI_INTEGER                          &
+                  , iProc                                &
+                  , 667                                  &
+                  , MPI_COMM_PICLAS                      &
+                  , RecvRequestNonSymDepo(iProc)         &
                   , IERROR)
   END IF
   IF (SendPeriodicNodes(iProc).NE.0) THEN
     CALL MPI_ISEND( PeriodicSendRecv(iProc)%RecvNodes(:) &
-                  , SendPeriodicNodes(iProc)           &
-                  , MPI_INTEGER                       &
-                  , iProc                             &
-                  , 667                              &
-                  , MPI_COMM_PICLAS                    &
-                  , SendRequestNonSymDepo(iProc)      &
+                  , SendPeriodicNodes(iProc)             &
+                  , MPI_INTEGER                          &
+                  , iProc                                &
+                  , 667                                  &
+                  , MPI_COMM_PICLAS                      &
+                  , SendRequestNonSymDepo(iProc)         &
                   , IERROR)
   END IF
 END DO
@@ -1694,23 +1646,23 @@ DO iProc = 0,nProcessors_Global-1
   IF (iProc.EQ.myRank) CYCLE
   IF (SendPeriodicNodes(iProc).NE.0) THEN
     ALLOCATE(PeriodicSendRecv(iProc)%Recv(GEO%nPeriodicVectors+1,SendPeriodicNodes(iProc)))
-    CALL MPI_IRECV( PeriodicSendRecv(iProc)%Recv(:,:)                  &
-                  , SendPeriodicNodes(iProc)*(GEO%nPeriodicVectors+1)           &
-                  , MPI_INTEGER                                                 &
-                  , iProc                        &
-                  , 667                                                         &
-                  , MPI_COMM_PICLAS                                              &
-                  , RecvRequestNonSymDepo(iProc)                                          &
+    CALL MPI_IRECV( PeriodicSendRecv(iProc)%Recv(:,:)                 &
+                  , SendPeriodicNodes(iProc)*(GEO%nPeriodicVectors+1) &
+                  , MPI_INTEGER                                       &
+                  , iProc                                             &
+                  , 667                                               &
+                  , MPI_COMM_PICLAS                                   &
+                  , RecvRequestNonSymDepo(iProc)                      &
                   , IERROR)
   END IF
   IF (RecvPeriodicNodes(iProc).NE.0) THEN
-    CALL MPI_ISEND( PeriodicSendRecv(iProc)%Send &
-                  , RecvPeriodicNodes(iProc)*(GEO%nPeriodicVectors+1)           &
-                  , MPI_INTEGER                       &
-                  , iProc                             &
-                  , 667                              &
-                  , MPI_COMM_PICLAS                    &
-                  , SendRequestNonSymDepo(iProc)      &
+    CALL MPI_ISEND( PeriodicSendRecv(iProc)%Send                      &
+                  , RecvPeriodicNodes(iProc)*(GEO%nPeriodicVectors+1) &
+                  , MPI_INTEGER                                       &
+                  , iProc                                             &
+                  , 667                                               &
+                  , MPI_COMM_PICLAS                                   &
+                  , SendRequestNonSymDepo(iProc)                      &
                   , IERROR)
   END IF
 END DO
@@ -1822,21 +1774,21 @@ IF (GEO%nPeriodicVectors.GT.1) THEN
 
   DO iProc = 0,nProcessors_Global-1
     IF (iProc.EQ.myRank) CYCLE
-    CALL MPI_IRECV( RecvPeriodicNodes(iProc)                 &
-                  , 1          &
-                  , MPI_INTEGER                                                 &
+    CALL MPI_IRECV( RecvPeriodicNodes(iProc)     &
+                  , 1                            &
+                  , MPI_INTEGER                  &
                   , iProc                        &
-                  , 1667                                                         &
-                  , MPI_COMM_PICLAS                                              &
-                  , RecvRequestNonSymDepo(iProc)                                          &
+                  , 1667                         &
+                  , MPI_COMM_PICLAS              &
+                  , RecvRequestNonSymDepo(iProc) &
                   , IERROR)
-    CALL MPI_ISEND( SendPeriodicNodes(iProc) &
-                  , 1         &
-                  , MPI_INTEGER                       &
-                  , iProc                             &
-                  , 1667                              &
-                  , MPI_COMM_PICLAS                    &
-                  , SendRequestNonSymDepo(iProc)      &
+    CALL MPI_ISEND( SendPeriodicNodes(iProc)     &
+                  , 1                            &
+                  , MPI_INTEGER                  &
+                  , iProc                        &
+                  , 1667                         &
+                  , MPI_COMM_PICLAS              &
+                  , SendRequestNonSymDepo(iProc) &
                   , IERROR)
   END DO
 
@@ -1853,23 +1805,23 @@ IF (GEO%nPeriodicVectors.GT.1) THEN
     IF (iProc.EQ.myRank) CYCLE
     IF (RecvPeriodicNodes(iProc).NE.0) THEN
       ALLOCATE(PeriodicSendRecv(iProc)%SendNodes(RecvPeriodicNodes(iProc)))
-      CALL MPI_IRECV( PeriodicSendRecv(iProc)%SendNodes(:)                  &
-                    , RecvPeriodicNodes(iProc)           &
-                    , MPI_INTEGER                                                 &
-                    , iProc                        &
-                    , 667                                                         &
-                    , MPI_COMM_PICLAS                                              &
-                    , RecvRequestNonSymDepo(iProc)                                          &
+      CALL MPI_IRECV( PeriodicSendRecv(iProc)%SendNodes(:) &
+                    , RecvPeriodicNodes(iProc)             &
+                    , MPI_INTEGER                          &
+                    , iProc                                &
+                    , 667                                  &
+                    , MPI_COMM_PICLAS                      &
+                    , RecvRequestNonSymDepo(iProc)         &
                     , IERROR)
     END IF
     IF (SendPeriodicNodes(iProc).NE.0) THEN
       CALL MPI_ISEND( PeriodicSendRecv(iProc)%RecvNodes(:) &
-                    , SendPeriodicNodes(iProc)           &
-                    , MPI_INTEGER                       &
-                    , iProc                             &
-                    , 667                              &
-                    , MPI_COMM_PICLAS                    &
-                    , SendRequestNonSymDepo(iProc)      &
+                    , SendPeriodicNodes(iProc)             &
+                    , MPI_INTEGER                          &
+                    , iProc                                &
+                    , 667                                  &
+                    , MPI_COMM_PICLAS                      &
+                    , SendRequestNonSymDepo(iProc)         &
                     , IERROR)
     END IF
   END DO
@@ -1908,22 +1860,22 @@ IF (GEO%nPeriodicVectors.GT.1) THEN
     IF (SendPeriodicNodes(iProc).NE.0) THEN
       ALLOCATE(PeriodicSendRecv(iProc)%Recv(2**GEO%nPeriodicVectors,SendPeriodicNodes(iProc)))
       CALL MPI_IRECV( PeriodicSendRecv(iProc)%Recv(:,:)                  &
-                    , SendPeriodicNodes(iProc)*(2**GEO%nPeriodicVectors)           &
-                    , MPI_INTEGER                                                 &
-                    , iProc                        &
-                    , 667                                                         &
-                    , MPI_COMM_PICLAS                                              &
-                    , RecvRequestNonSymDepo(iProc)                                          &
+                    , SendPeriodicNodes(iProc)*(2**GEO%nPeriodicVectors) &
+                    , MPI_INTEGER                                        &
+                    , iProc                                              &
+                    , 667                                                &
+                    , MPI_COMM_PICLAS                                    &
+                    , RecvRequestNonSymDepo(iProc)                       &
                     , IERROR)
     END IF
     IF (RecvPeriodicNodes(iProc).NE.0) THEN
-      CALL MPI_ISEND( PeriodicSendRecv(iProc)%Send &
-                    , RecvPeriodicNodes(iProc)*(2**GEO%nPeriodicVectors)           &
-                    , MPI_INTEGER                       &
-                    , iProc                             &
-                    , 667                              &
-                    , MPI_COMM_PICLAS                    &
-                    , SendRequestNonSymDepo(iProc)      &
+      CALL MPI_ISEND( PeriodicSendRecv(iProc)%Send                       &
+                    , RecvPeriodicNodes(iProc)*(2**GEO%nPeriodicVectors) &
+                    , MPI_INTEGER                                        &
+                    , iProc                                              &
+                    , 667                                                &
+                    , MPI_COMM_PICLAS                                    &
+                    , SendRequestNonSymDepo(iProc)                       &
                     , IERROR)
     END IF
   END DO
@@ -2089,20 +2041,6 @@ CALL DisplayMessageAndTime(EndT-StartT, 'DONE!',DisplayLine=.FALSE.)
 END SUBROUTINE InitializePeriodicNodes
 
 
-RECURSIVE SUBROUTINE DeallocateNodeList(node)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-TYPE(NodeDepoMapping), POINTER    :: node
-!===================================================================================================================================
-
-IF (ASSOCIATED(node)) THEN
-  CALL DeallocateNodeList(node%next)
-  DEALLOCATE(node)
-END IF
-
-END SUBROUTINE DeallocateNodeList
-
-
 SUBROUTINE FinalizeDeposition()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! finalize pic deposition
@@ -2111,23 +2049,26 @@ SUBROUTINE FinalizeDeposition()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO,PeriodicSFCaseMatrix
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,PeriodicSFCaseMatrix
 USE MOD_PICDepo_Vars
 #if USE_MPI
-USE MOD_MPI_Shared_vars    ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
 #endif
 #if USE_LOADBALANCE
-USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
-USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
-!USE MOD_Particle_Mesh_Vars ,ONLY: GlobalElem2CNTotalElem,GlobalElem2CNTotalElem_Shared!,GlobalElem2CNTotalElem_Shared_Win
-!USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,nProcessors_Global
-USE MOD_LoadBalance_Vars   ,ONLY: NodeSourceExtEquiLB!,PartSourceLB
-USE MOD_Mesh_Vars          ,ONLY: nElems
-USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared,ElemNodeID_Shared
-USE MOD_Mesh_Vars          ,ONLY: offsetElem
-USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_PICDepo_MPI            ,ONLY: ExchangeNodeSourceExtMPI,ExchangeSurfNodeSourceMPI
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+!USE MOD_Particle_Mesh_Vars    ,ONLY: GlobalElem2CNTotalElem,GlobalElem2CNTotalElem_Shared!,GlobalElem2CNTotalElem_Shared_Win
+!USE MOD_MPI_Shared_Vars       ,ONLY: nComputeNodeProcessors,nProcessors_Global
+USE MOD_LoadBalance_Vars       ,ONLY: NodeSourceExtEquiLB!,PartSourceLB
+USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: NodeInfo_Shared,ElemNodeID_Shared
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 #endif /*USE_LOADBALANCE*/
+USE MOD_Particle_Boundary_Vars ,ONLY: Do2DSurfaceCharge
+USE MOD_Mesh_Vars              ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2221,7 +2162,7 @@ IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
   !END IF ! DoDeposition
 
   IF(DoDielectricSurfaceCharge)THEN
-    IF(DoDeposition) CALL ExchangeNodeSourceExtTmp()
+    IF(DoDeposition) CALL ExchangeNodeSourceExtMPI()
     !SDEALLOCATE(NodeSourceExtEquiLB)
     !ALLOCATE(NodeSourceExtEquiLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
     ALLOCATE(NodeSourceExtEquiLB(1:N_variables,0:1,0:1,0:1,nElems))
@@ -2241,13 +2182,41 @@ IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
     END DO!iElem
   END IF ! DoDielectricSurfaceCharge
 
+  IF (Do2DSurfaceCharge) THEN
+    SDEALLOCATE(SurfNodeSourceMPI)
+    ! The root process keeps all the data relevant for sending the surface charge to the other processes
+    IF (.NOT.MPIRoot) THEN
+      SDEALLOCATE(Vdm_EQ_N)
+      SDEALLOCATE(SurfNodeSource)
+      SDEALLOCATE(SurfNodeSymmetryFactor)
+      SDEALLOCATE(DepoSurfNodeID2FEMVertexID)
+      SDEALLOCATE(FEMVertexID2DepoSurfNodeID)
+      SDEALLOCATE(NonUniqueGlobalNodeIDToFEMVertexID)
+      SDEALLOCATE(NonUniqueGlobalSideIDToNonUniqueGlobalNodeID)
+      SDEALLOCATE(IsDepoSurfSide)
+    END IF ! .NOT.MPIRoot
+  END IF ! Do2DSurfaceCharge
+
+
   !! Finalize here because GetCNElemID() is required in this routine for load balancing of NodeSourceExtEquiLB = NodeSourceExt
   !IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
   !  CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
   !  ADEALLOCATE(GlobalElem2CNTotalElem)
   !  ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
   !END IF ! nComputeNodeProcessors.NE.nProcessors_Global
-
+ELSE
+#endif /*USE_LOADBALANCE*/
+  IF (Do2DSurfaceCharge) THEN
+    SDEALLOCATE(Vdm_EQ_N)
+    SDEALLOCATE(SurfNodeSource)
+    SDEALLOCATE(SurfNodeSymmetryFactor)
+    SDEALLOCATE(DepoSurfNodeID2FEMVertexID)
+    SDEALLOCATE(FEMVertexID2DepoSurfNodeID)
+    SDEALLOCATE(NonUniqueGlobalNodeIDToFEMVertexID)
+    SDEALLOCATE(NonUniqueGlobalSideIDToNonUniqueGlobalNodeID)
+    SDEALLOCATE(IsDepoSurfSide)
+  END IF ! Do2DSurfaceCharge
+#if USE_LOADBALANCE
 END IF
 #endif /*USE_LOADBALANCE*/
 
@@ -2269,9 +2238,17 @@ SDEALLOCATE(NodeSendDepoRankToGlobalRank)
 SDEALLOCATE(NodeRecvDepoRankToGlobalRank)
 SDEALLOCATE(RecvRequest)
 SDEALLOCATE(SendRequest)
-SDEALLOCATE(NodeSourceExtTmp)
+SDEALLOCATE(NodeSourceExtMPI)
 SDEALLOCATE(NodeMappingSend)
 SDEALLOCATE(NodeMappingRecv)
+
+SDEALLOCATE(SurfNodeSendDepoRankToGlobalRank)
+SDEALLOCATE(SurfNodeRecvDepoRankToGlobalRank)
+SDEALLOCATE(SurfRecvRequest)
+SDEALLOCATE(SurfSendRequest)
+! SDEALLOCATE(NodeSourceExtMPI)
+SDEALLOCATE(SurfNodeMappingSend)
+SDEALLOCATE(SurfNodeMappingRecv)
 #endif /*USE_MPI*/
 
 END SUBROUTINE FinalizeDeposition

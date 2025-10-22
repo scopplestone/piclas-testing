@@ -275,6 +275,17 @@ TYPE tPartBoundary
   ! Virtual dielectric layer (VDL)
   REAL    , ALLOCATABLE                  :: PermittivityVDL(:)            ! Permittivity of the virtual dielectric layer model
   REAL    , ALLOCATABLE                  :: ThicknessVDL(:)               ! Thickness of the real dielectric layer in the virtual dielectric layer model
+  ! 2D surface charging
+  LOGICAL , ALLOCATABLE                  :: UseSurfaceCharge(:)         ! Activate 2D surface charging
+#if USE_HDG
+!===================================================================================================================================
+!-- Distributed Capacitance
+!===================================================================================================================================
+  REAL    , ALLOCATABLE                  :: DCBiasVoltage(:)            ! Distributed Capacitance bias voltage (phi)', '0.0'
+  REAL    , ALLOCATABLE                  :: DCPermittivity(:)           ! Distributed Capacitance relative permittivity (eps_r)', '1.0'
+  REAL    , ALLOCATABLE                  :: DCSurfaceChargeDensity(:)   ! Distributed Capacitance surface charge density (sigma)', '0.0'
+  REAL    , ALLOCATABLE                  :: DCThickness(:)              ! Distributed Capacitance thickness (d)', '1.0'
+#endif /*USE_HDG*/
   ! Multi rotational periodic and interplane BCs
   LOGICAL                                :: UseRotPeriodicBC            ! Flag for rotational periodicity
   LOGICAL                                :: OutputBCDataForTesting      ! Flag to output boundary parameter which were determined
@@ -316,6 +327,9 @@ LOGICAL              :: DoVirtualDielectricLayer      ! Flag set automatically i
 REAL, ALLOCATABLE    :: ElementThicknessVDL(:)        ! Thickness of first element layer at a VDL boundary
 REAL, ALLOCATABLE    :: ElementThicknessVDLPerSide(:) ! Thickness of first element layer at a VDL boundary per side to account for multiple VDLs within a single element
 REAL, ALLOCATABLE    :: StretchingFactorVDL(:)        ! Thickness of first element layer at a VDL boundary versus actual VDL layer thickness
+
+! 2D surface charging
+LOGICAL              :: Do2DSurfaceCharge ! Flag set automatically if a 2D surface charging is activated via SurfaceCharge(:)
 
 TYPE, PUBLIC :: VDLSurfMesh
   REAL,ALLOCATABLE :: U(:,:,:) !<  1: PhiF_From_E      - PhiF calculated from E (2-4)

@@ -38,7 +38,7 @@ CONTAINS
 SUBROUTINE DefineParametersMesh()
 ! MODULES
 USE MOD_Globals
-USE MOD_ReadInTools    ,ONLY: prms,addStrListEntry
+USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
 USE MOD_Mesh_pAdaption ,ONLY: PRM_P_ADAPTION_ZERO,PRM_P_ADAPTION_RDN,PRM_P_ADAPTION_NPB,PRM_P_ADAPTION_HH
 USE MOD_Mesh_pAdaption ,ONLY: PRM_P_ADAPTION_LVL_MINTWO,PRM_P_ADAPTION_LVL_MINONE,PRM_P_ADAPTION_LVL_DEFAULT,PRM_P_ADAPTION_LVL_TWO
 ! IMPLICIT VARIABLE HANDLING
@@ -56,8 +56,8 @@ CALL prms%CreateLogicalOption( 'crossProductMetrics' , "Compute mesh metrics usi
 CALL prms%CreateStringOption(  'BoundaryName'        , "Names of boundary conditions to be set (must be present in the mesh!). For each BoundaryName a BoundaryType needs to be specified." , multiple=.TRUE.)
 CALL prms%CreateIntArrayOption('BoundaryType'        , "Type of boundary conditions to be set. Format: (BC_TYPE, BC_STATE)"                                                                 , multiple=.TRUE. , no=2)
 #if USE_FV
-CALL prms%CreateLogicalOption( 'meshCheckRef-FV'        , "Flag if the mesh Jacobians should be checked in the reference system in addition to the computational system."                      , '.TRUE.')
-CALL prms%CreateIntArrayOption('BoundaryType-FV'     , "Type of boundary conditions for FV to be set. Format: (BC_TYPE, BC_STATE)"                                                                 , multiple=.TRUE. , no=2)
+CALL prms%CreateLogicalOption( 'meshCheckRef-FV'     , "Flag if the mesh Jacobians should be checked in the reference system in addition to the computational system."                      , '.TRUE.')
+CALL prms%CreateIntArrayOption('BoundaryType-FV'     , "Type of boundary conditions for FV to be set. Format: (BC_TYPE, BC_STATE)"                                                          , multiple=.TRUE. , no=2)
 #endif
 CALL prms%CreateLogicalOption( 'writePartitionInfo'  , "Write information about MPI partitions into a file."                                                                                , '.FALSE.')
 
@@ -76,10 +76,9 @@ CALL addStrListEntry('pAdaptionType' , 'half-half'       , PRM_P_ADAPTION_HH)
 
 CALL prms%CreateIntFromStringOption('pAdaptionBCLevel', "Only for pAdaptionType=non-periodic-BC: Number/Depth of elements connected to a boundary that are set to NMax.\n"//&
                                     '1st-and-2nd-NMin+1 ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_MINTWO))//'): elements with non-periodic boundary conditions receive NMax, 2nd layer receive NMin+1\n'//&
-                                    '    directly-connected-NMin+1 ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_MINONE))//'): elements with non-periodic boundary conditions receive NMin+1\n'//&
-                                    '      directly-connected-NMax ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_DEFAULT))//'): elements with non-periodic boundary conditions receive NMax\n'//&
-                                    '  1st-and-2nd-NMax ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_TWO))//'): first two elements with non-periodic boundary conditions receive NMax\n'&
-                                   ,'directly-connected')
+                                    'directly-connected-NMin+1 ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_MINONE))//'): elements with non-periodic boundary conditions receive NMin+1\n'//&
+                                    'directly-connected-NMax ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_DEFAULT))//'): elements with non-periodic boundary conditions receive NMax\n'//&
+                                    '1st-and-2nd-NMax ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_TWO))//'): first two elements with non-periodic boundary conditions receive NMax\n')
 
 CALL addStrListEntry('pAdaptionBCLevel' , '1st-and-2nd-NMin+1'        , PRM_P_ADAPTION_LVL_MINTWO)
 CALL addStrListEntry('pAdaptionBCLevel' , 'directly-connected-NMin+1' , PRM_P_ADAPTION_LVL_MINONE)
@@ -144,9 +143,9 @@ USE MOD_LoadBalance_Metrics_FV ,ONLY: ExchangeVolMesh_FV,ExchangeMetrics_FV
 USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_Particle_Vars          ,ONLY: usevMPF
 #endif
-#if USE_HDG && USE_LOADBALANCE
+#if USE_HDG
 USE MOD_Mesh_Tools             ,ONLY: BuildSideToNonUniqueGlobalSide
-#endif /*USE_HDG && USE_LOADBALANCE*/
+#endif /*USE_HDG*/
 #if !(PP_TimeDiscMethod==700)
 USE MOD_DG_Vars                ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
 #endif /*!(PP_TimeDiscMethod==700)*/
@@ -581,17 +580,11 @@ IF(CalcMeshInfo)THEN
   !#endif /*PARTICLES*/
 END IF
 
-#if USE_HDG && USE_LOADBALANCE
+#if USE_HDG
 IF (ABS(meshMode).GT.0) CALL BuildSideToNonUniqueGlobalSide() ! requires ElemInfo
-#endif /*USE_HDG && USE_LOADBALANCE*/
+#endif /*USE_HDG*/
 !DEALLOCATE(ElemInfo,SideInfo)
 DEALLOCATE(SideInfo)
-IF(readFEMconnectivity)THEN
-  SDEALLOCATE(EdgeInfo)
-  SDEALLOCATE(VertexInfo)
-  SDEALLOCATE(EdgeConnectInfo)
-  SDEALLOCATE(VertexConnectInfo)
-END IF
 
 MeshInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'
@@ -610,9 +603,9 @@ USE MOD_GLobals
 USE MOD_DG_Vars   ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave,N_DG_Mapping!,pAdaptionType
 USE MOD_Mesh_Vars ,ONLY: SideToElem,nSides,nBCSides, offSetElem
 
-USE MOD_Mesh_Vars ,ONLY: firstMortarInnerSide,lastMortarInnerSide,MortarType,MortarInfo
+USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,MortarType,MortarInfo
 #if USE_MPI
-USE MOD_Mesh_Vars ,ONLY: firstMortarMPISide,lastMortarMPISide
+USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
 USE MOD_MPI       ,ONLY: StartExchange_DG_Elems,FinishExchangeMPIData
 USE MOD_MPI_Vars  ,ONLY: DataSizeSideSend,DataSizeSideRec,nNbProcs,nMPISides_rec,nMPISides_send,OffsetMPISides_rec
 USE MOD_MPI_Vars  ,ONLY: OffsetMPISides_send
@@ -1133,6 +1126,12 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
 !local variables
 !============================================================================================================================
+IF(readFEMconnectivity)THEN
+  SDEALLOCATE(EdgeInfo)
+  SDEALLOCATE(VertexInfo)
+  SDEALLOCATE(EdgeConnectInfo)
+  SDEALLOCATE(VertexConnectInfo)
+END IF
 ! Deallocate global variables, needs to go somewhere else later
 SDEALLOCATE(ElemInfo)
 ! mapping from elems to sides and vice-versa
