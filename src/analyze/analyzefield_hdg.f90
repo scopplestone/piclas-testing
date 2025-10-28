@@ -479,6 +479,11 @@ EDC%Current = 0.
 ! 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
 !     interpolate the vector field Dt = (/Dtx, Dty, Dtz/) to the boundary face
 DO SideID=1,nBCSides
+  ! Get BC index and EDC index and the mapping of the SideID boundary to the EDC boundary ID
+  iBC    = BC(SideID)
+  iEDCBC = EDC%BCIDToEDCBCID(iBC)
+  ! Skip sides not part of the output
+  IF(iEDCBC.LT.1) CYCLE
   ! Get the local element index
   ElemID   = SideToElem(S2E_ELEM_ID,SideID)
   ! Get local polynomial degree of the element
@@ -496,11 +501,9 @@ DO SideID=1,nBCSides
                  + Eface(2,:,:) * N_SurfMesh(SideID)%NormVec(2,:,:) &
                  + Eface(3,:,:) * N_SurfMesh(SideID)%NormVec(3,:,:)
 
-  ! 3.) Get BC index and EDC index and the mapping of the SideID boundary to the EDC boundary ID and store the integrated current
-  iBC    = BC(SideID)
-  iEDCBC = EDC%BCIDToEDCBCID(iBC)
+  ! 3.) Store the integrated current
   EDC%Current(iEDCBC) = EDC%Current(iEDCBC) + SUM(Eface(1,:,:) * N_SurfMesh(SideID)%SurfElem(:,:) * N_Inter(Nloc)%wGPSurf(:,:))
-
+  ! Deallocate for potentially next different N
   DEALLOCATE(Eface)
 END DO ! SideID=1,nBCSides
 
@@ -538,9 +541,8 @@ SUBROUTINE CalculateElectricPotentialExtrema()
 #if USE_MPI
 USE MOD_Globals
 #endif
-USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,BC, offSetElem
+USE MOD_Mesh_Vars          ,ONLY: SideToElem,nBCSides,BC,offSetElem
 USE MOD_Analyze_Vars       ,ONLY: EPE
-USE MOD_Interpolation_Vars ,ONLY: N_Inter
 USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 USE MOD_ProlongToFace      ,ONLY: ProlongToFace_Side
 ! IMPLICIT VARIABLE HANDLING
@@ -565,6 +567,11 @@ EPE%Minimum =  HUGE(1.0)
 ! 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
 !     interpolate the vector field Dt = (/Dtx, Dty, Dtz/) to the boundary face
 DO SideID=1,nBCSides
+  ! Get BC index and EPE index and the mapping of the SideID boundary to the EPE boundary ID
+  iBC    = BC(SideID)
+  iEPEBC = EPE%BCIDToEPEBCID(iBC)
+  ! Skip sides not part of the output
+  IF(iEPEBC.LT.1) CYCLE
   ! Get the local element index
   ElemID   = SideToElem(S2E_ELEM_ID,SideID)
   ! Get local polynomial degree of the element
@@ -575,9 +582,7 @@ DO SideID=1,nBCSides
   ilocSide = SideToElem(S2E_LOC_SIDE_ID,SideID)
   ! Prolong-to-face depending on orientation in reference element
   CALL ProlongToFace_Side(1, Nloc, ilocSide, 0, U_N(ElemID)%U, Uface)
-  ! Get BC index and EPE index and the mapping of the SideID boundary to the EPE boundary ID and store the integrated current
-  iBC    = BC(SideID)
-  iEPEBC = EPE%BCIDToEPEBCID(iBC)
+  ! Store the integrated current
   EPE%Maximum(iEPEBC) = MAX(MAXVAL(Uface(1,:,:)),EPE%Maximum(iEPEBC))
   EPE%Minimum(iEPEBC) = MIN(MINVAL(Uface(1,:,:)),EPE%Minimum(iEPEBC))
   ! Deallocate for potentially next different N
