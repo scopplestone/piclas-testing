@@ -361,12 +361,12 @@ USE MOD_MPI_Shared_Vars    ,ONLY: myComputeNodeRank,nComputeNodeTotalElems,nComp
 USE MOD_MPI_Shared_vars    ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared         ,ONLY: BARRIER_AND_SYNC
 USE MOD_Particle_Mesh_Vars ,ONLY: VertexInfo_Shared_Win
+USE MOD_PICDepo_MPI        ,ONLY: LBReverseExchangeSurfNodeSource
 #else
 USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
-USE MOD_PICDepo_MPI        ,ONLY: LBReverseExchangeSurfNodeSource
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

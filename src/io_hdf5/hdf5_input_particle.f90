@@ -43,7 +43,6 @@ SUBROUTINE ReadNodeSourceExtFromHDF5()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-! USE MOD_Dielectric_Vars        ,ONLY: DoDielectric
 USE MOD_HDF5_Input             ,ONLY: ReadArray,GetDataSize,nDims,HSize
 USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
@@ -55,11 +54,6 @@ USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt,NodeVolume,DoDeposition
 USE MOD_Restart_Vars           ,ONLY: N_Restart
 USE MOD_DG_vars                ,ONLY: N_DG_Mapping
 USE MOD_Interpolation_Vars     ,ONLY: NMax,NMin
-!#if USE_MPI
-!USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
-!USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
-!USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
-!#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -259,19 +253,14 @@ END SUBROUTINE ReadNodeSourceExtFromHDF5
 SUBROUTINE ReadSurfNodeSourceFromHDF5()
 USE MOD_Globals
 USE MOD_PreProc
-! USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-USE MOD_HDF5_Input             ,ONLY: ReadArray,GetDataSize,nDims,HSize
-USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists
-USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource,nDepoSurfNodesTotal
-! USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
-! USE MOD_Interpolation          ,ONLY: GetVandermonde
-! USE MOD_Mesh_Vars              ,ONLY: offsetElem,nElems
-! USE MOD_Mesh_Tools             ,ONLY: GetCNElemID,GetGlobalElemID
-! USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes!,NodeToElemMapping,NodeToElemInfo
-! USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt,NodeVolume,DoDeposition
-! USE MOD_Restart_Vars           ,ONLY: N_Restart
-! USE MOD_DG_vars                ,ONLY: N_DG_Mapping
-! USE MOD_Interpolation_Vars     ,ONLY: NMax,NMin
+USE MOD_HDF5_Input   ,ONLY: ReadArray,GetDataSize,nDims,HSize
+USE MOD_HDF5_Input   ,ONLY: File_ID,DatasetExists
+USE MOD_PICDepo_Vars ,ONLY: SurfNodeSource,nDepoSurfNodesTotal
+#if USE_MPI
+USE MOD_PICDepo_MPI  ,ONLY: LBReverseExchangeSurfNodeSource
+#endif /*USE_MPI*/
+USE MOD_IO_HDF5      ,ONLY: OpenDataFile,CloseDataFile,File_ID
+USE MOD_Restart_Vars ,ONLY: RestartFile
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -283,13 +272,14 @@ CHARACTER(LEN=255),PARAMETER :: SurfNodeSourceDataset='SurfNodeSource'
 INTEGER                      :: offsetFEMVertex
 LOGICAL                      :: SurfNodeSourceExists
 !===================================================================================================================================
-#if USE_MPI
-CALL abort(__STAMP__,'MPI read-in not implemented in ReadSurfNodeSourceFromHDF5()')
-#endif /*USE_MPI*/
-
-CALL DatasetExists(File_ID,TRIM(SurfNodeSourceDataset),SurfNodeSourceExists)
-
-IF(SurfNodeSourceExists)THEN
+! Only the MPIRoot reads the data
+IF (MPIRoot) THEN
+  ! Root opens .h5 state file
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+  ! Check if the dataset exists
+  CALL DatasetExists(File_ID,TRIM(SurfNodeSourceDataset),SurfNodeSourceExists)
+  IF(.NOT.SurfNodeSourceExists) CALL abort(__STAMP__,&
+    'Error in ReadSurfNodeSourceFromHDF5(): Cannot find '//TRIM(SurfNodeSourceDataset)//' in state file.')
   ! Get process offset
   offsetFEMVertex = 0
   ! Sanity check
@@ -297,9 +287,14 @@ IF(SurfNodeSourceExists)THEN
   IF(nDepoSurfNodesTotal.LE.0) CALL abort(__STAMP__,'Error in ReadSurfNodeSourceFromHDF5(): nDepoSurfNodesTotal<=0')
   ! Allocate local 2D array
   CALL ReadArray(TRIM(SurfNodeSourceDataset),1,(/INT(nDepoSurfNodesTotal,IK)/),INT(offsetFEMVertex,IK),1,RealArray=SurfNodeSource)
-ELSE
-  CALL abort(__STAMP__,'Error in ReadSurfNodeSourceFromHDF5(): Cannot find '//TRIM(SurfNodeSourceDataset)//' in state file.')
-END IF ! SurfNodeSourceExists
+  ! Root closes the .h5 state file
+  CALL CloseDataFile()
+END IF ! MPIRoot
+
+#if USE_MPI
+! The MPIRoot distributes the data directly to the processes
+CALL LBReverseExchangeSurfNodeSource()
+#endif /*USE_MPI*/
 
 END SUBROUTINE ReadSurfNodeSourceFromHDF5
 

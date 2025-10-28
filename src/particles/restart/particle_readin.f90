@@ -583,6 +583,10 @@ ELSE
       END IF
     END DO
   END IF
+  ! ------------------------------------------------
+  ! SurfNodeSource (surface charge source terms): Only root opens and reads the data
+  ! ------------------------------------------------
+  IF(Do2DSurfaceCharge) CALL ReadSurfNodeSourceFromHDF5()
 
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   ! ------------------------------------------------
@@ -590,10 +594,6 @@ ELSE
   ! ------------------------------------------------
   IF(DoDielectricSurfaceCharge) CALL ReadNodeSourceExtFromHDF5()
 
-  ! ------------------------------------------------
-  ! SurfNodeSource (surface charge source terms)
-  ! ------------------------------------------------
-  IF(Do2DSurfaceCharge) CALL ReadSurfNodeSourceFromHDF5()
 
   ! ------------------------------------------------
   ! PartInt
