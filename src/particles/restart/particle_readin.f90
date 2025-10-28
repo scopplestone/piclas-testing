@@ -45,9 +45,7 @@ USE MOD_Mesh_Vars              ,ONLY: OffsetElem
 ! DSMC
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC,DSMC,PolyatomMolDSMC,SpecDSMC,ParticleWeighting
 ! Particles
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5,ReadNodeSourceExtFromHDF5,ReadSurfNodeSourceFromHDF5
-USE MOD_Particle_Boundary_Vars ,ONLY: Do2DSurfaceCharge
+USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,nSpecies,Species
 ! Restart
 USE MOD_Restart_Vars           ,ONLY: RestartFile,RestartNullifySolution,DoMacroscopicRestart
@@ -66,6 +64,9 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
+USE MOD_Particle_Boundary_Vars ,ONLY: Do2DSurfaceCharge
+USE MOD_HDF5_Input_Particles   ,ONLY: ReadNodeSourceExtFromHDF5,ReadSurfNodeSourceFromHDF5
 USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt
 USE MOD_LoadBalance_Vars       ,ONLY: NodeSourceExtEquiLB
 USE MOD_Interpolation_Vars     ,ONLY: NMax
@@ -583,16 +584,20 @@ ELSE
       END IF
     END DO
   END IF
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
   ! ------------------------------------------------
   ! SurfNodeSource (surface charge source terms): Only root opens and reads the data
   ! ------------------------------------------------
   IF(Do2DSurfaceCharge) CALL ReadSurfNodeSourceFromHDF5()
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
   ! ------------------------------------------------
   ! NodeSourceExt (external/additional charge source terms)
   ! ------------------------------------------------
   IF(DoDielectricSurfaceCharge) CALL ReadNodeSourceExtFromHDF5()
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 
   ! ------------------------------------------------

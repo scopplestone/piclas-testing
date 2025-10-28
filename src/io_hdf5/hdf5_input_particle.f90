@@ -26,14 +26,17 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 PUBLIC :: ReadNodeSourceExtFromHDF5
 PUBLIC :: ReadSurfNodeSourceFromHDF5
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 PUBLIC :: ReadEmissionVariablesFromHDF5
 !===================================================================================================================================
 
 CONTAINS
 
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 !===================================================================================================================================
 !> Read NodeSourceExt from h5 file, which is stored as DG solution type field 'DG_SourceExt'.
 !> Map this solution to equidistant-node polynomial (NodeTypeVISU with N=1) and then map the solution to the global nodes
@@ -297,6 +300,7 @@ CALL LBReverseExchangeSurfNodeSource()
 #endif /*USE_MPI*/
 
 END SUBROUTINE ReadSurfNodeSourceFromHDF5
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 
 !===================================================================================================================================
