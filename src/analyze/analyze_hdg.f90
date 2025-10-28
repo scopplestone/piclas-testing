@@ -241,10 +241,10 @@ IF(MPIRoot)THEN
   BConProc = .TRUE.
 ELSE
   DO SideID=1,nBCSides
-    IF(BoundaryType(BC(SideID),BC_ALPHA).NE.0) CYCLE ! Skip periodic BC
+    iBC    = BC(SideID)
+    IF(BoundaryType(iBC,BC_ALPHA).NE.0) CYCLE ! Skip periodic BC
     IF(ANY(BoundaryType(iBC,BC_TYPE).EQ.(/10,11,12/))) CYCLE ! Skip Neumann BC
     IF(BoundaryType(iBC,BC_TYPE).EQ.20) CYCLE ! Skip FPC BC
-    iBC    = BC(SideID)
     iEPEBC = EPE%BCIDToEPEBCID(iBC)
     BConProc(iEPEBC) = .TRUE.
   END DO ! SideID=1,nBCSides
