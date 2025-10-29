@@ -193,7 +193,7 @@ nProcs      = nProcessors
 ! Readin of PartInt: Read in only by MPIRoot in single mode because the root performs the distribution of elements (domain decomposition)
 ! due to the load distribution scheme
 #ifdef PARTICLES
-ALLOCATE(PartIntGlob(PartIntSize,1:nGlobalElems))
+IF(MPIRoot) ALLOCATE(PartIntGlob(PartIntSize,1:nGlobalElems))
 
 ! Redistribute/read PartInt array
 IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
@@ -202,7 +202,11 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   END DO
   ! Sanity check
   IF(.NOT.ALLOCATED(PartInt)) CALL abort(__STAMP__,'PartInt is not allocated') ! Missing call to FillParticleData()
-  CALL MPI_GATHERV(PartInt,nElemsOld,MPI_INTEGER_INT_KIND,PartIntGlob,ElemPerProc,offsetElemMPIOld(0:nProcessors-1),MPI_INTEGER_INT_KIND,0,MPI_COMM_PICLAS,iError)
+  IF(MPIRoot) THEN
+    CALL MPI_GATHERV(PartInt,nElemsOld,MPI_INTEGER_INT_KIND,PartIntGlob,ElemPerProc,offsetElemMPIOld(0:nProcessors-1),MPI_INTEGER_INT_KIND,0,MPI_COMM_PICLAS,iError)
+  ELSE
+    CALL MPI_GATHERV(PartInt,nElemsOld,MPI_INTEGER_INT_KIND,[0],[0],[0],MPI_INTEGER_INT_KIND,0,MPI_COMM_PICLAS,iError)
+  END IF
   PartIntExists = .TRUE.
 ELSE
   ! Readin of PartInt: Read in only by MPIRoot in single mode because the root performs the distribution of elements (domain decomposition)
@@ -268,7 +272,6 @@ IF(MPIRoot)THEN
       IF(.NOT.ElemTimeExists) ElemGlobalTime(iElem) = locnPart*ParticleMPIWeight*timeWeight(iElem) + 1.0
     END DO
   END IF ! PartIntExists
-
   SDEALLOCATE(PartIntGlob)
 END IF ! MPIRoot
 #endif /*PARTICLES*/

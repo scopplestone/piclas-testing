@@ -1162,10 +1162,11 @@ SurfNodeSourceMPI = 0.
 END SUBROUTINE ExchangeSurfNodeSourceMPI
 
 
-#if USE_LOADBALANCE
+! #if USE_LOADBALANCE
 !===================================================================================================================================
-!> MPIRoot sends all sending processes the NodeSource data during load balancing because the MPIRoot process has all information
-!> ATTENTION: Send/Receive containers are used in reverse in this routine
+!> MPIRoot sends all surface charge deposition sending processes the NodeSource data during load balancing and when restarting the
+!> simulation because the MPIRoot process has the complete global information.
+!> ATTENTION: Do not beconfused because Send/Receive containers are used in reverse in this routine
 !===================================================================================================================================
 SUBROUTINE LBReverseExchangeSurfNodeSource()
 ! MODULES
@@ -1299,7 +1300,7 @@ END IF ! .NOT.MPIRoot
 ! Reset local surface charge
 ! SurfNodeSourceMPI = 0.
 END SUBROUTINE LBReverseExchangeSurfNodeSource
-#endif /*USE_LOADBALANCE*/
+! #endif /*USE_LOADBALANCE*/
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*USE_MPI*/
 END MODULE MOD_PICDepo_MPI
