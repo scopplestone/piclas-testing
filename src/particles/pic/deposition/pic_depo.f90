@@ -388,6 +388,7 @@ INTEGER :: CNElemID,LocSideID,Nloc,iBC
 INTEGER,ALLOCATABLE :: SymmetryBCIndex(:,:)
 INTEGER :: FirstCNElemID,LastCNElemID,iCNELemID,localVertexID
 REAL    :: StartT,EndT
+INTEGER, PARAMETER :: MaxAllowedSymmetries=6 ! The number 6 is chosen at random to limit the maximum number of symmetries
 !===================================================================================================================================
 LBWRITE(UNIT_stdOut,'(A,I0,A)',ADVANCE='NO') ' | Initializing node mappings for 2D surface deposition...'
 GETTIME(StartT)
@@ -498,7 +499,7 @@ DO iCNELemID = FirstCNElemID, LastCNElemID
     FirstVertexConnectInd = VertexInfo_Shared(VERTEX_FIRSTCONNECTIND,iVertexInd)+1
     LastVertexConnectInd  = VertexInfo_Shared(VERTEX_LASTCONNECTIND,iVertexInd)
     ! Check nodes without connections
-    IF (FirstVertexConnectInd.GT.LastVertexConnectInd) THEN
+    IF (FirstVertexConnectInd.GT.LastVertexConnectInd) THEN ! Vertex has no neighbours (solo vertex)
       ! Check if any of the three connected sides is a deposition side
       ! Set sides depending on the element type: Only implemented for Hexahedral elements
       CALL GetLocSideList(ElemType,localVertexID,LocSideList)
@@ -514,14 +515,14 @@ DO iCNELemID = FirstCNElemID, LastCNElemID
         ! Get boundary condition type
         BCType = BoundaryType(BCIndex,BC_TYPE)
         ! TODO:Implement inner BCs for surface charge deposition
-        IF(BCType.EQ.100) CALL abort(__STAMP__,'InitDepoSurfNodes(): Inner BCs not implemented for surface charge deposition')
+        ! IF(BCType.EQ.100) CALL abort(__STAMP__,'InitDepoSurfNodes(): Inner BCs not implemented for surface charge deposition')
         ! TODO:define a list of all BCType numbers that allow surface deposition
         IF(BCType.NE.30) CYCLE iSide ! Skip non-DCBC sides
         ! Depo node/side found
         IsDepoSurfNode(FEMVertexID) = .TRUE.
         IsDepoSurfSide(NonUniqueGlobalSideID) = .TRUE.
       END DO iSide ! iLocSideList = 1, 3
-    ELSE
+    ELSE ! Vertex has neibouring vertices
       DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
         ! Get neighbour infos. Note the ABS() for +/- master/slave notation
         GlobalNbElemID = ABS(VertexConnectInfo_Shared(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
@@ -634,30 +635,30 @@ IF (InitializeSurfNodeArrays) THEN
       ! Get local vertex connectivity: First and Last connected vertex index
       FirstVertexConnectInd = VertexInfo_Shared(VERTEX_FIRSTCONNECTIND,iVertexInd)+1
       LastVertexConnectInd  = VertexInfo_Shared(VERTEX_LASTCONNECTIND,iVertexInd)
-      iVertexConnectLoop: DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
-        ! Get neighbour infos. Note the ABS() for +/- master/slave notation
-        GlobalNbElemID = ABS(VertexConnectInfo_Shared(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
-        ! IF(GlobalNbElemID.EQ.iGlobalElemID) CYCLE iVertexConnectLoop
-        NbLocVertexID  =     VertexConnectInfo_Shared(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
+      ! Check nodes without connections
+      IF (FirstVertexConnectInd.GT.LastVertexConnectInd) THEN ! Vertex has no neighbours (solo vertex)
+        ! Check if any of the three connected sides is a deposition side
         ! Set sides depending on the element type: Only implemented for Hexahedral elements
-        CALL GetLocSideList(ElemType,NbLocVertexID,LocSideList)
-        ! Loop over the three connected sides of the neighbour element, which is connected with a corner to iVertexConnect
-        NbSide: DO iNeighbourLocSideList = 1, 3
+        CALL GetLocSideList(ElemType,localVertexID,LocSideList)
+        ! Loop over the three connected sides of the element
+        iSide2: DO iLocSideList = 1, 3
           ! Check if current element has already been flagged
-          iNeighbourLocSide = LocSideList(iNeighbourLocSideList)
-          ! Get non-unique global side index of the neighbouring element that is connected to the FEMVertexID/NonUniqueNodeID
-          NonUniqueGlobalNbSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalNbElemID) + iNeighbourLocSide
+          iLocSide = LocSideList(iLocSideList)
+          ! Get non-unique global side index of the element that is connected to the FEMVertexID/NonUniqueNodeID
+          NonUniqueGlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobalElemID) + iLocSide
           ! Get boundary condition index
-          BCIndex = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalNbSideID)
-          IF(BCIndex.LE.0) CYCLE NbSide ! Skip inner sides
+          BCIndex = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalSideID)
+          IF(BCIndex.LE.0) CYCLE iSide2 ! Skip inner sides
           ! Get boundary condition type
           BCType = BoundaryType(BCIndex,BC_TYPE)
-          ! TODO:define a list of all BCType numbers that effect the scaling factor
-          IF(BCType.NE.10) CYCLE NbSide ! Skip non-symmetry sides
+          ! TODO:Implement inner BCs for surface charge deposition
+          ! IF(BCType.EQ.100) CALL abort(__STAMP__,'InitDepoSurfNodes(): Inner BCs not implemented for surface charge deposition')
+          ! TODO:define a list of all BCType numbers that allow surface deposition
+          IF(BCType.NE.10) CYCLE iSide2 ! Skip non-symmetry sides
           ! Increase the scaling factor by one
-          iBCLoop: DO iBC = 1,6
+          iBCLoop: DO iBC = 1, MaxAllowedSymmetries ! TODO: how many symmetries should be allowed?
             ! Do not count the same BCIndex twice
-            IF(SymmetryBCIndex(iBC,NonUniqueNodeID).EQ.BCIndex) CYCLE NbSide
+            IF(SymmetryBCIndex(iBC,NonUniqueNodeID).EQ.BCIndex) CYCLE iSide2
             ! Check for empty spot to place the BCIndex
             IF (SymmetryBCIndex(iBC,NonUniqueNodeID).EQ.0) THEN
               SymmetryBCIndex(iBC,NonUniqueNodeID) = BCIndex
@@ -665,8 +666,42 @@ IF (InitializeSurfNodeArrays) THEN
             END IF ! SymmetryBCIndex(iBC,NonUniqueNodeID).EQ.0
           END DO iBCLoop ! iBC  = 1,6
           SurfNodeSymmetryFactor(NonUniqueNodeID) = SurfNodeSymmetryFactor(NonUniqueNodeID) + 2
-        END DO NbSide ! iNeighbourLocSideList = 1, 3
-      END DO iVertexConnectLoop ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+        END DO iSide2 ! iLocSideList = 1, 3
+      ELSE ! Vertex has neibouring vertices
+        iVertexConnectLoop: DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+          ! Get neighbour infos. Note the ABS() for +/- master/slave notation
+          GlobalNbElemID = ABS(VertexConnectInfo_Shared(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
+          ! IF(GlobalNbElemID.EQ.iGlobalElemID) CYCLE iVertexConnectLoop
+          NbLocVertexID  =     VertexConnectInfo_Shared(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
+          ! Set sides depending on the element type: Only implemented for Hexahedral elements
+          CALL GetLocSideList(ElemType,NbLocVertexID,LocSideList)
+          ! Loop over the three connected sides of the neighbour element, which is connected with a corner to iVertexConnect
+          NbSide: DO iNeighbourLocSideList = 1, 3
+            ! Check if current element has already been flagged
+            iNeighbourLocSide = LocSideList(iNeighbourLocSideList)
+            ! Get non-unique global side index of the neighbouring element that is connected to the FEMVertexID/NonUniqueNodeID
+            NonUniqueGlobalNbSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalNbElemID) + iNeighbourLocSide
+            ! Get boundary condition index
+            BCIndex = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalNbSideID)
+            IF(BCIndex.LE.0) CYCLE NbSide ! Skip inner sides
+            ! Get boundary condition type
+            BCType = BoundaryType(BCIndex,BC_TYPE)
+            ! TODO:define a list of all BCType numbers that effect the scaling factor
+            IF(BCType.NE.10) CYCLE NbSide ! Skip non-symmetry sides
+            ! Increase the scaling factor by one
+            iBCLoop2: DO iBC = 1, MaxAllowedSymmetries ! TODO: how many symmetries should be allowed?
+              ! Do not count the same BCIndex twice
+              IF(SymmetryBCIndex(iBC,NonUniqueNodeID).EQ.BCIndex) CYCLE NbSide
+              ! Check for empty spot to place the BCIndex
+              IF (SymmetryBCIndex(iBC,NonUniqueNodeID).EQ.0) THEN
+                SymmetryBCIndex(iBC,NonUniqueNodeID) = BCIndex
+                EXIT iBCLoop2
+              END IF ! SymmetryBCIndex(iBC,NonUniqueNodeID).EQ.0
+            END DO iBCLoop2 ! iBC  = 1,6
+            SurfNodeSymmetryFactor(NonUniqueNodeID) = SurfNodeSymmetryFactor(NonUniqueNodeID) + 2
+          END DO NbSide ! iNeighbourLocSideList = 1, 3
+        END DO iVertexConnectLoop ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+      END IF ! FirstVertexConnectInd.GT.LastVertexConnectInd
     END DO iVertexIndLoop ! iVertexInd = iFirstVertexInd,LastVertexInd
   END DO ! iCNELemID = FirstCNElemID, LastCNElemID
   DEALLOCATE(SymmetryBCIndex)
