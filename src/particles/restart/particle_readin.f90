@@ -64,9 +64,6 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_Particle_Boundary_Vars ,ONLY: Do2DSurfaceCharge
-USE MOD_HDF5_Input_Particles   ,ONLY: ReadNodeSourceExtFromHDF5,ReadSurfNodeSourceFromHDF5
 USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt
 USE MOD_LoadBalance_Vars       ,ONLY: NodeSourceExtEquiLB
 USE MOD_Interpolation_Vars     ,ONLY: NMax
@@ -81,6 +78,9 @@ USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
 USE MOD_Particle_Vars          ,ONLY: PartDataSize,PartIntSize,PartDataVarNames
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+USE MOD_HDF5_Input_Particles   ,ONLY: ReadNodeSourceExtFromHDF5,ReadSurfNodeSourceFromHDF5
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
+USE MOD_Particle_Boundary_Vars ,ONLY: Do2DSurfaceCharge
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,RelaxDeposition,PS_N
 USE MOD_Restart_Vars           ,ONLY: InterpolateSolution,N_Restart
 USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
