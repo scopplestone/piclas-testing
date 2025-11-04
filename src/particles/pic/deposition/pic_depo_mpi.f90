@@ -590,7 +590,7 @@ DO iCNElem = 1,nComputeNodeTotalElems
       iRank = GlobalRankToNodeSendDepoRank(GlobalNBElemRank)
       ! Sanity check
       IF (iRank.LT.1) CALL ABORT(__STAMP__,'Found not connected Rank!', myRank)
-      ! CHeck if the first node for this process is encountered
+      ! Check if the first node for this process is encountered
       IF (ElemNodeDepoMap(iRank)%firstNode) THEN
         ! Flip the first node flag to false
         ElemNodeDepoMap(iRank)%firstNode = .FALSE.

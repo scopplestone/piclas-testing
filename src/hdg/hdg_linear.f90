@@ -465,6 +465,8 @@ DO SideID=1,nSides
   PetscCallA(VecSetValues(PETScRHS,nGP_face(Nloc),DOFindices(1:nGP_face(Nloc)),HDG_Surf_N(SideID)%RHS_face(1,:),ADD_VALUES,ierr))
 END DO
 
+! 1st assembly call is required because "Calls to VecSetValues() with the INSERT_VALUES and ADD_VALUES options cannot be mixed
+! without intervening calls to the assembly routines."
 PetscCallA(VecAssemblyBegin(PETScRHS,ierr))
 PetscCallA(VecAssemblyEnd(PETScRHS,ierr))
 
@@ -482,6 +484,8 @@ IF(mpiRoot.AND.ZeroPotentialDOF >= 0) THEN
   PetscCallA(VecSetValue(PETScRHS,ZeroPotentialDOF,0,INSERT_VALUES,ierr))
 END IF
 
+! 2nd assembly call is required because "These values may be cached, so VecAssemblyBegin() and VecAssemblyEnd() MUST be called after
+! all calls to VecSetValues() have been completed."
 PetscCallA(VecAssemblyBegin(PETScRHS,ierr))
 PetscCallA(VecAssemblyEnd(PETScRHS,ierr))
 
