@@ -1142,9 +1142,10 @@ DO iProc = 1, nSurfNodeRecvExchangeProcs
   DO iNode = 1, SurfNodeMappingRecv(iProc)%nRecvUniqueSurfNodes
     ! Get FEMVertexID from mapping
     FEMVertexID = SurfNodeMappingRecv(iProc)%RecvSurfNodeUniqueGlobalID(iNode)
+    IF(FEMVertexID.LE.0) CALL abort(__STAMP__,' FEMVertexID <= 0',FEMVertexID)
     ! Get surface deposition node index
     iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
-    if(FEMVertexID.LE.0) CALL abort(__STAMP__,' FEMVertexID <= 0',FEMVertexID)
+    IF((iDepoSurfNodeID.LE.0).OR.(iDepoSurfNodeID.GT.nDepoSurfNodesTotal)) CALL abort(__STAMP__,' Invalid iDepoSurfNodeID',iDepoSurfNodeID)
     ! Unpack in recv array
     ASSOCIATE( NS => SurfNodeSourceMPI(iDepoSurfNodeID) )
       NS = NS + SurfNodeMappingRecv(iProc)%RecvSurfNodeSource(iNode)
