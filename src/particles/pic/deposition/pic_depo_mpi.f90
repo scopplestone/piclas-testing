@@ -407,7 +407,7 @@ INTEGER                   :: testNode
 INTEGER                   :: GlobalRankToNodeSendDepoRank(0:nProcessors_Global-1)
 INTEGER                   :: SendNodeCount,iProc
 INTEGER                   :: iRank
-LOGICAL,ALLOCATABLE       :: IsSendNode(:),FEMVertexIDisDone(:)
+LOGICAL,ALLOCATABLE       :: FEMVertexIDisDone(:)
 LOGICAL                   :: NodeAlreadyAssignedToRoot
 ! Non-symmetric particle exchange
 TYPE(MPI_Request)         :: SendRequestNonSymDepo(0:nProcessors_Global-1)      , RecvRequestNonSymDepo(0:nProcessors_Global-1)
@@ -430,12 +430,8 @@ INTEGER :: iGlobalElemID
 ALLOCATE(SurfNodeSourceMPI(1:nDepoSurfNodesTotal))
 SurfNodeSourceMPI = 0.
 
-! Olny continue to the communication part when there are multiple processes
+! Only continue to the communication part when there are multiple processes
 IF(nProcessors.LE.1) RETURN
-
-! Allocate container for flagging each FEM vertex, if it needs to be sent to at least one communication partner
-ALLOCATE(IsSendNode(1:nFEMVertices))
-IsSendNode = .FALSE.
 
 ! Nullify container to flag each process if it will receive charge
 CommunicateWithRank = .FALSE.
@@ -472,8 +468,6 @@ DO iCNElem = 1,nComputeNodeTotalElems
       IF (GlobalNBElemRank.NE.myrank) THEN
         ! Flag the communication partner
         CommunicateWithRank(GlobalNBElemRank) = .TRUE.
-        ! Flag the vertex if there is at least one communication partner
-        IsSendNode(FEMVertexID) = .TRUE.
       END IF ! GlobalNbElemID.NE.myrank
     END DO iVertexConnectLoop ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
   END DO iVertexIndLoop ! iVertexInd = iFirstVertexInd,LastVertexInd
@@ -650,10 +644,11 @@ DO iProc = 0,nProcessors_Global-1
     , 1                                              &
     , MPI_INTEGER                                    &
     , iProc                                          &
-    , 2000                                           &
+    , 20002                                          &
     , MPI_COMM_PICLAS                                &
     , RecvRequestNonSymDepo(iProc)                   &
     , IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error in InitDepoSurfNodesMPI, IERROR=', IERROR)
 END DO
 
 ! Send each communication partner the number of nodes that can be reached by deposition
@@ -664,19 +659,20 @@ DO iProc = 0,nProcessors_Global-1
     , 1                                             &
     , MPI_INTEGER                                   &
     , iProc                                         &
-    , 2000                                          &
+    , 20002                                         &
     , MPI_COMM_PICLAS                               &
     , SendRequestNonSymDepo(iProc)                  &
     , IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error in InitDepoSurfNodesMPI, IERROR=', IERROR)
 END DO
 
 ! Finish communication
 DO iProc = 0,nProcessors_Global-1
   IF (iProc.EQ.myRank) CYCLE
   CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
-  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error in InitDepoSurfNodesMPI, IERROR=', IERROR)
   CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
-  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error in InitDepoSurfNodesMPI, IERROR=', IERROR)
 END DO
 
 ! 6.) From the received messages, determine the message size that is sent from each communication partner.
@@ -717,10 +713,11 @@ DO iProc = 1, nSurfNodeRecvExchangeProcs
     , SurfNodeMappingRecv(iProc)%nRecvUniqueSurfNodes                   &
     , MPI_INTEGER                                                       &
     , SurfNodeRecvDepoRankToGlobalRank(iProc)                           &
-    , 666                                                               &
+    , 6662                                                              &
     , MPI_COMM_PICLAS                                                   &
     , SurfRecvRequest(iProc)                                            &
     , IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error in InitDepoSurfNodesMPI, IERROR=', IERROR)
 END DO
 
 ! Open send buffer
@@ -763,10 +760,11 @@ DO iProc = 1, nSurfNodeSendExchangeProcs
     , SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes                   &
     , MPI_INTEGER                                                       &
     , SurfNodeSendDepoRankToGlobalRank(iProc)                           &
-    , 666                                                               &
+    , 6662                                                              &
     , MPI_COMM_PICLAS                                                   &
     , SurfSendRequest(iProc)                                            &
     , IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error in InitDepoSurfNodesMPI, IERROR=', IERROR)
 END DO
 
 ! Finish send
@@ -775,13 +773,13 @@ DO iProc = 1, nSurfNodeSendExchangeProcs
   ! Skip MPIRoot, which can happen as it is forced as communication partner even though no nodes for this process are found
   IF(SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes.EQ.0) CYCLE
   CALL MPI_WAIT(SurfSendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
-  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error in InitDepoSurfNodesMPI, IERROR=', IERROR)
 END DO
 
 ! Finish receive
 DO iProc = 1, nSurfNodeRecvExchangeProcs
   CALL MPI_WAIT(SurfRecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
-  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error in InitDepoSurfNodesMPI, IERROR=', IERROR)
 END DO
 
 ! TODO:Check if the received FEMVertexIDs are actually on the receiving process
@@ -1087,10 +1085,11 @@ DO iProc = 1, nSurfNodeRecvExchangeProcs
       , SurfNodeMappingRecv(iProc)%nRecvUniqueSurfNodes               &
       , MPI_DOUBLE_PRECISION                                          &
       , SurfNodeRecvDepoRankToGlobalRank(iProc)                       &
-      , 666                                                           &
+      , 6662                                                          &
       , MPI_COMM_PICLAS                                               &
       , RecvRequest(iProc)                                            &
       , IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error in ExchangeSurfNodeSourceMPI', IERROR)
 END DO
 
 DO iProc = 1, nSurfNodeSendExchangeProcs
@@ -1110,10 +1109,11 @@ DO iProc = 1, nSurfNodeSendExchangeProcs
       , SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes               &
       , MPI_DOUBLE_PRECISION                                          &
       , SurfNodeSendDepoRankToGlobalRank(iProc)                       &
-      , 666                                                           &
+      , 6662                                                          &
       , MPI_COMM_PICLAS                                               &
       , SendRequest(iProc)                                            &
       , IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error in ExchangeSurfNodeSourceMPI', IERROR)
 END DO
 
 ! Finish communication
@@ -1125,11 +1125,11 @@ DO iProc = 1, nSurfNodeSendExchangeProcs
   ! Skip MPIRoot, which can happen as it is forced as communication partner even though no nodes for this process are found
   IF(SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes.EQ.0) CYCLE
   CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
-  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error in ExchangeSurfNodeSourceMPI', IERROR)
 END DO
 DO iProc = 1, nSurfNodeRecvExchangeProcs
   CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
-  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error in ExchangeSurfNodeSourceMPI', IERROR)
 END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
@@ -1142,10 +1142,10 @@ DO iProc = 1, nSurfNodeRecvExchangeProcs
   DO iNode = 1, SurfNodeMappingRecv(iProc)%nRecvUniqueSurfNodes
     ! Get FEMVertexID from mapping
     FEMVertexID = SurfNodeMappingRecv(iProc)%RecvSurfNodeUniqueGlobalID(iNode)
-    IF(FEMVertexID.LE.0) CALL abort(__STAMP__,' FEMVertexID <= 0',FEMVertexID)
+    IF(FEMVertexID.LE.0) CALL abort(__STAMP__,'ERROR: Invalid FEMVertexID <= 0',FEMVertexID)
     ! Get surface deposition node index
     iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
-    IF((iDepoSurfNodeID.LE.0).OR.(iDepoSurfNodeID.GT.nDepoSurfNodesTotal)) CALL abort(__STAMP__,' Invalid iDepoSurfNodeID',iDepoSurfNodeID)
+    IF((iDepoSurfNodeID.LE.0).OR.(iDepoSurfNodeID.GT.nDepoSurfNodesTotal)) CALL abort(__STAMP__,'ERROR: Invalid iDepoSurfNodeID <= 0 or > nDepoSurfNodesTotal',iDepoSurfNodeID)
     ! Unpack in recv array
     ASSOCIATE( NS => SurfNodeSourceMPI(iDepoSurfNodeID) )
       NS = NS + SurfNodeMappingRecv(iProc)%RecvSurfNodeSource(iNode)
@@ -1174,8 +1174,8 @@ SUBROUTINE LBReverseExchangeSurfNodeSource()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource
-USE MOD_PICDepo_Vars       ,ONLY: SurfNodeMappingRecv,SurfNodeMappingSend,SurfNodeSourceMPI
-USE MOD_PICDepo_Vars       ,ONLY: nDepoSurfNodesTotal,nSurfNodeSendExchangeProcs,SurfNodeSendDepoRankToGlobalRank
+USE MOD_PICDepo_Vars       ,ONLY: SurfNodeMappingRecv,SurfNodeMappingSend
+USE MOD_PICDepo_Vars       ,ONLY: nSurfNodeSendExchangeProcs,SurfNodeSendDepoRankToGlobalRank
 USE MOD_PICDepo_Vars       ,ONLY: FEMVertexID2DepoSurfNodeID
 USE MOD_PICDepo_Vars       ,ONLY: nSurfNodeRecvExchangeProcs
 USE MOD_PICDepo_Vars       ,ONLY: SurfNodeRecvDepoRankToGlobalRank
@@ -1293,13 +1293,6 @@ IF (.NOT.MPIRoot) THEN
   END DO
 END IF ! .NOT.MPIRoot
 
-! Add SurfNodeSourceMPI values of the last boundary interaction
-! DO iDepoSurfNodeID = 1, nDepoSurfNodesTotal
-  ! Add contribution
-  ! SurfNodeSource(iDepoSurfNodeID) = SurfNodeSource(iDepoSurfNodeID) + SurfNodeSourceMPI(iDepoSurfNodeID)
-! END DO
-! Reset local surface charge
-! SurfNodeSourceMPI = 0.
 END SUBROUTINE LBReverseExchangeSurfNodeSource
 ! #endif /*USE_LOADBALANCE*/
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
