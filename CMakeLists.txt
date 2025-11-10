@@ -15,7 +15,6 @@ MESSAGE(STATUS "This is ${PROJECT_NAME} (v${PROJECT_VER})")
 MESSAGE(STATUS "Generating with [cmake] (v${CMAKE_VERSION})")
 
 # Policies (see https://cmake.org/cmake/help/v3.13/manual/cmake-policies.7.html)
-SET(GITSHALLOW "GIT_SHALLOW ON")
 IF(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.12.0")
   CMAKE_POLICY(SET CMP0074 NEW)
 ENDIF()

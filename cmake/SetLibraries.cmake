@@ -2,7 +2,7 @@
 # Set download locations depending on git origin
 # =========================================================================
 SET(LIBS_DLPATH "https://piclas.boltzplatz.eu/piclas/")
-# Origin pointing to IAG
+# Origin pointing to PICLas gitlab
 IF("${GIT_ORIGIN}" MATCHES "piclas.boltzplatz.eu" AND "${GIT_ORIGIN}" MATCHES "^git@")
   SET(LIBS_DLPATH "git@piclas.boltzplatz.eu:piclas/")
 ENDIF()
@@ -304,7 +304,7 @@ ELSE()
       GIT_REPOSITORY ${HDF5_DOWNLOAD}
       GIT_TAG ${HDF5_TAG}
       GIT_PROGRESS TRUE
-      ${${GITSHALLOW}}
+      GIT_SHALLOW ON
       PREFIX ${LIBS_HDF5_DIR}
       UPDATE_COMMAND ""
       CONFIGURE_COMMAND ${LIBS_HDF5_DIR}/src/HDF5/configure F9X=${LIBS_HDF5FC} FC=${LIBS_HDF5FC} CC=${LIBS_HDF5CC} --prefix=${LIBS_HDF5_DIR} --libdir=${LIBS_HDF5_DIR}/lib --disable-dependency-tracking --enable-build-mode=production --enable-silent-rules --enable-hl --enable-fortran --enable-unsupported --with-pic ${LIBS_HDF5PARALLEL}
@@ -400,7 +400,7 @@ ENDIF()
 
 
 # =========================================================================
-# Math libary
+# Math library
 # =========================================================================
 # Try to find system LAPACK/OpenBLAS
 IF (NOT LIBS_BUILD_MATH_LIB)
@@ -497,7 +497,7 @@ ELSE()
         GIT_REPOSITORY ${MATH_LIB_DOWNLOAD}
         GIT_TAG ${MATH_LIB_TAG}
         GIT_PROGRESS TRUE
-        ${${GITSHALLOW}}
+        GIT_SHALLOW ON
         PREFIX ${LIBS_MATH_DIR}
         UPDATE_COMMAND ""
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_PREFIX=${LIBS_MATH_DIR} -DBLAS++=OFF -DLAPACK++=OFF -DBUILD_SHARED_LIBS=ON -DCBLAS=OFF -DLAPACKE=OFF -DBUILD_TESTING=OFF
@@ -514,7 +514,7 @@ ELSE()
         GIT_REPOSITORY ${MATH_LIB_DOWNLOAD}
         GIT_TAG ${MATH_LIB_TAG}
         GIT_PROGRESS TRUE
-        ${${GITSHALLOW}}
+        GIT_SHALLOW ON
         PREFIX ${LIBS_MATH_DIR}
         UPDATE_COMMAND ""
         CONFIGURE_COMMAND ""
@@ -589,7 +589,7 @@ IF(LIBS_BUILD_HOPR)
     GIT_REPOSITORY ${HOPR_DOWNLOAD}
     GIT_TAG ${HOPR_TAG}
     GIT_PROGRESS FALSE
-    ${GITSHALLOW}
+    GIT_SHALLOW ON
     PREFIX ${LIBS_HOPR_DIR}
     # Avoids rebuilding during PICLas recompilation if HOPR has already been built in share folder
     UPDATE_DISCONNECTED true
@@ -741,7 +741,7 @@ IF(LIBS_USE_PETSC)
         GIT_REPOSITORY "https://gitlab.com/petsc/petsc.git"
         GIT_TAG "v${LIBS_BUILD_PETSC_VERSION}"
         GIT_PROGRESS TRUE
-        ${GITSHALLOW}
+        GIT_SHALLOW ON
         PREFIX ${LIBS_PETSC_DIR}
         INSTALL_DIR ${LIBS_EXTERNAL_LIB_DIR}/PETSc
         BUILD_IN_SOURCE TRUE
