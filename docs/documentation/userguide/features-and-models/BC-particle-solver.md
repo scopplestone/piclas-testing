@@ -315,9 +315,16 @@ where electrons of species `C` are emitted from boundary `B` on the impact of sp
 For the `Chung-Everhart-cosine` distribution, in the case of 2 or more secondaries, we are currently sampling each energy independently, which can result in an energy
 addition and thus energy conservation violation. An output to monitor the percentage of violations and energy addition as a percentage of the impact energy per SEE event can be enabled through `CalcEnergyViolationSEE = T`.
 
-For a simulation using variable particle weights (`Part-vMPF = T`) as described in Section {ref}`sec:split-merge`, the models 3, 4 and 12 support the emission of only a single secondary, weighted according to the calculated yield. This feature can be enabled per boundary:
+For a simulation using variable particle weights (`Part-vMPF = T`) as described in Section {ref}`sec:split-merge`, the models 3, 4, 12, and 13 support the emission of only a single secondary, weighted according to the calculated yield. This feature can be enabled per boundary:
 
     Part-Boundary1-SurfMod-vMPF = T
+
+Additional parameters, which can be utilized per boundary for models 3, 4, 12, and 13 are
+
+    Part-Boundary1-SurfMod-SubtractWorkFunction = .FALSE.       ! Default: .TRUE.
+    Part-Boundary1-SurfMod-ReflectElectron      = .TRUE.        ! Default: .FALSE.
+
+The first parameter allows to disable the subtraction of the work function from the incident electron energy. The second parameter can be used to utilize the yield function as a probability for a reflection if the incident energy is lower than the work function.
 
 #### Model 3/4
 
@@ -336,7 +343,7 @@ Additionally, the energy distribution can be selected with
 
     Part-BoundaryB-SurfModEnergyDistribution = Chung-Everhart-cosine
 
-It should be noted that the impact energy is reduced by the work function before the energy distribution. An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_DSMC/BC_SEE_PowerFit/`. Fit coefficients can be found for example in {cite}`Goebel2008`.
+It should be noted that per default the impact energy is reduced by the work function before the energy distribution. An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_DSMC/BC_SEE_PowerFit/`. Fit coefficients can be found for example in {cite}`Goebel2008`.
 
 #### Model 5
 
@@ -408,7 +415,7 @@ Additionally, the energy distribution can be selected with
 
     Part-BoundaryB-SurfModEnergyDistribution = Chung-Everhart-cosine
 
-It should be noted that the impact energy is reduced by the work function before the energy distribution. An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_DSMC/BC_SEE_Model_12/`.
+It should be noted that per default the impact energy is reduced by the work function before the energy distribution. An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_DSMC/BC_SEE_Model_12/`.
 
 #### Model 13
 
@@ -427,7 +434,7 @@ Additionally, the energy distribution can be selected with
 
 Using the cosine energy distribution, the angle distribution is according to $\cos$ in the normal direction and equally distributed in the tangential direction. Using the SEE model 13 (and the cosine energy distribution), the energy of all secondary emitted electrons is set to 2 eV.
 
-If a work function greater than zero is set, the impact energy is reduced by the work function before the energy distribution. An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_DSMC/BC_SEE_Model_13/`.
+If a work function greater than zero is set, the impact energy is reduced by the work function before the energy distribution per default. An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_DSMC/BC_SEE_Model_13/`.
 
 (sec:catalytic-surface)=
 ## Catalytic Surfaces

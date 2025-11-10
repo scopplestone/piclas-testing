@@ -42,7 +42,7 @@ USE MOD_Particle_Vars             ,ONLY: PartState,Species,PartSpecies,PartMPF,n
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge,ElectronMass
 USE MOD_SurfaceModel_Vars         ,ONLY: BulkElectronTempSEE
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfModResultSpec,SurfModEmissionYield,SurfModEmissionEnergy,SurfModEnergyDistribution
-USE MOD_SurfaceModel_Vars         ,ONLY: SurfModSEEFitCoeff,SurfModSEEvMPF
+USE MOD_SurfaceModel_Vars         ,ONLY: SurfModSEEFitCoeff,SurfModSEEvMPF,SurfModSEESubWorkFunc,SurfModSEEReflectElectron
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcElectronSEE,SEE
 USE MOD_Particle_Analyze_Pure     ,ONLY: CalcEkinPart,CalcEkinPart2
@@ -112,7 +112,7 @@ CASE(3,4,12,13) ! 3: SEE-E by square fit: a*e[eV] + b*e^2[eV] + c
       SEEYield = SurfModSEEFitCoeff(1,locBCID)*(eps_e/SurfModSEEFitCoeff(2,locBCID)*EXP(1-eps_e/SurfModSEEFitCoeff(2,locBCID)))**SurfModSEEFitCoeff(3,locBCID)
     END SELECT
     ! Material work function as the energy threshold
-    IF(eps_e.GT.SurfModSEEFitCoeff(4,locBCID)) THEN
+    IF(eps_e.GT.SurfModSEEFitCoeff(4,locBCID).AND.(SEEYield.GT.0.)) THEN
       ! Determine the number of secondaries to be emitted only when energy is sufficient
       IF(SurfModSEEvMPF(locBCID)) THEN
         IF(SEEYield * PartMPF(PartID_IN).GT.vMPFSplitLimit) THEN
@@ -132,7 +132,7 @@ CASE(3,4,12,13) ! 3: SEE-E by square fit: a*e[eV] + b*e^2[eV] + c
       IF(ProductSpecNbr.GT.0) THEN
         ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)
         ! ! Incident electron energy reduced by the material work function [eV]
-        ! eps_e = eps_e - SurfModSEEFitCoeff(4,locBCID)
+        IF(SurfModSEESubWorkFunc(locBCID)) eps_e = eps_e - SurfModSEEFitCoeff(4,locBCID)
       END IF
       ! Store the velocity [m/s] or energy [eV] depending on the energy distribution (store the total energy, which will be distributed later)
       SELECT CASE(SurfModEnergyDistribution(locBCID))
@@ -143,7 +143,7 @@ CASE(3,4,12,13) ! 3: SEE-E by square fit: a*e[eV] + b*e^2[eV] + c
       CASE DEFAULT
         CALL abort(__STAMP__,'Unknown velocity distribution for power-fit SEE model: ['//TRIM(SurfModEnergyDistribution(locBCID))//']')
       END SELECT
-    ELSE
+    ELSEIF(SurfModSEEReflectElectron(locBCID)) THEN
       CALL RANDOM_NUMBER(iRan)
       ! Yield probability is used as reflection probability below the energy threshold
       IF(SEEYield.GT.iRan) THEN
