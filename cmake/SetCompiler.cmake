@@ -11,8 +11,20 @@ MARK_AS_ADVANCED(FORCE C_PATH CXX_PATH Fortran_PATH)
 # =========================================================================
 # Set machine-specific definitions and settings
 # =========================================================================
+# HLRS Hunter
+IF (CMAKE_FQDN_HOST MATCHES "^hunter")
+  MESSAGE(STATUS "Compiling on Hunter for AMD EPYC Genoa (CPU queue)")
+  # Overwrite compiler target architecture
+  IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
+    SET(PICLAS_INSTRUCTION "-march=znver4 -mtune=znver4" CACHE STRING "Compiler optimization options")
+  ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+    SET(PICLAS_INSTRUCTION "-xCORE-AVX2" CACHE STRING "Compiler optimization options")
+  ENDIF()
+  # Set LUSTRE definition to account for filesystem and MPI implementation
+  ADD_COMPILE_DEFINITIONS(LUSTRE)
+
 # HLRS Vulcan
-IF (CMAKE_FQDN_HOST MATCHES "^cl[0-9]fr")
+ELSEIF (CMAKE_FQDN_HOST MATCHES "^cl[0-9]fr")
   MESSAGE(STATUS "Compiling on Vulcan for AMD EPYC Genoa")
   # Overwrite compiler target architecture
   IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
