@@ -286,20 +286,17 @@ DO iElem=1,PP_nElems
 #endif /*VDM_ANALYTICAL*/
   ! Compute for each side pair  Ehat Dhat^{-1} Ehat^T
   DO jLocSide=1,6
-    ! DCBC
     fac = Tau(ielem)
+    ! DCBC
+#if defined(PARTICLES)
     iSide = SideID(jLocSide)
     IF (BC(iSide).GT.0)THEN
       BCType = BoundaryType(BC(iSide),BC_TYPE)
       IF (BCType.EQ.30) THEN ! Distributed Capacitance
-        fac = Tau(iElem) &
-#if defined(PARTICLES)
-          + PartBound%DCPermittivity(PartBound%MapToPartBC(BC(iSide))) / &
-            PartBound%DCThickness(PartBound%MapToPartBC(BC(iSide)))
-#endif /*defined(PARTICLES)*/
-         ; ! this is required for terminating the "&" when particles=off
+        fac = fac + PartBound%DCPermittivity(PartBound%MapToPartBC(BC(iSide))) / PartBound%DCThickness(PartBound%MapToPartBC(BC(iSide)))
       END IF
     END IF
+#endif /*defined(PARTICLES)*/
     !Stmp1 = TRANSPOSE( MATMUL( Ehat(:,:,jLocSide,iElem) , InvDhat(:,:,iElem) ) )
     CALL DSYMM('L','U',nGP_vol(Nloc),nGP_face(Nloc),1., &
                 HDG_Vol_N(iElem)%InvDhat(:,:),nGP_vol(Nloc), &

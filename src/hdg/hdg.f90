@@ -600,6 +600,7 @@ DO iProc=1, myrank
 END DO
 #endif
 ALLOCATE(OffsetGlobalPETScDOF(nSides))
+OffsetGlobalPETScDOF = 0
 DO SideID=1,nSides-nMPISides_YOUR
   IF(MaskedSide(SideID).NE.0) CYCLE ! Skip Dirichlet + Small mortar sides
   OffsetGlobalPETScDOF(SideID) = OffsetCounter
@@ -650,6 +651,7 @@ END DO
 ! 3.1.5) Create localToGlobalPETScDOF(iLocalPETScDOF) mapping
 ! The mapping is used to create the PETSc Scatter context to extract the local solution from the global solution vector
 ALLOCATE(localToGlobalPETScDOF(nLocalPETScDOFs+FPC%nUniqueFPCBounds))
+localToGlobalPETScDOF = 0
 iLocalPETScDOF = 0
 DO SideID=1,nSides
   IF(MaskedSide(SideID).GT.0) CYCLE
