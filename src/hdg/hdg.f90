@@ -373,7 +373,7 @@ END IF !mortarMesh
 
 ! 6. BCs, the first
 !boundary conditions
-nDirichletBCsides=0
+nDirichletBCSides=0
 nNeumannBCsides  =0
 nConductorBCsides=0
 nDistriCapBCsides=0
@@ -382,7 +382,7 @@ DO SideID=1,nBCSides
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
   CASE(HDGDIRICHLETBCSIDEIDS) ! Dirichlet
-    nDirichletBCsides=nDirichletBCsides+1
+    nDirichletBCSides=nDirichletBCSides+1
   CASE(10,11,12) ! Neumann
     nNeumannBCsides=nNeumannBCsides+1
   CASE(20) ! Conductor: Floating Boundary Condition (FPC)
@@ -413,24 +413,24 @@ CALL InitBV()
 ! 8. BCs the second...
 ! Get the global number of Dirichlet boundaries. If there are none, the potential of a single DOF must be set.
 #if USE_MPI
-  CALL MPI_ALLREDUCE(nDirichletBCsides , nDirichletBCsidesGlobal , 1 , MPI_INTEGER , MPI_MAX , MPI_COMM_PICLAS , IERROR)
+  CALL MPI_ALLREDUCE(nDirichletBCSides , nDirichletBCsidesGlobal , 1 , MPI_INTEGER , MPI_MAX , MPI_COMM_PICLAS , IERROR)
 #else
-  nDirichletBCsidesGlobal = nDirichletBCsides
+  nDirichletBCsidesGlobal = nDirichletBCSides
 #endif /*USE_MPI*/
 
 ZeroPotentialSide = -1
 IF(mpiRoot.AND.nDirichletBCsidesGlobal==0) ZeroPotentialSide = ElemToSide(E2S_SIDE_ID,1,1)
 
-IF(nDirichletBCsides.GT.0)ALLOCATE(DirichletBC(nDirichletBCsides))
+IF(nDirichletBCSides.GT.0)ALLOCATE(DirichletBC(nDirichletBCSides))
 IF(nNeumannBCsides  .GT.0)THEN
   ALLOCATE(NeumannBC(nNeumannBCsides))
 END IF
 IF(nConductorBCsides.GT.0)ALLOCATE(ConductorBC(nConductorBCsides))
 IF(nDistriCapBCsides.GT.0)ALLOCATE(DistriCapBC(nDistriCapBCsides))
 #if (PP_nVar!=1)
-  IF(nDirichletBCsides.GT.0)ALLOCATE(qn_face_MagStat(PP_nVar, nGP_face(PP_N),nDirichletBCsides))
+  IF(nDirichletBCSides.GT.0)ALLOCATE(qn_face_MagStat(PP_nVar, nGP_face(PP_N),nDirichletBCSides))
 #endif
-nDirichletBCsides=0
+nDirichletBCSides=0
 nNeumannBCsides  =0
 nConductorBCsides=0
 nDistriCapBCsides=0
@@ -439,8 +439,8 @@ DO SideID=1,nBCSides
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
   CASE(HDGDIRICHLETBCSIDEIDS) ! Dirichlet
-    nDirichletBCsides=nDirichletBCsides+1
-    DirichletBC(nDirichletBCsides)=SideID
+    nDirichletBCSides=nDirichletBCSides+1
+    DirichletBC(nDirichletBCSides)=SideID
     MaskedSide(SideID)=1
   CASE(10,11,12) !Neumann,
     nNeumannBCsides=nNeumannBCsides+1
