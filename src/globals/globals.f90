@@ -1626,7 +1626,7 @@ IF(MemUsagePercent.GT.Threshold)THEN
   WRITE(UNIT=hilf ,FMT='(F16.1)') memory(1)
   WRITE(UNIT=hilf2,FMT='(F16.1)') memory(3)
   WRITE(UNIT=hilf3,FMT='(F5.1)') MemUsagePercent
-  IPWRITE(UNIT_stdOut,'(A)') "WARNING: Allocated memory ["//TRIM(ADJUSTL(hilf))//"] GB is above the set threshold and corresponds to "&
+  IPWRITE(UNIT_stdOut,'(I0,A)') "WARNING: Allocated memory ["//TRIM(ADJUSTL(hilf))//"] GB is above the set threshold and corresponds to "&
                               //TRIM(ADJUSTL(hilf3))//"% of the available memory ["//TRIM(ADJUSTL(hilf2))//"] GB!"
 END IF
 
