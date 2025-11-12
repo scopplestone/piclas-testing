@@ -105,7 +105,7 @@ ASSOCIATE( SurfNodeSource => SurfNodeSourceMPI )
     NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID)
     ! Sanity check
     IF(NonUniqueNodeID.LE.0) CALL abort(__STAMP__,'Wrong NonUniqueNodeID encountered in DepositParticleOnSurface()')
-    norm = VECNORM(NodeCoords_Shared(1:3,NonUniqueNodeID)-PartPos(1:3))
+    norm = VECNORM3D(NodeCoords_Shared(1:3,NonUniqueNodeID)-PartPos(1:3))
     IF(norm.GT.0.)THEN
       PartDistDepo(iNode) = 1./norm
     ELSE
@@ -198,7 +198,7 @@ END SUBROUTINE DepositPhotonSEEHoles
 SUBROUTINE DepositParticleOnNodes(Charge,PartPos,GlobalElemID)
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals            ,ONLY: VECNORM,ElementOnProc
+USE MOD_Globals            ,ONLY: VECNORM3D,ElementOnProc
 USE MOD_Globals_Vars       ,ONLY: ElementaryCharge
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeCoords_Shared,GEO
@@ -283,7 +283,7 @@ ASSOCIATE( NodeSourceExt => NodeSourceExtMPI )
   ELSE
     NodeID = ElemNodeID_Shared(:,GetCNElemID(GlobalElemID))
     DO iNode = 1, 8
-      norm = VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) - PartPos(1:3))
+      norm = VECNORM3D(NodeCoords_Shared(1:3, NodeID(iNode)) - PartPos(1:3))
       IF(norm.GT.0.)THEN
         PartDistDepo(iNode) = 1./norm
       ELSE
