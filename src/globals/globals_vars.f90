@@ -68,7 +68,7 @@ REAL,PARAMETER             :: BohrRadius     = 5.2917721067E-11     !> Radius, 1
 REAL,PARAMETER             :: AtomicMassUnit = 1.660539040E-27      !> Atomic mass unit [kg]
 REAL,PARAMETER             :: GravityAccelerationEarth = 9.8067     !> Acceleration due to Earth's gravity [m/s^2]
 
-REAL,PARAMETER             :: maxEXP= LOG(HUGE(maxexp))
+REAL,PARAMETER             :: maxEXP= LOG(HUGE(1.))
 ! Set variables (natural constants and derived quantities) from user input or hard coded
 ! depending on compile flag (PICLAS_READIN_CONSTANTS=ON)
 #if USE_READIN_CONSTANTS

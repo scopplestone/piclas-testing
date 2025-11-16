@@ -22,7 +22,7 @@ IMPLICIT NONE
 PRIVATE
 
 ABSTRACT INTERFACE
-  FUNCTION RotInitPolyRoutine(iSpec,TRot,iPart)
+  REAL FUNCTION RotInitPolyRoutine(iSpec,TRot,iPart)
     INTEGER,INTENT(IN)          :: iSpec, iPart               ! index of collision pair
     REAL,INTENT(IN)             :: TRot
   END FUNCTION
@@ -617,7 +617,7 @@ CASE('cosine')
   ELSE
       TempErgy_temp = Tempergy !Energy in [eV]
   END IF
-  
+
   VeloABS = SQRT(2.0 * TempErgy_temp * ElementaryCharge / ElectronMass)
 
   ! === Velocity vector

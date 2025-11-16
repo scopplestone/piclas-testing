@@ -81,10 +81,10 @@ CALL prms%CreateLogicalOption( 'CountNbrOfLostParts'&
     'information is stored in a PartStateLost*.h5 file. When particles are not found during restart in their host cell '//&
     '(sanity check), they are marked missing and are also written to PartStateLost*.h5 file even if they are re-located '//&
     'on a different processor.','.TRUE.')
-CALL prms%CreateIntOption( 'PhotonModeBPO' , 'Output mode to store position, direction, host element etc. of rays/photons in PartStateBoundary.h5 (only radiation transport or ray tracing solver):\n'&
-                                             '0: Output nothing to PartStateBoundary.h5\n'&
-                                             '1: Output the initial position of the rays and their direction vector\n'&
-                                             '2: Output initial position and all calculated intersection points calculated in radtrans tracking\n'&
+CALL prms%CreateIntOption( 'PhotonModeBPO' , 'Output mode to store position, direction, host element etc. of rays/photons in PartStateBoundary.h5 (only radiation transport or ray tracing solver):\n'//&
+                                             '0: Output nothing to PartStateBoundary.h5\n'//&
+                                             '1: Output the initial position of the rays and their direction vector\n'//&
+                                             '2: Output initial position and all calculated intersection points calculated in radtrans tracking'&
                                              ,'0')
 CALL prms%CreateLogicalOption( 'UsePhotonTriaTracking', 'Activates usage of TriaTracking methods for photon tracking or Bilinear methods (default is True). Can only be selected when ray tracing is actually performed.','.TRUE.')
 CALL prms%CreateLogicalOption( 'DoBoundaryParticleOutputRay', 'Activates output of emission particles by ray tracing SEE and ray tracing volume ionization to PartStateBoundary.h5 (with negative species IDs to indicate creation)','.FALSE.')
