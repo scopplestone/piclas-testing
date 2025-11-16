@@ -258,6 +258,21 @@ CASE (SEE_MODELS_ID)
         END DO ! iNewPart = 1, ProductSpecNbr
       END IF ! ABS(PartBound%PermittivityVDL(locBCID)).GT.0.0
 #endif /*USE_HDG*/
+    ELSEIF(Do2DSurfaceCharge) THEN
+      ! Method 3: 2D Surface Charging
+      IF (PartBound%UseSurfaceCharge(locBCID)) THEN
+        IF (usevMPF) THEN
+          MPF = PartMPF(PartID)
+        ELSE
+          MPF = Species(ProductSpec(2))%MacroParticleFactor
+        END IF ! usevMPF
+        ! Calculate the opposite charge
+        ChargeHole = -Species(ProductSpec(2))%ChargeIC*MPF
+        ! Deposit the charge(s)
+        DO iProd = 1, ProductSpecNbr
+          CALL DepositParticleOnSurface(ChargeHole, PartPosImpact, GlobalElemID, SideID)
+        END DO ! iProd = 1, ProductSpecNbr
+      END IF ! PartBound%UseSurfaceCharge(locBCID)
     END IF ! DoDeposition.AND.DoDielectricSurfaceCharge
   END IF ! ProductSpec(2).GT.0
 
@@ -338,8 +353,22 @@ IF(Do2DSurfaceCharge.OR.(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locB
 
   ! Method 3: 2D Surface Charging
   IF (PartBound%UseSurfaceCharge(locBCID)) THEN
-    ! Deposit the charge
-    CALL DepositParticleOnSurface(ChargeImpact, PartPosImpact, GlobalElemID, SideID)
+    ! Check what happened to the impacting particle
+    IF(.NOT.PDM%ParticleInside(PartID))THEN
+      ! Default case for SEE: Particle was deleted on surface contact -> deposit impacting charge
+      CALL DepositParticleOnSurface(ChargeImpact, PartPosImpact, GlobalElemID, SideID)
+    ELSEIF(PDM%ParticleInside(PartID))THEN
+      ! Sanity check
+      IF(PartSpecies(PartID).LT.0)THEN
+        IPWRITE (*,*) "PartID        :", PartID
+        IPWRITE (*,*) "global ElemID :", GlobalElemID
+        CALL abort(__STAMP__,'SurfaceModel() -> DepositParticleOnSurface(): Negative PartSpecies')
+      END IF
+      ! Particle species may have been swapped: check difference in charge under the assumption that the weight remains the same
+      ChargeRefl = Species(PartSpecies(PartID))%ChargeIC*ImpactWeight
+      ! Calculate the charge difference between the impacting and reflecting particle
+      CALL DepositParticleOnSurface(ChargeImpact-ChargeRefl, PartPosImpact, GlobalElemID, SideID)
+    END IF
   END IF ! PartBound%UseSurfaceCharge(locBCID)
 
 END IF ! DoDeposition.AND.DoDielectricSurfaceCharge
