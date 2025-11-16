@@ -77,7 +77,7 @@ INTEGER(KIND=8) :: nLocalDOFs
 ! Set defaults
 SetBCElemsToNMax = .FALSE. ! Initialize
 
-pAdaptionBCLevel = -1
+pAdaptionBCLevel = 0 ! Initialize with zero to deactivate. Valid values for the model are -2,-1,1,2 ...
 NDGAllocationIsDone = .FALSE.
 
 ! Read p-adaption specific input data

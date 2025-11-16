@@ -71,7 +71,7 @@ REAL,ALLOCATABLE    :: Tau(:)                 !< Stabilization parameter, per el
 REAL,ALLOCATABLE    :: lambdaLB(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
 INTEGER,ALLOCATABLE :: iLocSides(:,:)         !< iLocSides, ((PP_N+1)^2,nSides) - used for I/O and ALLGATHERV of lambda
 REAL,ALLOCATABLE    :: qn_face_MagStat(:,:,:) !< for Neumann BC
-INTEGER             :: nDirichletBCsides
+INTEGER             :: nDirichletBCSides
 INTEGER             :: nNeumannBCsides
 INTEGER             :: nConductorBCsides      !< Number of processor-local sides that are conductors (FPC) in [1:nBCSides]
 INTEGER             :: nDistriCapBCsides      !< Number of processor-local sides that are distributed capacitance (DC) in [1:nBCSides]
