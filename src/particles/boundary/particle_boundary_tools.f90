@@ -46,6 +46,7 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact,SWIVarT
 USE MOD_part_tools                ,ONLY: GetParticleWeight
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
 #if USE_HDG
+USE MOD_Particle_Boundary_Vars    ,ONLY: DoVirtualDielectricLayer
 USE MOD_Particle_Vars             ,ONLY: ResetVDLSpecID
 #endif/*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
@@ -73,7 +74,7 @@ SubQ = TrackInfo%q
 SpecID = PartSpecies(PartID)
 #if USE_HDG
 ! Check particle index for VDL particles and reset to original species index
-SpecID = ResetVDLSpecID(PartID)
+IF(DoVirtualDielectricLayer) SpecID = ResetVDLSpecID(PartID)
 #endif/*USE_HDG*/
 
 IF(usevMPF) THEN

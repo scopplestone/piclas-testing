@@ -285,7 +285,7 @@ CASE (SEE_MODELS_ID)
   ! Decide the fate of the impacting particle
   IF (ProductSpec(1).LE.0) THEN
     ! This routine also calls UpdateBPO()
-    CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+    CALL RemoveParticle(PartID,BCID=locBCID)
   ELSE
     CALL MaxwellScattering(PartID,SideID,n_Loc)
   END IF
@@ -306,7 +306,7 @@ CASE (VDL_MODEL_ID)  ! Virtual dielectric layer (VDL)
 CASE (SURF_CHARGE_ID)  ! 2D Surface Charging
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Kill the impacting particle: This routine also calls UpdateBPO()
-  CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+  CALL RemoveParticle(PartID,BCID=locBCID)
 CASE DEFAULT
   CALL abort(__STAMP__,'Unknown surface model. PartBound%SurfaceModel(locBCID) = ',IntInfoOpt=PartBound%SurfaceModel(locBCID))
 END SELECT
