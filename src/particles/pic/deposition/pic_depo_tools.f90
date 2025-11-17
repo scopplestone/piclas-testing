@@ -150,7 +150,8 @@ END SUBROUTINE DepositParticleOnSurface
 !===================================================================================================================================
 SUBROUTINE DepositPhotonSEEHoles(iBC,NbrOfParticle)
 ! MODULES
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Globals
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, Do2DSurfaceCharge
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Vars          ,ONLY: PEM, PartSpecies, PartState, Species, usevMPF, PartMPF
@@ -186,6 +187,8 @@ IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC))THEN
     ! Create electron hole (i.e. positive surface charge)
     CALL DepositParticleOnNodes(ChargeHole, PartState(1:3,ParticleIndex), PEM%GlobalElemID(ParticleIndex))
   END DO
+ELSEIF(Do2DSurfaceCharge) THEN
+  CALL abort(__STAMP__,'ERROR in DepositPhotonSEEHoles: 2D surface charge not implemented!')
 END IF
 END SUBROUTINE DepositPhotonSEEHoles
 

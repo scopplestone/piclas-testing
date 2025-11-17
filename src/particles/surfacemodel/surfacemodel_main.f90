@@ -173,9 +173,15 @@ IF (PartBound%NbrOfSpeciesSwaps(locBCID).GT.0) CALL SpeciesSwap(PartID,SideID)
 IF(.NOT.PDM%ParticleInside(PartID)) THEN
   ! Increase the counter for deleted/absorbed/adsorbed particles
   IF(CalcSurfCollCounter) SurfAnalyzeNumOfAds(PartSpecImpact) = SurfAnalyzeNumOfAds(PartSpecImpact) + 1
-  IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) &
-      CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
-  RETURN
+  IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) THEN
+    CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
+    RETURN
+  ELSEIF(Do2DSurfaceCharge) THEN
+    IF(PartBound%UseSurfaceCharge(locBCID)) THEN
+      CALL DepositParticleOnSurface(ChargeImpact, PartPosImpact, GlobalElemID, SideID)
+      RETURN
+    END IF
+  END IF
 END IF
 !===================================================================================================================================
 ! 3.) Perform the selected gas-surface interaction
@@ -358,16 +364,19 @@ IF(Do2DSurfaceCharge.OR.(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locB
       ! Default case for SEE: Particle was deleted on surface contact -> deposit impacting charge
       CALL DepositParticleOnSurface(ChargeImpact, PartPosImpact, GlobalElemID, SideID)
     ELSEIF(PDM%ParticleInside(PartID))THEN
-      ! Sanity check
-      IF(PartSpecies(PartID).LT.0)THEN
-        IPWRITE (*,*) "PartID        :", PartID
-        IPWRITE (*,*) "global ElemID :", GlobalElemID
-        CALL abort(__STAMP__,'SurfaceModel() -> DepositParticleOnSurface(): Negative PartSpecies')
-      END IF
-      ! Particle species may have been swapped: check difference in charge under the assumption that the weight remains the same
-      ChargeRefl = Species(PartSpecies(PartID))%ChargeIC*ImpactWeight
-      ! Calculate the charge difference between the impacting and reflecting particle
-      CALL DepositParticleOnSurface(ChargeImpact-ChargeRefl, PartPosImpact, GlobalElemID, SideID)
+      ! Only deposit if the species has changed (to avoid depositing zeroes in case of a reflection)
+      IF(PartSpecImpact.NE.PartSpecies(PartID)) THEN
+        ! Sanity check
+        IF(PartSpecies(PartID).LT.0)THEN
+          IPWRITE (*,*) "PartID        :", PartID
+          IPWRITE (*,*) "global ElemID :", GlobalElemID
+          CALL abort(__STAMP__,'SurfaceModel() -> DepositParticleOnSurface(): Negative PartSpecies')
+        END IF
+        ! Particle species may have been swapped: check difference in charge under the assumption that the weight remains the same
+        ChargeRefl = Species(PartSpecies(PartID))%ChargeIC*ImpactWeight
+        ! Calculate the charge difference between the impacting and reflecting particle
+        CALL DepositParticleOnSurface(ChargeImpact-ChargeRefl, PartPosImpact, GlobalElemID, SideID)
+      END IF ! PartSpecImpact.NE.PartSpecies(PartID)
     END IF
   END IF ! PartBound%UseSurfaceCharge(locBCID)
 

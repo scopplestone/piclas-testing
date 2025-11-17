@@ -616,7 +616,7 @@ DO iPartBound=1,nPartBound
     ! 2D Surface charging
     PartBound%UseSurfaceCharge(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseSurfaceCharge')
     IF (PartBound%UseSurfaceCharge(iPartBound)) THEN
-      IF(.NOT.DoDeposition) CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires PIC-DoDeposition=T')
+      IF(.NOT.DoDeposition) CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-UseSurfaceCharge requires PIC-DoDeposition=T')
       IF(TRIM(DepositionType).NE.'cell_volweight_mean') CALL CollectiveStop(__STAMP__,&
         'Part-Boundary'//TRIM(hilf)//'-UseSurfaceCharge = T requires cell_volweight_mean (12) as deposition method')
       IF(PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0) CALL CollectiveStop(__STAMP__,&
@@ -629,7 +629,7 @@ DO iPartBound=1,nPartBound
       ! TODO: What should be done with DoDirichletDeposition=T/F (can both options be used or must it be either T or F?)
       ! IF(DoDirichletDeposition) CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires PIC-DoDirichletDeposition=F')
 #endif /*USE_HDG*/
-      ! VDL settings
+      ! UseSurfaceCharge settings
       Do2DSurfaceCharge              = .TRUE. ! Global setting indicating that 2d surface charging is active
       PartBound%Reactive(iPartBound) = .TRUE. ! Surface charge requires reactive BC for analysis
       DoHaloDepo                     = .TRUE. ! Activate deposition in the halo region (shape function)

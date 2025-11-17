@@ -142,8 +142,9 @@ USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_loc,PhotonSurfSideArea
 #if USE_HDG
 USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars               ,ONLY: BoundaryType
-USE MOD_Particle_Boundary_Vars  ,ONLY: DoVirtualDielectricLayer
+USE MOD_Particle_Boundary_Vars  ,ONLY: DoVirtualDielectricLayer,Do2DSurfaceCharge
 USE MOD_Particle_Vars           ,ONLY: LastPartPos,PartSpecies
+USE MOD_PICDepo_Tools           ,ONLY: DepositParticleOnSurface
 #endif /*USE_HDG*/
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcPhotonSEE
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemBaryNGeo
@@ -164,8 +165,9 @@ REAL                  :: E_Intensity,vec(3)
 INTEGER               :: SideID, GlobElemID, PartID, locElemID, iSurfSide, CNElemID
 INTEGER               :: p, q, iPartBound, SpecID, iPart, NbrOfSEE, iSEEBC
 REAL                  :: RealNbrOfSEE, TimeScalingFactor, MPF,PhotonEnergy
-REAL                  :: Particle_pos(1:3), xi(2)
+REAL                  :: PartPos(1:3), PartPosSurf(1:3), xi(2)
 REAL                  :: RandVal, RandVal2(2), xiab(1:2,1:2), nVec(3), tang1(3), tang2(3), Velo3D(3)
+REAL                  :: ChargeHole
 #if USE_HDG
 INTEGER               :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
 #endif /*USE_HDG*/
@@ -263,7 +265,7 @@ DO iSurfSide = 1, nComputeNodeSurfSides
           IF(UseBezierControlPoints)THEN
             ! Use Bezier polynomial
             xi=(xiab(:,2)-xiab(:,1))*RandVal2+xiab(:,1)
-            CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=Particle_pos(1:3))
+            CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=PartPosSurf(1:3))
           ELSE
             ! Sanity check
             CALL abort(__STAMP__,'Photoionization with ray tracing requires BezierControlPoints3D')
@@ -273,11 +275,11 @@ DO iSurfSide = 1, nComputeNodeSurfSides
           ! Move particle slightly into the domain away from the surface because TriaTracking loses the particle during restart
           ! as the InsideQuad3D test returns "not inside" for these particles and they are deleted
           CNElemID = GetCNElemID(GlobElemID)
-          vec(1:3) = ElemBaryNGeo(1:3,CNElemID) - Particle_pos(1:3)
-          Particle_pos(1:3) = Particle_pos(1:3) + 1e-7 * vec(1:3)
+          vec(1:3) = ElemBaryNGeo(1:3,CNElemID) - PartPosSurf(1:3)
+          PartPos(1:3) = PartPosSurf(1:3) + 1e-7 * vec(1:3)
           ! Create new particle
           ! Create with PEM%LastGlobalElemID = 0 to prevent tracking directly after creation
-          CALL CreateParticle(SpecID,Particle_pos(1:3),GlobElemID,0,Velo3D(1:3),0.,0.,0.,NewPartID=PartID,NewMPF=MPF)
+          CALL CreateParticle(SpecID,PartPos(1:3),GlobElemID,0,Velo3D(1:3),0.,0.,0.,NewPartID=PartID,NewMPF=MPF)
           ! 1. Store the particle information in PartStateBoundary.h5
           IF(DoBoundaryParticleOutputRay) CALL StoreBoundaryParticleProperties(PartID,SpecID,PartState(1:3,PartID),&
                                                    UNITVECTOR(PartState(4:6,PartID)),nVec,iPartBound=iPartBound,mode=2,MPF_optIN=MPF)
@@ -305,6 +307,7 @@ DO iSurfSide = 1, nComputeNodeSurfSides
           END IF ! UseEPC
 
           ! 3. Check if SEE holes are to be deposited
+          ! 3a. VDL
           IF(DoVirtualDielectricLayer)THEN
             IF(ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0)THEN
               ! Set velocity to zero as these virtual particles are deleted after the tracking/MPI communication step
@@ -313,7 +316,7 @@ DO iSurfSide = 1, nComputeNodeSurfSides
               ! Create particle (with opposite charge by setting a nagative species index)
               ! Create with PEM%LastGlobalElemID = GlobElemID to trigger tracking directly after creation to find a possible new host
               ! element
-              CALL CreateParticle(SpecID,Particle_pos(1:3),GlobElemID,GlobElemID,Velo3D(1:3),0.,0.,0.,NewPartID=PartID,NewMPF=MPF)
+              CALL CreateParticle(SpecID,PartPosSurf(1:3),GlobElemID,GlobElemID,Velo3D(1:3),0.,0.,0.,NewPartID=PartID,NewMPF=MPF)
 
               ! Set new particle position: Shift away from face by ratio of real VDL thickness and permittivity.
               ! Note the negative sign that is required as the normal vector points outwards has already been applied above
@@ -327,6 +330,16 @@ DO iSurfSide = 1, nComputeNodeSurfSides
               PartSpecies(PartID) = -PartSpecies(PartID)
             END IF ! ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0
           END IF ! DoVirtualDielectricLayer
+          ! 3b. 2D surface charge
+          IF(Do2DSurfaceCharge) THEN
+            ! Method 3: 2D Surface Charging
+            IF (PartBound%UseSurfaceCharge(iBC)) THEN
+              ! Calculate the opposite charge
+              ChargeHole = -Species(SpecID)%ChargeIC*MPF
+              ! Deposit the charge(s)
+              CALL DepositParticleOnSurface(ChargeHole, PartPosSurf(1:3), GlobElemID, SideID)
+            END IF ! PartBound%UseSurfaceCharge(locBCID)
+          END IF ! Do2DSurfaceCharge
 #endif /*USE_HDG*/
         END DO ! iPart = 1, NbrOfSEE
       END IF ! NbrOfSEE.GT.0
