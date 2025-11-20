@@ -130,7 +130,7 @@ REAL                 :: Smatloc(nGP_face(NMax),nGP_face(NMax))
 INTEGER              :: iUniqueFPCBC
 INTEGER              :: iMortar,iType
 #endif /*USE_PETSC*/
-REAL                 :: chitens_face(3,3)
+REAL                 :: chitens_face(3,3),DCBiasVoltage(1:PP_nVar)
 !===================================================================================================================================
 ! Dummy for chitens_face(:,:,p,q,SideID)
 chitens_face=0.0
@@ -231,7 +231,7 @@ DO iVar = 1, PP_nVar
       END DO; END DO !p,q
     END DO !BCsideID=1,nDirichletBCSides
   END IF
-#endif
+#endif /*PP_nVar!=1*/
 
   ! Floating boundary BCs
 #if USE_PETSC
@@ -325,6 +325,7 @@ IF(nDistriCapBCsides.GT.0) ALLOCATE(SurfNodeSourceEquiN1(1:1,0:1,0:1),SurfNodeSo
 ! Loop over all local BC sides, where the DCBC model is active
 DO BCsideID=1,nDistriCapBCsides
   SideID     = DistriCapBC(BCsideID)             ! Get side index
+  BCState    = BoundaryType(BC(SideID),BC_STATE)
   iPartBound = PartBound%MapToPartBC(BC(SideID)) ! Get particle boundary index
   Nloc       = N_SurfMesh(SideID)%NSide          ! Get polynomial degree of side
   NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,SideID) ! Get global side index
@@ -364,14 +365,25 @@ DO BCsideID=1,nDistriCapBCsides
     SideArea = SideArea + N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q)
   END DO; END DO ! p,q
 
+
   ! Map from N=1 to N=Nloc
   DO q=0,Nloc; DO p=0,Nloc
+    ! 2D p,q-index to 1D r-index
     r=q*(Nloc+1) + p+1
+    ! Apply linear or constant electric potential
+    IF (BCState.GT.0) THEN
+      CALL ExactFunc(-3,N_SurfMesh(SideID)%Face_xGP(:,p,q),DCBiasVoltage(:),iLinState=BCState)
+#if (PP_nVar!=1)
+      CALL abort(__STAMP__,' LinPhi model not implemented for PP_nVar!=1', IERROR)
+#endif /*PP_nVar!=1*/
+    ELSE
+      DCBiasVoltage = PartBound%DCBiasVoltage(iPartBound)
+    END IF ! BCState.GT.0
     ! IPWRITE(*,*) 'SurfElem(p,q),SurfNodeSourceNodeTypeNloc(1,p,q),SurfNodeSourceNodeTypeNloc(1,p,q)/(N_SurfMesh(SideID)%SurfElem(p,q)):', &
     !               N_SurfMesh(SideID)%SurfElem(p,q),SurfNodeSourceNodeTypeNloc(1,p,q),SurfNodeSourceNodeTypeNloc(1,p,q)/(N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q))
     SubArea = N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q)
     src = SubArea * ( &
-          PartBound%DCPermittivity(iPartBound) * PartBound%DCBiasVoltage(iPartBound) / PartBound%DCThickness(iPartBound) + & ! DCBC
+          PartBound%DCPermittivity(iPartBound) * DCBiasVoltage(1) / PartBound%DCThickness(iPartBound) + & ! DCBC
           (SurfNodeSourceNodeTypeNloc(1,p,q)/SideArea +                         & ! Surface charge due to deposited particles
            PartBound%DCSurfaceChargeDensity(iPartBound) & ! Surface charge due to analytical expression
           )/eps0 )
