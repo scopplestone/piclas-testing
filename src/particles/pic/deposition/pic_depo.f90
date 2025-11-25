@@ -499,6 +499,7 @@ DO iCNELemID = FirstCNElemID, LastCNElemID
     FirstVertexConnectInd = VertexInfo_Shared(VERTEX_FIRSTCONNECTIND,iVertexInd)+1
     LastVertexConnectInd  = VertexInfo_Shared(VERTEX_LASTCONNECTIND,iVertexInd)
     ! Check nodes without connections
+    ! TODO: Check if this IF statement is required or if the local sides should always be checked?
     IF (FirstVertexConnectInd.GT.LastVertexConnectInd) THEN ! Vertex has no neighbours (solo vertex)
       ! Check if any of the three connected sides is a deposition side
       ! Set sides depending on the element type: Only implemented for Hexahedral elements

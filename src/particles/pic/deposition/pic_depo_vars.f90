@@ -224,7 +224,7 @@ TYPE (tNodeMappingRecv),ALLOCATABLE      :: NodeMappingRecv(:)
 
 ! Send direction of surface nodes (can be different from number of receive nodes for each processor)
 TYPE tSurfNodeMappingSend
-  INTEGER,ALLOCATABLE           :: SendSurfNodeUniqueGlobalID(:)
+  INTEGER,ALLOCATABLE           :: SendSurfNodeFEMVertexID(:)
   REAL,ALLOCATABLE              :: SendSurfNodeSource(:)
   INTEGER                       :: nSendUniqueSurfNodes
 END TYPE
@@ -232,7 +232,7 @@ TYPE (tSurfNodeMappingSend),ALLOCATABLE      :: SurfNodeMappingSend(:)
 
 ! Receive direction of surface nodes (can be different from number of send nodes for each processor)
 TYPE tSurfNodeMappingRecv
-  INTEGER,ALLOCATABLE           :: RecvSurfNodeUniqueGlobalID(:)
+  INTEGER,ALLOCATABLE           :: RecvSurfNodeFEMVertexID(:)
   REAL,ALLOCATABLE              :: RecvSurfNodeSource(:)
   INTEGER                       :: nRecvUniqueSurfNodes
 END TYPE

@@ -706,10 +706,10 @@ ALLOCATE(SurfRecvRequest(1:nSurfNodeRecvExchangeProcs))
 ! Loop over each communication partner
 DO iProc = 1, nSurfNodeRecvExchangeProcs
   ! Allocate containers for receiving the FEM vertex IDs and surface charge
-  ALLOCATE(SurfNodeMappingRecv(iProc)%RecvSurfNodeUniqueGlobalID(1:SurfNodeMappingRecv(iProc)%nRecvUniqueSurfNodes))
+  ALLOCATE(SurfNodeMappingRecv(iProc)%RecvSurfNodeFEMVertexID(1:SurfNodeMappingRecv(iProc)%nRecvUniqueSurfNodes))
   ALLOCATE(SurfNodeMappingRecv(iProc)%RecvSurfNodeSource(        1:SurfNodeMappingRecv(iProc)%nRecvUniqueSurfNodes))
   ! Open receive buffer
-  CALL MPI_IRECV( SurfNodeMappingRecv(iProc)%RecvSurfNodeUniqueGlobalID &
+  CALL MPI_IRECV( SurfNodeMappingRecv(iProc)%RecvSurfNodeFEMVertexID &
     , SurfNodeMappingRecv(iProc)%nRecvUniqueSurfNodes                   &
     , MPI_INTEGER                                                       &
     , SurfNodeRecvDepoRankToGlobalRank(iProc)                           &
@@ -728,9 +728,9 @@ DO iProc = 1, nSurfNodeSendExchangeProcs
   ! Skip MPIRoot, which can happen as it is forced as communication partner even though no nodes for this process are found
   IF(SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes.EQ.0) CYCLE
   ! Allocate containers for sending the FEM vertex IDs and surface charge
-  ALLOCATE(SurfNodeMappingSend(iProc)%SendSurfNodeUniqueGlobalID(1:SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes))
+  ALLOCATE(SurfNodeMappingSend(iProc)%SendSurfNodeFEMVertexID(1:SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes))
   ALLOCATE(SurfNodeMappingSend(iProc)%SendSurfNodeSource(        1:SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes))
-  SurfNodeMappingSend(iProc)%SendSurfNodeUniqueGlobalID = -1
+  SurfNodeMappingSend(iProc)%SendSurfNodeFEMVertexID = -1
   SurfNodeMappingSend(iProc)%SendSurfNodeSource         = 0.
   ! Nullify iterator
   SendNodeCount = 0
@@ -744,7 +744,7 @@ DO iProc = 1, nSurfNodeSendExchangeProcs
     ! Increment counter
     SendNodeCount = SendNodeCount + 1
     ! Store NodeID for sending
-    SurfNodeMappingSend(iProc)%SendSurfNodeUniqueGlobalID(SendNodeCount) = node%NodeID
+    SurfNodeMappingSend(iProc)%SendSurfNodeFEMVertexID(SendNodeCount) = node%NodeID
     ! Next link
     node => node%next
   END DO
@@ -756,7 +756,7 @@ DO iProc = 1, nSurfNodeSendExchangeProcs
   ! Nullify the number of nodes
   ElemNodeDepoMap(iProc)%nNodes = 0
 
-  CALL MPI_ISEND( SurfNodeMappingSend(iProc)%SendSurfNodeUniqueGlobalID &
+  CALL MPI_ISEND( SurfNodeMappingSend(iProc)%SendSurfNodeFEMVertexID &
     , SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes                   &
     , MPI_INTEGER                                                       &
     , SurfNodeSendDepoRankToGlobalRank(iProc)                           &
@@ -1099,7 +1099,7 @@ DO iProc = 1, nSurfNodeSendExchangeProcs
   ! Send message (non-blocking)
   DO iNode = 1, SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes
     ! Get FEMVertexID from mapping
-    FEMVertexID = SurfNodeMappingSend(iProc)%SendSurfNodeUniqueGlobalID(iNode)
+    FEMVertexID = SurfNodeMappingSend(iProc)%SendSurfNodeFEMVertexID(iNode)
     ! Get surface deposition node index
     iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
     ! Store in send array
@@ -1141,7 +1141,7 @@ MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
 DO iProc = 1, nSurfNodeRecvExchangeProcs
   DO iNode = 1, SurfNodeMappingRecv(iProc)%nRecvUniqueSurfNodes
     ! Get FEMVertexID from mapping
-    FEMVertexID = SurfNodeMappingRecv(iProc)%RecvSurfNodeUniqueGlobalID(iNode)
+    FEMVertexID = SurfNodeMappingRecv(iProc)%RecvSurfNodeFEMVertexID(iNode)
     IF(FEMVertexID.LE.0) CALL abort(__STAMP__,'ERROR: Invalid FEMVertexID <= 0',FEMVertexID)
     ! Get surface deposition node index
     iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
@@ -1226,7 +1226,7 @@ IF (MPIRoot) THEN
     ! Send message (non-blocking)
     DO iNode = 1, SurfNodeMappingRecv(iProc)%nRecvUniqueSurfNodes
       ! Get FEMVertexID from mapping
-      FEMVertexID = SurfNodeMappingRecv(iProc)%RecvSurfNodeUniqueGlobalID(iNode)
+      FEMVertexID = SurfNodeMappingRecv(iProc)%RecvSurfNodeFEMVertexID(iNode)
       ! Get surface deposition node index
       iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
       ! Store in send array
@@ -1283,7 +1283,7 @@ IF (.NOT.MPIRoot) THEN
     IF(SurfNodeSendDepoRankToGlobalRank(iProc).NE.0) CYCLE
     DO iNode = 1, SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes
       ! Get FEMVertexID from mapping
-      FEMVertexID = SurfNodeMappingSend(iProc)%SendSurfNodeUniqueGlobalID(iNode)
+      FEMVertexID = SurfNodeMappingSend(iProc)%SendSurfNodeFEMVertexID(iNode)
       ! Get surface deposition node index
       iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
       if(FEMVertexID.LE.0) CALL abort(__STAMP__,' FEMVertexID <= 0',FEMVertexID)
