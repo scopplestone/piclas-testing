@@ -1753,13 +1753,13 @@ USE MOD_IO_HDF5                 ,ONLY: HSize
 USE MOD_HDF5_Input              ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray
 USE MOD_Interpolation           ,ONLY: GetVandermonde
 USE MOD_ChangeBasis             ,ONLY: ChangeBasis2D
-USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVISU,N_Inter
-USE MOD_Mesh_Vars               ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID,nSides
-USE MOD_Mesh_Vars               ,ONLY: SideToNonUniqueGlobalSide,N_SurfMesh
+! USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVISU,N_Inter
+USE MOD_Mesh_Vars               ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID!,nSides
+! USE MOD_Mesh_Vars               ,ONLY: SideToNonUniqueGlobalSide,N_SurfMesh
 USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides
 USE MOD_ReadInTools             ,ONLY: PrintOption
 USE MOD_PICDepo                 ,ONLY: InitDepoSurfNodes
-USE MOD_PICDepo_Vars            ,ONLY: SurfNodeSource,FEMVertexID2DepoSurfNodeID
+USE MOD_PICDepo_Vars            ,ONLY: FEMVertexID2DepoSurfNodeID
 USE MOD_PICDepo_Vars            ,ONLY: InitDepoSurfNodesIsDone
 #if !(PP_TimeDiscMethod==700)
 USE MOD_PICDepo_Vars            ,ONLY: nDepoSurfNodes,nDepoSurfSides
@@ -1782,10 +1782,12 @@ INTEGER                         :: NonUniqueNodeID,FEMVertexID,iNode
 REAL                            :: OutputTime
 REAL,ALLOCATABLE                :: NodeCoords_visu(:,:,:,:,:)     !< Coordinates of visualization nodes
 REAL,ALLOCATABLE                :: SurfOutputData(:,:,:,:,:)      !< Surface data mapped to the corner nodes of the faces
-REAL,ALLOCATABLE                :: SideArea(:)                    !< Area for each non-unique global side ID
+! REAL,ALLOCATABLE                :: SideArea(:)                    !< Area for each non-unique global side ID
+REAL,ALLOCATABLE                :: SurfNodeSourceH5(:,:)
 INTEGER,ALLOCATABLE             :: ConnectInfo(:,:)
 INTEGER,PARAMETER               :: data_size=4
-INTEGER                         :: NodeSwitch(4),iDepoSurfNodeID,offsetNode,iSurfNode,iSide,Nloc,p,q
+INTEGER                         :: NodeSwitch(4),iDepoSurfNodeID,offsetNode,iSurfNode!,iSide,Nloc,p,q
+CHARACTER(LEN=255),PARAMETER    :: SurfNodeSourceDataset='SurfNodeSource'
 !===================================================================================================================================
 ! Build vertex mappings
 IF(.NOT.InitDepoSurfNodesIsDone) CALL InitDepoSurfNodes() ! Get nDepoSurfNodes
@@ -1796,14 +1798,17 @@ CALL ReadAttribute(File_ID , 'Project_Name'     , 1 , StrScalar  = ProjectName)
 CALL ReadAttribute(File_ID , 'File_Type'        , 1 , StrScalar  = File_Type)
 CALL ReadAttribute(File_ID , 'Time'             , 1 , RealScalar = OutputTime)
 
-CALL GetDataSize(File_ID,'SurfNodeSource',nDims,HSize)
+CALL GetDataSize(File_ID,TRIM(SurfNodeSourceDataset),nDims,HSize)
 DEALLOCATE(HSize)
 ! nDepoSurfNodes = INT(HSize(1),2)
 nVarSurf = 1
 ALLOCATE(VarNamesSurf_HDF5(nVarSurf))
 CALL ReadAttribute(File_ID,'VarNamesSurfNodeSource',nVarSurf,StrArray=VarNamesSurf_HDF5(1:nVarSurf))
+ALLOCATE(SurfNodeSourceH5(2,nDepoSurfNodes))
 ! Read the surface charge data on the FEM vertices
-CALL ReadArray('SurfNodeSource',1,(/INT(nDepoSurfNodes,IK)/),0,1,RealArray=SurfNodeSource)
+CALL ReadArray(TRIM(SurfNodeSourceDataset),2,(/2_IK,INT(nDepoSurfNodes,IK)/),0,2,RealArray=SurfNodeSourceH5)
+  ! print*,"ROOT: ConvertSurfNodeSourceData(), which read SurfNodeArea"
+  ! read*
 
 ! Get number of surface nodes
 nSurfaceNodes = 4*nDepoSurfSides
@@ -1815,26 +1820,27 @@ SurfOutputData = 0.
 ALLOCATE(NodeCoords_visu(1:3,0:0,0:0,0:0,1:nSurfaceNodes))
 NodeCoords_visu = 0.
 
-! Calculate the area of each side
-ALLOCATE(SideArea(1:nNonUniqueGlobalSides))
-! Loop over all local sides
-DO iSide = 1, nSides
-! Get non-unique global side index from local side index
-  NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,iSide)
-  ! Get polynomial degree of local side
-  Nloc = N_SurfMesh(iSide)%NSide          ! Get polynomial degree of side
-  ! Nullify
-  SideArea(NonUniqueGlobalSideID) = 0
-  DO q=0,Nloc; DO p=0,Nloc
-    SideArea(NonUniqueGlobalSideID) = SideArea(NonUniqueGlobalSideID) + &
-                                      N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(iSide)%SurfElem(p,q)
-  END DO; END DO ! p,q
-END DO ! iSide = 1, nSides
+! ! Calculate the area of each side
+! ALLOCATE(SideArea(1:nNonUniqueGlobalSides))
+! ! Loop over all local sides
+! DO iSide = 1, nSides
+! ! Get non-unique global side index from local side index
+!   NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,iSide)
+!   ! Get polynomial degree of local side
+!   Nloc = N_SurfMesh(iSide)%NSide          ! Get polynomial degree of side
+!   ! Nullify
+!   SideArea(NonUniqueGlobalSideID) = 0
+!   DO q=0,Nloc; DO p=0,Nloc
+!     SideArea(NonUniqueGlobalSideID) = SideArea(NonUniqueGlobalSideID) + &
+!                                       N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(iSide)%SurfElem(p,q)
+!   END DO; END DO ! p,q
+! END DO ! iSide = 1, nSides
 
 ! WriteDataToVTK_PICLas: Switch the nodes (different ordering between NonUniqueVertexID and NonUniqueNodeID)
 ! NodeSwitch=(/1,3,4,2/)
 
 ! WriteDataToVTK: switch the last two node IDs
+! TODO: use pq2iNode here?
 NodeSwitch=(/1,2,4,3/)
 
 ALLOCATE(ConnectInfo(1:data_size,1:nDepoSurfSides))
@@ -1859,7 +1865,7 @@ DO NonUniqueGlobalSideID = 1,nNonUniqueGlobalSides
     ! Get surface deposition node index
     iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
     ! Set surface charge value
-    SurfOutputData(1,1,1,0,iSurfNode) = SurfNodeSource(iDepoSurfNodeID)/SideArea(NonUniqueGlobalSideID)
+    SurfOutputData(1,1,1,0,iSurfNode) = SurfNodeSourceH5(1,iDepoSurfNodeID)/SurfNodeSourceH5(2,iDepoSurfNodeID)
 
   END DO ! iNode = 1,4
   offsetNode = offsetNode + 4
@@ -1893,7 +1899,7 @@ SUBROUTINE FinalizeDepoSurfNodes()
 ! MODULES
 USE MOD_Mesh_Vars               ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
 USE MOD_PICDepo_Vars            ,ONLY: SurfNodeSource,FEMVertexID2DepoSurfNodeID,DepoSurfNodeID2FEMVertexID,Vdm_EQ_N
-USE MOD_PICDepo_Vars            ,ONLY: SurfNodeSymmetryFactor
+USE MOD_PICDepo_Vars            ,ONLY: SurfNodeSymmetryFactor,Vdm_N_EQ,IsDepoSurfSide,SurfNodeArea,IsDepoSurfNode,pq2iNode
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1902,12 +1908,17 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 SDEALLOCATE(Vdm_EQ_N)
+SDEALLOCATE(Vdm_N_EQ)
 SDEALLOCATE(SurfNodeSource)
 SDEALLOCATE(SurfNodeSymmetryFactor)
 SDEALLOCATE(DepoSurfNodeID2FEMVertexID)
 SDEALLOCATE(FEMVertexID2DepoSurfNodeID)
 SDEALLOCATE(NonUniqueGlobalNodeIDToFEMVertexID)
 SDEALLOCATE(NonUniqueGlobalSideIDToNonUniqueGlobalNodeID)
+SDEALLOCATE(IsDepoSurfSide)
+SDEALLOCATE(IsDepoSurfNode)
+SDEALLOCATE(SurfNodeArea)
+SDEALLOCATE(pq2iNode)
 END SUBROUTINE FinalizeDepoSurfNodes
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 #endif /*defined(PARTICLES)*/

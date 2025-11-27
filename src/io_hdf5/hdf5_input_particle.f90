@@ -148,7 +148,7 @@ IF(DG_SourceExtExists)THEN
         NodeSourceExt_N(Nloc)%U(1:1,i,j,k) = U_N_2D_local(1:1,iDOF)
       END DO; END DO; END DO
 
-      ! Map G/GL (current node type) to equidistant distribution
+      ! Map G/GL (current node type) to equidistant distribution with N=1
       CALL ChangeBasis3D(1, Nloc, 1, Vdm_N_EQ(Nloc)%Vdm, NodeSourceExt_N(Nloc)%U(1:1,0:Nloc,0:Nloc,0:Nloc),&
                                                                NodeSourceExtEqui(1:1,0:1   ,0:1   ,0:1))
 
@@ -256,11 +256,11 @@ END SUBROUTINE ReadNodeSourceExtFromHDF5
 SUBROUTINE ReadSurfNodeSourceFromHDF5()
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_HDF5_Input   ,ONLY: ReadArray,GetDataSize,nDims,HSize
+USE MOD_HDF5_Input   ,ONLY: ReadArray,GetDataSize!,nDims!,HSize
 USE MOD_HDF5_Input   ,ONLY: File_ID,DatasetExists
-USE MOD_PICDepo_Vars ,ONLY: SurfNodeSource,nDepoSurfNodesTotal
+USE MOD_PICDepo_Vars ,ONLY: SurfNodeSource,nDepoSurfNodesTotal,SurfNodeArea
 #if USE_MPI
-USE MOD_PICDepo_MPI  ,ONLY: LBReverseExchangeSurfNodeSource
+USE MOD_PICDepo_MPI  ,ONLY: LBReverseExchangeSurfNodeSource,ReverseExchangeSurfNodeArea
 #endif /*USE_MPI*/
 USE MOD_IO_HDF5      ,ONLY: OpenDataFile,CloseDataFile,File_ID
 USE MOD_Restart_Vars ,ONLY: RestartFile
@@ -274,6 +274,7 @@ IMPLICIT NONE
 CHARACTER(LEN=255),PARAMETER :: SurfNodeSourceDataset='SurfNodeSource'
 INTEGER                      :: offsetFEMVertex
 LOGICAL                      :: SurfNodeSourceExists
+REAL,ALLOCATABLE             :: SurfNodeSourceH5(:,:)
 !===================================================================================================================================
 ! Only the MPIRoot reads the data
 IF (MPIRoot) THEN
@@ -289,12 +290,19 @@ IF (MPIRoot) THEN
   IF(.NOT.ALLOCATED(SurfNodeSource)) CALL abort(__STAMP__,'Error in ReadSurfNodeSourceFromHDF5(): SurfNodeSource not allocated.')
   IF(nDepoSurfNodesTotal.LE.0) CALL abort(__STAMP__,'Error in ReadSurfNodeSourceFromHDF5(): nDepoSurfNodesTotal<=0')
   ! Allocate local 2D array
-  CALL ReadArray(TRIM(SurfNodeSourceDataset),1,(/INT(nDepoSurfNodesTotal,IK)/),INT(offsetFEMVertex,IK),1,RealArray=SurfNodeSource)
+  ALLOCATE(SurfNodeSourceH5(2,nDepoSurfNodesTotal))
+  CALL ReadArray(TRIM(SurfNodeSourceDataset),2,(/2_IK,INT(nDepoSurfNodesTotal,IK)/),0,2,RealArray=SurfNodeSourceH5)
+  SurfNodeSource(:) = SurfNodeSourceH5(1,:)
+  SurfNodeArea(:)   = SurfNodeSourceH5(2,:)
+  ! print*,"ROOT: ReadSurfNodeSourceFromHDF5()"
+  ! read*
   ! Root closes the .h5 state file
   CALL CloseDataFile()
 END IF ! MPIRoot
 
 #if USE_MPI
+! Initialize the the SurfNodeArea(iDepoSurfNodeID) container on all processes except MPIRoot, which distribtues the data to all others
+CALL ReverseExchangeSurfNodeArea()
 ! The MPIRoot distributes the data directly to the processes
 CALL LBReverseExchangeSurfNodeSource()
 #endif /*USE_MPI*/

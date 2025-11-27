@@ -347,27 +347,28 @@ USE MOD_Particle_Mesh_Vars ,ONLY: nNonUniqueGlobalNodes
 USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity,nGlobalElems
 USE MOD_Particle_Mesh_Vars ,ONLY: VertexConnectInfo_shared
 USE MOD_Mesh_Vars          ,ONLY: NGeo,NonUniqueGlobalSideIDToNonUniqueGlobalNodeID!,SideToNonUniqueGlobalSide
-USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nFEMVertices,NonUniqueGlobalNodeIDToFEMVertexID!,nSides
+USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nFEMVertices,NonUniqueGlobalNodeIDToFEMVertexID,nBCSides,BC,nSides
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,SideInfo_Shared,ElemInfo_Shared,VertexInfo_Shared
 USE MOD_Mesh_pAdaption     ,ONLY: getlocsidelist
 USE MOD_Mesh_Tools         ,ONLY: GetCornerNodeMapCGNS,GetCNElemID,GetGlobalElemID
 USE MOD_Particle_Mesh_Vars ,ONLY: nNonUniqueGlobalSides,ElemSideNodeID_Shared
-USE MOD_Interpolation_Vars ,ONLY: Nmin,Nmax
+USE MOD_Interpolation_Vars ,ONLY: Nmax
 USE MOD_Interpolation_Vars ,ONLY: NodeTypeVISU,NodeType
 USE MOD_Interpolation      ,ONLY: GetVandermonde
 #if USE_MPI
-USE MOD_PICDepo_MPI        ,ONLY: InitDepoSurfNodesMPI
+USE MOD_PICDepo_MPI        ,ONLY: InitDepoSurfNodesMPI,CollectSurfNodeAreaOnMPIRoot,ReverseExchangeSurfNodeArea
 USE MOD_MPI_Shared_Vars    ,ONLY: myComputeNodeRank,nComputeNodeTotalElems,nComputeNodeProcessors
 USE MOD_MPI_Shared_vars    ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared         ,ONLY: BARRIER_AND_SYNC
 USE MOD_Particle_Mesh_Vars ,ONLY: VertexInfo_Shared_Win
-USE MOD_PICDepo_MPI        ,ONLY: LBReverseExchangeSurfNodeSource
 #else
 USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+USE MOD_PICDepo_MPI        ,ONLY: LBReverseExchangeSurfNodeSource
 #endif /*USE_LOADBALANCE*/
+USE MOD_Restart_Vars       ,ONLY: DoRestart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -379,16 +380,16 @@ LOGICAL             :: InitializeSurfNodeArrays
 #else
 LOGICAL,PARAMETER   :: InitializeSurfNodeArrays=.TRUE.
 #endif /*USE_LOADBALANCE*/
-INTEGER :: BCType,NonUniqueGlobalSideID,NonUniqueGlobalNbSideID,iGlobalElemID,BCIndex,ElemType
+INTEGER :: BCType,NonUniqueGlobalSideID,NonUniqueGlobalNbSideID,iGlobalElemID,BCIndex,ElemType,SideID
 INTEGER :: iVertexConnect,GlobalNbElemID,NbLocVertexID,LocSideList(3),iNeighbourLocSideList,iNeighbourLocSide
 INTEGER :: iLocSideList,iLocSide
 INTEGER :: FirstVertexInd,LastVertexInd,FirstVertexConnectInd,LastVertexConnectInd
 INTEGER :: FEMVertexID,iVertexInd,NonUniqueNodeID,CNS(8),iNode
-INTEGER :: CNElemID,LocSideID,Nloc,iBC
-INTEGER,ALLOCATABLE :: SymmetryBCIndex(:,:)
+INTEGER :: CNElemID,LocSideID
 INTEGER :: FirstCNElemID,LastCNElemID,iCNELemID,localVertexID
 REAL    :: StartT,EndT
 INTEGER, PARAMETER :: MaxAllowedSymmetries=6 ! The number 6 is chosen at random to limit the maximum number of symmetries
+REAL    :: SubSideAreaEquiN1(0:1,0:1)
 !===================================================================================================================================
 LBWRITE(UNIT_stdOut,'(A,I0,A)',ADVANCE='NO') ' | Initializing node mappings for 2D surface deposition...'
 GETTIME(StartT)
@@ -402,6 +403,11 @@ InitializeSurfNodeArrays = .FALSE.
 IF (.NOT.PerformLoadBalance.OR.(PerformLoadBalance.AND.(.NOT.MPIRoot))) InitializeSurfNodeArrays = .TRUE.
 ! IF(XOR(PerformLoadBalance,MPIRoot)) InitializeSurfNodeArrays = .TRUE.
 #endif /*USE_LOADBALANCE*/
+
+! Surface mapping from p,q-system to iNode (node coord system)
+ALLOCATE(pq2iNode(0:1,0:1,1:nSides))
+pq2iNode = 0
+
 
 IF (InitializeSurfNodeArrays) THEN
   ! Flag the unique deposition nodes per processor
@@ -499,6 +505,7 @@ DO iCNELemID = FirstCNElemID, LastCNElemID
     FirstVertexConnectInd = VertexInfo_Shared(VERTEX_FIRSTCONNECTIND,iVertexInd)+1
     LastVertexConnectInd  = VertexInfo_Shared(VERTEX_LASTCONNECTIND,iVertexInd)
     ! Check nodes without connections
+    ! TODO: Check if this IF statement is required or if the local sides should always be checked?
     IF (FirstVertexConnectInd.GT.LastVertexConnectInd) THEN ! Vertex has no neighbours (solo vertex)
       ! Check if any of the three connected sides is a deposition side
       ! Set sides depending on the element type: Only implemented for Hexahedral elements
@@ -585,136 +592,15 @@ IF (InitializeSurfNodeArrays) THEN
   END DO ! NonUniqueGlobalSideID = 1,nNonUniqueGlobalSides
   ! END DO
 
-  ! 3. For nodes that are connected to a Neumann BC, the deposited charge must be increased by a (mirror charge) scaling factor
-  ! Check if neighbouring sides of FEMVertexIDs are symmetry sides for the field solver, hence, increase the deposited charge there
-#if USE_MPI
-  ! With SHM array: Divide the loop into sections to split the workload
-  FirstCNElemID = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-  LastCNElemID  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
-  ! Without SHM array: Every process loops over all elements on the CN node
-  FirstCNElemID = 1
-  LastCNElemID  = nComputeNodeTotalElems
-#else
-  FirstCNElemID = 1
-  LastCNElemID  = nElems
-#endif
-  ! TODO: Make this array SHM
-  ! TODO: Check if there are any Neumann BC sides, if not, skip this step
-  ! TODO: Alternative: Similar to NodeSource, calculate a "volume" (in this case "surface area") container for all contributing
-  ! faces, which assumes symmetry automatically from all sides, hence, eliminating the need for a symmetry factor
-  ALLOCATE(SurfNodeSymmetryFactor(1:nNonUniqueGlobalNodes))
-  SurfNodeSymmetryFactor = 0
-  ALLOCATE(SymmetryBCIndex(1:6,1:nNonUniqueGlobalNodes))
-  SymmetryBCIndex = 0
-  ! Loop over the process-local global elements indices
-  DO iCNELemID = FirstCNElemID, LastCNElemID
-    ! Get global element index
-    iGlobalElemID = GetGlobalElemID(iCNELemID)
-    ! iElem = iGlobalElemID - offsetElem
-    ElemType = ElemInfo_Shared(ELEM_TYPE,iGlobalElemID)
-    ! Sanity check: currently only hexahedral elements are implemented
-    SELECT CASE(ElemType)
-    CASE(108,118,208)
-      ! Hexahedral elements
-    CASE DEFAULT
-      CALL abort(__STAMP__,'InitDepoSurfNodes(): Element type not implemented, ElemType =',IntInfoOpt=ElemType)
-    END SELECT
-    ! Get local FEMElemInfo of current element
-    FirstVertexInd = ElemInfo_Shared(ELEM_FIRSTVERTEXIND,iGlobalElemID)+1 ! This comes from FEMElemInfo() from mesh.h5
-    LastVertexInd  = ElemInfo_Shared(ELEM_LASTVERTEXIND,iGlobalElemID)    ! This comes from FEMElemInfo() from mesh.h5
-    ! Loop over all non-unique vertices (the total number via iGlobalElemID and iVertexInd corresponds to nVertices in .h5)
-    iVertexIndLoop: DO iVertexInd = FirstVertexInd,LastVertexInd
-      ! Get topologically unique global vertex ID (via VertexInfo from mesh.h5), includes periodicity (needed for a FEM solver)
-      FEMVertexID = VertexInfo_Shared(VERTEX_FEMID,iVertexInd)
-      ! Skip vertices without deposition
-      IF(.NOT.IsDepoSurfNode(FEMVertexID)) CYCLE iVertexIndLoop
-      ! Get the local vertex index
-      localVertexID = iVertexInd-FirstVertexInd+1
-      ! Get the non-unique node index
-      NonUniqueNodeID = CNS(localVertexID) + FirstVertexInd - 1
-      ! Get local vertex connectivity: First and Last connected vertex index
-      FirstVertexConnectInd = VertexInfo_Shared(VERTEX_FIRSTCONNECTIND,iVertexInd)+1
-      LastVertexConnectInd  = VertexInfo_Shared(VERTEX_LASTCONNECTIND,iVertexInd)
-      ! Check nodes without connections
-      IF (FirstVertexConnectInd.GT.LastVertexConnectInd) THEN ! Vertex has no neighbours (solo vertex)
-        ! Check if any of the three connected sides is a deposition side
-        ! Set sides depending on the element type: Only implemented for Hexahedral elements
-        CALL GetLocSideList(ElemType,localVertexID,LocSideList)
-        ! Loop over the three connected sides of the element
-        iSide2: DO iLocSideList = 1, 3
-          ! Check if current element has already been flagged
-          iLocSide = LocSideList(iLocSideList)
-          ! Get non-unique global side index of the element that is connected to the FEMVertexID/NonUniqueNodeID
-          NonUniqueGlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobalElemID) + iLocSide
-          ! Get boundary condition index
-          BCIndex = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalSideID)
-          IF(BCIndex.LE.0) CYCLE iSide2 ! Skip inner sides
-          ! Get boundary condition type
-          BCType = BoundaryType(BCIndex,BC_TYPE)
-          ! TODO:Implement inner BCs for surface charge deposition
-          ! IF(BCType.EQ.100) CALL abort(__STAMP__,'InitDepoSurfNodes(): Inner BCs not implemented for surface charge deposition')
-          ! TODO:define a list of all BCType numbers that allow surface deposition
-          IF(BCType.NE.10) CYCLE iSide2 ! Skip non-symmetry sides
-          ! Increase the scaling factor by one
-          iBCLoop: DO iBC = 1, MaxAllowedSymmetries ! TODO: how many symmetries should be allowed?
-            ! Do not count the same BCIndex twice
-            IF(SymmetryBCIndex(iBC,NonUniqueNodeID).EQ.BCIndex) CYCLE iSide2
-            ! Check for empty spot to place the BCIndex
-            IF (SymmetryBCIndex(iBC,NonUniqueNodeID).EQ.0) THEN
-              SymmetryBCIndex(iBC,NonUniqueNodeID) = BCIndex
-              EXIT iBCLoop
-            END IF ! SymmetryBCIndex(iBC,NonUniqueNodeID).EQ.0
-          END DO iBCLoop ! iBC  = 1,6
-          SurfNodeSymmetryFactor(NonUniqueNodeID) = SurfNodeSymmetryFactor(NonUniqueNodeID) + 2
-        END DO iSide2 ! iLocSideList = 1, 3
-      ELSE ! Vertex has neibouring vertices
-        iVertexConnectLoop: DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
-          ! Get neighbour infos. Note the ABS() for +/- master/slave notation
-          GlobalNbElemID = ABS(VertexConnectInfo_Shared(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
-          ! IF(GlobalNbElemID.EQ.iGlobalElemID) CYCLE iVertexConnectLoop
-          NbLocVertexID  =     VertexConnectInfo_Shared(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
-          ! Set sides depending on the element type: Only implemented for Hexahedral elements
-          CALL GetLocSideList(ElemType,NbLocVertexID,LocSideList)
-          ! Loop over the three connected sides of the neighbour element, which is connected with a corner to iVertexConnect
-          NbSide: DO iNeighbourLocSideList = 1, 3
-            ! Check if current element has already been flagged
-            iNeighbourLocSide = LocSideList(iNeighbourLocSideList)
-            ! Get non-unique global side index of the neighbouring element that is connected to the FEMVertexID/NonUniqueNodeID
-            NonUniqueGlobalNbSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalNbElemID) + iNeighbourLocSide
-            ! Get boundary condition index
-            BCIndex = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalNbSideID)
-            IF(BCIndex.LE.0) CYCLE NbSide ! Skip inner sides
-            ! Get boundary condition type
-            BCType = BoundaryType(BCIndex,BC_TYPE)
-            ! TODO:define a list of all BCType numbers that effect the scaling factor
-            IF(BCType.NE.10) CYCLE NbSide ! Skip non-symmetry sides
-            ! Increase the scaling factor by one
-            iBCLoop2: DO iBC = 1, MaxAllowedSymmetries ! TODO: how many symmetries should be allowed?
-              ! Do not count the same BCIndex twice
-              IF(SymmetryBCIndex(iBC,NonUniqueNodeID).EQ.BCIndex) CYCLE NbSide
-              ! Check for empty spot to place the BCIndex
-              IF (SymmetryBCIndex(iBC,NonUniqueNodeID).EQ.0) THEN
-                SymmetryBCIndex(iBC,NonUniqueNodeID) = BCIndex
-                EXIT iBCLoop2
-              END IF ! SymmetryBCIndex(iBC,NonUniqueNodeID).EQ.0
-            END DO iBCLoop2 ! iBC  = 1,6
-            SurfNodeSymmetryFactor(NonUniqueNodeID) = SurfNodeSymmetryFactor(NonUniqueNodeID) + 2
-          END DO NbSide ! iNeighbourLocSideList = 1, 3
-        END DO iVertexConnectLoop ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
-      END IF ! FirstVertexConnectInd.GT.LastVertexConnectInd
-    END DO iVertexIndLoop ! iVertexInd = iFirstVertexInd,LastVertexInd
-  END DO ! iCNELemID = FirstCNElemID, LastCNElemID
-  DEALLOCATE(SymmetryBCIndex)
-
-  ! Sanity check: Looper over all deposition surface side IDs and make sure the mapping is correct
+  ! Sanity check: Loop over all deposition surface side IDs and make sure the mapping is correct
   DO NonUniqueGlobalSideID = 1,nNonUniqueGlobalSides
     ! Only check surfaces that are marked for deposition
     IF(IsDepoSurfSide(NonUniqueGlobalSideID))THEN
       ! Get global element index
       iGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID)
       ! Get compute node element index of the side
-      CNElemID  = GetCNElemID(iGlobalElemID)
-      ! Skip global elements, which are not on the compute node and not inside the halo region by checking if the CN element index is
+      CNElemID = GetCNElemID(iGlobalElemID)
+      ! Skip global elements, which are not on the compute node and not inside the halo region by checking if the CN element index
       IF(CNElemID.EQ.-1) CYCLE
       ! Check if any connected unique node ID is zero, which is impossible
       IF (ANY(NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(:,NonUniqueGlobalSideID).EQ.0)) THEN
@@ -747,10 +633,52 @@ IF (InitializeSurfNodeArrays) THEN
       FEMVertexID2DepoSurfNodeID(FEMVertexID) = -1
     END IF
   END DO
+
+  ! Surface area associated with each deposition FEM vertex
+  ALLOCATE(SurfNodeArea(1:nDepoSurfNodesTotal))
+  SurfNodeArea = 0.
 END IF ! InitializeSurfNodeArrays
+
+! Build Vandermonde mapping from NodeType to NodeTypeVISU (equidistant with N=1)
+CALL BuildSurfVdm(Nmax)
+
+! TODO: Add contribution where inner BCs are used in combination with surface charging
+! Loop over all boundary condition sides
+DO SideID=1,nBCSides
+  ! Get BC type
+  BCType =BoundaryType(BC(SideID),BC_TYPE)
+  SELECT CASE(BCType)
+#if USE_HDG
+  CASE(HDGDIRICHLETBCSIDEIDS) ! HDG Dirichlet BC Side IDs: BCType = BoundaryType(BC(SideID),BC_TYPE)
+    ! Skip
+  CASE(10,11,12) !Neumann,
+    ! Skip
+  CASE(20) ! Conductor: Floating Boundary Condition (FPC)
+    ! Skip
+  CASE(30) ! Distributed Capacitance
+    ! Sum up all contributions of surface area to the FEM vertices of each side
+    CALL Buildpq2iNode(SideID,SubSideAreaEquiN1)
+    IF(.NOT.DoRestart) CALL CalculateSurfNodeArea(SideID,SubSideAreaEquiN1)
+#else
+  CASE DEFAULT ! unknown BCType
+    CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
+#endif /*USE_HDG*/
+  END SELECT ! BCType
+END DO
+DEALLOCATE(Vdm_N_EQ)
+! print*," "
+! IPWRITE(*,*) 'DoRestart:',DoRestart
+! IPWRITE(*,*) 'Buildpq2iNode',.True.
+! IPWRITE(*,*) 'CalculateSurfNodeArea:',.NOT.DoRestart
+! read*
+
 ! DEALLOCATE(IsDepoSurfNode)
 #if USE_MPI
 CALL InitDepoSurfNodesMPI() ! Initialize MPI communicator for surface node communication
+! Collect surface area contributions SurfNodeArea(iDepoSurfNodeID) of all processes on the MPIRoot
+IF(.NOT.PerformLoadBalance) CALL CollectSurfNodeAreaOnMPIRoot()
+! Initialize the the SurfNodeArea(iDepoSurfNodeID) container on all processes except MPIRoot, which distribtues the data to all others
+CALL ReverseExchangeSurfNodeArea()
 #endif /*USE_MPI*/
 IF (InitializeSurfNodeArrays) THEN
   ALLOCATE(SurfNodeSource(1:nDepoSurfNodesTotal))
@@ -761,21 +689,269 @@ END IF ! InitializeSurfNodeArrays
 IF(PerformLoadBalance) CALL LBReverseExchangeSurfNodeSource()
 #endif /*USE_LOADBALANCE*/
 
-IF (InitializeSurfNodeArrays) THEN
-! Build Vandermonde for mapping from N=1 (equidistant) to N=Nloc (Gauss/Gauss-Lobatto)
-ALLOCATE(Vdm_EQ_N(Nmin:Nmax))
-  DO Nloc = Nmin, Nmax
-    ALLOCATE(Vdm_EQ_N(Nloc)%Vdm(0:Nloc,0:1))
-    CALL GetVandermonde(1, NodeTypeVISU, Nloc, NodeType, Vdm_EQ_N(Nloc)%Vdm(0:Nloc,0:1), modal=.FALSE.)
-  END DO ! Nloc = Nmin, Nmax
-END IF ! InitializeSurfNodeArrays
-
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE!',DisplayLine=.FALSE.)
 
 InitDepoSurfNodesIsDone = .TRUE.
 
 END SUBROUTINE InitDepoSurfNodes
+
+
+!===================================================================================================================================
+!> Build Vandermondes
+!> a) Vdm_EQ_N: Vandermonde for mapping from N=1 (equidistant) to N=Nloc (Gauss/Gauss-Lobatto)
+!> b) Vdm_N_EQ: Map G/GL (current node type) to equidistant distribution with N=1
+!===================================================================================================================================
+SUBROUTINE BuildSurfVdm(Nmax)
+! MODULES
+USE MOD_Preproc
+USE MOD_Interpolation      ,ONLY: GetVandermonde,GetNodesAndWeights
+USE MOD_PICDepo_Vars       ,ONLY: Vdm_EQ_N,Vdm_N_EQ
+USE MOD_Interpolation_Vars ,ONLY: Nmin
+USE MOD_Interpolation_Vars ,ONLY: NodeTypeVISU,NodeType
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN)  :: Nmax !< Maximum polynomial degree vor Vandermonde mappings
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: Nloc
+!===================================================================================================================================
+! Build Vandermonde Vdm_EQ_N for mapping from N=1 (equidistant) to N=Nloc (Gauss/Gauss-Lobatto)
+ALLOCATE(Vdm_EQ_N(Nmin:Nmax))
+DO Nloc = Nmin, Nmax
+  ALLOCATE(Vdm_EQ_N(Nloc)%Vdm(0:Nloc,0:1))
+  CALL GetVandermonde(1, NodeTypeVISU, Nloc, NodeType, Vdm_EQ_N(Nloc)%Vdm(0:Nloc,0:1), modal=.FALSE.)
+END DO ! Nloc = Nmin, Nmax
+
+! Build Vandermonde Vdm_N_EQ for mapping G/GL (current node type) to equidistant distribution with N=1
+ALLOCATE(Vdm_N_EQ(Nmin:Nmax))
+DO Nloc = Nmin, Nmax
+  ! Allocate and determine Vandermonde mapping from NodeType to equidistant (visu) node set
+  ALLOCATE(Vdm_N_EQ(Nloc)%Vdm(0:1,0:Nloc))
+  CALL GetVandermonde(Nloc, NodeType, 1, NodeTypeVISU, Vdm_N_EQ(Nloc)%Vdm(0:1,0:Nloc), modal=.FALSE.)
+  ! Required only for integration
+  ALLOCATE(Vdm_N_EQ(Nloc)%xIP_VISU(0:Nloc))
+  ALLOCATE(Vdm_N_EQ(Nloc)%wIP_VISU(0:Nloc))
+  CALL GetNodesAndWeights(Nloc, NodeTypeVISU, xIP = Vdm_N_EQ(Nloc)%xIP_VISU, wIP = Vdm_N_EQ(Nloc)%wIP_VISU)
+END DO ! Nloc = Nmin, Nmax
+
+END SUBROUTINE BuildSurfVdm
+
+
+!===================================================================================================================================
+!> Determine the surface area associated with a FEM vertex
+!===================================================================================================================================
+SUBROUTINE Buildpq2iNode(SideID,SubSideAreaEquiN1)
+! MODULES
+USE MOD_Preproc
+USE MOD_Globals            ,ONLY: UNIT_stdOut,abort,VECNORM3D,myrank
+USE MOD_PICDepo_Vars       ,ONLY: IsDepoSurfSide,Vdm_N_EQ,pq2iNode
+USE MOD_Interpolation_Vars ,ONLY: N_Inter,Nmax
+USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
+USE MOD_Mesh_Vars          ,ONLY: SideToNonUniqueGlobalSide
+USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: SideID !< Local side index
+REAL,INTENT(OUT)   :: SubSideAreaEquiN1(0:1,0:1) !< Side areas
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iNode,p,q,Nloc,NonUniqueGlobalSideID,NonUniqueNodeID,NSideN1,iERROR
+REAL    :: SideAreaNloc,SideAreaEquiN1
+REAL    :: SurfElemEquiN1(0:1,0:1),Face_xGPEquiN1(3,0:1,0:1)
+REAL    :: tmp(1:3,0:Nmax,0:Nmax),tmp2(1:3,0:Nmax,0:Nmax)
+!===================================================================================================================================
+! Get non-unique global side index from local side index
+NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,SideID) ! Get global side index
+
+! Get polynomial degree of side (can be inner side or boundary side)
+Nloc = N_SurfMesh(SideID)%NSide
+
+! Set polynomial for equidistant basis
+NSideN1 = 1
+
+! Get SurfElemEquiN1: Surface area elements on equidistant basis with N=1
+! Check if the polynomial degree is one
+IF(Nloc.EQ.NSideN1)THEN
+  ! Store in temp array for switching from NodeType to NodeTypeVISU
+  tmp2(1,0:NSideN1,0:NSideN1) = N_SurfMesh(SideID)%SurfElem(0:NSideN1,0:NSideN1)
+ELSE
+  ! From high to low
+  ! Transform side keeping the same degree: switch to Legendre basis
+  CALL ChangeBasis2D(1, Nloc, Nloc, N_Inter(Nloc)%sVdm_Leg, N_SurfMesh(SideID)%SurfElem(0:Nloc,0:Nloc) ,&
+                                                                                  tmp(1,0:Nloc,0:Nloc) )
+  ! Switch back to nodal basis
+  CALL ChangeBasis2D(1, NSideN1, NSideN1, N_Inter(NSideN1)%Vdm_Leg , tmp(1,0:Nloc   ,0:Nloc   ) ,&
+                                                                    tmp2(1,0:NSideN1,0:NSideN1) )
+END IF ! Nloc.EQ.NSideN1
+
+! Swtich from NodeType (N=1) to NodeTypeVISU (N=1)
+CALL ChangeBasis2D(1, 1, 1, Vdm_N_EQ(NSideN1)%Vdm, tmp2(1,0:NSideN1,0:NSideN1), SurfElemEquiN1(0:NSideN1,0:NSideN1) )
+
+! Sanity check: Make sure that the sum of the sub areas does not change when switching from G/GL with N=Nloc to equidistant with N=1
+! Calculate side area: G/GL with N=Nloc
+SideAreaNloc = 0
+DO q=0,Nloc; DO p=0,Nloc
+  SideAreaNloc = SideAreaNloc + N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(SideID)%SurfElem(p,q)
+END DO; END DO ! p,q
+
+! Calculate side area: equidistant visu nodes with N=1
+SideAreaEquiN1 = 0
+DO q=0,NSideN1; DO p=0,NSideN1
+  SubSideAreaEquiN1(p,q) = Vdm_N_EQ(NSideN1)%wIP_VISU(p)*Vdm_N_EQ(NSideN1)%wIP_VISU(q)*SurfElemEquiN1(p,q)
+  SideAreaEquiN1 = SideAreaEquiN1 + SubSideAreaEquiN1(p,q)
+END DO; END DO ! p,q
+
+! Sanity check: SideAreaNloc and SideAreaEquiN1 must only differ relatively by 1e-3
+IF (.NOT.ALMOSTEQUALRELATIVE(SideAreaNloc, SideAreaEquiN1, 1e-3)) THEN
+  IPWRITE(*,*) 'Error in area calculation for surface charge deposition with N=1 and linear weighting'
+  IPWRITE(*,*) 'SideID,NonUniqueGlobalSideID,Nloc,SideAreaNloc  :', SideID,NonUniqueGlobalSideID,Nloc,SideAreaNloc
+  IPWRITE(*,*) 'SideID,NonUniqueGlobalSideID,Nloc,SideAreaEquiN1:', SideID,NonUniqueGlobalSideID,NSideN1,SideAreaEquiN1
+  CALL abort(__STAMP__,' Sum of the sub areas has changed  when switching from G/GL with N=Nloc to equidistant with N=1', IERROR)
+END IF ! .NOT.ALMOSTEQUALRELATIVE(SideAreaNloc, SideAreaEquiN1, 1edd-3)
+
+! Get Face_xGPEquiN1: xGP mapped to equidistant basis with N=1
+! Check if the polynomial degree is one
+IF(Nloc.EQ.NSideN1)THEN
+  ! Store in temp array for switching from NodeType to NodeTypeVISU
+  tmp2(1:3,0:NSideN1,0:NSideN1) = N_SurfMesh(SideID)%Face_xGP(1:3,0:NSideN1,0:NSideN1)
+ELSE
+  ! From high to low
+  ! Transform side keeping the same degree: switch to Legendre basis
+  CALL ChangeBasis2D(3, Nloc, Nloc, N_Inter(Nloc)%sVdm_Leg, N_SurfMesh(SideID)%Face_xGP(1:3,0:Nloc,0:Nloc) ,&
+                                                                                    tmp(1:3,0:Nloc,0:Nloc) )
+  ! Switch back to nodal basis
+  CALL ChangeBasis2D(3, NSideN1, NSideN1, N_Inter(NSideN1)%Vdm_Leg , tmp(1:3,0:Nloc   ,0:Nloc   ) ,&
+                                                                    tmp2(1:3,0:NSideN1,0:NSideN1) )
+END IF ! Nloc.EQ.NSideN1
+
+! Swtich from NodeType (N=1) to NodeTypeVISU (N=1)
+CALL ChangeBasis2D(3, 1, 1, Vdm_N_EQ(NSideN1)%Vdm, tmp2(1:3,0:NSideN1,0:NSideN1), Face_xGPEquiN1(1:3,0:NSideN1,0:NSideN1) )
+
+! Map surface charge from vertices to SideID surface with N=1
+! Note that the loop runs in the p-q-oriented system
+DO q=0,1; DO p=0,1
+  ! Get local node index by checking the distance of the four cornder nodes
+  ! TODO: on inner BC this might not work because the side is not always oriented in the master ordering
+  ! iNode = 2*q + p + 1
+  CALL GetClosestNode(NonUniqueGlobalSideID,Face_xGPEquiN1(1:3,p,q),iNode)
+  ! Set mapping
+  pq2iNode(p,q,SideID) = iNode
+  ! IPWRITE(*,*) 'p,q,iNode,2*q + p + 1:', p,q,iNode,2*q + p + 1
+  ! Mapping from non-unique global side index to non-unique global node index
+  NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID)
+  ! Sanity check
+  IF (NonUniqueNodeID.LE.0) THEN
+    IPWRITE(*,*) 'NonUniqueNodeID,NonUniqueGlobalSideID,IsDepoSurfSide(NonUniqueGlobalSideID),SideID:',&
+                  NonUniqueNodeID,NonUniqueGlobalSideID,IsDepoSurfSide(NonUniqueGlobalSideID),SideID
+    CALL abort(__STAMP__,' NonUniqueNodeID <= 0')
+  END IF ! NonUniqueNodeID.LE.0
+END DO; END DO ! q=0,1; DO p=0,1
+
+END SUBROUTINE Buildpq2iNode
+
+
+!===================================================================================================================================
+!> Determine the surface area associated with a FEM vertex
+!===================================================================================================================================
+SUBROUTINE CalculateSurfNodeArea(SideID,SubSideAreaEquiN1)
+! MODULES
+USE MOD_Preproc
+USE MOD_Globals            ,ONLY: UNIT_stdOut,abort,VECNORM3D,myrank
+USE MOD_PICDepo_Vars       ,ONLY: FEMVertexID2DepoSurfNodeID,IsDepoSurfSide,SurfNodeArea,pq2iNode
+USE MOD_Mesh_Vars          ,ONLY: SideToNonUniqueGlobalSide
+USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID,NonUniqueGlobalNodeIDToFEMVertexID
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN)  :: SideID   !< Local side index
+REAL,INTENT(IN)     :: SubSideAreaEquiN1(0:1,0:1)   !< Side areas
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iNode,FEMVertexID,iDepoSurfNodeID,p,q,NonUniqueGlobalSideID,NonUniqueNodeID
+!===================================================================================================================================
+! Get non-unique global side index from local side index
+NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,SideID) ! Get global side index
+! Map surface charge from vertices to SideID surface with N=1
+! Note that the loop runs in the p-q-oriented system
+DO q=0,1; DO p=0,1
+  ! Get local node index by checking the distance of the four cornder nodes
+  ! TODO: on inner BC this might not work because the side is not always oriented in the master ordering
+  ! iNode = 2*q + p + 1
+  ! Set mapping
+  iNode = pq2iNode(p,q,SideID)
+  ! IPWRITE(*,*) 'p,q,iNode,2*q + p + 1:', p,q,iNode,2*q + p + 1
+  ! Mapping from non-unique global side index to non-unique global node index
+  NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID)
+  ! Sanity check
+  IF (NonUniqueNodeID.LE.0) THEN
+    IPWRITE(*,*) 'NonUniqueNodeID,NonUniqueGlobalSideID,IsDepoSurfSide(NonUniqueGlobalSideID),SideID:',&
+                  NonUniqueNodeID,NonUniqueGlobalSideID,IsDepoSurfSide(NonUniqueGlobalSideID),SideID
+    CALL abort(__STAMP__,' NonUniqueNodeID <= 0')
+  END IF ! NonUniqueNodeID.LE.0
+  ! Mapping from NonUniqueNodeID to FEMVertexID
+  FEMVertexID = NonUniqueGlobalNodeIDToFEMVertexID(NonUniqueNodeID)
+  ! Get surface deposition node index
+  iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
+  ! Add contribution to the FEM vertex (note that double periodicity collapses all four corner nodes into a single vertex index)
+  SurfNodeArea(iDepoSurfNodeID) = SurfNodeArea(iDepoSurfNodeID) + SubSideAreaEquiN1(p,q)
+  ! IPWRITE(*,*) 'FEMVertexID,iDepoSurfNodeID,NonUniqueNodeID,SurfNodeArea(iDepoSurfNodeID):',&
+  !               FEMVertexID,iDepoSurfNodeID,NonUniqueNodeID,SurfNodeArea(iDepoSurfNodeID)
+END DO; END DO ! q=0,1; DO p=0,1
+
+END SUBROUTINE CalculateSurfNodeArea
+
+
+!===================================================================================================================================
+!> Determine the closest NodeCoords node closest to the vector x(1:3) and return the node index (1, 2, 3 or 4)
+!===================================================================================================================================
+SUBROUTINE GetClosestNode(NonUniqueGlobalSideID,x,NodeIndex)
+! MODULES
+USE MOD_Preproc
+USE MOD_Globals            ,ONLY: UNIT_stdOut,abort,VECNORM3D
+USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN)  :: NonUniqueGlobalSideID !< Non-unique global side index
+REAL,INTENT(IN)     :: x(1:3)                !< Coordinate of the face interpolation point on the mesh surface corners
+INTEGER,INTENT(OUT) :: NodeIndex             !< Node index (1 to 4) of the NodeCoords node closest to the vector x(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iNode,NonUniqueNodeID
+REAL    :: norm,PartDistDepo(4)
+!===================================================================================================================================
+! Loop over the four corner nodes
+DO iNode = 1, 4
+  ! Get the non-unique node index
+  NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID)
+  ! Sanity check
+  IF(NonUniqueNodeID.LE.0) CALL abort(__STAMP__,'Wrong NonUniqueNodeID encountered in surface charge deposition init')
+  ! Calculate the distance
+  norm = VECNORM3D(NodeCoords_Shared(1:3,NonUniqueNodeID) - x(1:3))
+  ! IPWRITE(*,*) 'iNode,NodeCoords_Shared(1:3,NonUniqueNodeID) - x(1:3),norm:',&
+  !               iNode,NodeCoords_Shared(1:3,NonUniqueNodeID) - x(1:3),norm
+  ! Check if the distance is greater than zero
+  IF(norm.GT.0.)THEN
+    PartDistDepo(iNode) = 1./norm
+  ELSE
+    PartDistDepo(:) = 0.
+    PartDistDepo(iNode) = 1.0
+    EXIT
+  END IF ! norm.GT.0.
+END DO ! iNode = 1, 4
+
+! Get index of maximum location
+NodeIndex = MAXLOC(PartDistDepo,DIM=1)
+END SUBROUTINE GetClosestNode
 
 
 !===================================================================================================================================
@@ -2219,9 +2395,11 @@ IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 
   IF (Do2DSurfaceCharge) THEN
     SDEALLOCATE(SurfNodeSourceMPI)
+    SDEALLOCATE(pq2iNode)
+    SDEALLOCATE(Vdm_EQ_N)
+    SDEALLOCATE(Vdm_N_EQ)
     ! The root process keeps all the data relevant for sending the surface charge to the other processes
     IF (.NOT.MPIRoot) THEN
-      SDEALLOCATE(Vdm_EQ_N)
       SDEALLOCATE(SurfNodeSource)
       SDEALLOCATE(SurfNodeSymmetryFactor)
       SDEALLOCATE(DepoSurfNodeID2FEMVertexID)
@@ -2229,6 +2407,8 @@ IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
       SDEALLOCATE(NonUniqueGlobalNodeIDToFEMVertexID)
       SDEALLOCATE(NonUniqueGlobalSideIDToNonUniqueGlobalNodeID)
       SDEALLOCATE(IsDepoSurfSide)
+      SDEALLOCATE(IsDepoSurfNode)
+      SDEALLOCATE(SurfNodeArea)
     END IF ! .NOT.MPIRoot
   END IF ! Do2DSurfaceCharge
 
@@ -2243,6 +2423,7 @@ ELSE
 #endif /*USE_LOADBALANCE*/
   IF (Do2DSurfaceCharge) THEN
     SDEALLOCATE(Vdm_EQ_N)
+    SDEALLOCATE(Vdm_N_EQ)
     SDEALLOCATE(SurfNodeSource)
     SDEALLOCATE(SurfNodeSymmetryFactor)
     SDEALLOCATE(DepoSurfNodeID2FEMVertexID)
@@ -2250,6 +2431,9 @@ ELSE
     SDEALLOCATE(NonUniqueGlobalNodeIDToFEMVertexID)
     SDEALLOCATE(NonUniqueGlobalSideIDToNonUniqueGlobalNodeID)
     SDEALLOCATE(IsDepoSurfSide)
+    SDEALLOCATE(IsDepoSurfNode)
+    SDEALLOCATE(SurfNodeArea)
+    SDEALLOCATE(pq2iNode)
   END IF ! Do2DSurfaceCharge
 #if USE_LOADBALANCE
 END IF

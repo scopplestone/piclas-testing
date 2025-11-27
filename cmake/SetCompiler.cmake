@@ -75,7 +75,7 @@ ELSE()
   ENDIF()
 ENDIF()
 
-MESSAGE(STATUS "Compiling Nitro/Release/Profile with [${CMAKE_Fortran_COMPILER_ID}] (v${CMAKE_Fortran_COMPILER_VERSION}) fortran compiler using PICLAS_INSTRUCTION [${PICLAS_INSTRUCTION}] instructions.")
+MESSAGE(STATUS "Compiling Nitro/Release/Profile with [${CMAKE_Fortran_COMPILER_ID}] (${BoldBlue}v${CMAKE_Fortran_COMPILER_VERSION}${ColourReset}) fortran compiler using PICLAS_INSTRUCTION [${PICLAS_INSTRUCTION}] instructions.")
 
 # =========================================================================
 # CHECK SUPPORT FOR VARIOUS FORTRAN (2003,2008) FEATURES
@@ -129,7 +129,7 @@ GCC13Check
 SRC_EXT F90)
 
 IF(NOT GCC13Check)
-  MESSAGE(WARNING "The requested compiler ${CMAKE_Fortran_COMPILER_ID} (v${CMAKE_Fortran_COMPILER_VERSION}) contains a bug in parse_associate. Ensure ASSOCIATE is only use with explicit array bounds or use a different compiler version. Please see the upstream issue, https://gcc.gnu.org/bugzilla/show_bug.cgi?id=109948")
+  MESSAGE(WARNING "The requested compiler ${CMAKE_Fortran_COMPILER_ID} (${BoldBlue}v${CMAKE_Fortran_COMPILER_VERSION}${ColourReset}) contains a bug in parse_associate. Ensure ASSOCIATE is only use with explicit array bounds or use a different compiler version. Please see the upstream issue, https://gcc.gnu.org/bugzilla/show_bug.cgi?id=109948")
 ENDIF()
 
 # =========================================================================
