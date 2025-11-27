@@ -214,28 +214,23 @@ END SUBROUTINE WriteNodeSourceExtToHDF5
 
 SUBROUTINE WriteSurfNodeSourceToHDF5(OutputTime)
 !===================================================================================================================================
-! Write NodeSourceExt (external charge density) field to HDF5 file
+! Write SurfNodeSource(external charge density) field to HDF5 file
 !===================================================================================================================================
 ! MODULES
 USE MOD_io_HDF5
 USE MOD_Globals
 USE MOD_PreProc
-! USE MOD_Dielectric_Vars    ,ONLY: NodeSourceExtGlobal
-USE MOD_Mesh_Vars          ,ONLY: MeshFile,offsetElem,nElems
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Globals_Vars       ,ONLY: ProjectName
-USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,NodeVolume,DoDeposition
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes
 USE MOD_TimeDisc_Vars      ,ONLY: iter
-USE MOD_Interpolation_Vars ,ONLY: NodeType,NodeTypeVISU,Nmin,Nmax
 USE MOD_Interpolation      ,ONLY: GetVandermonde
-USE MOD_DG_vars            ,ONLY: N_DG_Mapping,nDofsMapping
 #if USE_MPI
 USE MOD_PICDepo_MPI        ,ONLY: ExchangeSurfNodeSourceMPI
+USE MOD_PICDepo_Vars       ,ONLY: DoDeposition
 #endif /*USE_MPI*/
 USE MOD_HDF5_Output_ElemData,ONLY: WriteAdditionalElemData
-USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource,nDepoSurfNodesTotal,nDepoSurfSides
+USE MOD_PICDepo_Vars        ,ONLY: SurfNodeSource,nDepoSurfNodesTotal,nDepoSurfSides,SurfNodeArea
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -249,7 +244,7 @@ INTEGER,PARAMETER              :: nVarOut=1
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),PARAMETER   :: DataSetName='SurfNodeSource'
-INTEGER                        :: iElem,iMax,CNElemIDiDOF,nDOFOutput,offsetDOF,Nloc,i,firstNode,lastNode
+INTEGER                        :: firstNode,lastNode
 !===================================================================================================================================
 ! Skip MPI communication in the first step as nothing has been deposited yet
 IF(iter.NE.0)THEN
@@ -269,8 +264,6 @@ IF(MPIRoot)THEN
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurfNodeSource',nVarOut,StrArray      = StrVarNames)
   CALL WriteAttributeToHDF5(File_ID,'nDepoSurfSides'        ,1      ,IntegerScalar = nDepoSurfSides)
-
-
   ! #if USE_MPI
   ! firstNode = INT(REAL( myrank   )*REAL(nDepoSurfNodesTotal)/REAL(nProcessors))+1
   ! lastNode  = INT(REAL((myrank+1))*REAL(nDepoSurfNodesTotal)/REAL(nProcessors))
@@ -290,12 +283,13 @@ IF(MPIRoot)THEN
     !                       nVal        = (/nDOFOutput/)    , &
     !                       offset      = (/offsetDOF/)     , &
     !                       collective  = .TRUE. , RealArray = SurfNodeSource)
-    CALL WriteArrayToHDF5(DataSetName = TRIM(DataSetName) , &
-                          rank        = 1                 , &
-                          nValGlobal  = (/nDofsMapping/)  , &
-                          nVal        = (/nDOFOutput/)    , &
-                          offset      = (/offsetDOF/)     , &
-                          collective  = .FALSE. , RealArray = SurfNodeSource)
+    CALL WriteArrayToHDF5(DataSetName = TRIM(DataSetName)      , &
+                          rank        = 2                      , &
+                          nValGlobal  = (/2_IK, nDofsMapping/) , &
+                          nVal        = (/2_IK, nDOFOutput  /) , &
+                          offset      = (/0_IK, offsetDOF   /) , &
+                          collective  = .FALSE. , RealArray = &
+                          TRANSPOSE(RESHAPE((/SurfNodeSource,SurfNodeArea/),(/nDofsMapping,2_IK/))))
     CALL CloseDataFile()
   END ASSOCIATE
 END IF ! MPIRoot

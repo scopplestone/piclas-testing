@@ -65,7 +65,7 @@ USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource
 USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID
 USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
 ! USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID_Shared
-USE MOD_PICDepo_Vars       ,ONLY: FEMVertexID2DepoSurfNodeID,SurfNodeSymmetryFactor
+USE MOD_PICDepo_Vars       ,ONLY: FEMVertexID2DepoSurfNodeID!,SurfNodeSymmetryFactor
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -125,12 +125,12 @@ ASSOCIATE( SurfNodeSource => SurfNodeSourceMPI )
     ! Get surface deposition node index
     iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
     ! Add charge contribution
-    IF (SurfNodeSymmetryFactor(NonUniqueNodeID).GT.0) THEN
-      SurfNodeSource(iDepoSurfNodeID) = SurfNodeSource(iDepoSurfNodeID) + PartDistDepo(iNode)/DistSum*Charge&
-                                                                          *REAL(SurfNodeSymmetryFactor(NonUniqueNodeID))
-    ELSE
+    ! IF (SurfNodeSymmetryFactor(NonUniqueNodeID).GT.0) THEN
+    !   SurfNodeSource(iDepoSurfNodeID) = SurfNodeSource(iDepoSurfNodeID) + PartDistDepo(iNode)/DistSum*Charge&
+    !                                                                       *REAL(SurfNodeSymmetryFactor(NonUniqueNodeID))
+    ! ELSE
       SurfNodeSource(iDepoSurfNodeID) = SurfNodeSource(iDepoSurfNodeID) + PartDistDepo(iNode)/DistSum*Charge
-    END IF ! SurfNodeSymmetryFactor(NonUniqueNodeID).GT.0
+    ! END IF ! SurfNodeSymmetryFactor(NonUniqueNodeID).GT.0
   END DO ! iNode = 1, 4
 #if USE_MPI
 END ASSOCIATE

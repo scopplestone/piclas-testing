@@ -137,15 +137,19 @@ REAL,ALLOCPOINT                 :: SFElemr2_Shared(:,:) ! index 1: radius, index
 
 ! 2D surface deposition
 TYPE VdmType
-  REAL,ALLOCATABLE :: Vdm(:,:)                              !< Vandermonde mapping from equidistant (visu) to NodeType node set
+  REAL,ALLOCATABLE :: Vdm(:,:)                !< Vandermonde mapping from equidistant (visu) to NodeType node set
+  REAL,ALLOCATABLE :: xIP_VISU(:),wIP_VISU(:) !< nodes and weights
 END TYPE VdmType
 
-TYPE(VdmType), DIMENSION(:), ALLOCATABLE :: Vdm_EQ_N        !< Array to store all Vandermonde matrices depending on Nloc
+TYPE(VdmType), DIMENSION(:), ALLOCATABLE :: Vdm_EQ_N        !< Vandermonde for mapping from N=1 (equidistant) to N=Nloc (Gauss/Gauss-Lobatto)
+TYPE(VdmType), DIMENSION(:), ALLOCATABLE :: Vdm_N_EQ        !< Map G/GL (current node type) to equidistant distribution with N=1
 
 LOGICAL,ALLOCATABLE             :: IsDepoSurfSide(:) !< Flag to idenfity surface deposition sides (1:nNonUniqueGlobalSides)
 LOGICAL                         :: InitDepoSurfNodesIsDone !< Flag to check whether InitDepoSurfNodes() has already been called
 REAL,ALLOCATABLE                :: SurfNodeSource(:) ! It contains the global, synchronized surface charge contribution that is
 !                                                    ! read and written to .h5
+REAL,ALLOCATABLE                :: SurfNodeArea(:) ! Area associated with each FEM vertex
+INTEGER,ALLOCATABLE             :: pq2iNode(:,:,:) ! Surface mapping from p,q-system to iNode (node coord system)
 INTEGER,ALLOCATABLE             :: DepoSurfNodetoGlobalNode(:)
 INTEGER,ALLOCATABLE             :: DepoSurfNodeID2FEMVertexID(:)
 INTEGER,ALLOCATABLE             :: FEMVertexID2DepoSurfNodeID(:)
@@ -226,6 +230,7 @@ TYPE (tNodeMappingRecv),ALLOCATABLE      :: NodeMappingRecv(:)
 TYPE tSurfNodeMappingSend
   INTEGER,ALLOCATABLE           :: SendSurfNodeFEMVertexID(:)
   REAL,ALLOCATABLE              :: SendSurfNodeSource(:)
+  REAL,ALLOCATABLE              :: SendSurfNodeArea(:)
   INTEGER                       :: nSendUniqueSurfNodes
 END TYPE
 TYPE (tSurfNodeMappingSend),ALLOCATABLE      :: SurfNodeMappingSend(:)
@@ -234,6 +239,7 @@ TYPE (tSurfNodeMappingSend),ALLOCATABLE      :: SurfNodeMappingSend(:)
 TYPE tSurfNodeMappingRecv
   INTEGER,ALLOCATABLE           :: RecvSurfNodeFEMVertexID(:)
   REAL,ALLOCATABLE              :: RecvSurfNodeSource(:)
+  REAL,ALLOCATABLE              :: RecvSurfNodeArea(:)
   INTEGER                       :: nRecvUniqueSurfNodes
 END TYPE
 TYPE (tSurfNodeMappingRecv),ALLOCATABLE      :: SurfNodeMappingRecv(:)

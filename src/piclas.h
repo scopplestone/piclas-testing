@@ -378,4 +378,4 @@
 #if USE_HDG
 ! HDG Dirichlet BC Side IDs: BCType = BoundaryType(BC(SideID),BC_TYPE)
 #define HDGDIRICHLETBCSIDEIDS 2,4,5,6,7,8,50,51,52,60
-#endif
+#endif /*USE_HDG*/
