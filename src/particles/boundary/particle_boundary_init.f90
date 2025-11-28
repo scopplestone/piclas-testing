@@ -616,7 +616,8 @@ DO iPartBound=1,nPartBound
     ! 2D Surface charging
     PartBound%UseSurfaceCharge(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseSurfaceCharge')
     IF (PartBound%UseSurfaceCharge(iPartBound)) THEN
-      IF(.NOT.DoDeposition) CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-UseSurfaceCharge requires PIC-DoDeposition=T')
+      IF(.NOT.DoDeposition) CALL CollectiveStop(__STAMP__,&
+        'Part-Boundary'//TRIM(hilf)//'-UseSurfaceCharge requires PIC-DoDeposition=T')
       IF(TRIM(DepositionType).NE.'cell_volweight_mean') CALL CollectiveStop(__STAMP__,&
         'Part-Boundary'//TRIM(hilf)//'-UseSurfaceCharge = T requires cell_volweight_mean (12) as deposition method')
       IF(PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0) CALL CollectiveStop(__STAMP__,&
