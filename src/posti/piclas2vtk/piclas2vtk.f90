@@ -1806,7 +1806,7 @@ ALLOCATE(VarNamesSurf_HDF5(nVarSurf))
 CALL ReadAttribute(File_ID,'VarNamesSurfNodeSource',nVarSurf,StrArray=VarNamesSurf_HDF5(1:nVarSurf))
 ALLOCATE(SurfNodeSourceH5(2,nDepoSurfNodes))
 ! Read the surface charge data on the FEM vertices
-CALL ReadArray(TRIM(SurfNodeSourceDataset),2,(/2_IK,INT(nDepoSurfNodes,IK)/),0,2,RealArray=SurfNodeSourceH5)
+CALL ReadArray(TRIM(SurfNodeSourceDataset),2,(/2_IK,INT(nDepoSurfNodes,IK)/),0_IK,2,RealArray=SurfNodeSourceH5)
   ! print*,"ROOT: ConvertSurfNodeSourceData(), which read SurfNodeArea"
   ! read*
 

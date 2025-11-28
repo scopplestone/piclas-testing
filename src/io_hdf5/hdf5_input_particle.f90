@@ -291,7 +291,7 @@ IF (MPIRoot) THEN
   IF(nDepoSurfNodesTotal.LE.0) CALL abort(__STAMP__,'Error in ReadSurfNodeSourceFromHDF5(): nDepoSurfNodesTotal<=0')
   ! Allocate local 2D array
   ALLOCATE(SurfNodeSourceH5(2,nDepoSurfNodesTotal))
-  CALL ReadArray(TRIM(SurfNodeSourceDataset),2,(/2_IK,INT(nDepoSurfNodesTotal,IK)/),0,2,RealArray=SurfNodeSourceH5)
+  CALL ReadArray(TRIM(SurfNodeSourceDataset),2,(/2_IK,INT(nDepoSurfNodesTotal,IK)/),0_IK,2,RealArray=SurfNodeSourceH5)
   SurfNodeSource(:) = SurfNodeSourceH5(1,:)
   SurfNodeArea(:)   = SurfNodeSourceH5(2,:)
   ! print*,"ROOT: ReadSurfNodeSourceFromHDF5()"

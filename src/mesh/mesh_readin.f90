@@ -854,6 +854,7 @@ IF (.NOT.PerformLoadBalance) THEN
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (&
         VertexInfoSize           => INT(VERTEXINFOSIZE_H5,IK)       ,&
+        nVertexIDs               => INT(nVertexIDs,IK)              ,&
         nNonUniqueGlobalVertices => INT(nNonUniqueGlobalVertices,IK),&
         offsetVertexID           => INT(offsetVertexID,IK)  )
       CALL ReadArray('VertexInfo',2,(/VertexInfoSize,nVertexIDs/),offsetVertexID,2,IntegerArray_i4=&
@@ -870,6 +871,7 @@ IF (.NOT.PerformLoadBalance) THEN
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (&
         VertexConnectInfoSize => INT(VERTEXCONNECTINFOSIZE_H5,IK),&
+        nVertexConnectIDs     => INT(nVertexConnectIDs,IK),&
         nFEMVertexConnections => INT(nFEMVertexConnections,IK)   ,&
         offsetVertexConnectID => INT(offsetVertexConnectID,IK)  )
       CALL ReadArray('VertexConnectInfo',2,(/VertexConnectInfoSize,nVertexConnectIDs/),offsetVertexConnectID,2,IntegerArray_i4=&
