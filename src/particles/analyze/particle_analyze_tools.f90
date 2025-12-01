@@ -2844,7 +2844,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER              :: iSpec,iSpec2,Nloc
 INTEGER              :: iElem,i,j,k,iPart
-LOGICAL              :: doParticle(1:PDM%MaxParticleNumber)
+LOGICAL              :: doParticle(1:PDM%ParticleVecLength)
 !===================================================================================================================================
 
 iSpec2=0
