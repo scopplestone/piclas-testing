@@ -361,7 +361,7 @@ SUBROUTINE BGGas_InsertParticles()
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort
 USE MOD_DSMC_Vars              ,ONLY: BGGas
-USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PEM
+USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PEM, Species
 USE MOD_Part_Tools             ,ONLY: GetNextFreePosition
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime,LBPauseTime
@@ -393,6 +393,8 @@ DO iPart = 1, PDM%ParticleVecLength
     IF(BGGas%UseRegions) THEN
       IF(BGGas%RegionElemType(PEM%LocalElemID(iPart)).EQ.0) CYCLE
     END IF
+    ! Skip granular particles
+    IF(Species(PartSpecies(iPart))%InterID.EQ.100) CYCLE
     ! Get a free particle index
     iNewPart = iNewPart + 1
     PositionNbr = GetNextFreePosition()
@@ -1044,10 +1046,10 @@ CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.T
 
 CALL GetDataSize(File_ID,'ElemData',nDims,HSize,attrib=.FALSE.)
 nVarHDF5  = INT(HSize(1),4)
-IF(nVarHDF5.LT.10) CALL abort(__STAMP__,'Number of variables .h5 file is less than 10')
+IF(nVarHDF5.LT.10) CALL abort(__STAMP__,'ERROR in BGGas_ReadInDistribution: Number of variables in DSMCState is below 10. Something is wrong with the input file!')
 
 nElems_HDF5 = INT(HSize(2),4)
-IF(nElems_HDF5.NE.nGlobalElems) CALL abort(__STAMP__,'Number of global elements does not match number of elements in .h5 file')
+IF(nElems_HDF5.NE.nGlobalElems) CALL abort(__STAMP__,'ERROR in BGGas_ReadInDistribution: Number of global elements does not match number of elements in .h5 file')
 
 DEALLOCATE(HSize)
 
@@ -1226,11 +1228,14 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(32)                 :: hilf2
 INTEGER                       :: iElem, iSpec, bgSpec, iInit, iReg, CNElemID
+INTEGER,ALLOCATABLE           :: RegionOverlap(:)
 REAL                          :: lineVector(3), nodeVec(3), nodeRadius, nodeHeight
 !===================================================================================================================================
 LBWRITE(UNIT_stdOut,'(A)') ' INIT BACKGROUND GAS REGIONS ...'
 
 ALLOCATE(BGGas%Region(BGGas%nRegions))
+ALLOCATE(RegionOverlap(BGGas%nRegions))
+RegionOverlap = 0
 ALLOCATE(BGGas%RegionElemType(nElems))
 BGGas%RegionElemType = 0
 
@@ -1253,7 +1258,7 @@ DO iReg = 1, BGGas%nRegions
       BGGas%Region(iReg)%BaseVector2IC = GETREALARRAY('Particles-BGGas-Region'//TRIM(hilf2)//'-BaseVector2IC',3)
       ! Determine the normal vector of the cylinder from base vectors
       BGGas%Region(iReg)%NormalVector = CROSS(BGGas%Region(iReg)%BaseVector1IC,BGGas%Region(iReg)%BaseVector2IC)
-      IF (VECNORM(BGGas%Region(iReg)%NormalVector).EQ.0) THEN
+      IF (VECNORM3D(BGGas%Region(iReg)%NormalVector).EQ.0) THEN
         CALL abort(__STAMP__,'BaseVectors are parallel!')
       ELSE
         BGGas%Region(iReg)%NormalVector = UNITVECTOR(BGGas%Region(iReg)%NormalVector)
@@ -1281,7 +1286,7 @@ DO iElem = 1, nElems
         .AND.(nodeRadius.GE.BGGas%Region(iReg)%Radius2IC).AND.(nodeRadius.LE.BGGas%Region(iReg)%RadiusIC)) THEN
         ! Element mid point is inside (positive region number)
         IF(BGGas%RegionElemType(iElem).NE.0) THEN
-          CALL abort(__STAMP__,'ERROR Background gas regions: Overlapping regions are not supported!')
+          RegionOverlap(BGGas%RegionElemType(iElem)) = iReg
         END IF
         BGGas%RegionElemType(iElem) = iReg
       END IF
@@ -1315,10 +1320,25 @@ DO iElem = 1, nElems
   END DO
 END DO                  ! iElem = 1, nElems
 
+#if USE_MPI
+IF(MPIRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE , RegionOverlap, BGGas%nRegions, MPI_INTEGER, MPI_MAX, 0, MPI_COMM_PICLAS, IERROR)
+ELSE ! no Root
+  CALL MPI_REDUCE(RegionOverlap, RegionOverlap, BGGas%nRegions, MPI_INTEGER, MPI_MAX, 0, MPI_COMM_PICLAS, IERROR)
+END IF
+#endif /*USE_MPI*/
+
+IF(ANY(RegionOverlap.GT.0)) THEN
+  DO iReg = 1, BGGas%nRegions
+    IF(RegionOverlap(iReg).EQ.0) CYCLE
+    LBWRITE(UNIT_stdOut,'(A,I0,A,I0,A)') ' | Warning: Region ', iReg, ' has been (partially) overwritten by region ', RegionOverlap(iReg), '!'
+  END DO
+END IF
 ! 5) Utilizing the same routines after the initialization as the read-in distribution
 BGGas%UseDistribution = .TRUE.
 
 LBWRITE(UNIT_stdOut,'(A)') ' BACKGROUND GAS REGIONS DONE!'
+DEALLOCATE(RegionOverlap)
 
 END SUBROUTINE BGGas_InitRegions
 

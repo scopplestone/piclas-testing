@@ -55,6 +55,7 @@ USE MOD_Interpolation_Vars ,ONLY: Nmax
 USE MOD_PML_Vars           ,ONLY: DoPML,isPMLElem
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectric,isDielectricElem
 USE MOD_Flux               ,ONLY: EvalFlux3D,EvalFlux3DDielectric              ! computes volume fluxes in local coordinates
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

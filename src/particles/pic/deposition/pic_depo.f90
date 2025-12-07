@@ -88,7 +88,7 @@ USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNo
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Interpolation_Vars     ,ONLY: N_Inter
-USE MOD_Mesh_Vars              ,ONLY: nElems,N_VolMesh, offSetElem,ELEM_RANK
+USE MOD_Mesh_Vars              ,ONLY: nElems,N_VolMesh, offSetElem
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes, GEO
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
@@ -101,7 +101,7 @@ USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
 USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_MPI
-USE MOD_Mesh_Vars              ,ONLY: offsetElem
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,ELEM_RANK
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping,ElemNodeID_Shared,NodeInfo_Shared
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
@@ -1327,7 +1327,7 @@ DO locElemID=1, nElems
 
         DO jNode = 1,4
           IF (NodeDone(jNode)) CYCLE
-          tmpDist = VECNORM(NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1) + SIGN( GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID)) &
+          tmpDist = VECNORM3D(NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1) + SIGN( GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID)) &
                 -NodeCoords_Shared(1:3,ElemSideNodeID_Shared(jNode,NbLocSide,CNNbElemID)+1))
           IF (tmpDist.LT.Dist) THEN
             PeriodicNode = jNode
@@ -1398,7 +1398,7 @@ DO kNode = 1, nUniqueGlobalNodes
 
           DO jNode = 1,4
             IF (NodeDone(jNode)) CYCLE
-            tmpDist = VECNORM(NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1) + SIGN( GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID)) &
+            tmpDist = VECNORM3D(NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1) + SIGN( GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID)) &
                   -NodeCoords_Shared(1:3,ElemSideNodeID_Shared(jNode,NbLocSide,CNNbElemID)+1))
             IF (tmpDist.LT.Dist) THEN
               PeriodicNode = jNode
@@ -2113,12 +2113,12 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,PeriodicSFCaseMatrix
 USE MOD_PICDepo_Vars
-USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 #if USE_MPI
 USE MOD_MPI_Shared_vars    ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
 #endif
 #if USE_LOADBALANCE
+USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 !USE MOD_Particle_Mesh_Vars ,ONLY: GlobalElem2CNTotalElem,GlobalElem2CNTotalElem_Shared!,GlobalElem2CNTotalElem_Shared_Win
 !USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,nProcessors_Global

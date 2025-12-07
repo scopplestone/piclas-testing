@@ -52,7 +52,6 @@ USE MOD_Equation_Vars      ,ONLY: chi
 USE MOD_TimeDisc_Vars      ,ONLY: IterDisplayStep,DoDisplayIter
 USE MOD_Interpolation_Vars ,ONLY: N_Inter,NMax
 USE MOD_Mesh_Vars          ,ONLY: N_VolMesh,offSetElem
-USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: N_Mesh
 USE MOD_ProlongToFace      ,ONLY:ProlongToFace_Side
 #ifdef VDM_ANALYTICAL
@@ -64,7 +63,6 @@ USE MOD_Basis              ,ONLY: getSPDInverse
 USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #endif /*defined(PARTICLES)*/
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
-USE MOD_DG_Vars            ,ONLY: DG_Elems_slave,DG_Elems_master
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -74,7 +72,7 @@ INTEGER(KIND=8),INTENT(IN)  :: td_iter
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: l,p,q,g1,g2,g3,Nloc,NSideMax
+INTEGER              :: l,p,q,g1,g2,g3,Nloc
 INTEGER              :: i,j,iElem, i_m,i_p,j_m,j_p
 INTEGER              :: iDir,jDir
 INTEGER              :: iLocSide, jLocSide
@@ -357,7 +355,7 @@ SUBROUTINE PETScFillSystemMatrix()
 ! Use Smat to fill the PETSc System matrix
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
+! USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_HDG_Vars_PETSc
@@ -457,7 +455,8 @@ DO iElem=1,PP_nElems
           CALL ChangeBasis2D(1, NElem, iNloc, TRANSPOSE(PREF_VDM(iNloc,NElem)%Vdm), Smatloc(1:nGP_face(NElem),j), Smatloc(1:iNdof,j))
         END DO
       END IF
-      PetscCallA(MatSetValues(PETScSystemMatrix,iNdof,iIndices(1:iNdof),jNdof,jIndices(1:jNdof),Smatloc(1:iNdof,1:jNdof),ADD_VALUES,ierr))
+      ! Fortran API: non-array values, v, passed to PETSc routines expecting arrays must be cast with [v] in the calling sequence
+      PetscCallA(MatSetValues(PETScSystemMatrix,iNdof,[iIndices(1:iNdof)],jNdof,[jIndices(1:jNdof)],[Smatloc(1:iNdof,1:jNdof)],ADD_VALUES,ierr))
     END DO
   END DO
 END DO
@@ -489,7 +488,8 @@ DO BCsideID=1,nConductorBCsides
 
       BCState = BoundaryType(BC(iSideID),BC_STATE)
       iIndices(1:1) = nGlobalPETScDOFs-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
-      PetscCallA(MatSetValues(PETScSystemMatrix,1,iIndices(1:1),1,jIndices(1:1),Smatloc(1,1),ADD_VALUES,ierr))
+      ! Fortran API: non-array values, v, passed to PETSc routines expecting arrays must be cast with [v] in the calling sequence
+      PetscCallA(MatSetValues(PETScSystemMatrix,1,[iIndices(1:1)],1,[jIndices(1:1)],[Smatloc(1,1)],ADD_VALUES,ierr))
     ELSEIF(MaskedSide(iSideID).GT.0) THEN
       CYCLE
     ELSE

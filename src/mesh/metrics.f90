@@ -318,8 +318,16 @@ SmallestscaledJacRef=HUGE(1.)
       dXCL_NGeo(3,:,i,j,k)=dXCL_NGeo(3,:,i,j,k) + DCL_NGeo(k,ll)*XCL_Ngeo(:,i,j,ll)
     END DO !l=0,N
 #if USE_HDG
-    ! AXISYMMETRIC HDG
-    IF(Symmetry%Axisymmetric) dXCL_Ngeo(3,3,i,j,k)=PI*XCL_Ngeo(2,i,j,k)
+    ! Adjust the reference length in case of symmetry
+    ! Careful: reference length is from -1 to 1 -> gradient scaling is 1/2
+    IF(Symmetry%Order==1) THEN
+      dXCL_Ngeo(3,3,i,j,k)=0.5
+      dXCL_Ngeo(2,2,i,j,k)=0.5
+    ELSEIF(Symmetry%Axisymmetric) THEN
+      dXCL_Ngeo(3,3,i,j,k)=PI*XCL_Ngeo(2,i,j,k) ! 2*PI*r / 2
+    ELSEIF(Symmetry%Order==2) THEN
+      dXCL_Ngeo(3,3,i,j,k)=0.5
+    END IF
 #endif /*USE_HDG*/
   END DO; END DO; END DO !i,j,k=0,Ngeo
 
@@ -389,8 +397,16 @@ SmallestscaledJacRef=HUGE(1.)
         dXCL(3,:)=dXCL(3,:) + NInfo(Nloc)%DCL_N(k,ll)*NInfo(Nloc)%XCL_N(:,i,j,ll)
       END DO !l=0,N
 #if USE_HDG
-      ! AXISYMMETRIC HDG
-      IF(Symmetry%Axisymmetric) dXCL(:,3)=PI * NInfo(Nloc)%XCL_N(2,i,j,k)
+      ! Adjust the reference length in case of symmetry
+     ! Careful: reference length is from -1 to 1 -> gradient scaling is 1/2
+      IF(Symmetry%Order==1) THEN
+        dXCL(:,3)=0.5
+        dXCL(:,2)=0.5
+      ELSEIF(Symmetry%Axisymmetric) THEN
+        dXCL(:,3)=PI * NInfo(Nloc)%XCL_N(2,i,j,k)
+      ELSEIF(Symmetry%Order==2) THEN
+        dXCL(:,3)=0.5
+      END IF
 #endif /*USE_HDG*/
       END ASSOCIATE
     END DO; END DO; END DO !i,j,k=0,N
@@ -499,9 +515,8 @@ USE MOD_Mortar_Metrics, ONLY:Mortar_CalcSurfMetrics
 #if !(PP_TimeDiscMethod==700)
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
 #endif /*!(PP_TimeDiscMethod==700)*/
-USE MOD_Interpolation_Vars ,ONLY: Nmax,NInfo!,PREF_VDM,N_Inter
+USE MOD_Interpolation_Vars ,ONLY: Nmax,NInfo
 USE MOD_Mesh_Vars,          ONLY: SideToElem, offSetElem,N_VolMesh,N_VolMesh2
-USE MOD_Interpolation_Vars ,ONLY: PREF_VDM!,N_Inter
 ! #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)) && defined(maxwell)
 ! USE MOD_Equation_Vars      ,ONLY: DoExactFlux ! Required for skipping cycle because NormVec is then not built for loc.LT.NSideMax sides
 ! #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)) && defined(maxwell)*/
@@ -520,8 +535,8 @@ INTEGER            :: p,q,pq(2),dd,iLocSide,SideID,SideID2,iMortar,nbSideIDs(4)
 INTEGER            :: NormalDir,TangDir,NSideMax
 REAL               :: NormalSign
 REAL               :: Ja_Face_l(3,3,0:Nmax,0:Nmax)
-REAL               :: Mortar_Ja(3,3,0:Nmax,0:Nmax,4), Mortar_Ja_loc(3,3,0:Nmax,0:Nmax)
-REAL               :: Mortar_xGP( 3,0:Nmax,0:Nmax,4), Mortar_xGP_loc( 3,0:Nmax,0:Nmax)
+REAL               :: Mortar_Ja(3,3,0:Nmax,0:Nmax,4)
+REAL               :: Mortar_xGP( 3,0:Nmax,0:Nmax,4)
 REAL               :: tmp(        3,0:Nmax,0:Nmax)
 REAL               :: tmp2(       3,0:Nmax,0:Nmax)
 REAL               :: tmpflip(    3,0:Nmax,0:Nmax)
@@ -748,7 +763,7 @@ END SUBROUTINE CalcSurfMetrics
 !==================================================================================================================================
 SUBROUTINE SurfMetricsFromJa(Nloc,NormalDir,TangDir,NormalSign,Ja_Face,NormVec,TangVec1,TangVec2,SurfElem)
 ! MODULES
-USE MOD_Globals       ,ONLY: CROSS,abort
+USE MOD_Globals       ,ONLY: CROSS,abort,DOTPRODUCT
 #if USE_HDG
 USE MOD_Symmetry_Vars ,ONLY: Symmetry
 #endif /*USE_HDG*/
@@ -769,6 +784,7 @@ REAL,INTENT(OUT)   ::  SurfElem(  0:Nloc,0:Nloc) !< element face surface area
 ! LOCAL VARIABLES
 INTEGER            :: p,q
 CHARACTER(32)      :: hilf
+REAL               :: tmp
 !==================================================================================================================================
 WRITE(UNIT=hilf,FMT='(I0)') Nloc
 DO q=0,Nloc; DO p=0,Nloc
@@ -787,9 +803,9 @@ DO q=0,Nloc; DO p=0,Nloc
     SurfElem(  p,q) = SQRT(SurfElem(p,q))
     NormVec( :,p,q) = NormalSign*Ja_Face(NormalDir,:,p,q)/SurfElem(p,q)
     TangVec1(:,p,q) = Ja_Face(TangDir,:,p,q) - SUM(Ja_Face(TangDir,:,p,q)*NormVec(:,p,q)) * NormVec(:,p,q)
-    TangVec1(:,p,q) = SUM(TangVec1(:,p,q)**2)
-    IF(ANY(ABS(TangVec1(:,p,q)).LE.0.0)) CALL abort(__STAMP__,'SUM(TangVec1(:,p,q)**2) <= 0')
-    TangVec1(:,p,q) = TangVec1(:,p,q)/SQRT(TangVec1(:,p,q))
+    tmp = DOTPRODUCT(TangVec1(:,p,q))
+    IF(tmp.LE.0.0) CALL abort(__STAMP__,'SUM(TangVec1(:,p,q)**2) <= 0')
+    TangVec1(:,p,q) = TangVec1(:,p,q)/SQRT(tmp)
     TangVec2(:,p,q) = CROSS(NormVec(:,p,q),TangVec1(:,p,q))
   END IF ! SurfElem(p,q).LT.0.
 END DO; END DO ! p,q

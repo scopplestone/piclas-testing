@@ -45,14 +45,15 @@ CONTAINS
 !===================================================================================================================================
 SUBROUTINE SurfaceModelling(PartID,SideID,GlobalElemID,n_Loc)
 ! MODULES
-USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec
+USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec,VECNORM3D
 #if USE_MPI
 USE MOD_Globals                   ,ONLY: myrank
 #endif /*USE_MPI*/
 USE MOD_Globals_Vars              ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
-USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample, nSurfSample
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSideSamplingMidPoints
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfModEnergyDistribution, ImpactWeight
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos
@@ -91,8 +92,8 @@ INTEGER            :: ProductSpec(1:2) !< 1: product species of incident particl
                                        !< with respective species
 INTEGER            :: ProductSpecNbr   !< number of emitted particles for ProductSpec(2)
 REAL               :: TempErgy         !< temperature, energy or velocity used for VeloFromDistribution
-REAL               :: Xitild,Etatild
-INTEGER            :: PartSpecImpact, locBCID, SurfSideID
+REAL               :: Xitild,Etatild,distance,distanceMin
+INTEGER            :: PartSpecImpact, locBCID, SurfSideID, p, q
 LOGICAL            :: SpecularReflectionOnly,DoSample
 REAL               :: ChargeImpact,PartPosImpact(1:3) !< Charge and position of impact of bombarding particle
 REAL               :: ChargeRefl                      !< Charge of reflected particle
@@ -104,20 +105,13 @@ INTEGER            :: iNewPart,NewPartID
 REAL               :: NewVelo(3), NewPos(1:3)
 #endif /*USE_HDG*/
 !===================================================================================================================================
-!===================================================================================================================================
-! 0.) Initial surface pre-treatment
-!===================================================================================================================================
-!---- Treatment of adaptive and porous boundary conditions (deletion of particles in case of circular inflow or porous BC)
+! Initialize variables before
 SpecularReflectionOnly = .FALSE.
-IF(UseCircularInflow) CALL SurfaceFluxBasedBoundaryTreatment(PartID,SideID)
-IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(PartID,SideID,SpecularReflectionOnly)
-
 locBCID        = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 PartSpecImpact = PartSpecies(PartID)
 ProductSpec(1) = PartSpecImpact
 ProductSpec(2) = 0
 ProductSpecNbr = 0
-
 ! Store info of impacting particle for possible surface charging
 PartPosImpact(1:3) = LastPartPos(1:3,PartID)+TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
 ! Storing weighting factor for energy check after emission
@@ -130,22 +124,41 @@ IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) THEN ! Surface c
   ChargeImpact = Species(PartSpecImpact)%ChargeIC*ImpactWeight
 END IF
 !===================================================================================================================================
+! 0.) Initial surface pre-treatment for circular inflow and porous boundary conditions: possible deletion of particles
+!===================================================================================================================================
+IF(UseCircularInflow) CALL SurfaceFluxBasedBoundaryTreatment(PartID,SideID)
+IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(PartID,SideID,SpecularReflectionOnly)
+!===================================================================================================================================
 ! 1.) Count and sample the properties BEFORE the surface interaction
 !===================================================================================================================================
-! Counter for surface analyze
+! Counter for surface analyze (includes impacts due to porous BC and circular inflow)
 IF(CalcSurfCollCounter) SurfAnalyzeCount(PartSpecImpact) = SurfAnalyzeCount(PartSpecImpact) + 1
 ! Sampling
 DoSample = (DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)
 IF(DoSample) THEN
+  SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
   IF (TrackingMethod.EQ.TRIATRACKING) THEN
-    TrackInfo%p = 1 ; TrackInfo%q = 1
+    IF(nSurfSample.GT.1)THEN
+      distanceMin = HUGE(1.)
+      DO p = 1, nSurfSample
+        DO q = 1, nSurfSample
+          distance = VECNORM3D(PartPosImpact(1:3) - SurfSideSamplingMidPoints(1:3,p,q,SurfSideID))
+          IF(distance.LT.distanceMin)THEN
+            TrackInfo%p = p
+            TrackInfo%q = q
+            distanceMin = distance
+          END IF ! distance.LT.distanceMin
+        END DO ! q = 1, nSurfSample
+      END DO ! p = 1, nSurfSample
+    ELSE
+      TrackInfo%p = 1 ; TrackInfo%q = 1
+    END IF
   ELSE
     Xitild  = MIN(MAX(-1.,TrackInfo%xi ),0.99)
     Etatild = MIN(MAX(-1.,TrackInfo%eta),0.99)
     TrackInfo%p = INT((Xitild +1.0)/dXiEQ_SurfSample)+1
     TrackInfo%q = INT((Etatild+1.0)/dXiEQ_SurfSample)+1
   END IF
-  SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
   ! Sample momentum, heatflux and collision counter on surface (Check if particle is still inside is required, since particles can
   ! be removed in the case of UseCircularInflow and nPorousBC. These particles shall not be sampled.)
   IF(PDM%ParticleInside(PartID)) CALL CalcWallSample(PartID,SurfSideID,'old',SurfaceNormal_opt=n_loc)
@@ -357,7 +370,7 @@ SUBROUTINE SpeciesSwap(PartID,SideID,targetSpecies_IN)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals                 ,ONLY: abort,VECNORM
+USE MOD_Globals                 ,ONLY: abort,VECNORM3D
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars           ,ONLY: PartSpecies
@@ -457,7 +470,7 @@ END SUBROUTINE SurfaceFluxBasedBoundaryTreatment
 !===================================================================================================================================
 SUBROUTINE VirtualDielectricLayerDisplacement(PartID,SideID,n_Loc)
 ! MODULES
-USE MOD_Globals                ,ONLY: VECNORM
+USE MOD_Globals                ,ONLY: VECNORM3D
 USE MOD_Particle_Vars          ,ONLY: SpeciesOffsetVDL
 USE MOD_Particle_Vars          ,ONLY: LastPartPos, PartSpecies, PartState
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
@@ -483,7 +496,7 @@ PartState(1:3,PartID) = LastPartPos(1:3,PartID) - (PartBound%ThicknessVDL(iPartB
 ! Set tracking variables
 TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 
-TrackInfo%lengthPartTrajectory = VECNORM(TrackInfo%PartTrajectory)
+TrackInfo%lengthPartTrajectory = VECNORM3D(TrackInfo%PartTrajectory)
 IF(ALMOSTZERO(TrackInfo%lengthPartTrajectory)) THEN
   TrackInfo%lengthPartTrajectory= 0.0
 ELSE
