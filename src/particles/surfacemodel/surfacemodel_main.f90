@@ -173,15 +173,14 @@ IF (PartBound%NbrOfSpeciesSwaps(locBCID).GT.0) CALL SpeciesSwap(PartID,SideID)
 IF(.NOT.PDM%ParticleInside(PartID)) THEN
   ! Increase the counter for deleted/absorbed/adsorbed particles
   IF(CalcSurfCollCounter) SurfAnalyzeNumOfAds(PartSpecImpact) = SurfAnalyzeNumOfAds(PartSpecImpact) + 1
+  ! Surface charge
   IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) THEN
     CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
-    RETURN
   ELSEIF(Do2DSurfaceCharge) THEN
-    IF(PartBound%UseSurfaceCharge(locBCID)) THEN
-      CALL DepositParticleOnSurface(ChargeImpact, PartPosImpact, GlobalElemID, SideID)
-      RETURN
-    END IF
+    IF(PartBound%UseSurfaceCharge(locBCID)) CALL DepositParticleOnSurface(ChargeImpact, PartPosImpact, GlobalElemID, SideID)
   END IF
+  ! Leave the routine (species index was already set to zero)
+  RETURN
 END IF
 !===================================================================================================================================
 ! 3.) Perform the selected gas-surface interaction
