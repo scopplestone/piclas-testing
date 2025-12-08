@@ -376,7 +376,7 @@ GetPotentialDW = 0.0
 PartDistDepo = 0.0
 DistSum = 0.0
 DO k = 0, Nloc; DO l=0, Nloc; DO m=0, Nloc
-  norm = VECNORM(N_VolMesh(ELemID)%Elem_xGP(1:3,k,l,m)-PartPos_loc(1:3))
+  norm = VECNORM3D(N_VolMesh(ELemID)%Elem_xGP(1:3,k,l,m)-PartPos_loc(1:3))
   IF(norm.GT.0.)THEN
     PartDistDepo(k,l,m) = 1./norm
   ELSE
@@ -532,7 +532,7 @@ HelperU(1:3,:,:,:) = U_N(ElemID)%U(1:3,:,:,:)
 
 DistSum = 0.0
 DO k = 0, Nloc; DO l=0, Nloc; DO m=0, Nloc
-  norm = VECNORM(N_VolMesh(ELemID)%Elem_xGP(1:3,k,l,m)-PartPos_loc(1:3))
+  norm = VECNORM3D(N_VolMesh(ELemID)%Elem_xGP(1:3,k,l,m)-PartPos_loc(1:3))
   IF(norm.GT.0.)THEN
     PartDistDepo(k,l,m) = 1./norm
   ELSE

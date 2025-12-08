@@ -1264,7 +1264,7 @@ DO iReg = 1, BGGas%nRegions
           'For this emission type RadiusIC must be greater than Radius2IC!')
       ! Determine the normal vector of the cylinder from base vectors
       BGGRegion(iReg)%NormalVector = CROSS(BGGRegion(iReg)%BaseVector1IC,BGGRegion(iReg)%BaseVector2IC)
-      IF (VECNORM(BGGRegion(iReg)%NormalVector).EQ.0) THEN
+      IF (VECNORM3D(BGGRegion(iReg)%NormalVector).EQ.0) THEN
         CALL abort(__STAMP__,'BaseVectors are parallel!')
       ELSE
         BGGRegion(iReg)%NormalVector = UNITVECTOR(BGGRegion(iReg)%NormalVector)
