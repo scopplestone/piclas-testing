@@ -118,6 +118,7 @@ REAL,ALLOCATABLE              :: MaxPartDisplacementCell(:)          !< Maximum 
 REAL,ALLOCATABLE              :: MaxPartDisplacementCellX(:)         !< Maximum particle displacement in X (cell mean value)
 REAL,ALLOCATABLE              :: MaxPartDisplacementCellY(:)         !< Maximum particle displacement in Y (cell mean value)
 REAL,ALLOCATABLE              :: MaxPartDisplacementCellZ(:)         !< Maximum particle displacement in Z (cell mean value)
+INTEGER                       :: MaxPartDisplacementSmallerOne(4)    !> Number of elements with max. particle displacement > 1.0
 REAL,ALLOCATABLE              :: PPSCell(:)                          !< Points per shape function sphere (cell mean value):
                                                                      !<   calculate cell local number excluding neighbor DOFs
 REAL,ALLOCATABLE              :: PPSCellCartesian(:)                 !< Points per shape function sphere (cell mean value):
