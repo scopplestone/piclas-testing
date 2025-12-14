@@ -86,23 +86,21 @@ SUBROUTINE PerfectReflection(PartID,SideID,n_Loc,opt_Symmetry)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,Species,PartLorentzType,RotRefSubTimeStep,nSubCyclingSteps
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,Species,PartLorentzType,UseRotRefSubCycling,nSubCyclingSteps
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_Globals_Vars            ,ONLY: c2_inv
 #if defined(LSERK)
-USE MOD_Particle_Vars           ,ONLY: Pt_temp,PDM
-#elif (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
-USE MOD_Particle_Vars           ,ONLY: PDM
-#endif
-#if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Vars           ,ONLY: PEM
+USE MOD_Particle_Vars           ,ONLY: Pt_temp
 #endif
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
-USE MOD_Particle_Vars           ,ONLY: PDM, PartVeloRotRef, RotRefFrameOmega
+USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame, InRotRefFrame, PartVeloRotRef, RotRefFrameOmega
 USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
+#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+USE MOD_Particle_Vars           ,ONLY: PDM
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -145,13 +143,12 @@ ELSE
 END IF
 ! Species-specific time step
 IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(SpecID)%TimeStepFactor
-IF(RotRefSubTimeStep) dtVar = dtVar / REAL(nSubCyclingSteps)
+IF(UseRotRefSubCycling) dtVar = dtVar / REAL(nSubCyclingSteps)
 
-IF(PDM%InRotRefFrame(PartID)) THEN
+OldVelo = PartState(4:6,PartID)
+IF(UseRotRefFrame) THEN
   ! In case of RotRefFrame utilize the respective velocity
-  OldVelo = PartVeloRotRef(1:3,PartID)
-ELSE
-  OldVelo = PartState(4:6,PartID)
+  IF(InRotRefFrame(PartID)) OldVelo = PartVeloRotRef(1:3,PartID)
 END IF
 
 IF(SUM(ABS(WallVelo)).GT.0.)THEN
@@ -193,36 +190,37 @@ IF(Species(PartSpecies(PartID))%InterID.EQ.100) PartState(4:6,PartID) = PartStat
 ! Set particle position on face
 LastPartPos(1:3,PartID) = POI_vec(1:3)
 TrackInfo%PartTrajectory(1:3)     = TrackInfo%PartTrajectory(1:3)-2.*DOT_PRODUCT(TrackInfo%PartTrajectory(1:3),n_loc)*n_loc
-! Check if rotational frame of reference is used, otherwise mirror the LastPartPos for new particle position
-IF(PDM%InRotRefFrame(PartID)) THEN
-  POI_fak = 1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha) / VECNORM(OldVelo*dtVar)
-  ! Determine the correct velocity for the subsequent push in case of a rotational frame of reference at POI
-  NewVeloPush(1:3) = PartState(4:6,PartID)
-  NewVeloPush(1:3) = NewVeloPush(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
-  NewVeloPush(1:3) = NewVeloPush(1:3) + CalcPartRHSRotRefFrame(LastPartPos(1:3,PartID),NewVeloPush(1:3)) * (1.0 - POI_fak) * dtVar
-    ! Make sure the NewVeloPush is pointing away from the wall
-  IF(DOT_PRODUCT(n_loc,NewVeloPush(1:3)).GT.0.) THEN
-    ! Normal component of new velo push v = (v dot n / |n|^2) * n, |n| = 1
-    NormNewVeloPush(1:3) = DOT_PRODUCT(n_loc,NewVeloPush(1:3)) * n_loc
-    ! Nullyfy normal component and keeping rest of NewVeloPush
-    NewVeloPush(1:3) = NewVeloPush(1:3) - NormNewVeloPush(1:3)
-    ! Move particle a little bit into the domain to avoid losing particles
-    NewVeloPush(1:3) = NewVeloPush(1:3) - 1E-6 * n_loc
+! Mirror the LastPartPos for new particle position
+PartState(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*(TrackInfo%lengthPartTrajectory - TrackInfo%alpha)
+
+IF(UseRotRefFrame) THEN
+  ! Check if rotational frame of reference is used, otherwise mirror the LastPartPos for new particle position
+  IF(InRotRefFrame(PartID)) THEN
+    POI_fak = 1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha) / VECNORM3D(OldVelo*dtVar)
+    ! Determine the correct velocity for the subsequent push in case of a rotational frame of reference at POI
+    NewVeloPush(1:3) = PartState(4:6,PartID)
+    NewVeloPush(1:3) = NewVeloPush(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
+    NewVeloPush(1:3) = NewVeloPush(1:3) + CalcPartRHSRotRefFrame(LastPartPos(1:3,PartID),NewVeloPush(1:3)) * (1.0 - POI_fak) * dtVar
+      ! Make sure the NewVeloPush is pointing away from the wall
+    IF(DOT_PRODUCT(n_loc,NewVeloPush(1:3)).GT.0.) THEN
+      ! Normal component of new velo push v = (v dot n / |n|^2) * n, |n| = 1
+      NormNewVeloPush(1:3) = DOT_PRODUCT(n_loc,NewVeloPush(1:3)) * n_loc
+      ! Nullyfy normal component and keeping rest of NewVeloPush
+      NewVeloPush(1:3) = NewVeloPush(1:3) - NormNewVeloPush(1:3)
+      ! Move particle a little bit into the domain to avoid losing particles
+      NewVeloPush(1:3) = NewVeloPush(1:3) - 1E-6 * n_loc
+    END IF
+    ! Store the new rotational reference frame velocity
+    PartVeloRotRef(1:3,PartID) = NewVeloPush(1:3)
+    ! Calc new particle position with NewVeloPush
+    PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * NewVeloPush(1:3)
   END IF
-  ! Store the new rotational reference frame velocity
-  PartVeloRotRef(1:3,PartID) = NewVeloPush(1:3)
-  ! Calc new particle position with NewVeloPush
-  PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * NewVeloPush(1:3)
-ELSE
-  ! Mirror the LastPartPos for new particle position
-  PartState(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*(TrackInfo%lengthPartTrajectory - TrackInfo%alpha)
 END IF
 
-! #if !defined(IMPA) &&  !defined(ROS)
 ! compute moved particle || rest of movement
 TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 
-TrackInfo%lengthPartTrajectory = VECNORM(TrackInfo%PartTrajectory)
+TrackInfo%lengthPartTrajectory = VECNORM3D(TrackInfo%PartTrajectory)
 IF(ALMOSTZERO(TrackInfo%lengthPartTrajectory)) THEN
   TrackInfo%lengthPartTrajectory= 0.0
 ELSE
@@ -255,21 +253,6 @@ ELSE
 END IF
 #endif  /*LSERK || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
 
-! rotation for IMEX and Rosenbrock Method (requires the rotation of the previous rk-stages... simplification of boundary condition)
-! results in an order reduction
-#ifdef IMPA
-!IF(SUM(ABS(PEM%NormVec(1:3,PartID))).GT.0)THEN
-!   IPWRITE(*,*) ' Caution: Field rotation for several reflection is not implemented!', iStage,PartIsImplicit(PartID), PartID
-! END IF
-PEM%NormVec(1:3,PartID)=n_loc
-#endif /*IMPA*/
-#ifdef ROS
-! IF(SUM(ABS(PEM%NormVec(1:3,PartID))).GT.0)THEN
-!   !IPWRITE(*,*) ' Caution: Field rotation for several reflection is not implemented!'
-! END IF
-PEM%NormVec(1:3,PartID)=n_loc
-#endif /*ROS*/
-
 END SUBROUTINE PerfectReflection
 
 
@@ -292,14 +275,18 @@ USE MOD_Globals_Vars            ,ONLY: TwoepsMach
 USE MOD_Particle_Mesh_Vars
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,PartVeloRotRef
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies
+USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame,InRotRefFrame,PartVeloRotRef
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-USE MOD_Particle_Vars           ,ONLY: PDM, RotRefFrameOmega,RotRefSubTimeStep,nSubCyclingSteps
+USE MOD_Particle_Vars           ,ONLY: RotRefFrameOmega,UseRotRefSubCycling,nSubCyclingSteps
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
 USE MOD_Symmetry_Vars           ,ONLY: Symmetry
+#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+USE MOD_Particle_Vars           ,ONLY: PDM
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -346,13 +333,12 @@ END IF
 
 ! Species-specific time step
 IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(SpecID)%TimeStepFactor
-IF(RotRefSubTimeStep) dtVar = dtVar / REAL(nSubCyclingSteps)
+IF(UseRotRefSubCycling) dtVar = dtVar / REAL(nSubCyclingSteps)
 
-IF(PDM%InRotRefFrame(PartID)) THEN
+OldVelo = PartState(4:6,PartID)
+IF(UseRotRefFrame) THEN
   ! In case of RotRefFrame utilize the respective velocity
-  OldVelo = PartVeloRotRef(1:3,PartID)
-ELSE
-  OldVelo = PartState(4:6,PartID)
+  IF(InRotRefFrame(PartID)) OldVelo = PartVeloRotRef(1:3,PartID)
 END IF
 
 ! 2.) Get the tangential vectors
@@ -429,7 +415,7 @@ LastPartPos(1:3,PartID) = POI_vec(1:3)
 TildTrajectory = OldVelo * dtVar
 ! Nullify the components in 1D and 2D to calculate the correct magnitude (2D axisymmetric is not affected)
 IF(Symmetry%Order.EQ.3.OR.Symmetry%Axisymmetric) THEN
-  POI_fak = VECNORM(TildTrajectory)
+  POI_fak = VECNORM3D(TildTrajectory)
 ELSE IF(Symmetry%Order.EQ.2.AND..NOT.Symmetry%Axisymmetric) THEN
   POI_fak = VECNORM2D(TildTrajectory(1:2))
 ELSE IF(Symmetry%Order.EQ.1) THEN
@@ -444,11 +430,13 @@ IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibir
 
 ! ! 6a.) Determine the correct velocity for the subsequent push in case of a rotational frame of reference
 NewVeloPush(1:3) = NewVelo(1:3)
-IF(PDM%InRotRefFrame(PartID)) THEN
-  NewVeloPush(1:3) = NewVeloPush(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
-  NewVeloPush(1:3) = NewVeloPush(1:3) + CalcPartRHSRotRefFrame(LastPartPos(1:3,PartID),NewVeloPush(1:3)) * (1.0 - POI_fak) * dtVar
-  ! Store the new rotational reference frame velocity
-  PartVeloRotRef(1:3,PartID) = NewVeloPush(1:3)
+IF(UseRotRefFrame) THEN
+  IF(InRotRefFrame(PartID)) THEN
+    NewVeloPush(1:3) = NewVeloPush(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
+    NewVeloPush(1:3) = NewVeloPush(1:3) + CalcPartRHSRotRefFrame(LastPartPos(1:3,PartID),NewVeloPush(1:3)) * (1.0 - POI_fak) * dtVar
+    ! Store the new rotational reference frame velocity
+    PartVeloRotRef(1:3,PartID) = NewVeloPush(1:3)
+  END IF
 END IF
 
 PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * NewVeloPush(1:3)
@@ -508,7 +496,7 @@ IF(Symmetry%Axisymmetric) THEN
   TrackInfo%lengthPartTrajectory=SQRT(TrackInfo%PartTrajectory(1)**2 + TrackInfo%PartTrajectory(2)**2)
 ELSE
   TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
-  TrackInfo%lengthPartTrajectory=VECNORM(TrackInfo%PartTrajectory(1:3))
+  TrackInfo%lengthPartTrajectory=VECNORM3D(TrackInfo%PartTrajectory(1:3))
 END IF
 
 IF(ABS(TrackInfo%lengthPartTrajectory).GT.0.) TrackInfo%PartTrajectory=TrackInfo%PartTrajectory/TrackInfo%lengthPartTrajectory
@@ -523,17 +511,25 @@ END SUBROUTINE DiffuseReflection
 !===================================================================================================================================
 !> Routine for the particle emission at a surface due to a single particle-wall interaction
 !===================================================================================================================================
-SUBROUTINE SurfaceModelParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobElemID, POI_vec, EnergyDistribution)
+SUBROUTINE SurfaceModelParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobalElemID, POI_vec, EnergyDistribution)
 ! MODULES
-USE MOD_Globals!                   ,ONLY: OrthoNormVec
+USE MOD_Globals
+USE MOD_Globals_Vars              ,ONLY: eV2Joule
 USE MOD_Part_Tools                ,ONLY: VeloFromDistribution
 USE MOD_part_operations           ,ONLY: CreateParticle
-USE MOD_Particle_Vars             ,ONLY: WriteMacroSurfaceValues
-USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
-USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide
+USE MOD_Particle_Analyze_Pure     ,ONLY: CalcEkinPart2
+USE MOD_Particle_Vars             ,ONLY: WriteMacroSurfaceValues,Species,usevMPF,PartMPF,PartState,PartSpecies
+USE MOD_Particle_Vars             ,ONLY: InterPlanePartNumber, InterPlanePartIndx, PDM
+USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample, StoreBoundaryParticleProperties
+USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide, DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
 USE MOD_Particle_Mesh_Vars        ,ONLY: BoundsOfElem_Shared
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcEnergyViolationSEE
+USE MOD_SurfaceModel_Vars         ,ONLY: ImpactWeight
+USE MOD_Particle_Vars             ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
+USE MOD_TimeDisc_Vars             ,ONLY: dt,RKdtFrac
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -541,7 +537,7 @@ IMPLICIT NONE
 REAL,INTENT(IN)       :: n_loc(1:3)         !< normal vector of the surface
 REAL,INTENT(IN)       :: POI_vec(1:3)       !< Point Of Intersection
 INTEGER,INTENT(IN)    :: PartID, SideID     !< Particle index and side index
-INTEGER,INTENT(IN)    :: GlobElemID         !< global element ID of the impacting particle (used for creating a new particle)
+INTEGER,INTENT(IN)    :: GlobalElemID       !< global element ID of the impacting particle (used for creating a new particle)
 INTEGER,INTENT(IN)    :: ProductSpec        !< emitted species index
 INTEGER,INTENT(IN)    :: ProductSpecNbr     !< number of emitted particles
 REAL,INTENT(IN)       :: TempErgy           !< temperature, energy or velocity used for VeloFromDistribution
@@ -550,8 +546,10 @@ CHARACTER(LEN=*),INTENT(IN)  :: EnergyDistribution !< energy distribution model 
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: iNewPart, NewPartID, locBCID, SurfSideID
-REAL               :: tang1(1:3), tang2(1:3), WallVelo(1:3), WallTemp, NewVelo(3), BoundsOfElemCenter(1:3),NewPos(1:3)
+INTEGER            :: iNewPart, NewPartID, locBCID, SurfSideID, SEEBCID
+REAL               :: tang1(1:3), tang2(1:3), WallVelo(1:3), WallTemp, NewVelo(3), BoundsOfElemCenter(1:3), NewPos(1:3), MPF
+REAL               :: ImpactEnergy, EnergySumSEE
+REAL               :: dtVar
 REAL,PARAMETER     :: eps=1e-6
 REAL,PARAMETER     :: eps2=1.0-eps
 !===================================================================================================================================
@@ -559,6 +557,7 @@ locBCID    = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
 WallTemp   = PartBound%WallTemp(locBCID)
 WallVelo   = PartBound%WallVelo(1:3,locBCID)
+EnergySumSEE = 0.
 
 IF(PartBound%RotVelo(locBCID)) THEN
   WallVelo(1:3) = CalcRotWallVelo(locBCID,POI_vec)
@@ -567,26 +566,86 @@ END IF
 CALL OrthoNormVec(n_loc,tang1,tang2)
 
 ! Get Elem Center
-BoundsOfElemCenter(1:3) = (/SUM(BoundsOfElem_Shared(1:2,1,GlobElemID)), &
-                            SUM(BoundsOfElem_Shared(1:2,2,GlobElemID)), &
-                            SUM(BoundsOfElem_Shared(1:2,3,GlobElemID)) /) / 2.
+BoundsOfElemCenter(1:3) = (/SUM(BoundsOfElem_Shared(1:2,1,GlobalElemID)), &
+                            SUM(BoundsOfElem_Shared(1:2,2,GlobalElemID)), &
+                            SUM(BoundsOfElem_Shared(1:2,3,GlobalElemID)) /) / 2.
+
+! Set the time step, considering whether a variable particle time step or Runge-Kutta time discretization is used
+IF (UseVarTimeStep) THEN
+  dtVar = dt*RKdtFrac*PartTimeStep(PartID)
+ELSE
+  dtVar = dt*RKdtFrac
+END IF
+! Species-specific time step
+IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(PartID))%TimeStepFactor
+
+! Pushing secondaries with the "remaining" time step away from the boundary
+dtVar = dtVar * TrackInfo%alpha / TrackInfo%lengthPartTrajectory
 
 ! Create new particles
 DO iNewPart = 1, ProductSpecNbr
   ! create new particle and assign correct energies
   ! sample newly created velocity
-  NewVelo(1:3) = VeloFromDistribution(EnergyDistribution,TempErgy,iNewPart,ProductSpecNbr)
+  NewVelo(1:3) = VeloFromDistribution(EnergyDistribution,TempErgy,iNewPart,ProductSpecNbr,locBCID)
   ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
   NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
-  ! Create new position by using POI and moving the particle by eps in the direction of the element center
-  NewPos(1:3) = eps*BoundsOfElemCenter(1:3) + eps2*POI_vec(1:3)
-  ! Create new particle: in case of vMPF oder VarTimeStep, new particle inherits the values of the old particle
-  CALL CreateParticle(ProductSpec,NewPos(1:3),GlobElemID,NewVelo(1:3),0.,0.,0.,OldPartID=PartID,NewPartID=NewPartID)
+  IF(TrackingMethod.EQ.TRIATRACKING) THEN
+    ! Provide the POI as position to set LastPartPos in CreateParticle
+    NewPos(1:3) = POI_vec(1:3)
+  ELSE
+    ! Create new position by using POI and moving the particle by eps in the direction of the element center
+    NewPos(1:3) = eps*BoundsOfElemCenter(1:3) + eps2*POI_vec(1:3)
+  END IF
+  ! Create new particle: in case of vMPF or VarTimeStep, new particle inherits the values of the old particle
+  CALL CreateParticle(ProductSpec,NewPos(1:3),GlobalElemID,GlobalElemID,NewVelo(1:3),0.,0.,0.,OldPartID=PartID,NewPartID=NewPartID)
   ! Adding the energy that is transferred from the surface onto the internal energies of the particle
   CALL SurfaceModelEnergyAccommodation(NewPartID,locBCID,WallTemp)
   ! Sampling of newly created particles
   IF((DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) &
     CALL CalcWallSample(NewPartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
+  IF(TrackingMethod.EQ.TRIATRACKING) THEN
+    ! Add newly created particles to the list of particles to track after the regular tracking loop
+    ! NOTE: Interplane functionality is only available for triatracking, requries additional tracking loop for interplane/SEE particles
+    InterPlanePartNumber = InterPlanePartNumber + 1
+    InterPlanePartIndx(InterPlanePartNumber) = NewPartID
+    ! Avoid tracking particle within the regular loop
+    PDM%ParticleInside(NewPartID) = .FALSE.
+    ! Push particle with the remaining timestep, LastPartPos was set to POI in CreateParticle
+    PartState(1:3,NewPartID) = POI_vec(1:3) + NewVelo(1:3) * dtVar
+  END IF
+  ! Store the particle information in PartStateBoundary.h5
+  IF(DoBoundaryParticleOutputHDF5.AND.PartBound%BoundaryParticleOutputEmission(locBCID)) THEN
+    IF(usevMPF)THEN
+      MPF = PartMPF(NewPartID)
+    ELSE
+      MPF = Species(ProductSpec)%MacroParticleFactor
+    END IF ! usevMPF
+    CALL StoreBoundaryParticleProperties(NewPartID,ProductSpec,PartState(1:3,NewPartID),&
+          UNITVECTOR(PartState(4:6,NewPartID)),n_loc,iPartBound=locBCID,mode=2,MPF_optIN=MPF)
+  END IF ! DoBoundaryParticleOutputHDF5
+  ! If more than one secondary electron, sum-up the energy to track energy conservation violations
+  IF(CalcEnergyViolationSEE) THEN
+    SEEBCID = SEE%BCIDToSEEBCID(locBCID)
+    IF(usevMPF)THEN
+      MPF = PartMPF(NewPartID)
+    ELSE
+      MPF = Species(ProductSpec)%MacroParticleFactor
+    END IF ! usevMPF
+    ! Sum-up the energy of all secondaries
+    EnergySumSEE = EnergySumSEE + CalcEkinPart2(NewVelo(1:3),ProductSpec,MPF)
+    ! Treatment at the end of the secondaries loop, energy conservation violation is only counted once per impact
+    IF(iNewPart.EQ.ProductSpecNbr) THEN
+      SEE%EventCount(SEEBCID) = SEE%EventCount(SEEBCID) + MPF
+      ! Calculated the resulting energy, which should have been distributed (impact energy minus work function)
+      ImpactEnergy = TempErgy*eV2Joule*ImpactWeight
+      IF(EnergySumSEE.GT.ImpactEnergy) THEN
+        ! Count the violation
+        SEE%EnergyConsViolationCount(SEEBCID) = SEE%EnergyConsViolationCount(SEEBCID) + MPF
+        ! Sum-up energy addition as percentage of the impact energy
+        SEE%EnergyConsViolationSum(SEEBCID) = SEE%EnergyConsViolationSum(SEEBCID) + (EnergySumSEE - ImpactEnergy) * MPF / ImpactEnergy
+      END IF
+    END IF
+  END IF
 END DO ! iNewPart = 1, ProductSpecNbr
 
 END SUBROUTINE SurfaceModelParticleEmission
@@ -618,16 +677,13 @@ REAL,INTENT(IN)       :: WallTemp
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: SpecID, vibQuant, vibQuantNew, VibQuantWall
+INTEGER               :: SpecID, VibQuantWall
 REAL                  :: RanNum
 REAL                  :: VibACC, RotACC, ElecACC
-REAL                  :: ErotNew, ErotWall, EVibNew
 REAL                  :: GroundLevel, VibPartitionTemp
 ! Polyatomic Molecules
-REAL                  :: VibQuantNewR
-REAL, ALLOCATABLE     :: RanNumPoly(:), VibQuantNewRPoly(:)
+REAL, ALLOCATABLE     :: RanNumPoly(:)
 INTEGER               :: iPolyatMole, iDOF, VibDOF
-INTEGER, ALLOCATABLE  :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 ! Requires the usage of DSMC and CollisMode = 2/3
@@ -642,103 +698,66 @@ ElecACC   = PartBound%ElecACC(locBCID)
 IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
   !---- Rotational energy accommodation
   ! model identical to the one used for initial rotational energy sampling
-  ErotWall = RotInitPolyRoutineFuncPTR(SpecID,WallTemp,PartID)
-  ErotNew  = PartStateIntEn(2,PartID) + RotACC *(ErotWall - PartStateIntEn(2,PartID))
-
-  PartStateIntEn(2,PartID) = ErotNew
-
+  CALL RANDOM_NUMBER(RanNum)
+  IF(RotACC.GT.RanNum) THEN
+    PartStateIntEn(2,PartID) = RotInitPolyRoutineFuncPTR(SpecID,WallTemp,PartID)
+  END IF
 #if (PP_TimeDiscMethod==400)
   IF (BGKDoVibRelaxation) THEN
 #elif (PP_TimeDiscMethod==300)
   IF (FPDoVibRelaxation) THEN
 #endif
     !---- Vibrational energy accommodation
-    IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
-      EvibNew = 0.0
-      iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
-      VibDOF = PolyatomMolDSMC(iPolyatMole)%VibDOF
-      ALLOCATE(RanNumPoly(VibDOF),VibQuantWallPoly(VibDOF),VibQuantNewRPoly(VibDOF),VibQuantNewPoly(VibDOF),VibQuantTemp(VibDOF))
-      CALL RANDOM_NUMBER(RanNumPoly)
-      VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-      DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
+    CALL RANDOM_NUMBER(RanNum)
+    IF(VibACC.GT.RanNum) THEN
+      IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
+        iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
+        VibDOF = PolyatomMolDSMC(iPolyatMole)%VibDOF
+        ALLOCATE(RanNumPoly(VibDOF))
         CALL RANDOM_NUMBER(RanNumPoly)
-        VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-      END DO
-      VibQuantNewRPoly(:) = VibQuantsPar(PartID)%Quants(:) + VibACC*(VibQuantWallPoly(:) - VibQuantsPar(PartID)%Quants(:))
-      VibQuantNewPoly = INT(VibQuantNewRPoly)
-      DO iDOF = 1, VibDOF
-        EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant)*BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-        CALL RANDOM_NUMBER(RanNum)
-        IF (RanNum.LT.(VibQuantNewRPoly(iDOF) - VibQuantNewPoly(iDOF))) THEN
-          EvibNew = EvibNew + BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-          VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF) + 1
-        ELSE
-          VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF)
-        END IF
-      END DO
-    ELSE
-      IF(DSMC%VibAHO) THEN ! AHO
-        ! calculate vib quant number matching PartStateIntEn(1,PartID)
-        VibQuant = 2
-        DO WHILE (PartStateIntEn(1,PartID).GE.AHO%VibEnergy(SpecID,VibQuant))
-          ! energy is larger than vib energy for this quantum number --> increase quantum number and try again
-          VibQuant = VibQuant + 1
-          ! exit if this quantum number is larger as the table length (dissociation level is reached)
-          IF (VibQuant.GT.AHO%NumVibLevels(SpecID)) EXIT
+        VibQuantsPar(PartID)%Quants(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+        DO WHILE (ALL(VibQuantsPar(PartID)%Quants.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
+          CALL RANDOM_NUMBER(RanNumPoly)
+          VibQuantsPar(PartID)%Quants(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
         END DO
-        ! accept VibQuant - 1 as quantum number
-        VibQuant = VibQuant - 1
-        ! calculate vib quant number of wall based on wall temperature
-        IF (CHECKEXP(- AHO%VibEnergy(SpecID,1) / (BoltzmannConst * WallTemp))) THEN
-          GroundLevel = EXP(- AHO%VibEnergy(SpecID,1) / (BoltzmannConst * WallTemp))
-          CALL RANDOM_NUMBER(RanNum)
-          VibQuantWall = INT(AHO%NumVibLevels(SpecID) * RanNum + 1.)
-          VibPartitionTemp = EXP(- AHO%VibEnergy(SpecID,VibQuantWall) / (BoltzmannConst * WallTemp))
-          CALL RANDOM_NUMBER(RanNum)
-          ! acceptance is higher for lower levels
-          DO WHILE (RanNum .GE. (VibPartitionTemp / GroundLevel))
-            ! select random quantum number and calculate partition function
+        PartStateIntEn(1,PartID) = 0.0
+        DO iDOF = 1, VibDOF
+          PartStateIntEn(1,PartID) = PartStateIntEn(1,PartID) + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) &
+                                   * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+        END DO
+      ELSE
+        IF(DSMC%VibAHO) THEN ! AHO
+          ! calculate vib quant number of wall based on wall temperature
+          IF (CHECKEXP(- AHO%VibEnergy(SpecID,1) / (BoltzmannConst * WallTemp))) THEN
+            GroundLevel = EXP(- AHO%VibEnergy(SpecID,1) / (BoltzmannConst * WallTemp))
             CALL RANDOM_NUMBER(RanNum)
             VibQuantWall = INT(AHO%NumVibLevels(SpecID) * RanNum + 1.)
             VibPartitionTemp = EXP(- AHO%VibEnergy(SpecID,VibQuantWall) / (BoltzmannConst * WallTemp))
             CALL RANDOM_NUMBER(RanNum)
-          END DO
-        ! use ground state quantum number
-        ELSE
-          VibQuantWall = 1
-        END IF
-        ! calculate new quantum number based on vibrational accommodation coefficient
-        VibQuantNewR = VibQuant + VibACC*(VibQuantWall - VibQuant)
-        VibQuantNew = INT(VibQuantNewR)
-        ! calculate new energy with this quantum number
-        CALL RANDOM_NUMBER(RanNum)
-        IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
-          EvibNew = AHO%VibEnergy(SpecID,VibQuantNew+1)
-        ELSE
-          EvibNew = AHO%VibEnergy(SpecID,VibQuantNew)
-        END IF
-
-      ELSE ! SHO
-        VibQuant = NINT(PartStateIntEn(1,PartID)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) - DSMC%GammaQuant)
-        CALL RANDOM_NUMBER(RanNum)
-        VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
-        DO WHILE (VibQuantWall.GE.SpecDSMC(SpecID)%MaxVibQuant)
+            ! acceptance is higher for lower levels
+            DO WHILE (RanNum .GE. (VibPartitionTemp / GroundLevel))
+              ! select random quantum number and calculate partition function
+              CALL RANDOM_NUMBER(RanNum)
+              VibQuantWall = INT(AHO%NumVibLevels(SpecID) * RanNum + 1.)
+              VibPartitionTemp = EXP(- AHO%VibEnergy(SpecID,VibQuantWall) / (BoltzmannConst * WallTemp))
+              CALL RANDOM_NUMBER(RanNum)
+            END DO
+            PartStateIntEn(1,PartID) = AHO%VibEnergy(SpecID,VibQuantWall)
+          ! use ground state quantum number
+          ELSE
+            PartStateIntEn(1,PartID) = AHO%VibEnergy(SpecID,1)
+          END IF
+        ELSE ! SHO
           CALL RANDOM_NUMBER(RanNum)
           VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
-        END DO
-        VibQuantNewR = VibQuant + VibACC*(VibQuantWall - VibQuant)
-        VibQuantNew = INT(VibQuantNewR)
-        CALL RANDOM_NUMBER(RanNum)
-        IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
-          EvibNew = (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
-        ELSE
-          EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
+          DO WHILE (VibQuantWall.GE.SpecDSMC(SpecID)%MaxVibQuant)
+            CALL RANDOM_NUMBER(RanNum)
+            VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
+          END DO
+          PartStateIntEn(1,PartID) = (VibQuantWall + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
         END IF
       END IF
-    END IF
-
-    IF(SpecDSMC(SpecID)%PolyatomicMol) VibQuantsPar(PartID)%Quants(:) = VibQuantTemp(:)
-    PartStateIntEn(1,PartID) = EvibNew
+    END IF ! DO vib relax: VibACC.LE.RanNum
 #if (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==300)
   END IF ! FPDoVibRelaxation || BGKDoVibRelaxation
 #endif
@@ -747,7 +766,7 @@ END IF
 IF (DSMC%ElectronicModel.GT.0) THEN
   IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
     CALL RANDOM_NUMBER(RanNum)
-    IF (RanNum.LT.ElecACC) THEN
+    IF (ElecACC.GT.RanNum) THEN
       PartStateIntEn(3,PartID) = RelaxElectronicShellWall(PartID, WallTemp)
     END IF
   END IF
@@ -760,7 +779,7 @@ REAL FUNCTION GetWallTemperature(PartID,locBCID, SideID)
 !===================================================================================================================================
 !> Determine the wall temperature, current options: determine a temperature based on an imposed gradient or use a fixed temperature
 !===================================================================================================================================
-USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM
+USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM3D
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, BoundaryWallTemp, GlobalSide2SurfSide
 USE MOD_Particle_Vars           ,ONLY: LastPartPos
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
@@ -790,7 +809,7 @@ PPURE REAL FUNCTION CalcWallTempGradient(PointVec,locBCID)
 !===================================================================================================================================
 !> Calculation of the wall temperature at a specific position due to the imposed temperature gradient (WallTemp2.GT.0)
 !===================================================================================================================================
-USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM
+USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM3D
 USE MOD_Globals_Vars            ,ONLY: EpsMach
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 IMPLICIT NONE
@@ -807,7 +826,7 @@ REAL                            :: Bounds(1:3), TempGradLength, PointVec_project
 ASSOCIATE(PB => PartBound)
 PointVec_projected(1:3) = PB%TempGradStart(1:3,locBCID) + DOT_PRODUCT((PointVec(1:3) - PB%TempGradStart(1:3,locBCID)), &
                           PB%TempGradVec(1:3,locBCID)) / DOTPRODUCT(PB%TempGradVec(1:3,locBCID)) * PB%TempGradVec(1:3,locBCID)
-TempGradLength = VECNORM(PointVec_projected(1:3)-PB%TempGradStart(1:3,locBCID)) / VECNORM(PB%TempGradVec(1:3,locBCID))
+TempGradLength = VECNORM3D(PointVec_projected(1:3)-PB%TempGradStart(1:3,locBCID)) / VECNORM3D(PB%TempGradVec(1:3,locBCID))
 
 SELECT CASE(PB%TempGradDir(locBCID))
 CASE(0)
@@ -866,8 +885,12 @@ VeloCrad    = SQRT(-LOG(RanNum))
 CALL RANDOM_NUMBER(RanNum)
 VeloCz      = SQRT(-LOG(RanNum))
 Fak_D       = VeloCrad**2 + VeloCz**2
-
-EtraNew     = EtraOld + TransACC * (BoltzmannConst * WallTemp * Fak_D - EtraOld)
+CALL RANDOM_NUMBER(RanNum)
+IF(TransACC.GT.RanNum) THEN
+  EtraNew     = BoltzmannConst * WallTemp * Fak_D
+ELSE
+  EtraNew     = EtraOld
+END IF
 Cmr         = SQRT(2.0 * EtraNew / (Species(SpecID)%MassIC * Fak_D))
 CALL RANDOM_NUMBER(RanNum)
 Phi     = 2.0 * PI * RanNum
@@ -904,7 +927,7 @@ REAL                  :: CalcRotWallVelo(3)
 
 ! Case: rotational axis is NOT one of the major axis (x,y,z)
 ! vec_OrgPOI(1:3) = POI(1:3) - PartBound%RotOrg(1:3,locBCID)
-! vec_axi_norm = PartBound%RotAxis(1:3,locBCID) / VECNORM(PartBound%RotAxis(1:3,locBCID))
+! vec_axi_norm = PartBound%RotAxis(1:3,locBCID) / VECNORM3D(PartBound%RotAxis(1:3,locBCID))
 ! vec_a(1:3) = DOT_PRODUCT(vec_axi_norm,vec_OrgPOI) * vec_axi_norm(1:3)
 ! vec_r(1:3) = vec_OrgPOI(1:3) - vec_a(1:3)
 ! radius = SQRT( vec_r(1)*vec_r(1) + vec_r(2)*vec_r(2) + vec_r(3)*vec_r(3) )

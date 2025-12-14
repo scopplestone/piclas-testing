@@ -47,7 +47,8 @@ fi
 NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 # chose which mpi you want to have installed (openmpi or mpich)
 WHICHMPI=openmpi
-#WHICHMPI=mpich
+# WHICHMPI=openmpi-debug
+# WHICHMPI=mpich
 #WHICHMPI=mpich-debug
 # choose for which compilers mpi is build (gcc or intel)
 WHICHCOMPILER=gcc
@@ -65,10 +66,18 @@ CONFIGSUFFIX=''
 if [ "${WHICHMPI}" == "openmpi" ]; then
   # DOWNLOAD and INSTALL OPENMPI (example OpenMPI-2.1.6)
   MPIVERSION=4.1.5
-  MPIVERSION=5.0.6
+  MPIVERSION=4.1.6
+  # MPIVERSION=5.0.6
+  # MPIVERSION=5.0.8
+elif [ "${WHICHMPI}" == "openmpi-debug" ]; then
+  # DOWNLOAD and INSTALL OPENMPI (example OpenMPI-2.1.6)
+  MPIVERSION=4.1.6
+  CONFIGSUFFIX='--enable-debug --enable-memchecker --with-valgrind=/usr/'
 elif [ "${WHICHMPI}" == "mpich" ]; then
   # DOWNLOAD and INSTALL MPICH (example mpich-3.2.0)
   MPIVERSION=4.1.2
+  # MPIVERSION=4.2.1
+  MPIVERSION=4.3.1
 elif [ "${WHICHMPI}" == "mpich-debug" ]; then
   # DOWNLOAD and INSTALL MPICH (example mpich-3.2.0)
   MPIVERSION=4.1.2
@@ -103,7 +112,7 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
     COMPILERVERSION=$(ls ${MODULESDIR}/compilers/${WHICHCOMPILER}/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n ${i} | tail -n 1)
     MPIMODULEFILEDIR=${MODULESDIR}/MPI/${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}
     MPIMODULEFILE=${MPIMODULEFILEDIR}/${COMPILERVERSION}
-    BUILDDIR=${SOURCESDIR}/${WHICHMPI}-${MPIVERSION}/build_${WHICHCOMPILER}-${COMPILERVERSION}
+    BUILDDIR=${SOURCESDIR}/${WHICHMPISHORT}-${MPIVERSION}/build_${WHICHCOMPILER}-${COMPILERVERSION}
     TARFILE=${SOURCESDIR}/${WHICHMPI}-${MPIVERSION}.tar.gz
     TARFILESHORT=${SOURCESDIR}/${WHICHMPISHORT}-${MPIVERSION}.tar.gz
 

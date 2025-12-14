@@ -14,7 +14,7 @@
 
 MODULE MOD_Photon_TrackingTools
 !===================================================================================================================================
-! Routines for photon tracking in radiave transfer solver
+! Routines for photon tracking in radiative transfer solver
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -654,13 +654,13 @@ END SUBROUTINE PhotonIntersectionWithSide
 
 !===================================================================================================================================
 !> Calculate the absorbed energy in the (sub-)volume of each element. For higher-order sampling, the ray path between element entry
-!> and exit is sampled NbrOfSamples = MAX(30,(Nloc+1)**2) and a nearest neighbour search finds the nearest sub-volume element on
+!> and exit is sampled NbrOfSamples = Ray%nSamples*(Nloc+1) and a nearest neighbour search finds the nearest sub-volume element on
 !> which the energy is deposited. The sum of all sub-volume energies must equal the element-constant value, which is also
 !> determined. Not that only the energies are conserved and not the density, which is the ratio of energy and (sub-)volume when
 !> a change basis is used to switch between point sets (polynomial representations).
 !===================================================================================================================================
 SUBROUTINE CalcAbsorptionRayTrace(IntersectionPos,GlobalElemID,PhotonDir)
-USE MOD_Globals             ,ONLY: VECNORM
+USE MOD_Globals             ,ONLY: VECNORM3D
 USE MOD_RayTracing_Vars     ,ONLY: RayElemPassedEnergy,Ray,U_N_Ray,N_DG_Ray
 USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
 !--------------------------------------------------------------------------------------------------!
@@ -674,11 +674,11 @@ REAL, INTENT(IN)    :: IntersectionPos(3)
 INTEGER           :: k,l,m,Nloc,NbrOfSamples,iIntersec,idx
 REAL              :: SamplePos(3)
 REAL              :: direction(3),subdirection(3),length,sublength
-REAL              :: RandVal(3)
+REAL              :: RandVal
 !--------------------------------------------------------------------------------------------------!
 ! Calculate the direction and length of the path of the ray through the element
 direction(1:3) = IntersectionPos(1:3)-PhotonProps%PhotonPos(1:3)
-length = VECNORM(direction(1:3))
+length = VECNORM3D(direction(1:3))
 
 ! Check primary or secondary direction
 IF(DOT_PRODUCT(PhotonDir,Ray%Direction).GT.0.0)THEN
@@ -696,27 +696,16 @@ RayElemPassedEnergy(idx,GlobalElemID)   = RayElemPassedEnergy(idx,GlobalElemID) 
 Nloc = N_DG_Ray(GlobalElemID)
 
 ! Loop over number of sub-samples
-NbrOfSamples = MAX(30,(Nloc+1)**2) ! Nloc+1 ! must be at least 3 for this sampling method (one point between the two intersections of the element)!
+NbrOfSamples = Ray%nSamples*(Nloc+1) ! must be at least 3*(Nloc+1) for this sampling method (one point between the two intersections of the element)!
 subdirection(1:3) = direction(1:3)/REAL(NbrOfSamples-1)
-sublength = VECNORM(subdirection(1:3))
+sublength = VECNORM3D(subdirection(1:3))
 ! Loop over the number of sub lengths and assign them to the nearest DOF. Choose the intersection points at random to prevent artifacts
-IF(ABS(direction(3)).GT.1e6*(ABS(direction(1))+ABS(direction(2))))THEN
-  ! only in z-dir
-  DO iIntersec = 1, NbrOfSamples-1
-    CALL RANDOM_NUMBER(RandVal(1))
-    SamplePos(1:3) = PhotonProps%PhotonPos(1:3) + (/1.0 , 1.0 , RandVal(1)/) * direction(1:3)
-    CALL GetNestestDOFInRefElem(Nloc,SamplePos(1:3),GlobalElemID,k,l,m)
-    U_N_Ray(GlobalElemID)%U(idx,k,l,m) = U_N_Ray(GlobalElemID)%U(idx,k,l,m) + sublength*PhotonProps%PhotonEnergy
-  END DO
-ELSE
-  DO iIntersec = 1, NbrOfSamples-1
-    CALL RANDOM_NUMBER(RandVal(1:3))
-    SamplePos(1:3) = PhotonProps%PhotonPos(1:3) + RandVal(1:3) * direction(1:3)
-    CALL GetNestestDOFInRefElem(Nloc,SamplePos(1:3),GlobalElemID,k,l,m)
-    U_N_Ray(GlobalElemID)%U(idx,k,l,m) = U_N_Ray(GlobalElemID)%U(idx,k,l,m) + sublength*PhotonProps%PhotonEnergy
-  END DO
-END IF ! ABS(direction(3).GT.1e6*(ABS(direction(1))+ABS(direction(2))))
-PhotonProps%PhotonPos(1:3) = IntersectionPos(1:3)
+DO iIntersec = 1, NbrOfSamples-1
+  CALL RANDOM_NUMBER(RandVal)
+  SamplePos(1:3) = PhotonProps%PhotonPos(1:3) + RandVal * direction(1:3)
+  CALL GetNestestDOFInRefElem(Nloc,SamplePos(1:3),GlobalElemID,k,l,m)
+  U_N_Ray(GlobalElemID)%U(idx,k,l,m) = U_N_Ray(GlobalElemID)%U(idx,k,l,m) + sublength*PhotonProps%PhotonEnergy
+END DO
 
 ! Store intersection point as new starting point
 PhotonProps%PhotonPos(1:3) = IntersectionPos(1:3)
@@ -1372,7 +1361,7 @@ END SUBROUTINE PeriodicPhotonBC
 !>   ForceWallSample (OPTIONAL): When true, the sampling is performed independent of the actual absorption/reflection outcome
 !===================================================================================================================================
 SUBROUTINE CalcWallAbsoprtion(IntersectionPos, GlobSideID, DONE, ForceWallSample)
-USE MOD_Globals                ,ONLY: VECNORM
+USE MOD_Globals                ,ONLY: VECNORM3D
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonProps,PhotonSurfSideSamplingMidPoints
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
@@ -1409,7 +1398,7 @@ IF(PRESENT(ForceWallSample))THEN
       distanceMin = HUGE(1.)
       DO pp = 1, Ray%nSurfSample
         DO qq = 1, Ray%nSurfSample
-          distance = VECNORM(IntersectionPos(1:3) - PhotonSurfSideSamplingMidPoints(1:3,pp,qq,SurfSideID))
+          distance = VECNORM3D(IntersectionPos(1:3) - PhotonSurfSideSamplingMidPoints(1:3,pp,qq,SurfSideID))
           IF(distance.LT.distanceMin)THEN
             p = pp
             q = qq
@@ -1439,10 +1428,11 @@ IF (PhotonEnACC.GT.iRan) THEN
       distanceMin = HUGE(1.)
       DO pp = 1, Ray%nSurfSample
         DO qq = 1, Ray%nSurfSample
-          distance = VECNORM(IntersectionPos(1:3) - PhotonSurfSideSamplingMidPoints(1:3,pp,qq,SurfSideID))
+          distance = VECNORM3D(IntersectionPos(1:3) - PhotonSurfSideSamplingMidPoints(1:3,pp,qq,SurfSideID))
           IF(distance.LT.distanceMin)THEN
             p = pp
             q = qq
+            distanceMin = distance
           END IF ! distance.LT.distanceMin
         END DO ! q = 1, Ray%nSurfSample
       END DO ! p = 1, Ray%nSurfSample
@@ -1481,7 +1471,7 @@ REAL                          :: ConeDist, ConeRadius, orthoDist
 PointInObsCone = .FALSE.
 ConeDist = DOT_PRODUCT(Point(1:3) - RadObservationPoint%StartPoint(1:3), RadObservationPoint%ViewDirection(1:3))
 ConeRadius = TAN(RadObservationPoint%AngularAperture/2.) * ConeDist
-orthoDist = VECNORM(Point(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
+orthoDist = VECNORM3D(Point(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
 IF (orthoDist.LE.ConeRadius) PointInObsCone = .TRUE.
 
 END FUNCTION PointInObsCone
@@ -1517,7 +1507,7 @@ IF (projectedDist.LT.0.0) THEN
   !Vector from midpoint of sensor
   DirectionVec(1:3) = DirectionVec(1:3) - RadObservationPoint%MidPoint(1:3)
   !distance to midpoint
-  projectedDist = VECNORM(DirectionVec(1:3))
+  projectedDist = VECNORM3D(DirectionVec(1:3))
   IF (projectedDist.LE.RadObservationPoint%Diameter/2.) PhotonIntersectSensor = .TRUE.
 END IF
 

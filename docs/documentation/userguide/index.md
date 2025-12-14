@@ -8,7 +8,8 @@ Each of these models, some of which can be combined, offer distinctive features 
 * Coupled Particle-in-Cell with Direct Simulation Monte Carlo methods
 * Particle-based Bhatnagar-Gross-Krook (Ellipsoidal Statistical, Shakov, Unified) and Fokker-Planck (Cubic, Ellipsoidal
   Statistical) models for continuum gas flows
-* Arbitrary order nodal polynomial tensor product basis using Gauss or Gauss Lobatto collocation points for electrostatic and
+* Line-by-line radiation solver and photon Monte Carlo radiation transport
+* Variable order nodal polynomial tensor product basis using Gauss or Gauss Lobatto collocation points for electrostatic and
   electromagnetic solvers
 * Matching high order curved mesh generation from external mesh formats (CGNS, GMSH) or
   simple analytic blocks via the open source preprocessor [HOPR](https://github.com/hopr-framework/hopr) {cite}`Hindenlang2015`

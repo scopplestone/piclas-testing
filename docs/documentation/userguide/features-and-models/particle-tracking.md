@@ -81,8 +81,7 @@ Following parameters can be used for both schemes.
 |                       |          |  space. It is the L2 norm of the delta Xi in ref space.  |
 |    BezierElevation    |   0-50   |   Increase polynomial degree of BezierControlPoints to   |
 |                       |          |     construct a tighter bounding box for each side.      |
-|     BezierSampleN     |   NGeo   |  Polynomial degree to sample sides for SurfaceFlux and   |
-|                       |          |              Sampling of DSMC surface data.              |
+|     BezierSampleN     |   NGeo   |    Polynomial degree to sample sides for SurfaceFlux     |
 |   BezierNewtonAngle   | $<PI/2$  | Angle to switch between Clipping and a Newton algorithm. |
 |  BezierClipTolerance  |   1e-8   |      Tolerance of Bezier-Clipping and Bezier-Newton      |
 |     BezierClipHit     |   1e-6   | Tolerance to increase sides and path during Bezier-Algo. |
@@ -116,7 +115,7 @@ First, the number of rotating regions is defined by
 
     Part-nRefFrameRegions = 2
 
-Afterwards the minimum and maximum coordinates must be defined for each region. Both values refer to the coordinates on the rotational axis, since the 
+Afterwards the minimum and maximum coordinates must be defined for each region. Both values refer to the coordinates on the rotational axis, since the
 boundary surfaces of these regions can only be defined perpendicular to the rotation axis:
 
     Part-RefFrameRegion1-MIN = 10
@@ -124,7 +123,7 @@ boundary surfaces of these regions can only be defined perpendicular to the rota
     Part-RefFrameRegion2-MIN = 100
     Part-RefFrameRegion2-MAX = 110
 
-This allows to model systems of rotating and stationary geometries (e.g. pumps with stator and rotor blades) within a single simulation. For rotationally symmetric cases, the simulation domain can be reduced using the rotationally perodic boundary condition (as shown in Section {ref}`sec:particle-boundary-conditions-rotBC`). Examples are provided in the regression test directory, e.g.
+This allows to model systems of rotating and stationary geometries (e.g. pumps with stator and rotor blades) within a single simulation. For rotationally symmetric cases, the simulation domain can be reduced using the rotationally periodic boundary condition (as shown in Section {ref}`sec:particle-boundary-conditions-rotBC`). Examples are provided in the regression test directory, e.g.
 `regressioncheck/CHE_DSMC/Rotational_Reference_Frame` and `regressioncheck/CHE_DSMC/Rotational_Reference_Frame_Regions`.
 
 ### Time step subcycling for rotating frame of reference
@@ -136,3 +135,17 @@ In PICLas, an explicit time stepping scheme is used for the DSMC method, with bo
 Additionally, the number of the subcycling steps can be defined by
 
     Part-RotRefFrame-SubCyclingSteps = 10 ! Default = 10 steps
+
+## Cartesian background mesh (Fast Initialization Background Mesh, FIBGM)
+
+The program constructs a Cartesian background mesh if needed to efficiently find locations on the computational grid. This is mostly needed during initialization and restart. It will be deleted if it is not longer needed after the initialization and restart routines. The size of the mesh is calculated automatically, but can be specified by the user if necessary:
+
+    Part-FIBGMdeltas = (/6.2831 , 0.2 , 0.2/) ! Cartesian background mesh (bounding box around the complete simulation domain)
+    Part-FactorFIBGM = (/60     , 1   , 1/)   ! Division factor that is applied t the "Part-FIBGMdeltas" values to define the dx, dy and dz distances of the Cartesian background mesh
+
+The size of the Cartesian background mesh `Part-FIBGMdeltas`, which can be accompanied by a division factor (i.e. number of background cells) in each direction given by `Part-factorFIBGM`. Here, the size and number of cells of the background mesh correspond to the actual mesh.
+
+PICLas will determine if the FIBGM is needed. However, the build can be forced by setting:
+
+    Part-ForceFIBGM = true
+

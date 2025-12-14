@@ -350,16 +350,16 @@ DO iSpec=1,nSpecies
 
         ! Use NormalIC if it is non-zero. Else, use the cross-product calculated 3rd vector to span the coordinate space
         ! The first choice results in a non-rectangular 3rd coordinate vector
-        IF(VECNORM(normal).LE.0.)THEN
+        IF(VECNORM3D(normal).LE.0.)THEN
           lineVector(1) = v2(2) * v3(3) - v2(3) * v3(2)
           lineVector(2) = v2(3) * v3(1) - v2(1) * v3(3)
           lineVector(3) = v2(1) * v3(2) - v2(2) * v3(1)
           lineVector = UNITVECTOR(lineVector)
-          IF(VECNORM(lineVector).LE.0.) CALL ABORT(__STAMP__,'BaseVectors are parallel!')
+          IF(VECNORM3D(lineVector).LE.0.) CALL ABORT(__STAMP__,'BaseVectors are parallel!')
         ELSE
           ! Normalize the vector even though it is probably already normalized for safety reasons
           lineVector = UNITVECTOR(normal)
-        END IF ! VECNORM(lineVector).LE.0.
+        END IF ! VECNORM3D(lineVector).LE.0.
 
         xCoords(1:3,1)=O(1:3)
         xCoords(1:3,2)=O(1:3)+v2(1:3)
@@ -495,8 +495,6 @@ DO iSpec=1,nSpecies
        xCoords(1:3,7) = xCoords(1:3,5) + (/0.,ylen,0./)
        xCoords(1:3,8) = xCoords(1:3,5) + (/xlen,ylen,0./)
        RegionOnProc=BoxInProc(xCoords,8)
-    CASE ('IMD')
-       RegionOnProc=.TRUE.
     CASE ('background')
        RegionOnProc=.TRUE.
     CASE ('EmissionDistribution')
@@ -590,6 +588,7 @@ USE MOD_Part_Tools             ,ONLY: GetNextFreePosition
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
+USE MOD_Mesh_Vars                  ,ONLY: ELEM_RANK
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -919,7 +918,8 @@ DO i = 1, chunkSize
       IF (TrackingMethod.EQ.REFMAPPING) THEN
         CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),ElemID)
       END IF ! TrackingMethod.EQ.REFMAPPING
-      PEM%GlobalElemID(ParticleIndexNbr)         = ElemID
+      PEM%GlobalElemID(ParticleIndexNbr)     = ElemID
+      PEM%LastGlobalElemID(ParticleIndexNbr) = 0 ! Initialize with invalid value
       mySumOfMatchedParticles = mySumOfMatchedParticles + 1
     END IF ! ElemID.EQ.-1
   END IF ! InsideMyBGM(i)
@@ -1070,7 +1070,8 @@ DO i = 1,TotalNbrOfRecvParts
   IF (TrackingMethod.EQ.REFMAPPING) THEN
     CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),ElemID)
   END IF ! TrackingMethod.EQ.REFMAPPING
-  PEM%GlobalElemID(ParticleIndexNbr)    = ElemID
+  PEM%GlobalElemID(ParticleIndexNbr)     = ElemID
+  PEM%LastGlobalElemID(ParticleIndexNbr) = 0 ! Initialize with invalid value
   mySumOfMatchedParticles = mySumOfMatchedParticles + 1
 END DO
 
@@ -1109,7 +1110,8 @@ DO iProc=0,PartMPIInitGroup(InitGroup)%nProcs-1
     IF (TrackingMethod.EQ.REFMAPPING) THEN
       PartPosRef(1:3,ParticleIndexNbr) = EmissionRecvBuf(iProc)%content(PartCommSize*(i-1)+4:PartCommSize*(i-1)+6)
     END IF ! TrackingMethod.EQ.REFMAPPING
-    PEM%GlobalElemID(ParticleIndexNbr)    = INT(EmissionRecvBuf(iProc)%content(PartCommSize*(i)),KIND=4)
+    PEM%GlobalElemID(ParticleIndexNbr)     = INT(EmissionRecvBuf(iProc)%content(PartCommSize*(i)),KIND=4)
+    PEM%LastGlobalElemID(ParticleIndexNbr) = 0 ! Initialize with invalid value
     PDM%ParticleInside( ParticleIndexNbr) = .TRUE.
     mySumOfMatchedParticles = mySumOfMatchedParticles + 1
   END DO

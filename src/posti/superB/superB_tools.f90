@@ -31,11 +31,13 @@ INTERFACE GramSchmidtAlgo
   MODULE PROCEDURE GramSchmidtAlgo
 END INTERFACE GramSchmidtAlgo
 
+#if USE_SUPER_B
 INTERFACE CalcErrorSuperB
   MODULE PROCEDURE CalcErrorSuperB
 END INTERFACE
 !===================================================================================================================================
 PUBLIC::CalcErrorSuperB
+#endif /* USE_SUPER_B */
 
 CONTAINS
 
@@ -116,7 +118,7 @@ Vector3(:) = Vector3(:) / SQRT(Vector3(1)**2 + Vector3(2)**2 + Vector3(3)**2)
 
 END SUBROUTINE GramSchmidtAlgo
 
-
+#if USE_SUPER_B
 SUBROUTINE CalcErrorSuperB(L_2_Error,L_Inf_Error,ExactFunctionNumber,iCoilOrMagnet)
 !===================================================================================================================================
 ! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
@@ -127,12 +129,13 @@ SUBROUTINE CalcErrorSuperB(L_2_Error,L_Inf_Error,ExactFunctionNumber,iCoilOrMagn
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars          ,ONLY: Elem_xGP,sJ,Vdm_GL_N
-USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,N_InterAnalyze,wAnalyze, NodeType, NodeTypeGL
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Particle_Mesh_Vars ,ONLY: MeshVolume
-USE MOD_Interpolation_Vars ,ONLY: BGField,BGFieldAnalytic
+USE MOD_Interpolation_Vars ,ONLY: Nmin, Nmax, N_BG
 USE MOD_Interpolation      ,ONLY: GetVandermonde
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -145,35 +148,45 @@ REAL,INTENT(OUT)     :: L_2_Error(4)   !< L2 error of the solution
 REAL,INTENT(OUT)     :: L_Inf_Error(4) !< LInf error of the solution
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem,k,l,m
+INTEGER              :: iElem,k,l,m, NLoc
 REAL                 :: U_exact(3)
 REAL                 :: U_NAnalyze(1:3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                 :: U_NAnalyze_tmp(1:3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                 :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                 :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
-REAL                 :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+REAL                 :: J_N(1,0:Nmax,0:Nmax,0:Nmax)
 REAL                 :: IntegrationWeight
+TYPE tVdm_GL_N
+  REAL, ALLOCATABLE                     :: Vdm(:,:)
+END TYPE tVdm_GL_N
+TYPE(tVdm_GL_N),ALLOCATABLE    :: Vdm_GL_N(:)
 !===================================================================================================================================
 ! Initialize errors
 L_Inf_Error(:)=-1.E10
 L_2_Error(:)=0.
+ALLOCATE(Vdm_GL_N(Nmin:Nmax))
+DO Nloc = Nmin, Nmax
+  ALLOCATE(Vdm_GL_N(Nloc)%Vdm(0:Nloc,0:NAnalyze))
+  CALL GetVandermonde(NAnalyze , NodeTypeGL   , Nloc , NodeType , Vdm_GL_N(Nloc)%Vdm , modal=.FALSE.)
+END DO
 
 ! Interpolate values of Error-Grid from GP's
 DO iElem=1,PP_nElems
+   Nloc = N_DG_Mapping(2,iElem+offSetElem)
    ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
-   CALL ChangeBasis3D(3,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,Elem_xGP(1:3,:,:,:,iElem),Coords_NAnalyze(1:3,:,:,:))
+   CALL ChangeBasis3D(3,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze,N_VolMesh(iElem)%Elem_xGP(1:3,0:Nloc,0:Nloc,0:Nloc),Coords_NAnalyze(1:3,:,:,:))
    ! Interpolate the Jacobian to the analyze grid: be carefull we interpolate the inverse of the inverse of the jacobian ;-)
-   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-   CALL ChangeBasis3D(1,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_NAnalyze(1:1,:,:,:))
+   J_N(1,0:Nloc,0:Nloc,0:Nloc)=1./N_VolMesh(iElem)%sJ(0:Nloc,0:Nloc,0:Nloc)
+   CALL ChangeBasis3D(1,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze,J_N(1:1,0:Nloc,0:Nloc,0:Nloc),J_NAnalyze(1:1,:,:,:))
    ! Interpolate the solution to the analyze grid
-   CALL ChangeBasis3D(3,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,BGField(1:3,:,:,:,iElem),U_NAnalyze(1:3,:,:,:))
+   CALL ChangeBasis3D(3,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze,N_BG(iElem)%BGField(1:3,:,:,:),U_NAnalyze(1:3,:,:,:))
    DO m=0,NAnalyze
      DO l=0,NAnalyze
        DO k=0,NAnalyze
          CALL ExactFuncSuperB(ExactFunctionNumber,iCoilOrMagnet,Coords_NAnalyze(1:3,k,l,m),U_exact)
          L_Inf_Error(1:3) = MAX(L_Inf_Error(1:3),abs(U_NAnalyze(:,k,l,m) - U_exact))
-         ASSOCIATE( U_NAnalyze_Abs => VECNORM(U_NAnalyze(1:3,k,l,m)) ,&
-                    U_exact_Abs    => VECNORM(U_exact)             )
+         ASSOCIATE( U_NAnalyze_Abs => VECNORM3D(U_NAnalyze(1:3,k,l,m)) ,&
+                    U_exact_Abs    => VECNORM3D(U_exact)             )
            L_Inf_Error(4) = MAX(L_Inf_Error(4),ABS(U_NAnalyze_Abs-U_exact_Abs))
            IntegrationWeight = wAnalyze(k)*wAnalyze(l)*wAnalyze(m)*J_NAnalyze(1,k,l,m)
            ! To sum over the elements, We compute here the square of the L_2 error
@@ -186,7 +199,7 @@ DO iElem=1,PP_nElems
      END DO ! l
    END DO ! m
    ! Map exact solution from GL to NodeType (usually G) node set for output to .h5 file
-   CALL ChangeBasis3D(3,NAnalyze,PP_N,Vdm_GL_N,U_NAnalyze_tmp(1:3,:,:,:),BGFieldAnalytic(1:3,:,:,:,iElem))
+   CALL ChangeBasis3D(3,NAnalyze,Nloc,Vdm_GL_N(Nloc)%Vdm,U_NAnalyze_tmp(1:3,:,:,:),N_BG(iElem)%BGFieldAnalytic(1:3,:,:,:))
 END DO ! iElem=1,PP_nElems
 #if USE_MPI
 IF(MPIroot)THEN
@@ -214,7 +227,7 @@ SUBROUTINE ExactFuncSuperB(ExactFunctionNumber,iCoilOrMagnet,x,resu)
 !   2X : Magnets
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals       ,ONLY: Abort,VECNORM,UNITVECTOR,CROSSNORM,DOTPRODUCT
+USE MOD_Globals       ,ONLY: Abort,VECNORM3D,UNITVECTOR,CROSSNORM,DOTPRODUCT
 USE MOD_Globals       ,ONLY: SphericalCoordinates,TransformVectorFromSphericalCoordinates
 USE MOD_Globals_Vars  ,ONLY: Pi,mu0
 USE MOD_SuperB_Vars   ,ONLY: CoilInfo,PermanentMagnetInfo
@@ -239,18 +252,18 @@ CASE(10) ! linear conductor
              a    => x(1:3) - CoilInfo(iCoilOrMagnet)%BasePoint(1:3) ,&
              I    => CoilInfo(iCoilOrMagnet)%Current                  )
     ! project DOF vector in local coordinate system onto Lvec
-    ASSOCIATE( b => UNITVECTOR(DOT_PRODUCT(a,Lvec)*Lvec)*VECNORM(a),&
-               L => VECNORM(Lvec) )
+    ASSOCIATE( b => UNITVECTOR(DOT_PRODUCT(a,Lvec)*Lvec)*VECNORM3D(a),&
+               L => VECNORM3D(Lvec) )
       ! calculate the radial vector "c" in local coordinate system
       ASSOCIATE( c => a-b          ,&
-                 R => VECNORM(a-b) )
+                 R => VECNORM3D(a-b) )
         Resu(1:3) = CROSSNORM(b,c) * (mu0*I/(2.*Pi*R)) * (L/2.0) / SQRT((L/2.)**2 + R**2)
       END ASSOCIATE
     END ASSOCIATE
   END ASSOCIATE
 CASE(20) ! Spherical hard magnet
   ! Calculate DOF vector "a" in local coordinate system
-  ASSOCIATE( c1 => (mu0/3.)*VECNORM(PermanentMagnetInfo(1)%Magnetisation(1:3))*PermanentMagnetInfo(1)%Radius**3 ,&
+  ASSOCIATE( c1 => (mu0/3.)*VECNORM3D(PermanentMagnetInfo(1)%Magnetisation(1:3))*PermanentMagnetInfo(1)%Radius**3 ,&
               P => x(1:3) - PermanentMagnetInfo(1)%BasePoint(1:3)                                               )
 
     ! Get spherical coordinates
@@ -268,6 +281,6 @@ CASE DEFAULT
 END SELECT
 
 END SUBROUTINE ExactFuncSuperB
-
+#endif /* USE_S_U_P_E_R_B */
 
 END MODULE MOD_SuperB_Tools

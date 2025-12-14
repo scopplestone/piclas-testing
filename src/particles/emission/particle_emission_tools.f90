@@ -530,7 +530,7 @@ REAL                 :: NormalIC(1:3), RadiusIC, RadiusICGyro, Alpha, GyroVecDir
     SWRITE(*,'(A,3(E21.14,1X))') 'Velocity=', PartState(4:6,iPart)
     CALL abort(__STAMP__,'ERROR in gyrotron_circle spaceIC!',iPart)
   END If
-  IF(ISNAN(VECNORM(Vec3D)))THEN
+  IF(ISNAN(VECNORM3D(Vec3D)))THEN
     SWRITE(*,'(A,3(E21.14,1X))') 'WARNING:! NaN: Velocity=', Vec3D(1:3)
   END If
 
@@ -761,7 +761,7 @@ INTEGER,INTENT(OUT)            :: IntSample
 ! LOCAL VARIABLES
 LOGICAL         :: Flag
 INTEGER         :: Npois
-REAL            :: Tpois, RandVal1
+REAL            :: Tpois, RandVal1, expTarget
 !===================================================================================================================================
 
 IF (PRESENT(Flag_opt)) THEN
@@ -770,6 +770,7 @@ ELSE
   Flag=.FALSE.
 END IF
 
+expTarget = EXP(-RealTarget)
 Npois=0
 Tpois=1.0
 CALL RANDOM_NUMBER(RandVal1)
@@ -782,12 +783,10 @@ DO
       Flag = .FALSE.
       EXIT
     ELSE !Turning off not allowed: abort (RealTarget must be decreased ot PoissonSampling turned off manually)
-      CALL abort(&
-__STAMP__&
-,'ERROR in SamplePoissonDistri: RealTarget (e.g. flux) is too large for poisson sampling!')
+      CALL abort(__STAMP__,'ERROR in SamplePoissonDistri: RealTarget (e.g. flux) is too large for poisson sampling!')
     END IF
   END IF
-  IF (Tpois.GT.EXP(-RealTarget)) THEN
+  IF (Tpois.GT.expTarget) THEN
     Npois=Npois+1
     CALL RANDOM_NUMBER(RandVal1)
   ELSE
@@ -1150,7 +1149,7 @@ LOGICAL                 :: PartAccepted
     lineVector(2) = v2(3) * v3(1) - v2(1) * v3(3)
     lineVector(3) = v2(1) * v3(2) - v2(2) * v3(1)
     lineVector = UNITVECTOR(lineVector)
-    IF(VECNORM(lineVector).LE.0.) CALL ABORT(__STAMP__,'BaseVectors are parallel!')
+    IF(VECNORM3D(lineVector).LE.0.) CALL ABORT(__STAMP__,'BaseVectors are parallel!')
   END ASSOCIATE
   chunkSize2=0
   DO i=1,chunkSize

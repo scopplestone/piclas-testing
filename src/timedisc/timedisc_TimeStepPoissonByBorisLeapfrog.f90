@@ -34,8 +34,7 @@ SUBROUTINE TimeStepPoissonByBorisLeapfrog()
 ! Boris-Leapfrog (508) -push with HDG
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR, VECNORM, PARTISELECTRON
-USE MOD_DG_Vars                ,ONLY: U
+USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR, VECNORM3D, PARTISELECTRON
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
 USE MOD_Globals_Vars           ,ONLY: c2_inv
@@ -69,6 +68,8 @@ USE MOD_Particle_Vars          ,ONLY: UseSplitAndMerge
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
+USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
+USE MOD_PICDepo                ,ONLY: DepositVirtualDielectricLayerParticles
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -95,7 +96,7 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
 #endif /*PARTICLES*/
 
-CALL HDG(time,U,iter)
+CALL HDG(time,iter)
 
 #ifdef PARTICLES
 #ifdef EXTRAE
@@ -173,7 +174,7 @@ IF (time.GE.DelayTime) THEN
         !-- t_vec
         ! gamma_minus = (SQRT(1+DOTPRODUCT(v_minus_old)*c2_inv) + SQRT(1+DOTPRODUCT(v_minus)*c2_inv) ) / 2.
         gamma_minus = SQRT(1+DOTPRODUCT(v_minus)*c2_inv)
-        t_vec = TAN(c_1/gamma_minus*VECNORM(FieldAtParticle(4:6,iPart))) * UNITVECTOR(FieldAtParticle(4:6,iPart))
+        t_vec = TAN(c_1/gamma_minus*VECNORM3D(FieldAtParticle(4:6,iPart))) * UNITVECTOR(FieldAtParticle(4:6,iPart))
 
         !-- v_prime = v_minus + v_minus x (q*B/m)*dt/2
         v_prime = v_minus + CROSS(v_minus, t_vec )
@@ -205,12 +206,18 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
 #if USE_MPI
   CALL IRecvNbofParticles() ! open receive buffer for number of particles
 #endif
+  CALL ParticleInserting() ! Do inserting before tracking as virtual particles are created, which need to be tracked and deleted
+                           ! after MPI particle send/receive in DepositVirtualDielectricLayerParticles()
   CALL PerformTracking()
-  CALL ParticleInserting()
 #if USE_MPI
   CALL SendNbOfParticles() ! send number of particles
   CALL MPIParticleSend()  ! finish communication of number of particles and send particles
   CALL MPIParticleRecv()  ! finish communication
+
+  ! Virtual Dielectric Layer (VDL) particles are deposited and deleted here because they might have changed the process after
+  ! boundary interaction, hence, do all of this after MPI communication
+  ! This must be called directly after "CALL MPIParticleRecv()" to delete the virtual particles that are created in PerformTracking()
+  IF(DoVirtualDielectricLayer) CALL DepositVirtualDielectricLayerParticles()
 #endif
   IF (velocityOutputAtTime) THEN
 #ifdef EXTRAE
@@ -220,7 +227,7 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
 #ifdef EXTRAE
     CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
-    CALL HDG(time,U,iter)
+    CALL HDG(time,iter)
 #ifdef EXTRAE
     CALL extrae_eventandcounters(int(9000001), int8(5))
 #endif /*EXTRAE*/

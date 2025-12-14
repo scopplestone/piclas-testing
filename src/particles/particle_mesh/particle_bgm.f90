@@ -66,16 +66,11 @@ IMPLICIT NONE
 CALL prms%SetSection('BGM')
 
 ! Background mesh init variables
-CALL prms%CreateRealArrayOption('Part-FIBGMdeltas'&
-  , 'Define the deltas for the Cartesian Fast-Init-Background-Mesh.'//&
-  ' They should be of the similar size as the smallest cells of the used mesh for simulation.'&
-  , '0. , 0. , 0.')
-CALL prms%CreateRealArrayOption('Part-FactorFIBGM'&
-  , 'Factor with which the background mesh will be scaled.'&
-  , '1. , 1. , 1.')
-CALL prms%CreateRealOption(     'Part-SafetyFactor'           , 'Factor to scale the halo region with MPI', '1.0')
-CALL prms%CreateRealOption(     'Particles-HaloEpsVelo'       , 'Halo region velocity [m/s]', '0.')
-CALL prms%CreateLogicalOption(     'Part-ForceFIBGM'       , 'Force the build of the FIBGM, for debugging issues only', 'FALSE')
+CALL prms%CreateRealArrayOption('Part-FIBGMdeltas'      , 'Define the deltas for the Cartesian Fast-Init-Background-Mesh. They should be of the similar size as the smallest cells of the used mesh for simulation.', '0. , 0. , 0.')
+CALL prms%CreateRealArrayOption('Part-FactorFIBGM'      , 'Factor with which the background mesh will be scaled.', '1. , 1. , 1.')
+CALL prms%CreateRealOption(     'Part-SafetyFactor'     , 'Factor to scale the halo region with MPI', '1.0')
+CALL prms%CreateRealOption(     'Particles-HaloEpsVelo' , 'Halo region velocity [m/s]', '0.')
+CALL prms%CreateLogicalOption(  'Part-ForceFIBGM'       , 'Force the build of the FIBGM, for debugging issues only', 'FALSE')
 
 
 END SUBROUTINE DefineParametersParticleBGM
@@ -90,6 +85,7 @@ SUBROUTINE BuildBGMAndIdentifyHaloRegion()
 !----------------------------------------------------------------------------------------------------------------------------------!
 #if USE_MPI
 USE mpi_f08
+USE MOD_Mesh_Vars              ,ONLY: ELEM_HALOFLAG,ELEM_RANK,readFEMconnectivity
 #endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Preproc
@@ -205,15 +201,16 @@ REAL                           :: BoundingBoxVolume
 CHARACTER(LEN=255)             :: hilf
 ! Mortar
 INTEGER                        :: iMortar,NbElemID,NbSideID,nMortarElems!,nFoundSides,nlocSides,i
-#else
-REAL                           :: halo_eps
-#endif /*USE_MPI*/
+INTEGER                        :: ElemInfoSizeLoc
 #ifdef CODE_ANALYZE
 INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 #endif /*CODE_ANALYZE*/
-REAL                           :: StartT,EndT ! Timer
+#else
+REAL                           :: halo_eps
+#endif /*USE_MPI*/
+REAL                           :: StartT,EndT,b
 REAL                           :: FIBGMdeltas1(3),ElemWeights(3),FIBGMdeltas2(3),a
-INTEGER                        :: iSpec, iInit
+INTEGER                        :: iSpec, iInit, ProcID
 INTEGER                        :: nFIBGMElems, nFIBGMElems_target, iDim, PseudoSymmetryOrder
 !===================================================================================================================================
 
@@ -314,7 +311,7 @@ ELSE
   ! Check if emission only cell-local
   GEO%InitFIBGM = .FALSE.
 
-  ! FIBGM needed in every emmision except cell_local
+  ! FIBGM needed in every emmision except cell_local and background
   DO iSpec=1,nSpecies
     DO iInit=1,Species(iSpec)%NumberOfInits
       IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local'.AND.&
@@ -968,8 +965,21 @@ ELSE
       ! END ASSOCIATE
 
       ! compare distance of centers with sum of element outer radii+halo_eps
-      IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter_Shared(1:3,iElem)) &
-          .GT. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter_Shared(4,iElem) ) CYCLE
+      ! IF (VECNORM3D(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter_Shared(1:3,iElem)) &
+          ! .GT. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter_Shared(4,iElem) ) CYCLE
+
+      ! Directional distance calculation due to tolerance problems that lead to "non-symmetric exchange procs"
+      ProcID = ElemInfo_Shared(ELEM_RANK,ElemID)
+      IF (ProcID.LT.myrank) THEN
+        a = VECNORM3D(BoundsOfElemCenter(1:3) - MPISideBoundsOfElemCenter_Shared(1:3,iElem))
+        b = halo_eps + BoundsOfElemCenter(4) + MPISideBoundsOfElemCenter_Shared(4,iElem)
+      ELSE
+        a = VECNORM3D(MPISideBoundsOfElemCenter_Shared(1:3,iElem) - BoundsOfElemCenter(1:3))
+        b = halo_eps + MPISideBoundsOfElemCenter_Shared(4,iElem) + BoundsOfElemCenter(4)
+      END IF ! ProcID.LE.myrank
+
+      ! compare distance of centers with sum of element outer radii+halo_eps
+      IF (a.GT.b) CYCLE
       ElemInsideHalo = .TRUE.
       EXIT
     END DO ! iElem = 1, ComputeNodeBorderElems
@@ -997,13 +1007,18 @@ ELSE
   ADEALLOCATE(MPISideBoundsOfElemCenter_Shared)
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
-  IF (MeshHasPeriodic)    CALL CheckPeriodicSides   (EnlargeBGM)
-  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
-  IF (PartBound%UseRotPeriodicBC) CALL CheckRotPeriodicSides(EnlargeBGM)
-  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
-  IF (PartBound%UseInterPlaneBC) CALL CheckInterPlaneSides(EnlargeBGM)
-  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
-
+  IF (MeshHasPeriodic) THEN
+    CALL CheckPeriodicSides(EnlargeBGM)
+    CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
+  END IF
+  IF (PartBound%UseRotPeriodicBC) THEN
+    CALL CheckRotPeriodicSides(EnlargeBGM)
+    CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
+  END IF
+  IF (PartBound%UseInterPlaneBC) THEN
+    CALL CheckInterPlaneSides(EnlargeBGM)
+    CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
+  END IF
   ! Remove elements if the halo proc contains only internal elements, i.e. we cannot possibly reach the halo element
   !
   !   CN1     CN2    > If a compute-node contains large changes in element size, internal elements might intersect with
@@ -1070,9 +1085,15 @@ ElemLoop: DO iElem = offsetElemMPI(iProc-1)+1,offsetElemMPI(iProc)
     END DO ! iProc = 1,nProcessors
   END IF
 
+  IF(readFEMconnectivity)THEN
+    ElemInfoSizeLoc = ALLELEMINFOSIZE
+  ELSE
+    ElemInfoSizeLoc = ELEMINFOSIZE
+  END IF ! readFEMconnectivity
+
   ! Mortar sides: Only multi-node
   DO iElem = firstElem, lastElem
-    ASSOCIATE(posElem => (iElem-1)*ELEMINFOSIZE + (ELEM_HALOFLAG-1))
+    ASSOCIATE(posElem => (iElem-1)*ElemInfoSizeLoc + (ELEM_HALOFLAG-1))
     CALL MPI_FETCH_AND_OP(dummyInt,ElemDone,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_NO_OP,ElemInfo_Shared_Win,iError)
     CALL MPI_WIN_FLUSH(0,ElemInfo_Shared_Win,iError)
     END ASSOCIATE
@@ -1091,7 +1112,7 @@ ElemLoop: DO iElem = offsetElemMPI(iProc-1)+1,offsetElemMPI(iProc)
 
           ! Element not previously flagged
           IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).LT.1) THEN
-            ASSOCIATE(posElem => (ElemID-1)*ELEMINFOSIZE + (ELEM_HALOFLAG-1))
+            ASSOCIATE(posElem => (ElemID-1)*ElemInfoSizeLoc + (ELEM_HALOFLAG-1))
               ! Attention: This can produce ElemInfo_Shared(ELEM_HALOFLAG,ElemID) = 4 when Mortar interfaces are present
               CALL MPI_FETCH_AND_OP(haloChange,dummyInt,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_REPLACE,ElemInfo_Shared_Win,iError)
               CALL MPI_WIN_FLUSH(0,ElemInfo_Shared_Win,iError)
@@ -1834,10 +1855,11 @@ IF(StringBeginsWith(DepositionType,'shape_function') & ! FIBGM needed for depo o
   .OR. GEO%ForceFIBGM ) THEN
     DeleteFIBGM=.FALSE.
 END IF
-! FIBGM needed in every non-initial emmision except cell_local and background
+! FIBGM needed in every emmision except cell_local and background
 DO iSpec=1,nSpecies
   DO iInit=1,Species(iSpec)%NumberOfInits
-    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local'.AND.Species(iSpec)%Init(iInit)%ParticleEmissionType.GT.0) THEN
+    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local'.AND.&
+       TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'background') THEN
       DeleteFIBGM=.FALSE.
     END IF
   END DO
@@ -1883,7 +1905,7 @@ USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 !USE MOD_PICDepo_Vars       ,ONLY: DoDeposition
 #endif /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1901,21 +1923,9 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #if USE_LOADBALANCE
 IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
-  ! Mapping arrays are only allocated if not running on one node
-  ! IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
-  !   CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
-  ! END IF ! nComputeNodeProcessors.NE.nProcessors_Global
   CALL UNLOCK_AND_FREE(GlobalSide2CNTotalSide_Shared_Win)
 #if USE_LOADBALANCE
 END IF
-IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) )THEN
-#endif /*USE_LOADBALANCE*/
-  ! Mapping arrays are only allocated if not running on one node
-  IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
-    CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
-  END IF ! nComputeNodeProcessors.NE.nProcessors_Global
-#if USE_LOADBALANCE
-END IF ! .NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition)
 #endif /*USE_LOADBALANCE*/
 
 CALL UNLOCK_AND_FREE(BoundsOfElem_Shared_Win)
@@ -1930,6 +1940,7 @@ IF(GEO%InitFIBGM) THEN
 END IF
 ! Mapping arrays are only allocated if not running on one node
 IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
+  CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
   CALL UNLOCK_AND_FREE(CNTotalElem2GlobalElem_Shared_Win)
 END IF ! nComputeNodeProcessors.NE.nProcessors_Global
 CALL UNLOCK_AND_FREE(CNTotalSide2GlobalSide_Shared_Win)
@@ -1940,11 +1951,6 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #if USE_LOADBALANCE
 IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
-  ! Mapping arrays are only allocated if not running on one node
-  ! IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
-  !   ADEALLOCATE(GlobalElem2CNTotalElem)
-  !   ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
-  ! END IF ! nComputeNodeProcessors.NE.nProcessors_Global
   ADEALLOCATE(GlobalSide2CNTotalSide)
   ADEALLOCATE(GlobalSide2CNTotalSide_Shared)
 #if USE_LOADBALANCE
@@ -1973,26 +1979,13 @@ END IF
 IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
   ADEALLOCATE(CNTotalElem2GlobalElem)
   ADEALLOCATE(CNTotalElem2GlobalElem_Shared)
+  ADEALLOCATE(GlobalElem2CNTotalElem)
+  ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
 END IF ! nComputeNodeProcessors.NE.nProcessors_Global
 ADEALLOCATE(CNTotalSide2GlobalSide)
 ADEALLOCATE(CNTotalSide2GlobalSide_Shared)
 
 CALL FinalizeHaloInfo()
-
-#if USE_LOADBALANCE
-! This will be deallocated in FinalizeDeposition() when using load balance
-!IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)).AND.DoDeposition) )THEN
-! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
-IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) )THEN
-#endif /*USE_LOADBALANCE*/
-  ! Mapping arrays are only allocated if not running on one node
-  IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
-    ADEALLOCATE(GlobalElem2CNTotalElem)
-    ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
-  END IF ! nComputeNodeProcessors.NE.nProcessors_Global
-#if USE_LOADBALANCE
-END IF ! .NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition)
-#endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 
 END SUBROUTINE FinalizeBGM
@@ -2007,7 +2000,7 @@ SUBROUTINE WriteHaloInfo()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem,ELEM_HALOFLAG
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED
@@ -2108,7 +2101,7 @@ SUBROUTINE CheckPeriodicSides(EnlargeBGM)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,ELEM_HALOFLAG
 USE MOD_MPI_Shared_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems
@@ -2145,7 +2138,7 @@ DO iElem = firstElem,lastElem
   BoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,iElem)),                                                   &
                                SUM(   BoundsOfElem_Shared(1:2,2,iElem)),                                                   &
                                SUM(   BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
-  BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem),                     &
+  BoundsOfElemCenter(4) = VECNORM3D ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem),                     &
                                       BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem),                     &
                                       BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
 
@@ -2157,7 +2150,7 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
     LocalBoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,iLocElem)),                                         &
                                       SUM(   BoundsOfElem_Shared(1:2,2,iLocElem)),                                         &
                                       SUM(   BoundsOfElem_Shared(1:2,3,iLocElem)) /) / 2.
-    LocalBoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem),        &
+    LocalBoundsOfElemCenter(4) = VECNORM3D ((/ BoundsOfElem_Shared(2  ,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem),        &
                                              BoundsOfElem_Shared(2  ,2,iLocElem)-BoundsOfElem_Shared(1,2,iLocElem),        &
                                              BoundsOfElem_Shared(2  ,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
 
@@ -2167,7 +2160,7 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
         ! check two directions
         DO iDir = -1, 1, 2
           ! check if element is within halo_eps of periodically displaced element
-          IF (VECNORM( BoundsOfElemCenter(1:3) + GEO%PeriodicVectors(1:3,1)*REAL(iDir) - LocalBoundsOfElemCenter(1:3))&
+          IF (VECNORM3D( BoundsOfElemCenter(1:3) + GEO%PeriodicVectors(1:3,1)*REAL(iDir) - LocalBoundsOfElemCenter(1:3))&
                   .GT. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4)) CYCLE
 
           ! add element back to halo region
@@ -2185,7 +2178,7 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
 
           DO iDir = -1, 1, 2
             ! check if element is within halo_eps of periodically displaced element
-            IF (VECNORM( BoundsOfElemCenter(1:3)                                                           &
+            IF (VECNORM3D( BoundsOfElemCenter(1:3)                                                           &
                       + GEO%PeriodicVectors(1:3,iPeriodicVector)*REAL(iDir) - LocalBoundsOfElemCenter(1:3))&
                       .GT. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4)) CYCLE
 
@@ -2204,7 +2197,7 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
             DO iDir = -1, 1, 2
               DO jDir = -1, 1, 2
                 ! check if element is within halo_eps of periodically displaced element
-                IF (VECNORM( BoundsOfElemCenter(1:3)                                                             &
+                IF (VECNORM3D( BoundsOfElemCenter(1:3)                                                             &
                           + GEO%PeriodicVectors(1:3,iPeriodicVector)*REAL(iDir)                                  &
                           + GEO%PeriodicVectors(1:3,jPeriodicVector)*REAL(jDir) - LocalBoundsOfElemCenter(1:3) ) &
                           .GT. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4)) CYCLE
@@ -2229,7 +2222,7 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
           ! check if element is within halo_eps of periodically displaced element
           DO iDir = -1, 1, 2
             ! check if element is within halo_eps of periodically displaced element
-            IF (VECNORM( BoundsOfElemCenter(1:3)                                                           &
+            IF (VECNORM3D( BoundsOfElemCenter(1:3)                                                           &
                       + GEO%PeriodicVectors(1:3,iPeriodicVector)*REAL(iDir) - LocalBoundsOfElemCenter(1:3))&
                       .GT. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4)) CYCLE
 
@@ -2246,7 +2239,7 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
             DO iDir = -1, 1, 2
               DO jDir = -1, 1, 2
                 ! check if element is within halo_eps of periodically displaced element
-                IF (VECNORM( BoundsOfElemCenter(1:3)                                                             &
+                IF (VECNORM3D( BoundsOfElemCenter(1:3)                                                             &
                           + GEO%PeriodicVectors(1:3,iPeriodicVector)*REAL(iDir)                                  &
                           + GEO%PeriodicVectors(1:3,jPeriodicVector)*REAL(jDir) - LocalBoundsOfElemCenter(1:3) ) &
                           .GT. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4)) CYCLE
@@ -2266,7 +2259,7 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
           DO jDir = -1, 1, 2
             DO kDir = -1, 1, 2
             ! check if element is within halo_eps of periodically displaced element
-              IF (VECNORM( BoundsOfElemCenter(1:3)                                                             &
+              IF (VECNORM3D( BoundsOfElemCenter(1:3)                                                             &
                         + GEO%PeriodicVectors(1:3,1)*REAL(iDir)                                  &
                         + GEO%PeriodicVectors(1:3,2)*REAL(jDir)                                  &
                         + GEO%PeriodicVectors(1:3,3)*REAL(kDir) - LocalBoundsOfElemCenter(1:3) ) &
@@ -2303,7 +2296,7 @@ SUBROUTINE CheckRotPeriodicSides(EnlargeBGM)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_MPI_Shared_Vars
-USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
+USE MOD_Mesh_Vars               ,ONLY: nGlobalElems,ELEM_HALOFLAG
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems
 USE MOD_Particle_MPI_Vars       ,ONLY: halo_eps
 USE MOD_MPI_Vars                ,ONLY: offsetElemMPI
@@ -2343,9 +2336,9 @@ DO iElem = firstElem ,lastElem
   BoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,iElem)),                                                   &
                                SUM(   BoundsOfElem_Shared(1:2,2,iElem)),                                                   &
                                SUM(   BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
-  BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem),                     &
-                                      BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem),                     &
-                                      BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+  BoundsOfElemCenter(4) = VECNORM3D ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem),                     &
+                                        BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem),                     &
+                                        BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
 
   ! Sort out elements which are not at rotationally periodic BC
   IsPotentialRotElem = .TRUE.
@@ -2371,9 +2364,9 @@ DO iElem = firstElem ,lastElem
     LocalBoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,iLocElem)),                                         &
                                       SUM(   BoundsOfElem_Shared(1:2,2,iLocElem)),                                         &
                                       SUM(   BoundsOfElem_Shared(1:2,3,iLocElem)) /) / 2.
-    LocalBoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem),        &
-                                             BoundsOfElem_Shared(2  ,2,iLocElem)-BoundsOfElem_Shared(1,2,iLocElem),        &
-                                             BoundsOfElem_Shared(2  ,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
+    LocalBoundsOfElemCenter(4) = VECNORM3D ((/ BoundsOfElem_Shared(2  ,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem),        &
+                                               BoundsOfElem_Shared(2  ,2,iLocElem)-BoundsOfElem_Shared(1,2,iLocElem),        &
+                                               BoundsOfElem_Shared(2  ,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
     !   3. Rotate the global element and check the distance of all compute-node elements to
     !      this element and flag it with halo flag 3 if the element can be reached by a particle
     DO iPartBound = 1, nPartBound
@@ -2386,13 +2379,13 @@ DO iElem = firstElem ,lastElem
       END ASSOCIATE
       RotBoundsOfElemCenter(1:3) = RotateVectorAroundAxis(BoundsOfElemCenter(1:3),PartBound%RotPeriodicAxis,alpha)
       ! check if element is within halo_eps of rotationally displaced element
-      IF (VECNORM( RotBoundsOfElemCenter(1:3)                               &
+      IF (VECNORM3D( RotBoundsOfElemCenter(1:3)                               &
                  - LocalBoundsOfElemCenter(1:3))                            &
               .LE. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4))THEN
         ! add element back to halo region
         ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
         IF (EnlargeBGM .AND. GEO%InitFIBGM) CALL AddElementToFIBGM(iElem)
-      END IF ! VECNORM( ...
+      END IF ! VECNORM3D( ...
     END DO ! nPartBound
   END DO ! iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(ComputeNodeRootRank)+nComputeNodeElems
 END DO ! firstElem,lastElem
@@ -2414,7 +2407,7 @@ SUBROUTINE CheckInterPlaneSides(EnlargeBGM)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_MPI_Shared_Vars
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,ELEM_HALOFLAG
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
@@ -2451,9 +2444,9 @@ DO iPartBound = 1,nPartBound
     BoundsOfElemCenter(1:3) = (/    SUM(BoundsOfElem_Shared(1:2,1,iLocElem)),                                     &
                                     SUM(BoundsOfElem_Shared(1:2,2,iLocElem)),                                     &
                                     SUM(BoundsOfElem_Shared(1:2,3,iLocElem)) /) / 2.
-    BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem), &
-                                        BoundsOfElem_Shared(2,2,iLocElem)-BoundsOfElem_Shared(1,2,iLocElem),      &
-                                        BoundsOfElem_Shared(2,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
+    BoundsOfElemCenter(4) = VECNORM3D ((/ BoundsOfElem_Shared(2,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem), &
+                                          BoundsOfElem_Shared(2,2,iLocElem)-BoundsOfElem_Shared(1,2,iLocElem),      &
+                                          BoundsOfElem_Shared(2,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
     InterPlaneDistance = ABS(PartBound%RotAxisPosition(iPartBound) - BoundsOfElemCenter(k))
     IF(InterPlaneDistance.LE.halo_eps+BoundsOfElemCenter(4)) THEN
       InInterPlaneRegion = .TRUE.
@@ -2469,9 +2462,9 @@ DO iPartBound = 1,nPartBound
       BoundsOfElemCenter(1:3) = (/    SUM(BoundsOfElem_Shared(1:2,1,iElem)),                                     &
                                       SUM(BoundsOfElem_Shared(1:2,2,iElem)),                                     &
                                       SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
-      BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
-                                          BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),      &
-                                          BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+      BoundsOfElemCenter(4) = VECNORM3D ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
+                                            BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),      &
+                                            BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
       InterPlaneDistance = ABS(PartBound%RotAxisPosition(iPartBound) - BoundsOfElemCenter(k))
       IF(InterPlaneDistance.LE.halo_eps+BoundsOfElemCenter(4)) THEN
         ! add element back to halo region

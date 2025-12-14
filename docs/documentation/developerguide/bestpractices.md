@@ -6,14 +6,17 @@ The following collection of best practice guidelines are intended to prevent bug
 
 The general rules can be summarized as follows:
 
-1. The first rule of MPI is: You do not send subsets of arrays, only complete continuous data ranges.
-2. The second rule of MPI is: You do not send subsets of arrays, only complete continuous data ranges.
-3. Third rule of MPI: Someone sends non-continuous data, the simulation is over.
-4. Fourth rule: Only two processors to a single send-receive message.
-5. Fifth rule: Only one processor access (read or write) to a shared memory region.
+1. **The first rule of MPI is**: You do not send subsets of arrays, only complete continuous data ranges.
+2. **The second rule of MPI is**: You do not send subsets of arrays, only complete continuous data ranges.
+3. **Third rule of MPI**: Someone sends non-continuous data, the simulation is over.
+4. **Fourth rule**: Only two processors to a single send-receive message. One sender and one receiver, no more and no less.
+5. **Fifth rule**: Only one processor access (read or write) to a shared memory region.
+6. **Sixth rule**: After nullification of a shared array follows WIN_SYNC and BARRIER because until the sync is complete the status of the memory is undefined, i.e., old or new value or utter nonsense.
 
 Please also read the general implementation information and, e.g., mappings used for elements, sides and nodes in the chapter
 {ref}`developerguide/mpi:MPI Implementation`.
+
+If you want to break the first/second rule, remember that in FORTRAN the last dimension can be used for slicing.
 
 ## Shared Memory Windows
 
@@ -132,3 +135,64 @@ This might be due to the output to .h5, which could reflect the previous section
 deeper the Lustre file system itself.
 If this problem occurs, the corrupted particles must be removed from the .h5 file by hand if a restart from such a corrupted file is
 performed in order to prevent piclas from crashing.
+
+## CollectiveStop
+When using the `CALL abort(__STAMP__,'ERROR ...')` subroutine, each MPI process that encounters this
+call emits an output to std.out, which can result in a huge amount of output when running on hundreds
+or thousands of processes, especially if an error in the .ini files produces the error in the initialization step.
+To prevent excessive output to std.out, the `CollectiveStop` subroutine has been created.
+```
+!==================================================================================================================================
+!> \brief Safely terminate program using a soft MPI_FINALIZE in the MPI case and write the error message only on the root.
+!>
+!> Safely terminate program using a soft MPI_FINALIZE in the MPI case and writes the error message only on the root.
+!> Terminate program using a soft MPI_FINALIZE in the MPI case and write the error message only on the root.
+!> This routine can only be used if ALL processes are guaranteed to generate the same error at the same time!
+!> Prime use is to exit PICLAS without MPI errors and with a single error message if some parameters are not set in the init
+!> routines or a file is not found.
+!>
+!> Criteria where CollectiveStop may be used:
+!> 0. In case of doubt stick with Abort, which is always safe!
+!> 1. A routine is BY DESIGN (!) called by all processes, i.e. does not permit to be called by single processes or subgroups.
+!> 2. The criteria for the CollectiveStop must be identical among all processors.
+!> 3. The routine is only used during the init phase.
+!> 4. The error must not originate from MPI errors (e.g. during MPI init)
+!> 5. The error must not originate from checking roundof errors (e.g. accuracy of interpolation matrices)
+!>
+!==================================================================================================================================
+```
+An example where `CollectiveStop` should be used instead of `abort` is in `gradients.f90`
+
+```
+GradLimiterType=GETINT('Grad-LimiterType')
+GradLimVktK=GETREAL('Grad-VktK')
+SELECT CASE(GradLimiterType)
+CASE(0)
+  LBWRITE(UNIT_stdOut,*)'Limiter = 0 -> first order FV'
+CASE(1) !minmax
+  LBWRITE(UNIT_stdOut,*)'Using Barth-Jespersen Limiter'
+CASE(4) !venkatakrishnan
+  LBWRITE(UNIT_stdOut,*)'Using Venkatakrishnan limiter with K =', GradLimVktK
+CASE(9) ! no limiter (central)
+  LBWRITE(UNIT_stdOut,*)'Not using any limiter'
+CASE DEFAULT
+  CALL abort(__STAMP__,'Limiter type not implemented.')
+END SELECT
+```
+which should read
+```
+GradLimiterType=GETINT('Grad-LimiterType')
+GradLimVktK=GETREAL('Grad-VktK')
+SELECT CASE(GradLimiterType)
+CASE(0)
+  LBWRITE(UNIT_stdOut,*)'Limiter = 0 -> first order FV'
+CASE(1) !minmax
+  LBWRITE(UNIT_stdOut,*)'Using Barth-Jespersen Limiter'
+CASE(4) !venkatakrishnan
+  LBWRITE(UNIT_stdOut,*)'Using Venkatakrishnan limiter with K =', GradLimVktK
+CASE(9) ! no limiter (central)
+  LBWRITE(UNIT_stdOut,*)'Not using any limiter'
+CASE DEFAULT
+  CALL CollectiveStop(__STAMP__,'Limiter type not implemented.')
+END SELECT
+```
