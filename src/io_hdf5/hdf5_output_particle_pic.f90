@@ -240,7 +240,7 @@ REAL,INTENT(IN)     :: OutputTime
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER,PARAMETER              :: nVarOut=1
+INTEGER,PARAMETER              :: nVarOut=2
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),PARAMETER   :: DataSetName='SurfNodeSource'
@@ -261,6 +261,7 @@ FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
 IF(MPIRoot)THEN
   ALLOCATE(StrVarNames(1:nVarOut))
   StrVarNames(1)='SurfaceChargeDensity'
+  StrVarNames(2)='SurfaceArea'
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurfNodeSource',nVarOut,StrArray      = StrVarNames)
   CALL WriteAttributeToHDF5(File_ID,'nDepoSurfSides'        ,1      ,IntegerScalar = nDepoSurfSides)
@@ -285,11 +286,11 @@ IF(MPIRoot)THEN
     !                       collective  = .TRUE. , RealArray = SurfNodeSource)
     CALL WriteArrayToHDF5(DataSetName = TRIM(DataSetName)      , &
                           rank        = 2                      , &
-                          nValGlobal  = (/2_IK, nDofsMapping/) , &
-                          nVal        = (/2_IK, nDOFOutput  /) , &
-                          offset      = (/0_IK, offsetDOF   /) , &
-                          collective  = .FALSE. , RealArray = &
-                          TRANSPOSE(RESHAPE((/SurfNodeSource,SurfNodeArea/),(/nDofsMapping,2_IK/))))
+                          nValGlobal  = (/nVarOut, nDofsMapping/) , &
+                          nVal        = (/nVarOut, nDOFOutput  /) , &
+                          offset      = (/0_IK   , offsetDOF   /) , &
+                          collective  = .FALSE.  , RealArray = &
+                          TRANSPOSE(RESHAPE((/SurfNodeSource,SurfNodeArea/),(/nDofsMapping,nVarOut/))))
     CALL CloseDataFile()
   END ASSOCIATE
 END IF ! MPIRoot

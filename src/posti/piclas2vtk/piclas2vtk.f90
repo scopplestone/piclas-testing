@@ -1750,7 +1750,7 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: ProjectName
 USE MOD_IO_HDF5                 ,ONLY: HSize
-USE MOD_HDF5_Input              ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray
+USE MOD_HDF5_Input              ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray,GetVarnames
 USE MOD_Interpolation           ,ONLY: GetVandermonde
 USE MOD_ChangeBasis             ,ONLY: ChangeBasis2D
 ! USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVISU,N_Inter
@@ -1776,7 +1776,7 @@ CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)              :: FileString, File_Type
-CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
+CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:),VarNamesSurf_HDF52(:)
 INTEGER                         :: nDims, nVarSurf, nSurfaceNodes, NonUniqueGlobalSideID, iVisuSide
 INTEGER                         :: NonUniqueNodeID,FEMVertexID,iNode
 REAL                            :: OutputTime
@@ -1788,6 +1788,7 @@ INTEGER,ALLOCATABLE             :: ConnectInfo(:,:)
 INTEGER,PARAMETER               :: data_size=4
 INTEGER                         :: NodeSwitch(4),iDepoSurfNodeID,offsetNode,iSurfNode!,iSide,Nloc,p,q
 CHARACTER(LEN=255),PARAMETER    :: SurfNodeSourceDataset='SurfNodeSource'
+LOGICAL                         :: VarNamesSurfNodeSourceExists
 !===================================================================================================================================
 ! Build vertex mappings
 IF(.NOT.InitDepoSurfNodesIsDone) CALL InitDepoSurfNodes() ! Get nDepoSurfNodes
@@ -1801,11 +1802,13 @@ CALL ReadAttribute(File_ID , 'Time'             , 1 , RealScalar = OutputTime)
 CALL GetDataSize(File_ID,TRIM(SurfNodeSourceDataset),nDims,HSize)
 DEALLOCATE(HSize)
 ! nDepoSurfNodes = INT(HSize(1),2)
-nVarSurf = 1
+CALL GetVarnames('VarNamesSurfNodeSource',VarNamesSurf_HDF52,VarNamesSurfNodeSourceExists,nVarSurf)
+IF(.NOT.VarNamesSurfNodeSourceExists) CALL abort(__STAMP__,' VarNamesSurfNodeSource not found in .h5 file')
+IF(nVarSurf.GT.1) nVarSurf = 1 ! TODO: Remove this when conversion of all properties is implemented
 ALLOCATE(VarNamesSurf_HDF5(nVarSurf))
-CALL ReadAttribute(File_ID,'VarNamesSurfNodeSource',nVarSurf,StrArray=VarNamesSurf_HDF5(1:nVarSurf))
-ALLOCATE(SurfNodeSourceH5(2,nDepoSurfNodes))
+VarNamesSurf_HDF5 = VarNamesSurf_HDF52(1)
 ! Read the surface charge data on the FEM vertices
+ALLOCATE(SurfNodeSourceH5(2,nDepoSurfNodes))
 CALL ReadArray(TRIM(SurfNodeSourceDataset),2,(/2_IK,INT(nDepoSurfNodes,IK)/),0_IK,2,RealArray=SurfNodeSourceH5)
   ! print*,"ROOT: ConvertSurfNodeSourceData(), which read SurfNodeArea"
   ! read*
@@ -1866,6 +1869,8 @@ DO NonUniqueGlobalSideID = 1,nNonUniqueGlobalSides
     iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
     ! Set surface charge value
     SurfOutputData(1,1,1,0,iSurfNode) = SurfNodeSourceH5(1,iDepoSurfNodeID)/SurfNodeSourceH5(2,iDepoSurfNodeID)
+    ! Output of surface area
+    ! SurfOutputData(1,1,1,0,iSurfNode) = SurfNodeSourceH5(2,iDepoSurfNodeID)
 
   END DO ! iNode = 1,4
   offsetNode = offsetNode + 4

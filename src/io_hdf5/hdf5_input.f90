@@ -383,27 +383,29 @@ LBWRITE(UNIT_stdOut,'(132("-"))')
 END SUBROUTINE GetDataProps
 
 
-SUBROUTINE GetVarnames(AttribName,VarNames,AttribExists)
+SUBROUTINE GetVarnames(AttribName,VarNames,AttribExists,AttribDim)
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)                :: AttribName
 CHARACTER(LEN=255),ALLOCATABLE,INTENT(OUT) :: VarNames(:)
 LOGICAL,INTENT(OUT)                        :: AttribExists
+INTEGER,INTENT(OUT)                        :: AttribDim
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER  :: dims, nVal
+INTEGER  :: dims
 !===================================================================================================================================
 SDEALLOCATE(VarNames)
 CALL DatasetExists(File_ID,AttribName,AttribExists,attrib=.TRUE.)
+AttribDim = 0
 IF (AttribExists) THEN
   ! get size of array
   CALL GetAttributeSize(File_ID,AttribName,dims,HSize)
-  nVal=INT(HSize(1))
+  AttribDim=INT(HSize(1))
   DEALLOCATE(HSize)
-  ALLOCATE(VarNames(nVal))
+  ALLOCATE(VarNames(AttribDim))
 
   ! read variable names
-  CALL ReadAttribute(File_ID,TRIM(AttribName),nVal,StrArray=VarNames)
+  CALL ReadAttribute(File_ID,TRIM(AttribName),AttribDim,StrArray=VarNames)
 END IF
 END SUBROUTINE GetVarnames
 
