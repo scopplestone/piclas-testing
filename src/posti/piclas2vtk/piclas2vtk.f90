@@ -1867,10 +1867,20 @@ DO NonUniqueGlobalSideID = 1,nNonUniqueGlobalSides
     FEMVertexID = NonUniqueGlobalNodeIDToFEMVertexID(NonUniqueNodeID)
     ! Get surface deposition node index
     iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
-    ! Set surface charge value
+    ! Set surface charge density value
     SurfOutputData(1,1,1,0,iSurfNode) = SurfNodeSourceH5(1,iDepoSurfNodeID)/SurfNodeSourceH5(2,iDepoSurfNodeID)
+
+    ! Output of surface charge without considering the area for testing
+    ! SurfOutputData(1,1,1,0,iSurfNode) = SurfNodeSourceH5(1,iDepoSurfNodeID)
+
     ! Output of surface area
     ! SurfOutputData(1,1,1,0,iSurfNode) = SurfNodeSourceH5(2,iDepoSurfNodeID)
+
+    ! Output of y-component for testing
+    ! SurfOutputData(1,1,1,0,iSurfNode) =  NodeCoords_Shared(2,NonUniqueNodeID)
+
+    ! Output of z-component for testing
+    ! SurfOutputData(1,1,1,0,iSurfNode) =  NodeCoords_Shared(3,NonUniqueNodeID)
 
   END DO ! iNode = 1,4
   offsetNode = offsetNode + 4

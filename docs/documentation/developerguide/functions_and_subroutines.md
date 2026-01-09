@@ -9,7 +9,7 @@ This chapter contains a summary of useful functions and subroutines that might b
 | `UNITVECTOR` | `MOD_Globals` | 3D vector      | 3D vector  | Normalizes a given vector by dividing all vectors entries by the vector's magnitude                        |
 | `CROSSNORM`  | `MOD_Globals` | two 3D vectors | 3D vector  | Computes the cross product of two 3-dimensional vectors: cross=v1 x v2 and normalizes the resulting vector |
 | `CROSS`      | `MOD_Globals` | two 3D vectors | 3D vector  | Computes the cross product of two 3-dimensional vectors: cross=v1 x v2                                     |
-| `VECNORM`    | `MOD_Globals` | 3D vector      | `REAL`     | Computes the Euclidean norm (length) of a vector                                                           |
+| `VECNORM3D`  | `MOD_Globals` | 3D vector      | `REAL`     | Computes the Euclidean norm (length) of a vector                                                           |
 | `DOTPRODUCT` | `MOD_Globals` | 3D vector      | `REAL`     | Computes the dot product of a vector with itself                                                           |
 
 ## Particle Functions and Subroutines

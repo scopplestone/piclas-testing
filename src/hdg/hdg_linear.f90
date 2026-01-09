@@ -335,7 +335,7 @@ DO BCsideID=1,nDistriCapBCsides
   DO q=0,1; DO p=0,1
     ! Get local node index
     ! TODO: this might be wrong
-    iNode = 2*q + p + 1
+    ! iNode = 2*q + p + 1
     ! Use mapping p,q -> iNode
     iNode = pq2iNode(p,q,SideID)
     ! IPWRITE(*,*) 'p,q,iNode,2*q + p + 1:', p,q,iNode,2*q + p + 1
