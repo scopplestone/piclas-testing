@@ -745,6 +745,7 @@ END SUBROUTINE BuildSurfVdm
 !===================================================================================================================================
 SUBROUTINE Buildpq2iNode(SideID,SubSideAreaEquiN1)
 ! MODULES
+USE MOD_Globals            ,ONLY: MPI_COMM_WORLD
 USE MOD_Preproc
 USE MOD_Globals            ,ONLY: UNIT_stdOut,abort,VECNORM3D,myrank
 USE MOD_PICDepo_Vars       ,ONLY: IsDepoSurfSide,Vdm_N_EQ,pq2iNode
@@ -753,6 +754,8 @@ USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: SideToNonUniqueGlobalSide
 USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
+USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -761,7 +764,8 @@ INTEGER,INTENT(IN) :: SideID !< Local side index
 REAL,INTENT(OUT)   :: SubSideAreaEquiN1(0:1,0:1) !< Side areas
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iNode,p,q,Nloc,NonUniqueGlobalSideID,NonUniqueNodeID,NSideN1,iERROR
+INTEGER :: iNode,p,q,Nloc,NonUniqueGlobalSideID,NonUniqueNodeID,iERROR,i
+INTEGER,PARAMETER:: NSideN1 = 1 ! Set polynomial for equidistant basis
 REAL    :: SideAreaNloc,SideAreaEquiN1
 REAL    :: SurfElemEquiN1(0:1,0:1),Face_xGPEquiN1(3,0:1,0:1)
 REAL    :: tmp(1:3,0:Nmax,0:Nmax),tmp2(1:3,0:Nmax,0:Nmax)
@@ -772,9 +776,7 @@ NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,SideID) ! Get global side in
 ! Get polynomial degree of side (can be inner side or boundary side)
 Nloc = N_SurfMesh(SideID)%NSide
 
-! Set polynomial for equidistant basis
-NSideN1 = 1
-
+! IPWRITE(*,*) 'Nloc,NSideN1:', Nloc,NSideN1
 ! Get SurfElemEquiN1: Surface area elements on equidistant basis with N=1
 ! Check if the polynomial degree is one
 IF(Nloc.EQ.NSideN1)THEN
@@ -786,7 +788,7 @@ ELSE
   CALL ChangeBasis2D(1, Nloc, Nloc, N_Inter(Nloc)%sVdm_Leg, N_SurfMesh(SideID)%SurfElem(0:Nloc,0:Nloc) ,&
                                                                                   tmp(1,0:Nloc,0:Nloc) )
   ! Switch back to nodal basis
-  CALL ChangeBasis2D(1, NSideN1, NSideN1, N_Inter(NSideN1)%Vdm_Leg , tmp(1,0:Nloc   ,0:Nloc   ) ,&
+  CALL ChangeBasis2D(1, NSideN1, NSideN1, N_Inter(NSideN1)%Vdm_Leg , tmp(1,0:NSideN1,0:NSideN1) ,&
                                                                     tmp2(1,0:NSideN1,0:NSideN1) )
 END IF ! Nloc.EQ.NSideN1
 
@@ -826,7 +828,7 @@ ELSE
   CALL ChangeBasis2D(3, Nloc, Nloc, N_Inter(Nloc)%sVdm_Leg, N_SurfMesh(SideID)%Face_xGP(1:3,0:Nloc,0:Nloc) ,&
                                                                                     tmp(1:3,0:Nloc,0:Nloc) )
   ! Switch back to nodal basis
-  CALL ChangeBasis2D(3, NSideN1, NSideN1, N_Inter(NSideN1)%Vdm_Leg , tmp(1:3,0:Nloc   ,0:Nloc   ) ,&
+  CALL ChangeBasis2D(3, NSideN1, NSideN1, N_Inter(NSideN1)%Vdm_Leg , tmp(1:3,0:NSideN1,0:NSideN1) ,&
                                                                     tmp2(1:3,0:NSideN1,0:NSideN1) )
 END IF ! Nloc.EQ.NSideN1
 
@@ -837,14 +839,18 @@ CALL ChangeBasis2D(3, 1, 1, Vdm_N_EQ(NSideN1)%Vdm, tmp2(1:3,0:NSideN1,0:NSideN1)
 ! Note that the loop runs in the p-q-oriented system
 DO q=0,1; DO p=0,1
   ! Get local node index by checking the distance of the four cornder nodes
-  ! TODO: on inner BC this might not work because the side is not always oriented in the master ordering
+  ! TODO: on inner BC "2*q + p + 1" might not work because the side is not always oriented in the master ordering
   ! iNode = 2*q + p + 1
   CALL GetClosestNode(NonUniqueGlobalSideID,Face_xGPEquiN1(1:3,p,q),iNode)
+! IPWRITE(*,*) 'NonUniqueGlobalSideID,p,q,iNode:', NonUniqueGlobalSideID,p,q,iNode
+! IPWRITE(*,*) 'Face_xGPEquiN1(1:3,p,q)                             :', Face_xGPEquiN1(1:3,p,q)
+! IPWRITE(*,*) 'BezierControlPoints3D(1:3,p,q,NonUniqueGlobalSideID):', BezierControlPoints3D(1:3,p,q,NonUniqueGlobalSideID)
   ! Set mapping
   pq2iNode(p,q,SideID) = iNode
   ! IPWRITE(*,*) 'p,q,iNode,2*q + p + 1:', p,q,iNode,2*q + p + 1
   ! Mapping from non-unique global side index to non-unique global node index
   NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID)
+! IPWRITE(*,*) 'NodeCoords_Shared(1:3,NonUniqueNodeID)              :', NodeCoords_Shared(1:3,NonUniqueNodeID)
   ! Sanity check
   IF (NonUniqueNodeID.LE.0) THEN
     IPWRITE(*,*) 'NonUniqueNodeID,NonUniqueGlobalSideID,IsDepoSurfSide(NonUniqueGlobalSideID),SideID:',&
@@ -852,6 +858,17 @@ DO q=0,1; DO p=0,1
     CALL abort(__STAMP__,' NonUniqueNodeID <= 0')
   END IF ! NonUniqueNodeID.LE.0
 END DO; END DO ! q=0,1; DO p=0,1
+
+! Sanity check: Make sure that each node (1,2,3 and 4) occur exactly once
+i=0
+DO q=0,1; DO p=0,1
+  i=i+1
+  IF (COUNT(pq2iNode(:,:,SideID).EQ.i).GT.1) CALL abort(__STAMP__,' Error in Buildpq2iNode. Equal indices in pq2iNode(:,:,SideID)')
+  IF (COUNT(pq2iNode(:,:,SideID).EQ.i).LT.1) CALL abort(__STAMP__,' Error in Buildpq2iNode. Index missing in pq2iNode(:,:,SideID)')
+END DO; END DO ! q=0,1; DO p=0,clas2vtk1
+
+! IPWRITE(UNIT_StdOut,'(I0,A,I0)') ': v '//TRIM(__FILE__)//' +',__LINE__
+! IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 END SUBROUTINE Buildpq2iNode
 
@@ -861,11 +878,14 @@ END SUBROUTINE Buildpq2iNode
 !===================================================================================================================================
 SUBROUTINE CalculateSurfNodeArea(SideID,SubSideAreaEquiN1)
 ! MODULES
+USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Globals            ,ONLY: UNIT_stdOut,abort,VECNORM3D,myrank
 USE MOD_PICDepo_Vars       ,ONLY: FEMVertexID2DepoSurfNodeID,IsDepoSurfSide,SurfNodeArea,pq2iNode
 USE MOD_Mesh_Vars          ,ONLY: SideToNonUniqueGlobalSide
+USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID,NonUniqueGlobalNodeIDToFEMVertexID
+USE MOD_Interpolation_Vars ,ONLY: N_Inter,Nmax
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -875,6 +895,7 @@ REAL,INTENT(IN)     :: SubSideAreaEquiN1(0:1,0:1)   !< Side areas
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: iNode,FEMVertexID,iDepoSurfNodeID,p,q,NonUniqueGlobalSideID,NonUniqueNodeID
+INTEGER :: NodIndx(4), k, j, Nloc
 !===================================================================================================================================
 ! Get non-unique global side index from local side index
 NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,SideID) ! Get global side index
@@ -900,10 +921,33 @@ DO q=0,1; DO p=0,1
   ! Get surface deposition node index
   iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
   ! Add contribution to the FEM vertex (note that double periodicity collapses all four corner nodes into a single vertex index)
-  SurfNodeArea(iDepoSurfNodeID) = SurfNodeArea(iDepoSurfNodeID) + SubSideAreaEquiN1(p,q)
+  !SurfNodeArea(iDepoSurfNodeID) = SurfNodeArea(iDepoSurfNodeID) + SubSideAreaEquiN1(p,q)
+  ! TODO: on inner BC this might not work because the side is not always oriented in the master ordering
+  ! iNode = 2*q + p + 1
+  NodIndx(2*q + p + 1) = iDepoSurfNodeID
+  ! NodIndx(iNode) = iDepoSurfNodeID
+  !IPWRITE(*,*) 'p,q,2*q + p + 1,iDepoSurfNodeID:', p,q,2*q + p + 1,iDepoSurfNodeID
   ! IPWRITE(*,*) 'FEMVertexID,iDepoSurfNodeID,NonUniqueNodeID,SurfNodeArea(iDepoSurfNodeID):',&
   !               FEMVertexID,iDepoSurfNodeID,NonUniqueNodeID,SurfNodeArea(iDepoSurfNodeID)
 END DO; END DO ! q=0,1; DO p=0,1
+
+! TODO: on inner BC this might not work because the side is not always oriented in the master ordering
+!IPWRITE(*,*) 'iDepoSurfNodeID,SurfNodeArea(iDepoSurfNodeID):', iDepoSurfNodeID,SurfNodeArea(iDepoSurfNodeID)
+!SurfNodeArea(iDepoSurfNodeID) = 0.0
+Nloc = N_SurfMesh(SideID)%NSide
+DO j=0,Nloc;DO k=0,Nloc
+  ASSOCIATE(xGP => N_Inter(Nloc)%xGP, wGP => N_Inter(Nloc)%wGP)
+    ! CVWV cannot be accessed here with "0" because of the associate construct!
+    SurfNodeArea(NodIndx(1)) = SurfNodeArea(NodIndx(1)) + wGP(j)*wGP(k)*( (1.-xGP(j)) * (1.-xGP(k) )*N_SurfMesh(SideID)%SurfElem(j,k) )/4.
+    SurfNodeArea(NodIndx(2)) = SurfNodeArea(NodIndx(2)) + wGP(j)*wGP(k)*( (1.-xGP(j)) * (1.+xGP(k) )*N_SurfMesh(SideID)%SurfElem(j,k) )/4.
+    SurfNodeArea(NodIndx(4)) = SurfNodeArea(NodIndx(4)) + wGP(j)*wGP(k)*( (1.+xGP(j)) * (1.-xGP(k) )*N_SurfMesh(SideID)%SurfElem(j,k) )/4.
+    SurfNodeArea(NodIndx(3)) = SurfNodeArea(NodIndx(3)) + wGP(j)*wGP(k)*( (1.+xGP(j)) * (1.+xGP(k) )*N_SurfMesh(SideID)%SurfElem(j,k) )/4.
+  END ASSOCIATE
+END DO; END DO
+! IPWRITE(*,*) 'iDepoSurfNodeID,SurfNodeArea(iDepoSurfNodeID):', iDepoSurfNodeID,SurfNodeArea(iDepoSurfNodeID)
+
+! IPWRITE(UNIT_StdOut,'(I0,A,I0)') ': v '//TRIM(__FILE__)//' +',__LINE__
+! IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 END SUBROUTINE CalculateSurfNodeArea
 
@@ -913,6 +957,7 @@ END SUBROUTINE CalculateSurfNodeArea
 !===================================================================================================================================
 SUBROUTINE GetClosestNode(NonUniqueGlobalSideID,x,NodeIndex)
 ! MODULES
+USE MOD_Globals            ,ONLY: myrank
 USE MOD_Preproc
 USE MOD_Globals            ,ONLY: UNIT_stdOut,abort,VECNORM3D
 USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
@@ -933,6 +978,7 @@ REAL    :: norm,PartDistDepo(4)
 DO iNode = 1, 4
   ! Get the non-unique node index
   NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID)
+  ! IPWRITE(*,*) 'NonUniqueNodeID:', NonUniqueNodeID
   ! Sanity check
   IF(NonUniqueNodeID.LE.0) CALL abort(__STAMP__,'Wrong NonUniqueNodeID encountered in surface charge deposition init')
   ! Calculate the distance
@@ -951,6 +997,8 @@ END DO ! iNode = 1, 4
 
 ! Get index of maximum location
 NodeIndex = MAXLOC(PartDistDepo,DIM=1)
+! IPWRITE(*,*) 'PartDistDepo,NodeIndex:', PartDistDepo,NodeIndex
+
 END SUBROUTINE GetClosestNode
 
 

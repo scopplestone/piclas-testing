@@ -177,7 +177,7 @@ IF(.NOT.PDM%ParticleInside(PartID)) THEN
   IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) THEN
     CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
   ELSEIF(Do2DSurfaceCharge) THEN
-    IF(PartBound%UseSurfaceCharge(locBCID)) CALL DepositParticleOnSurface(ChargeImpact, PartPosImpact, GlobalElemID, SideID)
+    IF(PartBound%UseSurfaceCharge(locBCID)) CALL DepositParticleOnSurface(ChargeImpact, PartPosImpact, GlobalElemID, SideID, PartID)
   END IF
   ! Leave the routine (species index was already set to zero)
   RETURN
@@ -275,7 +275,7 @@ CASE (SEE_MODELS_ID)
         ChargeHole = -Species(ProductSpec(2))%ChargeIC*MPF
         ! Deposit the charge(s)
         DO iProd = 1, ProductSpecNbr
-          CALL DepositParticleOnSurface(ChargeHole, PartPosImpact, GlobalElemID, SideID)
+          CALL DepositParticleOnSurface(ChargeHole, PartPosImpact, GlobalElemID, SideID, PartID)
         END DO ! iProd = 1, ProductSpecNbr
       END IF ! PartBound%UseSurfaceCharge(locBCID)
     END IF ! DoDeposition.AND.DoDielectricSurfaceCharge
@@ -361,7 +361,7 @@ IF(Do2DSurfaceCharge.OR.(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locB
     ! Check what happened to the impacting particle
     IF(.NOT.PDM%ParticleInside(PartID))THEN
       ! Default case for SEE: Particle was deleted on surface contact -> deposit impacting charge
-      CALL DepositParticleOnSurface(ChargeImpact, PartPosImpact, GlobalElemID, SideID)
+      CALL DepositParticleOnSurface(ChargeImpact, PartPosImpact, GlobalElemID, SideID, PartID)
     ELSEIF(PDM%ParticleInside(PartID))THEN
       ! Only deposit if the species has changed (to avoid depositing zeroes in case of a reflection)
       IF(PartSpecImpact.NE.PartSpecies(PartID)) THEN
@@ -374,7 +374,7 @@ IF(Do2DSurfaceCharge.OR.(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locB
         ! Particle species may have been swapped: check difference in charge under the assumption that the weight remains the same
         ChargeRefl = Species(PartSpecies(PartID))%ChargeIC*ImpactWeight
         ! Calculate the charge difference between the impacting and reflecting particle
-        CALL DepositParticleOnSurface(ChargeImpact-ChargeRefl, PartPosImpact, GlobalElemID, SideID)
+        CALL DepositParticleOnSurface(ChargeImpact-ChargeRefl, PartPosImpact, GlobalElemID, SideID, PartID)
       END IF ! PartSpecImpact.NE.PartSpecies(PartID)
     END IF
   END IF ! PartBound%UseSurfaceCharge(locBCID)

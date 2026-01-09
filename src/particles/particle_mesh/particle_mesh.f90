@@ -326,11 +326,12 @@ DisplayLostParticles = GETLOGICAL('DisplayLostParticles')
 ! Ray tracing information to .h5 for debugging when using the radiation transport model or pure ray tracing
 PhotonModeBPO               = GETINT('PhotonModeBPO')
 ! Use TriaTracking methods for photon tracking or Bilinear methods (default is UsePhotonTriaTracking=T)
-IF(PerformRayTracing)THEN
+! TODO: Settings UsePhotonTriaTracking=F is required to build the BezierControlPoints. Can this be done in another way?
+! IF(PerformRayTracing)THEN
   UsePhotonTriaTracking = GETLOGICAL('UsePhotonTriaTracking')
-ELSE
-  UsePhotonTriaTracking = .TRUE.
-END IF ! PerformRayTracing
+! ELSE
+  ! UsePhotonTriaTracking = .TRUE.
+! END IF ! PerformRayTracing
 ! Activate output of emission particles by ray tracing SEE and ray tracing volume ionization to PartStateBoundary.h5 (with negative species IDs to indicate creation
 DoBoundaryParticleOutputRay = GETLOGICAL('DoBoundaryParticleOutputRay')
 ! Check if DoBoundaryParticleOutputHDF5 is already activated and PartStateBoundary therefore already allocated

@@ -337,7 +337,7 @@ DO iSurfSide = 1, nComputeNodeSurfSides
               ! Calculate the opposite charge
               ChargeHole = -Species(SpecID)%ChargeIC*MPF
               ! Deposit the charge(s)
-              CALL DepositParticleOnSurface(ChargeHole, PartPosSurf(1:3), GlobElemID, SideID)
+              CALL DepositParticleOnSurface(ChargeHole, PartPosSurf(1:3), GlobElemID, SideID, 0)
             END IF ! PartBound%UseSurfaceCharge(locBCID)
           END IF ! Do2DSurfaceCharge
 #endif /*USE_HDG*/
