@@ -666,11 +666,6 @@ DO SideID=1,nBCSides
   END SELECT ! BCType
 END DO
 DEALLOCATE(Vdm_N_EQ)
-! print*," "
-! IPWRITE(*,*) 'DoRestart:',DoRestart
-! IPWRITE(*,*) 'Buildpq2iNode',.True.
-! IPWRITE(*,*) 'CalculateSurfNodeArea:',.NOT.DoRestart
-! read*
 
 ! DEALLOCATE(IsDepoSurfNode)
 #if USE_MPI
@@ -938,8 +933,8 @@ Nloc = N_SurfMesh(SideID)%NSide
 DO j=0,Nloc;DO k=0,Nloc
   ASSOCIATE(xGP => N_Inter(Nloc)%xGP, wGP => N_Inter(Nloc)%wGP)
     ! CVWV cannot be accessed here with "0" because of the associate construct!
-    SurfNodeArea(NodIndx(1)) = SurfNodeArea(NodIndx(1)) + wGP(j)*wGP(k)*( (1.-xGP(j)) * (1.-xGP(k) )*N_SurfMesh(SideID)%SurfElem(j,k) )/4.
-    SurfNodeArea(NodIndx(2)) = SurfNodeArea(NodIndx(2)) + wGP(j)*wGP(k)*( (1.-xGP(j)) * (1.+xGP(k) )*N_SurfMesh(SideID)%SurfElem(j,k) )/4.
+    SurfNodeArea(NodIndx(2)) = SurfNodeArea(NodIndx(2)) + wGP(j)*wGP(k)*( (1.-xGP(j)) * (1.-xGP(k) )*N_SurfMesh(SideID)%SurfElem(j,k) )/4.
+    SurfNodeArea(NodIndx(1)) = SurfNodeArea(NodIndx(1)) + wGP(j)*wGP(k)*( (1.-xGP(j)) * (1.+xGP(k) )*N_SurfMesh(SideID)%SurfElem(j,k) )/4.
     SurfNodeArea(NodIndx(4)) = SurfNodeArea(NodIndx(4)) + wGP(j)*wGP(k)*( (1.+xGP(j)) * (1.-xGP(k) )*N_SurfMesh(SideID)%SurfElem(j,k) )/4.
     SurfNodeArea(NodIndx(3)) = SurfNodeArea(NodIndx(3)) + wGP(j)*wGP(k)*( (1.+xGP(j)) * (1.+xGP(k) )*N_SurfMesh(SideID)%SurfElem(j,k) )/4.
   END ASSOCIATE

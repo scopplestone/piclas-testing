@@ -18,6 +18,11 @@ MODULE MOD_PICDepo_Tools
 !===================================================================================================================================
 IMPLICIT NONE
 PRIVATE
+INTERFACE DepositParticleOnSurface
+  ! MODULE PROCEDURE DepositParticleOnSurface1
+  ! MODULE PROCEDURE DepositParticleOnSurface2
+  MODULE PROCEDURE DepositParticleOnSurface3
+END INTERFACE
 !===================================================================================================================================
 PUBLIC:: DepositParticleOnNodes,CalcCellLocNodeVolumes,ReadTimeAverage,beta,DepositPhotonSEEHoles
 PUBLIC:: DepositParticleOnSurface
@@ -116,17 +121,17 @@ ReferenceSurface(1:3,1,1) = (/ 1.0,  1.0, 0.0/)
 IF(ElementOnProc(GlobalElemID)) CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 
-IPWRITE(*,*) 'TrackInfo%xi,TrackInfo%eta:', TrackInfo%xi,TrackInfo%eta
+! IPWRITE(*,*) 'TrackInfo%xi,TrackInfo%eta:', TrackInfo%xi,TrackInfo%eta
 
 lengthPartTrajectory = VECNORM3D(TrackInfo%PartTrajectory(1:3))
-IPWRITE(*,*) 'TrackInfo%PartTrajectory,lengthPartTrajectory,TrackInfo%alpha:',&
-              TrackInfo%PartTrajectory,lengthPartTrajectory,TrackInfo%alpha
+! IPWRITE(*,*) 'TrackInfo%PartTrajectory,lengthPartTrajectory,TrackInfo%alpha:',&
+              ! TrackInfo%PartTrajectory,lengthPartTrajectory,TrackInfo%alpha
 CALL ComputeBiLinearIntersection(isHit,& ! OUT
                                  TrackInfo%PartTrajectory, lengthPartTrajectory, TrackInfo%alpha,& ! IN
                                  xi,eta,& ! OUT
                                  PartID,NonUniqueGlobalSideID) ! IN
 
-IPWRITE(*,*) 'xi,eta:', xi,eta
+! IPWRITE(*,*) 'xi,eta:', xi,eta
 ! xi=0.0
 ! eta=0.0
 IF (.NOT.isHit) THEN
@@ -207,7 +212,7 @@ ReferenceSurface(1:3,1,1) = (/ 0.0,  0.0, 0.0/)
     A3 = (1.0 - alpha1)*(      alpha2)
     A4 = (      alpha1)*(      alpha2)
 
-    IPWRITE(*,*) 'A1,A2,A3,A4,SUM:', A1,A2,A3,A4,SUM((/A1,A2,A3,A4/))
+    ! IPWRITE(*,*) 'A1,A2,A3,A4,SUM:', A1,A2,A3,A4,SUM((/A1,A2,A3,A4/))
 
   DO q=0,1; DO p=0,1
     ! Use mapping p,q -> iNode
@@ -218,8 +223,8 @@ ReferenceSurface(1:3,1,1) = (/ 0.0,  0.0, 0.0/)
     IF(NonUniqueNodeID.LE.0) CALL abort(__STAMP__,'Wrong NonUniqueNodeID encountered in DepositParticleOnSurface()')
     ! norm = VECNORM3D(NodeCoords_Shared(1:3,NonUniqueNodeID)-PartPos(1:3))
     norm = VECNORM3D(ReferenceSurface(1:3, p, q)-(/xi, eta, 0.0/))
-    IPWRITE(*,*) 'ReferenceSurface(1:3, p, q):', ReferenceSurface(1:3, p, q)
-    IPWRITE(*,*) '(/xi, eta, 0.0/)           :', (/xi, eta, 0.0/)
+    ! IPWRITE(*,*) 'ReferenceSurface(1:3, p, q):', ReferenceSurface(1:3, p, q)
+    ! IPWRITE(*,*) '(/xi, eta, 0.0/)           :', (/xi, eta, 0.0/)
     ! Get the unique FEM vertex index
     FEMVertexID = NonUniqueGlobalNodeIDToFEMVertexID(NonUniqueNodeID)
     ! Get surface deposition node index
@@ -236,8 +241,8 @@ ReferenceSurface(1:3,1,1) = (/ 0.0,  0.0, 0.0/)
     ELSEIF(p==1 .and. q==1)THEN
       PartDistDepo(iNode) = A4
     END IF
-    IPWRITE(*,*) 'iNode:', iNode
-    IPWRITE(*,*) 'PartDistDepo(iNode):', PartDistDepo(iNode)
+    ! IPWRITE(*,*) 'iNode:', iNode
+    ! IPWRITE(*,*) 'PartDistDepo(iNode):', PartDistDepo(iNode)
 
     IF(    p==0 .and. q==0)THEN
       PartDistDepo(iNode) = 1./A4
@@ -253,11 +258,11 @@ ReferenceSurface(1:3,1,1) = (/ 0.0,  0.0, 0.0/)
     DepoWeights(1) = (alpha1)*(1-alpha2)
     DepoWeights(4) = (alpha1)*  (alpha2)
     DepoWeights(3) = (1-alpha1)*  (alpha2)
-    IPWRITE(*,*) 'PartDistDepo(iNode):', PartDistDepo(iNode)
+    ! IPWRITE(*,*) 'PartDistDepo(iNode):', PartDistDepo(iNode)
 
     PartDistDepo(iNode) = SQRT((ReferenceSurface(2,p,q)-alpha2)**2) * SQRT((ReferenceSurface(1,p,q)-alpha1)**2)
-    IPWRITE(*,*) 'PartDistDepo(iNode):', PartDistDepo(iNode)
-    IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+    ! IPWRITE(*,*) 'PartDistDepo(iNode):', PartDistDepo(iNode)
+    ! IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
     ! PartDistDepo(iNode) = (ReferenceSurface(1,p,q)-alpha1) * (ReferenceSurface(2,p,q)-alpha2)
     ! IF(norm.GT.0.)THEN
     !   ! PartDistDepo(iNode) = SurfNodeArea(iDepoSurfNodeID)/norm
@@ -273,8 +278,8 @@ ReferenceSurface(1:3,1,1) = (/ 0.0,  0.0, 0.0/)
   END DO; END DO ! q=0,1; DO p=0,1
   DistSum = SUM(PartDistDepo(1:4))
 
-  IPWRITE(*,*) 'PartDistDepo,DistSum:', PartDistDepo,DistSum
-  IPWRITE(UNIT_StdOut,'(I0,A,I0)') ': v '//TRIM(__FILE__)//' +',__LINE__
+  ! IPWRITE(*,*) 'PartDistDepo,DistSum:', PartDistDepo,DistSum
+  ! IPWRITE(UNIT_StdOut,'(I0,A,I0)') ': v '//TRIM(__FILE__)//' +',__LINE__
   ! IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
   END ASSOCIATE
 
@@ -317,7 +322,7 @@ END SUBROUTINE DepositParticleOnSurface2
 
 
 
-SUBROUTINE DepositParticleOnSurface(Charge,PartPos,GlobalElemID,NonUniqueGlobalSideID,PartID)
+SUBROUTINE DepositParticleOnSurface1(Charge,PartPos,GlobalElemID,NonUniqueGlobalSideID,PartID)
 ! MODULES
 USE MOD_Globals
 ! USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
@@ -387,6 +392,7 @@ ASSOCIATE( SurfNodeSource => SurfNodeSourceMPI )
   ! Loop over the four side nodes
   localSideID = SideInfo_Shared(SIDE_LOCALID,NonUniqueGlobalSideID)
   CNElemID = GetCNElemID(GlobalElemID)
+  ! Get the 4 nNonUniqueGlobalNodes
   NodeID = ElemSideNodeID_Shared(1:4,localSideID,CNElemID)+1
   normalnorm = CROSSNORM(NodeCoords_Shared(1:3,NodeID(2))-NodeCoords_Shared(1:3,NodeID(1)),NodeCoords_Shared(1:3,NodeID(3))-NodeCoords_Shared(1:3,NodeID(1)))
   evec1 = UNITVECTOR(NodeCoords_Shared(1:3,NodeID(2))-NodeCoords_Shared(1:3,NodeID(1)))
@@ -537,7 +543,112 @@ END ASSOCIATE
 IF(ElementOnProc(GlobalElemID)) CALL LBElemPauseTime(GlobalElemID-offsetElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-END SUBROUTINE DepositParticleOnSurface
+END SUBROUTINE DepositParticleOnSurface1
+
+
+
+SUBROUTINE DepositParticleOnSurface3(Charge,PartPos,GlobalElemID,NonUniqueGlobalSideID,PartID)
+! MODULES
+USE MOD_Globals
+! USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
+! USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+#if USE_LOADBALANCE
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
+USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
+#endif /*USE_LOADBALANCE*/
+! USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared
+#if USE_MPI
+USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSourceMPI
+#else
+USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource
+#endif /*USE_MPI*/
+USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID
+USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
+! USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID_Shared
+USE MOD_PICDepo_Vars       ,ONLY: FEMVertexID2DepoSurfNodeID!,SurfNodeSymmetryFactor
+
+USE MOD_Particle_Mesh_Vars ,ONLY:SideInfo_Shared, ElemSideNodeID_Shared, NodeInfo_Shared
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
+USE MOD_Particle_Intersection  ,ONLY: ComputeBiLinearIntersection
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackInfo
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+REAL,INTENT(IN)                  :: Charge        !< Charge that is deposited on nodes
+REAL,INTENT(IN)                  :: PartPos(1:3)
+INTEGER,INTENT(IN)               :: GlobalElemID
+INTEGER,INTENT(IN)               :: NonUniqueGlobalSideID
+INTEGER,INTENT(IN)               :: PartID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+#if USE_LOADBALANCE
+REAL                             :: tLBStart
+#endif /*USE_LOADBALANCE*/
+INTEGER                          :: iNode
+REAL                             :: norm,PartDistDepo(4),DistSum
+INTEGER                          :: NonUniqueNodeID,FEMVertexID,iDepoSurfNodeID
+
+INTEGER                           :: localSideID, NonUniqueNodeIDtmp, CNElemID, NodeID(4), globnodetmp
+REAL                              :: normalnorm(3), evec1(3), evec2(3), Nodepointspro(1:2,4), PartPos2D(2)
+
+
+REAL                          :: xi(2)
+REAL                          :: P(2,4), F(2), dF_inv(2,2), s(2)
+REAL, PARAMETER               :: EPS=1E-10
+REAL                          :: T_inv(2,2), DP(2), T(2,2), xi_Out(2), alpha1, alpha2, DepoWeights(1:4)
+INTEGER :: i,j,k
+real :: xi2,eta2,lengthPartTrajectory,RandVal
+logical :: isHit
+!===================================================================================================================================
+! Skip neutral and reflected particles. Deposit only particles that are deleted on the surface or change their charge on contact
+! (e.g. neutralization)
+IF(ABS(Charge).LE.0.0) RETURN
+
+#if USE_LOADBALANCE
+! Only measure time if particle is deposited on local proc
+IF(ElementOnProc(GlobalElemID)) CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
+
+#if USE_MPI
+! Single-core: Use SurfNodeSource directly as SurfNodeSourceMPI does not exist
+! Multi-core: Use local container SurfNodeSourceMPI, which is later exchanged
+! between the adjacent processes and then added to SurfNodeSourceExt
+ASSOCIATE( SurfNodeSource => SurfNodeSourceMPI )
+#endif
+lengthPartTrajectory = VECNORM3D(TrackInfo%PartTrajectory(1:3))
+CALL ComputeBiLinearIntersection(isHit,& ! OUT
+                                 TrackInfo%PartTrajectory, lengthPartTrajectory, TrackInfo%alpha,& ! IN
+                                 xi2,eta2,& ! OUT
+                                 PartID,NonUniqueGlobalSideID) ! IN
+alpha1=0.5*(xi2+1.0)
+alpha2=0.5*(eta2+1.0)
+
+DepoWeights(2) = (1-alpha1)*(1-alpha2)
+DepoWeights(1) = (alpha1)*(1-alpha2)
+DepoWeights(4) = (alpha1)*  (alpha2)
+DepoWeights(3) = (1-alpha1)*  (alpha2)
+
+DO iNode = 1, 4
+  ! Get the non-unique node index
+  NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID)
+  ! Get the unique FEM vertex index
+  FEMVertexID = NonUniqueGlobalNodeIDToFEMVertexID(NonUniqueNodeID)
+  ! Get surface deposition node index
+  iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
+  ! Add charge contribution
+  SurfNodeSource(iDepoSurfNodeID) = SurfNodeSource(iDepoSurfNodeID) + DepoWeights(iNode)*Charge
+END DO ! iNode = 1, 4
+#if USE_MPI
+END ASSOCIATE
+#endif
+
+#if USE_LOADBALANCE
+! Only measure time if particle is deposited on local proc
+IF(ElementOnProc(GlobalElemID)) CALL LBElemPauseTime(GlobalElemID-offsetElem,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
+END SUBROUTINE DepositParticleOnSurface3
 
 
 FUNCTION Calc_inv2D(M)
