@@ -666,11 +666,6 @@ DO SideID=1,nBCSides
   END SELECT ! BCType
 END DO
 DEALLOCATE(Vdm_N_EQ)
-! print*," "
-! IPWRITE(*,*) 'DoRestart:',DoRestart
-! IPWRITE(*,*) 'Buildpq2iNode',.True.
-! IPWRITE(*,*) 'CalculateSurfNodeArea:',.NOT.DoRestart
-! read*
 
 ! DEALLOCATE(IsDepoSurfNode)
 #if USE_MPI
@@ -837,7 +832,6 @@ CALL ChangeBasis2D(3, 1, 1, Vdm_N_EQ(NSideN1)%Vdm, tmp2(1:3,0:NSideN1,0:NSideN1)
 
 ! Map surface charge from vertices to SideID surface with N=1
 ! Note that the loop runs in the p-q-oriented system
-print*,""
 DO q=0,1; DO p=0,1
   ! Get local node index by checking the distance of the four cornder nodes
   ! TODO: on inner BC "2*q + p + 1" might not work because the side is not always oriented in the master ordering
