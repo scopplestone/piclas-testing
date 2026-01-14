@@ -79,6 +79,8 @@ CALL addStrListEntry('CoupledPowerMode' , 'moving-average', 2)
 CALL addStrListEntry('CoupledPowerMode' , 'integrated'    , 3)
 #endif /*defined(PARTICLES)*/
 
+CALL prms%CreateRealOption(     'BGChargeDensity' , 'Background charge density [C/m^3] added to the right-hand side of the Poisson equation', '0.0')
+
 END SUBROUTINE DefineParametersEquation
 
 
@@ -115,6 +117,9 @@ LBWRITE(UNIT_stdOut,'(A)') ' INIT POISSON...'
 
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
+
+! Read in background charge density (if any)
+BGChargeDensity = GETREAL('BGChargeDensity','0.0')
 
 ! Sanity checks
 SELECT CASE (IniExactFunc)
@@ -911,6 +916,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: BoundsOfElem_Shared
 #endif /*PARTICLES*/
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Equation_Vars      ,ONLY: IniCenter,IniHalfwidth,IniAmplitude
+USE MOD_Equation_Vars      ,ONLY: BGChargeDensity
 #ifdef drift_diffusion
 USE MOD_FV_Vars            ,ONLY: U_FV
 USE MOD_Globals_Vars       ,ONLY: eps0, ElementaryCharge
@@ -1040,7 +1046,7 @@ IF(DoDeposition)THEN
       !* EXP( (Phi-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
     END IF
   END IF ! UseBRElectronFluid
-  resu(1)= - (PS_N(iElem)%PartSource(4,i,j,k)-source_e)/eps0
+  resu(1)= - (PS_N(iElem)%PartSource(4,i,j,k)-source_e+BGChargeDensity)/eps0
 END IF
 #endif /*defined(PARTICLES)*/
 END ASSOCIATE
