@@ -891,7 +891,7 @@ SpecIDSolid = PartSpecies(iPart)
 CNElemID = GetCNElemID(ElemID+offSetElem)
 ElemVolume = ElemVolume_Shared(CNElemID)
 RadiusSolid = SpecDSMC(SpecIDSolid)%dref / 2.0
-TempSolid   = PartIntEn(iPart)%EVib(1)
+TempSolid   = PartIntEn(iPart)%TSolid(1)
 
 IF(BGGas%NumberOfSpecies.GT.0) THEN
   ! Loop over a fixed number of particles
@@ -916,7 +916,11 @@ ELSE
       WeightGas     = Species(SpecID)%MacroParticleFactor
       VeloRel(1:3)  = PartState(4:6,locPart) - PartState(4:6,iPart)
       VeloRelAbs    = VECNORM3D(VeloRel)
-      ERotGas       = PartIntEn(locPart)%ERot(1)
+      IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
+        ERotGas       = PartIntEn(locPart)%ERot(1)
+      ELSE
+        ERotGas = 0.
+      END IF
       ! Force contribution
       Force(1:3) = Force(1:3) + CalcForceToSolidParticle(SpecID,WeightGas,RadiusSolid,VeloRelAbs,TempSolid,ElemVolume,VeloRel)
       ! Energy contribution
@@ -929,7 +933,7 @@ END IF ! BGG Distribution
 Pt(1:3) = Pt(1:3) + Force(1:3) / Species(SpecIDSolid)%MassIC
 
 IF(.NOT.SkipGranularUpdate) THEN
-  PartIntEn(iPart)%EVib = PartIntEn(iPart)%EVib + Energy * dtVar &
+  PartIntEn(iPart)%TSolid = PartIntEn(iPart)%TSolid + Energy * dtVar &
                             / ( SpecDSMC(SpecIDSolid)%SpecificHeatSolid * Species(SpecIDSolid)%MassIC )
 END IF
 

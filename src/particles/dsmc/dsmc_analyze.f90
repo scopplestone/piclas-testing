@@ -407,7 +407,7 @@ DO iPart=1,PDM%ParticleVecLength
             + (PartIntEn(iPart)%EVib(1) - SpecDSMC(iSpec)%EZeroPoint)*partWeight
           DSMC_Solution(9,iElem, iSpec) = DSMC_Solution(9,iElem, iSpec)+PartIntEn(iPart)%ERot(1)*partWeight
         ELSE IF(Species(iSpec)%InterID.EQ.100) THEN
-          DSMC_Solution(8,iElem, iSpec) = DSMC_Solution(8,iElem, iSpec) + PartIntEn(iPart)%EVib(1)*partWeight
+          DSMC_Solution(8,iElem, iSpec) = DSMC_Solution(8,iElem, iSpec) + PartIntEn(iPart)%TSolid(1)*partWeight
         END IF
         IF (DSMC%ElectronicModel.GT.0) THEN
           IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN

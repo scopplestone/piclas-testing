@@ -460,7 +460,7 @@ END IF
 Xi_ElecSpec=0.; Xi_Elec_oldSpec=0.; TElecSpec=0.
 DO iSpec = 1, nSpecies
   IF (nSpec(iSpec).EQ.0) CYCLE
-  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
     TElecSpec(iSpec)=CalcTelec( EElecSpec(iSpec)/totalWeightSpec(iSpec), iSpec)
     Xi_ElecSpec(iSpec)=CalcXiElec(TElecSpec(iSpec),iSpec)
     Xi_Elec_oldSpec(iSpec) = Xi_ElecSpec(iSpec)
@@ -500,7 +500,7 @@ nElecRelaxSpec =0; nElecRelax=0
 DO iLoop = 1, nPart
   iPart = iPartIndx_Node(iLoop)
   iSpec = PartSpecies(iPart)
-  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
     IF (.NOT.ElecRelaxPart(iPart)) CYCLE
     partWeight = GetParticleWeight(iPart)
     CALL RANDOM_NUMBER(iRan)
@@ -516,7 +516,7 @@ IF ((nElecRelax.EQ.0)) RETURN
 
 ElectronicPartition = 0.
 DO iSpec =1, nSpecies
-  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
     ElectronicPartitionTemp = 0.
     ! calculate sum over all energy levels == partition function for temperature Telec
     DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
@@ -633,7 +633,7 @@ NewEn = OldEn
 DO iLoop = 1, nPart
   iPart = iPartIndx_Node(iLoop)
   iSpec = PartSpecies(iPart)
-  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
     partWeight = GetParticleWeight(iPart)
     OldEn = OldEn + PartIntEn(iPart)%EElec(1)* partWeight
   END IF
@@ -653,7 +653,7 @@ DO WHILE(.NOT.ALMOSTEQUAL(TempEn, OldEn))
         Xi_ElecSpec(iSpec)= 0.0
         CYCLE
       END IF
-      IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+      IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
         Xi_ElecSpec(iSpec)=CalcXiElec(DSMC%InstantTransTemp(nSpecies + 1),iSpec)
         TEqui = DSMC%InstantTransTemp(nSpecies + 1)
       END IF
@@ -666,7 +666,7 @@ DO WHILE(.NOT.ALMOSTEQUAL(TempEn, OldEn))
       Xi_ElecSpec(iSpec)= 0.0
       CYCLE
     END IF
-    IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
       Xi_ElecSpec(iSpec)=CalcXiElec(Tequi,iSpec)
     END IF
   END DO
@@ -685,7 +685,7 @@ END DO
 
 ElectronicPartition = 0.
 DO iSpec =1, nSpecies
-  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
     ElectronicPartitionTemp = 0.
     ! calculate sum over all energy levels == partition function for temperature Telec
     DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
@@ -706,7 +706,7 @@ SkipEnergyCons = .FALSE.
 DO iLoop = 1, nPart
   iPart = iPartIndx_Node(iLoop)
   iSpec = PartSpecies(iPart)
-  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
     nElecRelax  = nElecRelax + 1
     nElecRelaxSpec(iSpec) = nElecRelaxSpec(iSpec) + 1
     iPartIndx_NodeRelaxElec(nElecRelax) = iPart
@@ -875,7 +875,7 @@ DO iLoop = 1, nPart
   V_rel(1:3)=PartState(4:6,iPart)-vBulkAll(1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
   OldEn = OldEn + 0.5*Species(iSpec)%MassIC * vmag2*partWeight
-  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
     EElecSpec(iSpec) = EElecSpec(iSpec) + PartIntEn(iPart)%EElec(1) * partWeight
   END IF
 END DO
@@ -947,7 +947,7 @@ maxexp = LOG(HUGE(maxexp))
 correctFac = 1.
 ElecFracSpec = 0.0
 DO iSpec=1, nSpecies
-  IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
     ElecExpSpec(iSpec) = exp(-elecrelaxfreqSpec(iSpec)*dtCell/correctFac)
     ElecFracSpec(iSpec) = nSpec(iSpec)*(1.-ElecExpSpec(iSpec))
     EelecTtrans(iSpec) = CalcEelec(CellTemp, iSpec)
@@ -957,7 +957,7 @@ TEqui_Old = 0.0
 TEqui = 3.*(nPart-1.)*CellTemp
 TEquiNumDof = 3.*(nPart-1.)
 DO iSpec=1, nSpecies
-  IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
     TEqui = TEqui + Xi_Elec_oldSpec(iSpec)*ElecFracSpec(iSpec)*TElecSpec(iSpec)
     TEquiNumDof = TEquiNumDof + Xi_Elec_oldSpec(iSpec)*ElecFracSpec(iSpec)
   END IF
@@ -965,7 +965,7 @@ END DO
 TEqui = TEqui / TEquiNumDof
 DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
   DO iSpec = 1, nSpecies
-    IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
       Xi_ElecSpec(iSpec) = CalcXiElec(TEqui,iSpec)
       EElecTequi= CalcEelec(TEqui, iSpec)
       IF (ABS(meanEelecSpec(iSpec)-EElecTequi).LT.1E-3) THEN
@@ -989,7 +989,7 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
   TEqui = 3.*(nPart-1.)*CellTemp
   TEquiNumDof = 3.*(nPart-1.)
   DO iSpec=1, nSpecies
-    IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
       TEqui = TEqui + Xi_Elec_oldSpec(iSpec)*ElecFracSpec(iSpec)*TElecSpec(iSpec)
       TEquiNumDof = TEquiNumDof + Xi_ElecSpec(iSpec)*ElecFracSpec(iSpec)
     END IF
@@ -1280,7 +1280,7 @@ END IF
 
 IF (DSMC%ElectronicModel.EQ.4) THEN
   SpecDSMC(iSpec)%MaxMeanXiElec = 0.
-  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
     MaxTemp = SpecDSMC(iSpec)%ElectronicState(2,SpecDSMC(iSpec)%MaxElecQuant - 1)
     MinTemp = 0.
     MeanTemp = 0.5*(MaxTemp+MinTemp)
@@ -1370,7 +1370,7 @@ SUBROUTINE CalcProbCorrFactorElec()
 !===================================================================================================================================
 DO iSpec = 1, nSpecies
   SpecDSMC(iSpec)%ElecRelaxCorrectFac = 0.
-  IF((Species(iSpec)%InterID.EQ.4).OR.(SpecDSMC(iSpec)%FullyIonized)) CYCLE
+  IF((Species(iSpec)%InterID.EQ.4).OR.(SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) CYCLE
   DO jSpec = 1, nSpecies
     doConverge = .TRUE.
     Xi_rel = 2.*(2. - CollInf%omega(iSpec,jSpec))

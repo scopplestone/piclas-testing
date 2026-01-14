@@ -2561,6 +2561,7 @@ IF(ALLOCATED(PartIntEn)) THEN
     CALL MOVE_ALLOC(PartIntEn(i)%ERot,PartIntEn_New(i)%ERot)
     CALL MOVE_ALLOC(PartIntEn(i)%EVib,PartIntEn_New(i)%EVib)
     CALL MOVE_ALLOC(PartIntEn(i)%EElec,PartIntEn_New(i)%EElec)
+    CALL MOVE_ALLOC(PartIntEn(i)%TSolid,PartIntEn_New(i)%TSolid)
   END DO
   DEALLOCATE(PartIntEn)
   CALL MOVE_ALLOC(PartIntEn_New,PartIntEn)
@@ -2744,11 +2745,13 @@ IF(ALLOCATED(PartIntEn)) THEN
     CALL MOVE_ALLOC(PartIntEn(i)%ERot,PartIntEn_New(i)%ERot)
     CALL MOVE_ALLOC(PartIntEn(i)%EVib,PartIntEn_New(i)%EVib)
     CALL MOVE_ALLOC(PartIntEn(i)%EElec,PartIntEn_New(i)%EElec)
+    CALL MOVE_ALLOC(PartIntEn(i)%TSolid,PartIntEn_New(i)%TSolid)
   END DO
   DO i=NewSize+1,PDM%maxParticleNumber
     SDEALLOCATE(PartIntEn(i)%ERot)
     SDEALLOCATE(PartIntEn(i)%EVib)
     SDEALLOCATE(PartIntEn(i)%EElec)
+    SDEALLOCATE(PartIntEn(i)%TSolid)
   END DO
   DEALLOCATE(PartIntEn)
   CALL MOVE_ALLOC(PartIntEn_New,PartIntEn)
@@ -2956,6 +2959,12 @@ IF(ALLOCATED(PartIntEn)) THEN
     CALL MOVE_ALLOC(PartIntEn(OldID)%EElec,PartIntEn(NewID)%EElec)
   ELSE
     IF(ALLOCATED(PartIntEn(NewID)%EElec)) DEALLOCATE(PartIntEn(NewID)%EElec)
+  END IF
+  IF(ALLOCATED(PartIntEn(OldID)%TSolid)) THEN
+    IF(ALLOCATED(PartIntEn(NewID)%TSolid)) DEALLOCATE(PartIntEn(NewID)%TSolid)
+    CALL MOVE_ALLOC(PartIntEn(OldID)%TSolid,PartIntEn(NewID)%TSolid)
+  ELSE
+    IF(ALLOCATED(PartIntEn(NewID)%TSolid)) DEALLOCATE(PartIntEn(NewID)%TSolid)
   END IF
 END IF
 

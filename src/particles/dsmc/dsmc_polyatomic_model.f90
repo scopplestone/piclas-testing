@@ -480,13 +480,12 @@ IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
   END IF
 ! For granular species E vib is used as value for bulk temperatur
 ELSE IF (Species(iSpec)%InterID.EQ.100) THEN
-  IF (.NOT.ALLOCATED(PartIntEn(iPart)%EVib)) ALLOCATE(PartIntEn(iPart)%EVib(1)) 
-  IF (.NOT.ALLOCATED(PartIntEn(iPart)%ERot)) ALLOCATE(PartIntEn(iPart)%ERot(1))
+  IF (.NOT.ALLOCATED(PartIntEn(iPart)%TSolid)) ALLOCATE(PartIntEn(iPart)%TSolid(1)) 
   SELECT CASE (init_or_sf)
   CASE(1) !iInit
-    PartIntEn(iPart)%EVib = Species(iSpec)%Init(iInit)%MWTemperatureIC
+    PartIntEn(iPart)%TSolid = Species(iSpec)%Init(iInit)%MWTemperatureIC
   CASE(2) !SurfaceFlux
-    PartIntEn(iPart)%EVib = Species(iSpec)%Surfaceflux(iInit)%MWTemperatureIC
+    PartIntEn(iPart)%TSolid = Species(iSpec)%Surfaceflux(iInit)%MWTemperatureIC
   CASE DEFAULT
     CALL abort(__STAMP__,'ERROR: Neither iInit nor Surfaceflux defined as reference in DSMC_SetInternalEnr!')
   END SELECT

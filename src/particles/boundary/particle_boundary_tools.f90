@@ -438,7 +438,7 @@ SUBROUTINE SampleSurfaceGroupProperties(SurfSideID,PartID,SpecID,SampleType,Torq
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Vars
 USE MOD_Globals                   ,ONLY: abort
-USE MOD_DSMC_Vars                 ,ONLY: useDSMC,PartStateIntEn
+USE MOD_DSMC_Vars                 ,ONLY: useDSMC,PartIntEn, SpecDSMC
 USE MOD_DSMC_Vars                 ,ONLY: CollisMode,DSMC
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SurfaceGroup
 IMPLICIT NONE
@@ -469,13 +469,15 @@ IF(iGroup.NE.0) THEN
       IF (CollisMode.GT.1) THEN
         IF ((Species(SpecID)%InterID.EQ.2).OR.Species(SpecID)%InterID.EQ.20) THEN
           !----  Sampling the internal (rotational) energy accommodation at walls
-          SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) + PartStateIntEn(2,PartID) * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
+          SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) + PartIntEn(PartID)%ERot(1)* MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
           !----  Sampling for internal (vibrational) energy accommodation at walls
-          SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) + PartStateIntEn(1,PartID) * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
+          SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) + PartIntEn(PartID)%EVib(1) * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
         END IF
         IF(DSMC%ElectronicModel.GT.0) THEN
+          IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
           !----  Sampling for internal (electronic) energy accommodation at walls
-          SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) + PartStateIntEn(3,PartID) * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
+            SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) + PartIntEn(PartID)%EElec(1) * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
+          END IF
         END IF
       END IF
     END IF
@@ -485,13 +487,15 @@ IF(iGroup.NE.0) THEN
       IF (CollisMode.GT.1) THEN
         IF ((Species(SpecID)%InterID.EQ.2).OR.Species(SpecID)%InterID.EQ.20) THEN
           !----  Sampling the internal (rotational) energy accommodation at walls
-          SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) - PartStateIntEn(2,PartID) * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
+          SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) - PartIntEn(PartID)%ERot(1) * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
           !----  Sampling for internal (vibrational) energy accommodation at walls
-          SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) - PartStateIntEn(1,PartID) * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
+          SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) - PartIntEn(PartID)%EVib(1) * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
         END IF
         IF(DSMC%ElectronicModel.GT.0) THEN
+          IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN  
           !----  Sampling for internal (electronic) energy accommodation at walls
-          SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) - PartStateIntEn(3,PartID) * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
+            SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) - PartIntEn(PartID)%EElec(1) * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
+          END IF
         END IF
       END IF
     END IF

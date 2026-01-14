@@ -503,24 +503,30 @@ DO iProc=0,nExchangeProcessors-1
       SpecID = PartSpecies(iPart)
       IF (useDSMC.AND.(CollisMode.GT.1)) THEN
         IF (usevMPF .AND. DSMC%ElectronicModel.GT.0) THEN
-          IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20).OR.(Species(SpecID)%InterID.EQ.100)) THEN
+          IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
             PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%EVib(1)
             PartSendBuf(iProc)%content(2+jPos) = PartIntEn(iPart)%ERot(1)
+          ELSE IF (Species(SpecID)%InterID.EQ.100) THEN
+            PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%TSolid(1)
+            PartSendBuf(iProc)%content(2+jPos) = 0.0
           ELSE
             PartSendBuf(iProc)%content(1+jPos) = 0.0
             PartSendBuf(iProc)%content(2+jPos) = 0.0
           END IF
           PartSendBuf(iProc)%content(3+jPos) = PartMPF(iPart)
-          IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+          IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
             PartSendBuf(iProc)%content(4+jPos) = PartIntEn(iPart)%EElec(1)
           ELSE
             PartSendBuf(iProc)%content(4+jPos) = 0.0
           END IF
           jPos=jPos+4
         ELSE IF (usevMPF) THEN
-          IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20).OR.(Species(SpecID)%InterID.EQ.100)) THEN
+          IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
             PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%EVib(1)
             PartSendBuf(iProc)%content(2+jPos) = PartIntEn(iPart)%ERot(1)
+          ELSE IF (Species(SpecID)%InterID.EQ.100) THEN
+            PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%TSolid(1)
+            PartSendBuf(iProc)%content(2+jPos) = 0.0
           ELSE
             PartSendBuf(iProc)%content(1+jPos) = 0.0
             PartSendBuf(iProc)%content(2+jPos) = 0.0
@@ -528,23 +534,29 @@ DO iProc=0,nExchangeProcessors-1
           PartSendBuf(iProc)%content(3+jPos) = PartMPF(iPart)
           jPos=jPos+3
         ELSE IF (DSMC%ElectronicModel.GT.0) THEN
-          IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20).OR.(Species(SpecID)%InterID.EQ.100)) THEN
+          IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
             PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%EVib(1)
             PartSendBuf(iProc)%content(2+jPos) = PartIntEn(iPart)%ERot(1)
+          ELSE IF (Species(SpecID)%InterID.EQ.100) THEN
+            PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%TSolid(1)
+            PartSendBuf(iProc)%content(2+jPos) = 0.0
           ELSE
             PartSendBuf(iProc)%content(1+jPos) = 0.0
             PartSendBuf(iProc)%content(2+jPos) = 0.0
           END IF
-          IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+          IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
             PartSendBuf(iProc)%content(3+jPos) = PartIntEn(iPart)%EElec(1)
           ELSE
             PartSendBuf(iProc)%content(3+jPos) = 0.0
           END IF
           jPos=jPos+3
         ELSE
-          IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20).OR.(Species(SpecID)%InterID.EQ.100)) THEN
+          IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
             PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%EVib(1)
             PartSendBuf(iProc)%content(2+jPos) = PartIntEn(iPart)%ERot(1)
+          ELSE IF (Species(SpecID)%InterID.EQ.100) THEN
+            PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%TSolid(1)
+            PartSendBuf(iProc)%content(2+jPos) = 0.0
           ELSE
             PartSendBuf(iProc)%content(1+jPos) = 0.0
             PartSendBuf(iProc)%content(2+jPos) = 0.0
@@ -574,7 +586,7 @@ DO iProc=0,nExchangeProcessors-1
         END IF
 
         IF (DSMC%ElectronicModel.EQ.2) THEN
-          IF(.NOT.((Species(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized)) THEN
+          IF(.NOT.((Species(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
             PartSendBuf(iProc)%content(pos_elec(iProc)+1:pos_elec(iProc)+ SpecDSMC(SpecID)%MaxElecQuant) &
                                          = ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(SpecID)%MaxElecQuant)
             pos_elec(iProc) = pos_elec(iProc) + SpecDSMC(SpecID)%MaxElecQuant
@@ -913,41 +925,53 @@ DO iProc=0,nExchangeProcessors-1
     SpecID = PartSpecies(PartID)
     IF (useDSMC.AND.(CollisMode.GT.1)) THEN
       IF (usevMPF .AND. DSMC%ElectronicModel.GT.0) THEN
-        IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20).OR.(Species(SpecID)%InterID.EQ.100)) THEN
+        IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
           ALLOCATE(PartIntEn(PartID)%EVib(1),PartIntEn(PartID)%ERot(1))
           PartIntEn(PartID)%EVib(1) = PartRecvBuf(iProc)%content(1+jPos)
           PartIntEn(PartID)%ERot(1) = PartRecvBuf(iProc)%content(2+jPos)
+        ELSE IF (Species(SpecID)%InterID.EQ.100) THEN
+          ALLOCATE(PartIntEn(PartID)%TSolid(1))
+          PartIntEn(PartID)%TSolid(1) = PartRecvBuf(iProc)%content(1+jPos)
         END IF
         PartMPF(PartID)           = PartRecvBuf(iProc)%content(3+jPos)
-        IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+        IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
           ALLOCATE(PartIntEn(PartID)%EElec(1))
           PartIntEn(PartID)%EElec(1) = PartRecvBuf(iProc)%content(4+jPos)
         END IF
         jPos=jPos+4
       ELSE IF ( usevMPF ) THEN
-        IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20).OR.(Species(SpecID)%InterID.EQ.100)) THEN
+        IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
           ALLOCATE(PartIntEn(PartID)%EVib(1),PartIntEn(PartID)%ERot(1))
           PartIntEn(PartID)%EVib(1) = PartRecvBuf(iProc)%content(1+jPos)
           PartIntEn(PartID)%ERot(1) = PartRecvBuf(iProc)%content(2+jPos)
+        ELSE IF (Species(SpecID)%InterID.EQ.100) THEN
+          ALLOCATE(PartIntEn(PartID)%TSolid(1))
+          PartIntEn(PartID)%TSolid(1) = PartRecvBuf(iProc)%content(1+jPos)
         END IF
         PartMPF(PartID)           = PartRecvBuf(iProc)%content(3+jPos)
         jPos=jPos+3
       ELSE IF ( DSMC%ElectronicModel.GT.0) THEN
-        IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20).OR.(Species(SpecID)%InterID.EQ.100)) THEN
+        IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
           ALLOCATE(PartIntEn(PartID)%EVib(1),PartIntEn(PartID)%ERot(1))
           PartIntEn(PartID)%EVib(1) = PartRecvBuf(iProc)%content(1+jPos)
           PartIntEn(PartID)%ERot(1) = PartRecvBuf(iProc)%content(2+jPos)
+        ELSE IF (Species(SpecID)%InterID.EQ.100) THEN
+          ALLOCATE(PartIntEn(PartID)%TSolid(1))
+          PartIntEn(PartID)%TSolid(1) = PartRecvBuf(iProc)%content(1+jPos)
         END IF
-        IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+        IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
           ALLOCATE(PartIntEn(PartID)%EElec(1))
           PartIntEn(PartID)%EElec(1) = PartRecvBuf(iProc)%content(3+jPos)
         END IF
         jPos=jPos+3
       ELSE
-        IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20).OR.(Species(SpecID)%InterID.EQ.100)) THEN
+        IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
           ALLOCATE(PartIntEn(PartID)%EVib(1),PartIntEn(PartID)%ERot(1))
           PartIntEn(PartID)%EVib(1) = PartRecvBuf(iProc)%content(1+jPos)
           PartIntEn(PartID)%ERot(1) = PartRecvBuf(iProc)%content(2+jPos)
+        ELSE IF (Species(SpecID)%InterID.EQ.100) THEN
+          ALLOCATE(PartIntEn(PartID)%TSolid(1))
+          PartIntEn(PartID)%TSolid(1) = PartRecvBuf(iProc)%content(1+jPos)
         END IF
         jPos=jPos+2
       END IF
@@ -980,7 +1004,7 @@ DO iProc=0,nExchangeProcessors-1
       END IF
 
       IF (DSMC%ElectronicModel.EQ.2) THEN
-        IF(.NOT.((Species(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized)) THEN
+        IF(.NOT.((Species(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
           IF(ALLOCATED(ElectronicDistriPart(PartID)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(PartID)%DistriFunc)
           ALLOCATE(ElectronicDistriPart(PartID)%DistriFunc(1:SpecDSMC(SpecID)%MaxElecQuant))
           ElectronicDistriPart(PartID)%DistriFunc(1:SpecDSMC(SpecID)%MaxElecQuant) &

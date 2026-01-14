@@ -593,7 +593,7 @@ IF(DoCreateParticles) THEN
           VibEnergy = 0.0; RotEnergy = 0.0
         END IF
         IF (DSMC%ElectronicModel.GT.0) THEN
-          IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+          IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
             ElecEnergy = PartIntEn(PartID)%EElec(1)
           ELSE
             ElecEnergy = 0.0

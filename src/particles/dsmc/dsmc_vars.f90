@@ -56,6 +56,7 @@ TYPE tPartIntEn
   REAL, ALLOCATABLE           :: EVib(:)
   REAL, ALLOCATABLE           :: ERot(:)  
   REAL, ALLOCATABLE           :: EElec(:)  
+  REAL, ALLOCATABLE           :: TSolid(:)
   INTEGER, ALLOCATABLE        :: QVib(:)
   INTEGER, ALLOCATABLE        :: QRot(:)  
   INTEGER, ALLOCATABLE        :: QElec(:)  

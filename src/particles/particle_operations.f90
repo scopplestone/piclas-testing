@@ -196,13 +196,16 @@ IF (useDSMC.AND.(CollisMode.GT.1)) THEN
     ALLOCATE(PartIntEn(newParticleID)%EVib(1), PartIntEn(newParticleID)%ERot(1))
   END IF
   IF (DSMC%ElectronicModel.GT.0) THEN
-    IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+    IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
       ALLOCATE(PartIntEn(newParticleID)%EElec(1))
     END IF
   ENDIF
   IF (DSMC%DoAmbipolarDiff) THEN
     newAmbiParts = newAmbiParts + 1
     iPartIndx_NodeNewAmbi(newAmbiParts) = newParticleID
+  END IF
+  IF (Species(SpecID)%InterID.EQ.100) THEN
+    ALLOCATE(PartIntEn(newParticleID)%TSolid(1))
   END IF
 END IF
 
@@ -287,6 +290,7 @@ IF (ALLOCATED(PartIntEn)) THEN
   SDEALLOCATE(PartIntEn(PartID)%EElec)
   SDEALLOCATE(PartIntEn(PartID)%QVib)
   SDEALLOCATE(PartIntEn(PartID)%QElec)
+  SDEALLOCATE(PartIntEn(PartID)%TSolid)
 END IF
 
 IF(ALLOCATED(AmbipolElecVelo)) THEN

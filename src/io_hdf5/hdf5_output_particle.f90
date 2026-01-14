@@ -1582,7 +1582,7 @@ END IF
 IF (useDSMC.AND.(DSMC%ElectronicModel.EQ.2)) THEN
   MaxElecQuant = 0
   DO iSpec = 1, nSpecies
-    IF (.NOT.((Species(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized)) THEN
+    IF (.NOT.((Species(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
       IF (SpecDSMC(iSpec)%MaxElecQuant.GT.MaxElecQuant) MaxElecQuant = SpecDSMC(iSpec)%MaxElecQuant
     END IF
   END DO
@@ -1661,13 +1661,16 @@ DO iElem_loc=1,PP_nElems
           IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
             PartData(1+iPos,iPart) = PartIntEn(pcount)%EVib(1)
             PartData(2+iPos,iPart) = PartIntEn(pcount)%ERot(1)
+          ELSE IF (Species(iSpec)%InterID.EQ.100) THEN
+            PartData(1+iPos,iPart) = PartIntEn(pcount)%TSolid(1)
+            PartData(2+iPos,iPart) = 0.
           ELSE
             PartData(1+iPos:2+iPos,iPart) = 0.0
           END IF
           iPos = iPos + 2
           ! Electronic energy modelling
           IF(DSMC%ElectronicModel.GT.0) THEN
-            IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+            IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
               PartData(1+iPos,iPart) = PartIntEn(pcount)%EElec(1)
             ELSE
               PartData(1+iPos,iPart) = 0.0
@@ -1747,7 +1750,7 @@ IF(withDSMC.AND.(DSMC%ElectronicModel.EQ.2))THEN
       PartInt(2,iElem_glob) = PartInt(1,iElem_glob) + INT(PEM%pNumber(iElem_loc),IK)
       pcount = PEM%pStart(iElem_loc)
       DO iPart=PartInt(1,iElem_glob)+1_IK,PartInt(2,iElem_glob)
-        IF (.NOT.((Species(PartSpecies(pcount))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(pcount))%FullyIonized)) THEN
+        IF (.NOT.((Species(PartSpecies(pcount))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(pcount))%FullyIonized).AND.(Species(PartSpecies(pcount))%InterID.NE.100)) THEN
           ElecDistriData(1:SpecDSMC(PartSpecies(pcount))%MaxElecQuant,iPart) = &
             ElectronicDistriPart(pcount)%DistriFunc(1:SpecDSMC(PartSpecies(pcount))%MaxElecQuant)
         ELSE
