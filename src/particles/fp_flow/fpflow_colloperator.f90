@@ -51,7 +51,7 @@ USE MOD_FPFlow_Vars             ,ONLY: FPCollModel, ESFPModel, SpecFP, FPUseQuan
 USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, UseVarTimeStep, PartTimeStep, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: dt
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartIntEn, PolyatomMolDSMC, VibQuantsPar, CollInf
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartIntEn, PolyatomMolDSMC, CollInf
 USE Ziggurat
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTVibPoly
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -555,7 +555,7 @@ IF(FPDoVibRelaxation) THEN
             END IF
             PartIntEn(iPartIndx_NodeRelaxVib(iLoop))%EVib  = PartIntEn(iPartIndx_NodeRelaxVib(iLoop))%EVib &
                + iQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
-            VibQuantsPar(iPartIndx_NodeRelaxVib(iLoop))%Quants(iDOF) = iQuant
+            PartIntEn(iPartIndx_NodeRelaxVib(iLoop))%QVib(iDOF) = iQuant
             OldEn = OldEn - iQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst*partWeight
           END DO
           PartIntEn(iPartIndx_NodeRelaxVib(iLoop))%EVib  = PartIntEn(iPartIndx_NodeRelaxVib(iLoop))%EVib &

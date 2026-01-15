@@ -1094,7 +1094,7 @@ SUBROUTINE BGGas_TraceSpeciesSplit(iElem, nPart, nPair)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars             ,ONLY: BGGas, CollisMode, PartIntEn, DSMC
-USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, VibQuantsPar, PolyatomMolDSMC
+USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, PolyatomMolDSMC
 USE MOD_Particle_Vars         ,ONLY: PEM,PartSpecies,PartState,PartMPF,Species
 USE MOD_Part_Tools            ,ONLY: GetNextFreePosition
 ! IMPLICIT VARIABLE HANDLING
@@ -1157,9 +1157,9 @@ DO iLoop = 1, nPart
           PartIntEn(PartIndex)%ERot = PartIntEn(iPart)%ERot
         END IF
         IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-          IF(ALLOCATED(VibQuantsPar(PartIndex)%Quants)) DEALLOCATE(VibQuantsPar(PartIndex)%Quants)
-          ALLOCATE(VibQuantsPar(PartIndex)%Quants(PolyatomMolDSMC(SpecDSMC(iSpec)%SpecToPolyArray)%VibDOF))
-          VibQuantsPar(PartIndex)%Quants(:) = VibQuantsPar(iPart)%Quants(:)
+          IF(ALLOCATED(PartIntEn(PartIndex)%QVib)) DEALLOCATE(PartIntEn(PartIndex)%QVib)
+          ALLOCATE(PartIntEn(PartIndex)%QVib(PolyatomMolDSMC(SpecDSMC(iSpec)%SpecToPolyArray)%VibDOF))
+          PartIntEn(PartIndex)%QVib(:) = PartIntEn(iPart)%QVib(:)
         END IF
         IF(DSMC%ElectronicModel.GT.0) THEN
           IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN

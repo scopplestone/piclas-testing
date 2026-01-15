@@ -45,8 +45,7 @@ USE MOD_PreProc
 USE MOD_Particle_Readin
 USE MOD_Particle_Restart_Vars
 ! DSMC
-USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,PartIntEn,DSMC,VibQuantsPar,PolyatomMolDSMC,SpecDSMC
-USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
+USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,PartIntEn,DSMC,PolyatomMolDSMC,SpecDSMC
 ! Localization
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement,SinglePointToElement
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad
@@ -215,9 +214,9 @@ IF(.NOT.DoMacroscopicRestart) THEN
           IF (DSMC%NumPolyatomMolecs.GT.0) THEN
             IF (SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
               iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
-              SDEALLOCATE(VibQuantsPar(iPart)%Quants)
-              ALLOCATE(   VibQuantsPar(iPart)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-              VibQuantsPar(iPart)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)= &
+              SDEALLOCATE(PartIntEn(iPart)%QVib)
+              ALLOCATE(   PartIntEn(iPart)%QVib(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+              PartIntEn(iPart)%QVib(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)= &
                   VibQuantData(1:PolyatomMolDSMC(iPolyatMole)%VibDOF,offsetnPart+iLoop)
             END IF ! SpecDSMC(PartSpecies(iPart))%PolyatomicMol
           END IF ! DSMC%NumPolyatomMolecs.GT.0
@@ -225,9 +224,9 @@ IF(.NOT.DoMacroscopicRestart) THEN
           ! Electronic
           IF (DSMC%ElectronicModel.EQ.2) THEN
             IF (.NOT.((Species(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
-              SDEALLOCATE(ElectronicDistriPart(iPart)%DistriFunc)
-              ALLOCATE(   ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant))
-              ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant)= &
+              SDEALLOCATE(PartIntEn(iPart)%DistriFunc)
+              ALLOCATE(   PartIntEn(iPart)%DistriFunc(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant))
+              PartIntEn(iPart)%DistriFunc(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant)= &
               ElecDistriData(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant,offsetnPart+iLoop)
             END IF
           END IF
@@ -235,9 +234,9 @@ IF(.NOT.DoMacroscopicRestart) THEN
           ! Ambipolar Diffusion
           IF (DSMC%DoAmbipolarDiff) THEN
             IF (Species(PartSpecies(iPart))%ChargeIC.GT.0.0) THEN
-              SDEALLOCATE(AmbipolElecVelo(iPart)%ElecVelo)
-              ALLOCATE(   AmbipolElecVelo(iPart)%ElecVelo(1:3))
-              AmbipolElecVelo(iPart)%ElecVelo(1:3)= AD_Data(1:3,offsetnPart+iLoop)
+              SDEALLOCATE(PartIntEn(iPart)%ElecVelo)
+              ALLOCATE(   PartIntEn(iPart)%ElecVelo(1:3))
+              PartIntEn(iPart)%ElecVelo(1:3)= AD_Data(1:3,offsetnPart+iLoop)
             END IF
           END IF
         END IF
@@ -552,7 +551,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
             IF(SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
               iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
               SendBuffPoly(CounterPoly+1:CounterPoly+PolyatomMolDSMC(iPolyatMole)%VibDOF) &
-                  = VibQuantsPar(iPart)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
+                  = PartIntEn(iPart)%QVib(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
               CounterPoly = CounterPoly + PolyatomMolDSMC(iPolyatMole)%VibDOF
             END IF ! SpecDSMC(PartSpecies(iPart))%PolyatomicMol
           END IF ! useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)
@@ -561,14 +560,14 @@ IF(.NOT.DoMacroscopicRestart) THEN
           IF(useDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
             IF (.NOT.((Species(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized).AND.(Species(PartSpecies(iPart))%InterID.NE.100)) THEN
               SendBuffElec(CounterElec+1:CounterElec+SpecDSMC(PartSpecies(iPart))%MaxElecQuant) &
-                  = ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant)
+                  = PartIntEn(iPart)%DistriFunc(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant)
               CounterElec = CounterElec + SpecDSMC(PartSpecies(iPart))%MaxElecQuant
             END IF !
           END IF !
           ! Ambipolar Diffusion
           IF(useDSMC.AND.DSMC%DoAmbipolarDiff)  THEN
             IF (Species(PartSpecies(iPart))%ChargeIC.GT.0.0)  THEN
-              SendBuffAmbi(CounterAmbi+1:CounterAmbi+3) = AmbipolElecVelo(iPart)%ElecVelo(1:3)
+              SendBuffAmbi(CounterAmbi+1:CounterAmbi+3) = PartIntEn(iPart)%ElecVelo(1:3)
               CounterAmbi = CounterAmbi + 3
             END IF !
           END IF !
@@ -719,9 +718,9 @@ IF(.NOT.DoMacroscopicRestart) THEN
             IF (DSMC%NumPolyatomMolecs.GT.0) THEN
               IF(SpecDSMC(PartSpecies(CurrentPartNum))%PolyatomicMol) THEN
                 iPolyatMole = SpecDSMC(PartSpecies(CurrentPartNum))%SpecToPolyArray
-                SDEALLOCATE(VibQuantsPar(CurrentPartNum)%Quants)
-                ALLOCATE(VibQuantsPar(CurrentPartNum)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-                VibQuantsPar(CurrentPartNum)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF) &
+                SDEALLOCATE(PartIntEn(CurrentPartNum)%QVib)
+                ALLOCATE(PartIntEn(CurrentPartNum)%QVib(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+                PartIntEn(CurrentPartNum)%QVib(1:PolyatomMolDSMC(iPolyatMole)%VibDOF) &
                     = RecBuffPoly(CounterPoly+1:CounterPoly+PolyatomMolDSMC(iPolyatMole)%VibDOF)
                 CounterPoly = CounterPoly + PolyatomMolDSMC(iPolyatMole)%VibDOF
               END IF
@@ -730,9 +729,9 @@ IF(.NOT.DoMacroscopicRestart) THEN
             IF (DSMC%ElectronicModel.EQ.2) THEN
               IF (.NOT.((Species(PartSpecies(CurrentPartNum))%InterID.EQ.4) &
                   .OR.SpecDSMC(PartSpecies(CurrentPartNum))%FullyIonized).AND.(Species(PartSpecies(CurrentPartNum))%InterID.NE.100)) THEN
-                SDEALLOCATE(ElectronicDistriPart(CurrentPartNum)%DistriFunc)
-                ALLOCATE(ElectronicDistriPart(CurrentPartNum)%DistriFunc(1:SpecDSMC(PartSpecies(CurrentPartNum))%MaxElecQuant))
-                ElectronicDistriPart(CurrentPartNum)%DistriFunc(1:SpecDSMC(PartSpecies(CurrentPartNum))%MaxElecQuant)= &
+                SDEALLOCATE(PartIntEn(CurrentPartNum)%DistriFunc)
+                ALLOCATE(PartIntEn(CurrentPartNum)%DistriFunc(1:SpecDSMC(PartSpecies(CurrentPartNum))%MaxElecQuant))
+                PartIntEn(CurrentPartNum)%DistriFunc(1:SpecDSMC(PartSpecies(CurrentPartNum))%MaxElecQuant)= &
                   RecBuffElec(CounterElec+1:CounterElec+SpecDSMC(PartSpecies(CurrentPartNum))%MaxElecQuant)
                 CounterElec = CounterElec +SpecDSMC(PartSpecies(CurrentPartNum))%MaxElecQuant
               END IF
@@ -740,9 +739,9 @@ IF(.NOT.DoMacroscopicRestart) THEN
             ! Ambipolar Diffusion
             IF (DSMC%DoAmbipolarDiff) THEN
               IF (Species(PartSpecies(CurrentPartNum))%ChargeIC.GT.0.0) THEN
-                SDEALLOCATE(AmbipolElecVelo(CurrentPartNum)%ElecVelo)
-                ALLOCATE(AmbipolElecVelo(CurrentPartNum)%ElecVelo(1:3))
-                AmbipolElecVelo(CurrentPartNum)%ElecVelo(1:3)= RecBuffAmbi(CounterAmbi+1:CounterAmbi+3)
+                SDEALLOCATE(PartIntEn(CurrentPartNum)%ElecVelo)
+                ALLOCATE(PartIntEn(CurrentPartNum)%ElecVelo(1:3))
+                PartIntEn(CurrentPartNum)%ElecVelo(1:3)= RecBuffAmbi(CounterAmbi+1:CounterAmbi+3)
                 CounterAmbi = CounterAmbi + 3
               END IF
             END IF

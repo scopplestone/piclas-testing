@@ -344,8 +344,8 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac)
 ! MODULES
 USE MOD_Globals                ,ONLY: abort,DOTPRODUCT,StringBeginsWith,UNIT_StdOut
 USE MOD_Globals_Vars
-USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles, ElectronicDistriPart
-USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartIntEn, PolyatomMolDSMC, VibQuantsPar, BGGas, ElecRelaxPart
+USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
+USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartIntEn, PolyatomMolDSMC, BGGas, ElecRelaxPart
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, newElecRelaxParts, iPartIndx_NodeNewElecRelax
 USE MOD_DSMC_Vars              ,ONLY: iPartIndx_NodeElecRelaxChem, nElecRelaxChemParts
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, usevMPF
@@ -819,7 +819,7 @@ IF (DSMC%ElectronicModel.GT.0) THEN
   DO iProd = 1, NumProd
     IF((Species(ProductReac(iProd))%InterID.EQ.4).OR.SpecDSMC(ProductReac(iProd))%FullyIonized) THEN
       IF (DSMC%ElectronicModel.EQ.2) THEN
-        IF(ALLOCATED(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)) DEALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)
+        IF(ALLOCATED(PartIntEn(ReactInx(iProd))%DistriFunc)) DEALLOCATE(PartIntEn(ReactInx(iProd))%DistriFunc)
       END IF
       SDEALLOCATE(PartIntEn(ReactInx(iProd))%EElec)
       IF (DSMC%ElectronicModel.EQ.4) THEN
@@ -836,9 +836,9 @@ IF (DSMC%ElectronicModel.GT.0) THEN
         ElecRelaxPart(ReactInx(iProd)) = .FALSE.
       ELSE
         IF (DSMC%ElectronicModel.EQ.2) THEN
-          IF(ALLOCATED(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)) DEALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)
-          ALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc(1:SpecDSMC(ProductReac(iProd))%MaxElecQuant))
-          ElectronicDistriPart(ReactInx(iProd))%DistriFunc = 0.0
+          IF(ALLOCATED(PartIntEn(ReactInx(iProd))%DistriFunc)) DEALLOCATE(PartIntEn(ReactInx(iProd))%DistriFunc)
+          ALLOCATE(PartIntEn(ReactInx(iProd))%DistriFunc(1:SpecDSMC(ProductReac(iProd))%MaxElecQuant))
+          PartIntEn(ReactInx(iProd))%DistriFunc = 0.0
           PartIntEn(ReactInx(iProd))%EElec = 0.0
         END IF
         FakXi = FakXi - 0.5*Xi_elec(iProd)
@@ -867,7 +867,7 @@ DO iProd = 1, NumProd
       CALL DSMC_RelaxVibPolyProduct(iPair, ReactInx(iProd), FakXi, XiVibPart(iProd,:), WeightProd(iProd))
     ELSE
       IF(EductReac(iProd).NE.0) THEN
-        IF(SpecDSMC(EductReac(iProd))%PolyatomicMol) DEALLOCATE(VibQuantsPar(ReactInx(iProd))%Quants)
+        IF(SpecDSMC(EductReac(iProd))%PolyatomicMol) DEALLOCATE(PartIntEn(ReactInx(iProd))%QVib)
       END IF
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + EZeroTempToExec(iProd)
       CALL DSMC_VibRelaxDiatomic(iPair,ReactInx(iProd),FakXi)

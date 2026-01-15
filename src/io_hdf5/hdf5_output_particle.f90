@@ -1538,8 +1538,7 @@ USE MOD_Particle_Vars          ,ONLY: locnPart,offsetnPart
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data,MaxQuantNum,MaxElecQuant
 USE MOD_Particle_Vars          ,ONLY: PartState, PartSpecies, PartMPF, usevMPF, nSpecies, Species
 USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, PartVeloRotRef
-USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,PartIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
-USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
+USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,PartIntEn, DSMC, PolyatomMolDSMC, SpecDSMC
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
@@ -1715,7 +1714,7 @@ IF(withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0))THEN
         IF (SpecDSMC(PartSpecies(pcount))%PolyatomicMol) THEN
           iPolyatMole = SpecDSMC(PartSpecies(pcount))%SpecToPolyArray
           VibQuantData(1:PolyatomMolDSMC(iPolyatMole)%VibDOF,iPart) = &
-            VibQuantsPar(pcount)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
+            PartIntEn(pcount)%QVib(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
         ELSE
            VibQuantData(:,iPart) = 0
         END IF
@@ -1752,7 +1751,7 @@ IF(withDSMC.AND.(DSMC%ElectronicModel.EQ.2))THEN
       DO iPart=PartInt(1,iElem_glob)+1_IK,PartInt(2,iElem_glob)
         IF (.NOT.((Species(PartSpecies(pcount))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(pcount))%FullyIonized).AND.(Species(PartSpecies(pcount))%InterID.NE.100)) THEN
           ElecDistriData(1:SpecDSMC(PartSpecies(pcount))%MaxElecQuant,iPart) = &
-            ElectronicDistriPart(pcount)%DistriFunc(1:SpecDSMC(PartSpecies(pcount))%MaxElecQuant)
+            PartIntEn(pcount)%DistriFunc(1:SpecDSMC(PartSpecies(pcount))%MaxElecQuant)
         ELSE
            ElecDistriData(:,iPart) = 0
         END IF
@@ -1788,7 +1787,7 @@ IF(withDSMC.AND.DSMC%DoAmbipolarDiff)THEN
       pcount = PEM%pStart(iElem_loc)
       DO iPart=PartInt(1,iElem_glob)+1_IK,PartInt(2,iElem_glob)
         IF (Species(PartSpecies(pcount))%ChargeIC.GT.0.0) THEN
-          AD_Data(1:3,iPart) = AmbipolElecVelo(pcount)%ElecVelo(1:3)
+          AD_Data(1:3,iPart) = PartIntEn(pcount)%ElecVelo(1:3)
         ELSE
           AD_Data(1:3,iPart) = 0
         END IF

@@ -139,7 +139,7 @@ SUBROUTINE MergeParticles(iPartIndx_Node_in, nPart, nPartNew, iElem)
 USE MOD_Globals               ,ONLY: ISFINITE
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, Species, CellEelec_vMPF, CellEvib_vMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars             ,ONLY: PartIntEn, CollisMode, SpecDSMC, DSMC, PolyatomMolDSMC, VibQuantsPar
+USE MOD_DSMC_Vars             ,ONLY: PartIntEn, CollisMode, SpecDSMC, DSMC, PolyatomMolDSMC
 USE MOD_Particle_Analyze_Tools,ONLY: CalcTelec, CalcTVibPoly
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcEnergyScalingRatioVMPF,EnergyScalingRatioVMPF
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
@@ -419,7 +419,7 @@ IF(CollisMode.GT.1) THEN
           DO iLoop = 1, nPartNew  ! temporal continuous energy distribution
             iPart = iPartIndx_Node(iLoop)
             DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-              EnergyTemp_vibPoly(iDOF,iLoop) = VibQuantsPar(iPart)%Quants(iDOF) * BoltzmannConst &
+              EnergyTemp_vibPoly(iDOF,iLoop) = PartIntEn(iPart)%QVib(iDOF) * BoltzmannConst &
                                              * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
             END DO
           END DO
@@ -441,7 +441,7 @@ IF(CollisMode.GT.1) THEN
             IF(iQua.GT.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF)) iQua=PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF)
             PartIntEn(iPart)%EVib  = PartIntEn(iPart)%EVib &
                + iQua*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
-            VibQuantsPar(iPart)%Quants(iDOF) = iQua
+            PartIntEn(iPart)%QVib(iDOF) = iQua
             Energy_Sum = Energy_Sum - iQua*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst*partWeight
           END DO
           PartIntEn(iPart)%EVib  = PartIntEn(iPart)%EVib + SpecDSMC(iSpec)%EZeroPoint
@@ -588,7 +588,7 @@ SUBROUTINE SplitParticles(iPartIndx_Node, nPartIn, nPartNew)
 USE MOD_Globals
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, PEM, PartPosRef, vMPFSplitLimit
 USE MOD_Particle_Vars         ,ONLY: UseVarTimeStep, PartTimeStep, Species
-USE MOD_DSMC_Vars             ,ONLY: PartIntEn, CollisMode, SpecDSMC, DSMC, PolyatomMolDSMC, VibQuantsPar
+USE MOD_DSMC_Vars             ,ONLY: PartIntEn, CollisMode, SpecDSMC, DSMC, PolyatomMolDSMC
 USE MOD_Particle_Tracking_Vars,ONLY: TrackingMethod
 USE MOD_Part_Tools            ,ONLY: GetNextFreePosition
 !#ifdef CODE_ANALYZE
@@ -643,9 +643,9 @@ DO iNewPart=1,nSplit
       PartIntEn(PositionNbr)%ERot = PartIntEn(PartIndx)%ERot
     END IF
     IF(SpecDSMC(PartSpecies(PositionNbr))%PolyatomicMol) THEN
-      IF(ALLOCATED(VibQuantsPar(PositionNbr)%Quants)) DEALLOCATE(VibQuantsPar(PositionNbr)%Quants)
-      ALLOCATE(VibQuantsPar(PositionNbr)%Quants(PolyatomMolDSMC(SpecDSMC(PartSpecies(PositionNbr))%SpecToPolyArray)%VibDOF))
-      VibQuantsPar(PositionNbr)%Quants(:) = VibQuantsPar(PartIndx)%Quants(:)
+      IF(ALLOCATED(PartIntEn(PositionNbr)%QVib)) DEALLOCATE(PartIntEn(PositionNbr)%QVib)
+      ALLOCATE(PartIntEn(PositionNbr)%QVib(PolyatomMolDSMC(SpecDSMC(PartSpecies(PositionNbr))%SpecToPolyArray)%VibDOF))
+      PartIntEn(PositionNbr)%QVib(:) = PartIntEn(PartIndx)%QVib(:)
     END IF
     IF(DSMC%ElectronicModel.GT.0) THEN
       IF((Species(iSpec)%InterID.NE.4).AND.(Species(iSpec)%InterID.NE.100).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN

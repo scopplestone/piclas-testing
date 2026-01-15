@@ -53,13 +53,15 @@ INTEGER                       :: PairE_vMPF(2)              ! 1: Pair chosen for
 LOGICAL                       :: useDSMC
 
 TYPE tPartIntEn
-  REAL, ALLOCATABLE           :: EVib(:)
-  REAL, ALLOCATABLE           :: ERot(:)  
-  REAL, ALLOCATABLE           :: EElec(:)  
-  REAL, ALLOCATABLE           :: TSolid(:)
-  INTEGER, ALLOCATABLE        :: QVib(:)
-  INTEGER, ALLOCATABLE        :: QRot(:)  
-  INTEGER, ALLOCATABLE        :: QElec(:)  
+  REAL, ALLOCATABLE           :: EVib(:)                    ! Vibrational Energy
+  REAL, ALLOCATABLE           :: ERot(:)                    ! Rotational Energy
+  REAL, ALLOCATABLE           :: EElec(:)                   ! Electronic Energy
+  REAL, ALLOCATABLE           :: TSolid(:)                  ! Temperature of Solid Particles
+  INTEGER, ALLOCATABLE        :: QVib(:)                    ! Vibrational Quantum numbers
+  INTEGER, ALLOCATABLE        :: QRot(:)                    ! Rotational Quantum numbers
+  INTEGER, ALLOCATABLE        :: QElec(:)                   ! Electronic Quantum numbers
+  REAL, ALLOCATABLE           :: DistriFunc(:)              ! Electronic distribution function
+  REAL, ALLOCATABLE           :: ElecVelo(:)                ! Electron velocity for ambipolar diffusion
 END TYPE tPartIntEn
 
 TYPE(tPartIntEn), ALLOCATABLE :: PartIntEn(:)        
@@ -566,17 +568,6 @@ END TYPE
 
 TYPE (tPolyatomMolDSMC), ALLOCATABLE    :: PolyatomMolDSMC(:)        ! Infos for Polyatomic Molecule
 
-TYPE tPolyatomMolVibQuant !DSMC Species Param
-  INTEGER, ALLOCATABLE            :: Quants(:)            ! Vib quants of each DOF for each particle
-END TYPE
-
-TYPE (tPolyatomMolVibQuant), ALLOCATABLE    :: VibQuantsPar(:)
-
-TYPE tAmbipolElecVelo !DSMC Species Param
-  REAL, ALLOCATABLE            :: ElecVelo(:)            ! Vib quants of each DOF for each particle
-END TYPE
-
-TYPE (tAmbipolElecVelo), ALLOCATABLE    :: AmbipolElecVelo(:)
 INTEGER, ALLOCATABLE            :: AmbiPolarSFMapping(:,:)
 INTEGER, ALLOCATABLE            :: iPartIndx_NodeNewAmbi(:)
 INTEGER                         :: newAmbiParts
@@ -586,12 +577,6 @@ INTEGER                         :: newElecRelaxParts
 INTEGER, ALLOCATABLE            :: iPartIndx_NodeElecRelaxChem(:)
 INTEGER                         :: nElecRelaxChemParts
 LOGICAL, ALLOCATABLE            :: ElecRelaxPart(:)
-
-TYPE tElectronicDistriPart !DSMC Species Param
-  REAL, ALLOCATABLE               :: DistriFunc(:)            ! Vib quants of each DOF for each particle
-END TYPE
-
-TYPE (tElectronicDistriPart), ALLOCATABLE    :: ElectronicDistriPart(:)
 
 ! MacValout and MacroVolSample have to be separated due to autoinitialrestart
 INTEGER(KIND=8)                  :: iter_macvalout             ! iterations since last macro volume output

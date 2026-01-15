@@ -1763,7 +1763,7 @@ USE MOD_Particle_Vars         ,ONLY: nSpecies
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, Species, PDM
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
-USE MOD_DSMC_Vars             ,ONLY: DSMC, AmbipolElecVelo
+USE MOD_DSMC_Vars             ,ONLY: DSMC, PartIntEn
 USE MOD_Particle_Vars         ,ONLY: CalcBulkElectronTemp,BulkElectronTemp,BulkElectronTempSpecID
 #if USE_MPI
 USE MOD_SurfaceModel_Vars     ,ONLY: BulkElectronTempSEE,SurfModSEEelectronTempAutomatic
@@ -1794,8 +1794,8 @@ DO i=1,PDM%ParticleVecLength
     PartVandV2(PartSpecies(i),4:6) = PartVandV2(PartSpecies(i),4:6) + PartState(4:6,i)**2 * GetParticleWeight(i)
     IF (DSMC%DoAmbipolarDiff) THEN
       IF(Species(PartSpecies(i))%ChargeIC.GT.0.0) THEN
-        PartVandV2(DSMC%AmbiDiffElecSpec,1:3) = PartVandV2(DSMC%AmbiDiffElecSpec,1:3) + AmbipolElecVelo(i)%ElecVelo(1:3) * GetParticleWeight(i)
-        PartVandV2(DSMC%AmbiDiffElecSpec,4:6) = PartVandV2(DSMC%AmbiDiffElecSpec,4:6) + AmbipolElecVelo(i)%ElecVelo(1:3)**2 * GetParticleWeight(i)
+        PartVandV2(DSMC%AmbiDiffElecSpec,1:3) = PartVandV2(DSMC%AmbiDiffElecSpec,1:3) + PartIntEn(i)%ElecVelo(1:3) * GetParticleWeight(i)
+        PartVandV2(DSMC%AmbiDiffElecSpec,4:6) = PartVandV2(DSMC%AmbiDiffElecSpec,4:6) + PartIntEn(i)%ElecVelo(1:3)**2 * GetParticleWeight(i)
       END IF
     END IF
   END IF

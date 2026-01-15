@@ -41,7 +41,7 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,SampleType,SurfaceNormal_opt,PartPos
 USE MOD_Particle_Vars
 USE MOD_Globals                   ,ONLY: abort,DOTPRODUCT
 USE MOD_DSMC_Vars                 ,ONLY: useDSMC,PartIntEn, SpecDSMC
-USE MOD_DSMC_Vars                 ,ONLY: CollisMode,DSMC,AmbipolElecVelo
+USE MOD_DSMC_Vars                 ,ONLY: CollisMode,DSMC
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact,SWIVarTimeStep
 USE MOD_part_tools                ,ONLY: GetParticleWeight
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
@@ -90,7 +90,7 @@ ETrans = 0.5 * Species(SpecID)%MassIC * DOTPRODUCT(PartState(4:6,PartID))
 IF (DSMC%DoAmbipolarDiff) THEN
   ! Add the translational energy of electron "attached" to the ion
   IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
-    ETransAmbi = 0.5 * Species(DSMC%AmbiDiffElecSpec)%MassIC * DOTPRODUCT(AmbipolElecVelo(PartID)%ElecVelo(1:3))
+    ETransAmbi = 0.5 * Species(DSMC%AmbiDiffElecSpec)%MassIC * DOTPRODUCT(PartIntEn(PartID)%ElecVelo(1:3))
     ! Save the electron energy to sample it later in SampleImpactProperties
     ETrans = ETrans + ETransAmbi
   END IF
@@ -106,7 +106,7 @@ CASE ('old')
   EElecID  = SAMPWALL_EELECOLD
   IF (DSMC%DoAmbipolarDiff) THEN
     IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
-      MomArray(1:3) = MomArray(1:3) + Species(DSMC%AmbiDiffElecSpec)%MassIC * AmbipolElecVelo(PartID)%ElecVelo(1:3) * MPF
+      MomArray(1:3) = MomArray(1:3) + Species(DSMC%AmbiDiffElecSpec)%MassIC * PartIntEn(PartID)%ElecVelo(1:3) * MPF
     END IF
   END IF
   ! Species-specific simulation particle impact counter
@@ -148,7 +148,7 @@ CASE ('new')
   EElecID  = SAMPWALL_EELECNEW
   IF (DSMC%DoAmbipolarDiff) THEN
     IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
-      MomArray(1:3) = MomArray(1:3) - Species(DSMC%AmbiDiffElecSpec)%MassIC * AmbipolElecVelo(PartID)%ElecVelo(1:3) * MPF
+      MomArray(1:3) = MomArray(1:3) - Species(DSMC%AmbiDiffElecSpec)%MassIC * PartIntEn(PartID)%ElecVelo(1:3) * MPF
     END IF
   END IF
 CASE DEFAULT

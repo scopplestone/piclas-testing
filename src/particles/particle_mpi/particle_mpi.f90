@@ -366,8 +366,7 @@ SUBROUTINE MPIParticleSend(UseOldVecLength)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_DSMC_Vars,               ONLY:useDSMC, CollisMode, DSMC, PartIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
-USE MOD_DSMC_Vars,               ONLY:ElectronicDistriPart, AmbipolElecVelo
+USE MOD_DSMC_Vars,               ONLY:useDSMC, CollisMode, DSMC, PartIntEn, SpecDSMC, PolyatomMolDSMC
 USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange,PartCommSize,PartSendBuf,PartRecvBuf,PartTargetProc!,PartHaloElemToProc
 USE MOD_Particle_MPI_Vars,       ONLY:nExchangeProcessors,ExchangeProcToGlobalProc
 USE MOD_Particle_Tracking_Vars,  ONLY:TrackingMethod
@@ -580,7 +579,7 @@ DO iProc=0,nExchangeProcessors-1
           IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
             iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
             PartSendBuf(iProc)%content(pos_poly(iProc)+1:pos_poly(iProc)+PolyatomMolDSMC(iPolyatMole)%VibDOF) &
-                                                            = VibQuantsPar(iPart)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
+                                                            = PartIntEn(iPart)%QVib(1:PolyatomMolDSMC(iPolyatMole)%VibDOF)
             pos_poly(iProc) = pos_poly(iProc) + PolyatomMolDSMC(iPolyatMole)%VibDOF
           END IF
         END IF
@@ -588,14 +587,14 @@ DO iProc=0,nExchangeProcessors-1
         IF (DSMC%ElectronicModel.EQ.2) THEN
           IF(.NOT.((Species(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
             PartSendBuf(iProc)%content(pos_elec(iProc)+1:pos_elec(iProc)+ SpecDSMC(SpecID)%MaxElecQuant) &
-                                         = ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(SpecID)%MaxElecQuant)
+                                         = PartIntEn(iPart)%DistriFunc(1:SpecDSMC(SpecID)%MaxElecQuant)
             pos_elec(iProc) = pos_elec(iProc) + SpecDSMC(SpecID)%MaxElecQuant
           END IF
         END IF
 
         IF (DSMC%DoAmbipolarDiff) THEN
           IF(Species(SpecID)%ChargeIC.GT.0.0)  THEN
-            PartSendBuf(iProc)%content(pos_ambi(iProc)+1:pos_ambi(iProc)+ 3) = AmbipolElecVelo(iPart)%ElecVelo(1:3)
+            PartSendBuf(iProc)%content(pos_ambi(iProc)+1:pos_ambi(iProc)+ 3) = PartIntEn(iPart)%ElecVelo(1:3)
             pos_ambi(iProc) = pos_ambi(iProc) + 3
           END IF
         END IF
@@ -752,8 +751,8 @@ SUBROUTINE MPIParticleRecv(DoMPIUpdateNextFreePos)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, DSMC, PartIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
-USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo, ParticleWeighting
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, DSMC, PartIntEn, SpecDSMC, PolyatomMolDSMC
+USE MOD_DSMC_Vars              ,ONLY: ParticleWeighting
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartCommSize,PartRecvBuf,PartSendBuf
 USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
@@ -995,9 +994,9 @@ DO iProc=0,nExchangeProcessors-1
       IF (DSMC%NumPolyatomMolecs.GT.0) THEN
         IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
           iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
-          IF(ALLOCATED(VibQuantsPar(PartID)%Quants)) DEALLOCATE(VibQuantsPar(PartID)%Quants)
-          ALLOCATE(VibQuantsPar(PartID)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-          VibQuantsPar(PartID)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF) &
+          IF(ALLOCATED(PartIntEn(PartID)%QVib)) DEALLOCATE(PartIntEn(PartID)%QVib)
+          ALLOCATE(PartIntEn(PartID)%QVib(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+          PartIntEn(PartID)%QVib(1:PolyatomMolDSMC(iPolyatMole)%VibDOF) &
                               = NINT(PartRecvBuf(iProc)%content(pos_poly+1:pos_poly+PolyatomMolDSMC(iPolyatMole)%VibDOF))
           pos_poly = pos_poly + PolyatomMolDSMC(iPolyatMole)%VibDOF
         END IF
@@ -1005,9 +1004,9 @@ DO iProc=0,nExchangeProcessors-1
 
       IF (DSMC%ElectronicModel.EQ.2) THEN
         IF(.NOT.((Species(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
-          IF(ALLOCATED(ElectronicDistriPart(PartID)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(PartID)%DistriFunc)
-          ALLOCATE(ElectronicDistriPart(PartID)%DistriFunc(1:SpecDSMC(SpecID)%MaxElecQuant))
-          ElectronicDistriPart(PartID)%DistriFunc(1:SpecDSMC(SpecID)%MaxElecQuant) &
+          IF(ALLOCATED(PartIntEn(PartID)%DistriFunc)) DEALLOCATE(PartIntEn(PartID)%DistriFunc)
+          ALLOCATE(PartIntEn(PartID)%DistriFunc(1:SpecDSMC(SpecID)%MaxElecQuant))
+          PartIntEn(PartID)%DistriFunc(1:SpecDSMC(SpecID)%MaxElecQuant) &
                               = PartRecvBuf(iProc)%content(pos_elec+1:pos_elec+SpecDSMC(SpecID)%MaxElecQuant)
           pos_elec = pos_elec + SpecDSMC(SpecID)%MaxElecQuant
         END IF
@@ -1015,9 +1014,9 @@ DO iProc=0,nExchangeProcessors-1
 
       IF (DSMC%DoAmbipolarDiff) THEN
         IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
-          IF(ALLOCATED(AmbipolElecVelo(PartID)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PartID)%ElecVelo)
-          ALLOCATE(AmbipolElecVelo(PartID)%ElecVelo(1:3))
-          AmbipolElecVelo(PartID)%ElecVelo(1:3) = PartRecvBuf(iProc)%content(pos_ambi+1:pos_ambi+3)
+          IF(ALLOCATED(PartIntEn(PartID)%ElecVelo)) DEALLOCATE(PartIntEn(PartID)%ElecVelo)
+          ALLOCATE(PartIntEn(PartID)%ElecVelo(1:3))
+          PartIntEn(PartID)%ElecVelo(1:3) = PartRecvBuf(iProc)%content(pos_ambi+1:pos_ambi+3)
           pos_ambi = pos_ambi + 3
         END IF
       END IF

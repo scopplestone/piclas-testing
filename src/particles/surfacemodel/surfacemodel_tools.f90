@@ -87,7 +87,7 @@ SUBROUTINE PerfectReflection(PartID,SideID,n_Loc,opt_Symmetry)
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,Species,PartLorentzType,UseRotRefSubCycling,nSubCyclingSteps
-USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
+USE MOD_DSMC_Vars               ,ONLY: DSMC, PartIntEn
 USE MOD_Globals_Vars            ,ONLY: c2_inv
 #if defined(LSERK)
 USE MOD_Particle_Vars           ,ONLY: Pt_temp
@@ -177,9 +177,9 @@ ELSE
   PartState(4:6,PartID) = PartState(4:6,PartID) - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loc)*n_loc
   IF (DSMC%DoAmbipolarDiff) THEN
     IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
-      v_old_Ambi = AmbipolElecVelo(PartID)%ElecVelo(1:3)
-      AmbipolElecVelo(PartID)%ElecVelo(1:3) = AmbipolElecVelo(PartID)%ElecVelo(1:3) &
-                     - 2.*DOT_PRODUCT(AmbipolElecVelo(PartID)%ElecVelo(1:3),n_loc)*n_loc
+      v_old_Ambi = PartIntEn(PartID)%ElecVelo(1:3)
+      PartIntEn(PartID)%ElecVelo(1:3) = PartIntEn(PartID)%ElecVelo(1:3) &
+                     - 2.*DOT_PRODUCT(PartIntEn(PartID)%ElecVelo(1:3),n_loc)*n_loc
     END IF
   END IF
 END IF
@@ -273,7 +273,7 @@ SUBROUTINE DiffuseReflection(PartID,SideID,n_loc)
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: TwoepsMach
 USE MOD_Particle_Mesh_Vars
-USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
+USE MOD_DSMC_Vars               ,ONLY: DSMC, PartIntEn
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies
 USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame,InRotRefFrame,PartVeloRotRef
@@ -373,7 +373,7 @@ END IF
 VeloC(1:3) = CalcPostWallCollVelo(SpecID,DOTPRODUCT(PartState(4:6,PartID)),WallTemp,TransACC)
 IF (DSMC%DoAmbipolarDiff) THEN
   IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
-    VeloCAmbi(1:3) = CalcPostWallCollVelo(DSMC%AmbiDiffElecSpec,DOTPRODUCT(AmbipolElecVelo(PartID)%ElecVelo(1:3)),WallTemp,TransACC)
+    VeloCAmbi(1:3) = CalcPostWallCollVelo(DSMC%AmbiDiffElecSpec,DOTPRODUCT(PartIntEn(PartID)%ElecVelo(1:3)),WallTemp,TransACC)
   END IF
 END IF
 
@@ -486,7 +486,7 @@ END IF
 ! 8.) Saving new particle velocity and recompute the trajectory based on new and old particle position
 PartState(4:6,PartID)   = NewVelo(1:3)
 IF (DSMC%DoAmbipolarDiff) THEN
-  IF(Species(SpecID)%ChargeIC.GT.0.0) AmbipolElecVelo(PartID)%ElecVelo(1:3) = NewVeloAmbi(1:3)
+  IF(Species(SpecID)%ChargeIC.GT.0.0) PartIntEn(PartID)%ElecVelo(1:3) = NewVeloAmbi(1:3)
 END IF
 
 ! Recompute trajectory etc
@@ -659,7 +659,7 @@ USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, PolyatomMolDSMC, useDSMC
-USE MOD_DSMC_Vars             ,ONLY: PartIntEn, SpecDSMC, DSMC, VibQuantsPar, AHO
+USE MOD_DSMC_Vars             ,ONLY: PartIntEn, SpecDSMC, DSMC, AHO
 USE MOD_DSMC_ElectronicModel  ,ONLY: RelaxElectronicShellWall
 USE MOD_part_tools            ,ONLY: RotInitPolyRoutineFuncPTR
 #if (PP_TimeDiscMethod==400)
@@ -715,14 +715,14 @@ IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
         VibDOF = PolyatomMolDSMC(iPolyatMole)%VibDOF
         ALLOCATE(RanNumPoly(VibDOF))
         CALL RANDOM_NUMBER(RanNumPoly)
-        VibQuantsPar(PartID)%Quants(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+        PartIntEn(PartID)%QVib(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
         PartIntEn(PartID)%EVib = 0.0
         DO iDOF = 1, VibDOF
-          DO WHILE (VibQuantsPar(PartID)%Quants(iDOF).GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF))
+          DO WHILE (PartIntEn(PartID)%QVib(iDOF).GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF))
             CALL RANDOM_NUMBER(RanNum)
-            VibQuantsPar(PartID)%Quants(iDOF) = INT(-LOG(RanNum) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
+            PartIntEn(PartID)%QVib(iDOF) = INT(-LOG(RanNum) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
           END DO
-          PartIntEn(PartID)%EVib = PartIntEn(PartID)%EVib + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) &
+          PartIntEn(PartID)%EVib = PartIntEn(PartID)%EVib + (PartIntEn(PartID)%QVib(iDOF) + DSMC%GammaQuant) &
                                    * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
         END DO
       ELSE

@@ -50,7 +50,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars
 ! VARIABLES
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartIntEn, DSMC
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMCSumOfFormedParticles, PolyatomMolDSMC, VibQuantsPar
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMCSumOfFormedParticles, PolyatomMolDSMC
 USE MOD_MCC_Vars                ,ONLY: SpecXSec, XSec_NullCollision
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep, UseGranularSpecies
@@ -309,9 +309,9 @@ DO iSpec = 1, nSpecies
                   PartIntEn(PartIndex)%ERot = PartStateIntSplit(2)
                 END IF
                 IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-                  IF(ALLOCATED(VibQuantsPar(PartIndex)%Quants)) DEALLOCATE(VibQuantsPar(PartIndex)%Quants)
-                  ALLOCATE(VibQuantsPar(PartIndex)%Quants(PolyatomMolDSMC(SpecDSMC(iSpec)%SpecToPolyArray)%VibDOF))
-                  VibQuantsPar(PartIndex)%Quants(:) = VibQuantsParSplit(:)
+                  IF(ALLOCATED(PartIntEn(PartIndex)%QVib)) DEALLOCATE(PartIntEn(PartIndex)%QVib)
+                  ALLOCATE(PartIntEn(PartIndex)%QVib(PolyatomMolDSMC(SpecDSMC(iSpec)%SpecToPolyArray)%VibDOF))
+                  PartIntEn(PartIndex)%QVib(:) = VibQuantsParSplit(:)
                 END IF
                 IF(DSMC%ElectronicModel.GT.0) THEN
                   IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
@@ -364,7 +364,7 @@ DO iSpec = 1, nSpecies
               END IF
               IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
                 ALLOCATE(VibQuantsParSplit(PolyatomMolDSMC(SpecDSMC(iSpec)%SpecToPolyArray)%VibDOF))
-                VibQuantsParSplit(:) = VibQuantsPar(PartIndex)%Quants(:)
+                VibQuantsParSplit(:) = PartIntEn(PartIndex)%QVib(:)
               END IF ! SpecDSMC(iSpec)%PolyatomicMol
               IF(DSMC%ElectronicModel.GT.0) THEN
                 IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) &

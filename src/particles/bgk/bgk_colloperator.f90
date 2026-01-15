@@ -1341,7 +1341,7 @@ SUBROUTINE EnergyConsVib(nPart, totalWeight, nVibRelax, VibRelaxWeightSpec, iPar
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies
-USE MOD_DSMC_Vars             ,ONLY: PartIntEn, PolyatomMolDSMC, VibQuantsPar, DSMC, SpecDSMC
+USE MOD_DSMC_Vars             ,ONLY: PartIntEn, PolyatomMolDSMC, DSMC, SpecDSMC
 USE MOD_BGK_Vars              ,ONLY: BGKDoVibRelaxation, BGKUseQuantVibEn
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
@@ -1422,7 +1422,7 @@ IF(BGKDoVibRelaxation) THEN
             ! Sum up the vibrational energy over all vibrational DOF
             PartIntEn(iPart)%EVib  = PartIntEn(iPart)%EVib &
                + iQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
-            VibQuantsPar(iPart)%Quants(iDOF) = iQuant
+            PartIntEn(iPart)%QVib(iDOF) = iQuant
             ! Remaining OldEn for remaining particles
             OldEn = OldEn - iQuant*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst*partWeight
           END DO

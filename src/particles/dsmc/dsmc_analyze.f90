@@ -337,7 +337,7 @@ SUBROUTINE DSMC_data_sampling()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, PartIntEn, DSMC, CollisMode, SpecDSMC, DSMC_Solution, AmbipolElecVelo
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, PartIntEn, DSMC, CollisMode, SpecDSMC, DSMC_Solution
 USE MOD_DSMC_Vars              ,ONLY: DSMC_SolutionPressTens
 USE MOD_Part_tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM, Species, DoVirtualCellMerge, VirtMergedCells
@@ -419,9 +419,9 @@ DO iPart=1,PDM%ParticleVecLength
       IF (DSMC%DoAmbipolarDiff) THEN
         IF(Species(iSpec)%ChargeIC.GT.0.0) THEN
           DSMC_Solution(1:3,iElem,DSMC%AmbiDiffElecSpec) = DSMC_Solution(1:3,iElem,DSMC%AmbiDiffElecSpec) &
-            + AmbipolElecVelo(iPart)%ElecVelo(1:3)*partWeight
+            + PartIntEn(iPart)%ElecVelo(1:3)*partWeight
           DSMC_Solution(4:6,iElem,DSMC%AmbiDiffElecSpec) = DSMC_Solution(4:6,iElem,DSMC%AmbiDiffElecSpec) &
-            + AmbipolElecVelo(iPart)%ElecVelo(1:3)**2*partWeight
+            + PartIntEn(iPart)%ElecVelo(1:3)**2*partWeight
           DSMC_Solution(7,iElem,DSMC%AmbiDiffElecSpec) = DSMC_Solution(7,iElem, DSMC%AmbiDiffElecSpec) + partWeight
           DSMC_Solution(11,iElem, DSMC%AmbiDiffElecSpec) = DSMC_Solution(11,iElem, DSMC%AmbiDiffElecSpec) + 1.0
         END IF

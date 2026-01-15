@@ -50,7 +50,7 @@ SUBROUTINE InitElectronShell(iSpec,iPart,iInit,init_or_sf)
 USE MOD_Globals         ,ONLY: abort
 USE MOD_Globals_Vars    ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars   ,ONLY: PEM
-USE MOD_DSMC_Vars       ,ONLY: SpecDSMC, PartIntEn, ElectronicDistriPart, DSMC, BGGas
+USE MOD_DSMC_Vars       ,ONLY: SpecDSMC, PartIntEn, DSMC, BGGas
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -119,8 +119,8 @@ CASE(1,4)
   END DO
   PartIntEn(iPart)%EElec = BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
 CASE(2)
-  IF(ALLOCATED(ElectronicDistriPart(iPart)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(iPart)%DistriFunc)
-  ALLOCATE(ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(iSpec)%MaxElecQuant))
+  IF(ALLOCATED(PartIntEn(iPart)%DistriFunc)) DEALLOCATE(PartIntEn(iPart)%DistriFunc)
+  ALLOCATE(PartIntEn(iPart)%DistriFunc(1:SpecDSMC(iSpec)%MaxElecQuant))
   PartIntEn(iPart)%EElec = 0.0
   DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
     tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / Telec
@@ -130,12 +130,12 @@ CASE(2)
   DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
     tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / Telec
     IF (CHECKEXP(tmpExp)) THEN
-      ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = SpecDSMC(iSpec)%ElectronicState(1,iQua)*EXP(-tmpExp)/ElectronicPartition
+      PartIntEn(iPart)%DistriFunc(iQua+1) = SpecDSMC(iSpec)%ElectronicState(1,iQua)*EXP(-tmpExp)/ElectronicPartition
     ELSE
-      ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = 0.0
+      PartIntEn(iPart)%DistriFunc(iQua+1) = 0.0
     END IF
     PartIntEn(iPart)%EElec = PartIntEn(iPart)%EElec + &
-        ElectronicDistriPart(iPart)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
+        PartIntEn(iPart)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
   END DO
 CASE(3)
   ! Initialize in ground state
@@ -153,7 +153,7 @@ FUNCTION RelaxElectronicShellWall(iPart,TWall)
 !===================================================================================================================================
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, ElectronicDistriPart
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, PartIntEn
 USE MOD_Particle_Vars         ,ONLY: PartSpecies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -216,12 +216,12 @@ CASE(2)
   DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
     tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TWall
     IF (CHECKEXP(tmpExp)) THEN
-      ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-tmpExp)/ElectronicPartition
+      PartIntEn(iPart)%DistriFunc(iQua+1) = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-tmpExp)/ElectronicPartition
     ELSE
-      ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = 0.0
+      PartIntEn(iPart)%DistriFunc(iQua+1) = 0.0
     END IF
     RelaxElectronicShellWall = RelaxElectronicShellWall+ &
-        ElectronicDistriPart(iPart)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
+        PartIntEn(iPart)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
   END DO
 CASE(3)
   ! Reset particle to ground state at wall
@@ -242,7 +242,7 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi, NewPart, XSec_Level)
 !===================================================================================================================================
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, ElementaryCharge
-USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, PartIntEn, Coll_pData, DSMC, ElectronicDistriPart, CollInf
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, PartIntEn, Coll_pData, DSMC, CollInf
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, UseVarTimeStep, usevMPF, nSpecies
 USE MOD_part_tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec
@@ -322,7 +322,7 @@ CASE(2)
     LocRelaxProb = SpecDSMC(iSpec)%ElecRelaxProb
   END IF
   Eold=  PartIntEn(iPart1)%EElec(1)
-  DistriOld = ElectronicDistriPart(iPart1)%DistriFunc
+  DistriOld = PartIntEn(iPart1)%DistriFunc
   ETraRel = Coll_pData(iPair)%Ec
   IF (usevMPF.OR.UseVarTimeStep) THEN
     ETraRel = ETraRel / GetParticleWeight(iPart1)
@@ -339,16 +339,16 @@ CASE(2)
   DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
     tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TransElec
     IF (CHECKEXP(tmpExp)) THEN
-      ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) = &
-        (1.-LocRelaxProb)*ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) + &
+      PartIntEn(iPart1)%DistriFunc(iQua+1) = &
+        (1.-LocRelaxProb)*PartIntEn(iPart1)%DistriFunc(iQua+1) + &
         LocRelaxProb * SpecDSMC(iSpec)%ElectronicState(1,iQua) *EXP (-tmpExp)/ElectronicPartition
     ELSE
-      ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) = (1.-LocRelaxProb)*ElectronicDistriPart(iPart1)%DistriFunc(iQua+1)
+      PartIntEn(iPart1)%DistriFunc(iQua+1) = (1.-LocRelaxProb)*PartIntEn(iPart1)%DistriFunc(iQua+1)
     END IF
-!      ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) =  SpecDSMC(iSpec)%ElectronicState(1,iQua) * &
+!      PartIntEn(iPart1)%DistriFunc(iQua+1) =  SpecDSMC(iSpec)%ElectronicState(1,iQua) * &
 !              EXP ( - SpecDSMC(iSpec)%ElectronicState(2,iQua) / TransElec)/ElectronicPartition
     PartIntEn(iPart1)%EElec = PartIntEn(iPart1)%EElec + &
-        ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
+        PartIntEn(iPart1)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
   END DO
   IF ((Coll_pData(iPair)%Ec-PartIntEn(iPart1)%EElec(1)*GetParticleWeight(iPart1)).LT.0.0) then
     Etmp = (Coll_pData(iPair)%Ec - (1.-LocRelaxProb)*Eold*GetParticleWeight(iPart1))/(GetParticleWeight(iPart1)*LocRelaxProb)
@@ -363,13 +363,13 @@ CASE(2)
     DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
       tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TransElec
       IF (CHECKEXP(tmpExp)) THEN
-        ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) = (1.-LocRelaxProb)*DistriOld(iQua+1) &
+        PartIntEn(iPart1)%DistriFunc(iQua+1) = (1.-LocRelaxProb)*DistriOld(iQua+1) &
             + LocRelaxProb * SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP (-tmpExp)/ElectronicPartition
       ELSE
-        ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) = (1.-LocRelaxProb)*DistriOld(iQua+1)
+        PartIntEn(iPart1)%DistriFunc(iQua+1) = (1.-LocRelaxProb)*DistriOld(iQua+1)
       END IF
       PartIntEn(iPart1)%EElec = PartIntEn(iPart1)%EElec + &
-          ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
+          PartIntEn(iPart1)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
     END DO
     IF ((Coll_pData(iPair)%Ec-PartIntEn(iPart1)%EElec(1)*GetParticleWeight(iPart1)).LT.0.0) CALL abort(__STAMP__,&
         'Negative collision energy after electronic excitation relaxation!')

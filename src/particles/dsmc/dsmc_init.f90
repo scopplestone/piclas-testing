@@ -421,7 +421,6 @@ IF (DSMC%ElectronicModel.GT.0) THEN
   SELECT CASE(DSMC%ElectronicModel)
     CASE(1) ! Model by Liechty, each particle has a specific electronic state
     CASE(2) ! Model by Burt, each particle has an electronic distribution function
-      IF(.NOT.ALLOCATED(ElectronicDistriPart)) ALLOCATE(ElectronicDistriPart(PDM%maxParticleNumber))
     CASE(3) ! MCC model, utilizing cross-section data for specific levels
       IF(SelectionProc.EQ.2) THEN
         CALL Abort(__STAMP__,'ERROR: Selected combination of -SelectionProcedure (2) and -ElectronicModel (3) not supported!')
@@ -1140,7 +1139,6 @@ ELSE !CollisMode.GT.0
         ! method is used (Gimelshein, SelectionProc = 2)
         CALL Abort(__STAMP__,'ERROR: No single-mode polyatomic relaxation possible with chosen selection procedure! SelectionProc:', SelectionProc)
       END IF
-      IF(.NOT.ALLOCATED(VibQuantsPar)) ALLOCATE(VibQuantsPar(PDM%maxParticleNumber))
       ALLOCATE(PolyatomMolDSMC(DSMC%NumPolyatomMolecs))
       DO iSpec = 1, nSpecies
         IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
@@ -2116,7 +2114,6 @@ SDEALLOCATE(CollInf%dref)
 SDEALLOCATE(CollInf%Tref)
 SDEALLOCATE(CollInf%OldCollPartner)
 CollInf%ProhibitDoubleColl=.FALSE.
-!SDEALLOCATE(VibQuantsPar)
 ! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_Solution)
 SDEALLOCATE(DSMC_SolutionPressTens)

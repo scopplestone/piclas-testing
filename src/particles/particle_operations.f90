@@ -44,7 +44,7 @@ USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpe
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, PartVeloRotRef, RotRefFrameOmega, UseRotRefFrame, InRotRefFrame
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC, PartIntEn, DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PolyatomMolDSMC, VibQuantsPar
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PolyatomMolDSMC
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF
@@ -90,10 +90,10 @@ IF (useDSMC.AND.(CollisMode.GT.1)) THEN
     IF(DSMC%NumPolyatomMolecs.GT.0) THEN
         IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
           iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
-          IF(ALLOCATED(VibQuantsPar(newParticleID)%Quants)) DEALLOCATE(VibQuantsPar(newParticleID)%Quants)
-          ALLOCATE(VibQuantsPar(newParticleID)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
+          IF(ALLOCATED(PartIntEn(newParticleID)%QVib)) DEALLOCATE(PartIntEn(newParticleID)%QVib)
+          ALLOCATE(PartIntEn(newParticleID)%QVib(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
           ! TODO: Initialize quants to actually correspond to the vibrational energy
-          VibQuantsPar(newParticleID)%Quants = 0
+          PartIntEn(newParticleID)%QVib = 0
         END IF
       END IF
   END IF
@@ -235,7 +235,7 @@ USE MOD_Particle_Vars             ,ONLY: Pt_temp
 #endif
 USE MOD_Particle_Analyze_Pure     ,ONLY: CalcEkinPart
 USE MOD_part_tools                ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars                 ,ONLY: CollInf, AmbipolElecVelo, ElectronicDistriPart, VibQuantsPar, PartIntEn
+USE MOD_DSMC_Vars                 ,ONLY: CollInf, PartIntEn
 USE MOD_Mesh_Vars                 ,ONLY: BoundaryName
 #if USE_HDG
 USE MOD_Globals                   ,ONLY: abort
@@ -291,16 +291,8 @@ IF (ALLOCATED(PartIntEn)) THEN
   SDEALLOCATE(PartIntEn(PartID)%QVib)
   SDEALLOCATE(PartIntEn(PartID)%QElec)
   SDEALLOCATE(PartIntEn(PartID)%TSolid)
-END IF
-
-IF(ALLOCATED(AmbipolElecVelo)) THEN
-  SDEALLOCATE(AmbipolElecVelo(PartID)%ElecVelo)
-END IF
-IF(ALLOCATED(ElectronicDistriPart)) THEN
-  SDEALLOCATE(ElectronicDistriPart(PartID)%DistriFunc)
-END IF
-IF(ALLOCATED(VibQuantsPar)) THEN
-  SDEALLOCATE(VibQuantsPar(PartID)%Quants)
+  SDEALLOCATE(PartIntEn(PartID)%DistriFunc)
+  SDEALLOCATE(PartIntEn(PartID)%ElecVelo)
 END IF
 
 #if defined(LSERK)

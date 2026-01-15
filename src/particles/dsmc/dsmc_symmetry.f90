@@ -42,8 +42,8 @@ SUBROUTINE AdjustParticleWeight(iPart,iElem)
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
-USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting, DSMC, PartIntEn, useDSMC, CollisMode, AmbipolElecVelo
-USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, VibQuantsPar, SpecDSMC, PolyatomMolDSMC, ElectronicDistriPart
+USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting, DSMC, PartIntEn, useDSMC, CollisMode
+USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, SpecDSMC, PolyatomMolDSMC
 USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting
 USE MOD_Particle_Vars           ,ONLY: PartMPF, PartSpecies, PartState, Species, LastPartPos
 USE MOD_TimeDisc_Vars           ,ONLY: iter
@@ -126,7 +126,7 @@ IF(DoCloning) THEN
           IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)) &
             DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)
           ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(1:SpecDSMC(SpecID)%MaxElecQuant))
-          ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(:) = ElectronicDistriPart(iPart)%DistriFunc(:)
+          ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(:) = PartIntEn(iPart)%DistriFunc(:)
         END IF
       END IF
     END IF
@@ -134,14 +134,14 @@ IF(DoCloning) THEN
       IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo)) &
         DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo)
       ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo(1:3))
-      ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo(1:3) = AmbipolElecVelo(iPart)%ElecVelo(1:3)
+      ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo(1:3) = PartIntEn(iPart)%ElecVelo(1:3)
     END IF
     IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
       IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%VibQuants)) &
         DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%VibQuants)
       ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%VibQuants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
-      ClonedParticles(cloneIndex,DelayCounter)%VibQuants(:) = VibQuantsPar(iPart)%Quants(:)
+      ClonedParticles(cloneIndex,DelayCounter)%VibQuants(:) = PartIntEn(iPart)%QVib(:)
     END IF
   END IF
   ClonedParticles(cloneIndex,DelayCounter)%Species = SpecID
@@ -182,8 +182,8 @@ SUBROUTINE SetInClones()
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, PartIntEn, useDSMC, CollisMode, DSMC, ParticleWeighting
-USE MOD_DSMC_Vars               ,ONLY: AmbipolElecVelo, DoRadialWeighting
-USE MOD_DSMC_Vars               ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive, ElectronicDistriPart
+USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PolyatomMolDSMC, SamplingActive
 USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, Species
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
@@ -257,29 +257,29 @@ DO iPart = 1, ParticleWeighting%ClonePartNum(DelayCounter)
         PartIntEn(PositionNbr)%EElec = ClonedParticles(iPart,DelayCounter)%PartIntEn%EElec
         DEALLOCATE(ClonedParticles(iPart,DelayCounter)%PartIntEn%EElec)
         IF (DSMC%ElectronicModel.EQ.2) THEN
-          IF(ALLOCATED(ElectronicDistriPart(PositionNbr)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc)
-          ALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc(1:SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%MaxElecQuant))
-          ElectronicDistriPart(PositionNbr)%DistriFunc(:) = ClonedParticles(iPart,DelayCounter)%DistriFunc(:)
+          IF(ALLOCATED(PartIntEn(PositionNbr)%DistriFunc)) DEALLOCATE(PartIntEn(PositionNbr)%DistriFunc)
+          ALLOCATE(PartIntEn(PositionNbr)%DistriFunc(1:SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%MaxElecQuant))
+          PartIntEn(PositionNbr)%DistriFunc(:) = ClonedParticles(iPart,DelayCounter)%DistriFunc(:)
           DEALLOCATE(ClonedParticles(iPart,DelayCounter)%PartIntEn%EElec)
         END IF
       END IF
     END IF
     IF ((DSMC%DoAmbipolarDiff).AND.(Species(ClonedParticles(iPart,DelayCounter)%Species)%ChargeIC.GT.0.0)) THEN
-      IF(ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
-      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(1:3))
-      AmbipolElecVelo(PositionNbr)%ElecVelo(1:2) = ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(1:2)
+      IF(ALLOCATED(PartIntEn(PositionNbr)%ElecVelo)) DEALLOCATE(PartIntEn(PositionNbr)%ElecVelo)
+      ALLOCATE(PartIntEn(PositionNbr)%ElecVelo(1:3))
+      PartIntEn(PositionNbr)%ElecVelo(1:2) = ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(1:2)
       IF(DoRadialWeighting) THEN
         ! Creating a relative velocity in the z-direction
-        AmbipolElecVelo(PositionNbr)%ElecVelo(3) = -ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(3)
+        PartIntEn(PositionNbr)%ElecVelo(3) = -ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(3)
       ELSE
-        AmbipolElecVelo(PositionNbr)%ElecVelo(3) = ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(3)
+        PartIntEn(PositionNbr)%ElecVelo(3) = ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(3)
       END IF
     END IF
     IF(SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%SpecToPolyArray
-      IF(ALLOCATED(VibQuantsPar(PositionNbr)%Quants)) DEALLOCATE(VibQuantsPar(PositionNbr)%Quants)
-      ALLOCATE(VibQuantsPar(PositionNbr)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
-      VibQuantsPar(PositionNbr)%Quants(:) = ClonedParticles(iPart,DelayCounter)%VibQuants(:)
+      IF(ALLOCATED(PartIntEn(PositionNbr)%QVib)) DEALLOCATE(PartIntEn(PositionNbr)%QVib)
+      ALLOCATE(PartIntEn(PositionNbr)%QVib(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
+      PartIntEn(PositionNbr)%QVib(:) = ClonedParticles(iPart,DelayCounter)%VibQuants(:)
     END IF
   END IF  
   ! Set the global element number with the offset

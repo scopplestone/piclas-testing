@@ -303,7 +303,7 @@ USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame,InRotRefFrame,PartVeloRotR
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide, GlobalSide2SurfSide
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
-USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
+USE MOD_DSMC_Vars               ,ONLY: DSMC, PartIntEn
 USE MOD_part_tools              ,ONLY: RotateVectorAroundAxis
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars  ,ONLY: PartOut,MPIRankOut
@@ -348,7 +348,7 @@ IF(UseRotRefFrame) THEN
 END IF
 Velo_old(1:3) = PartState(4:6,PartID)
 IF (DSMC%DoAmbipolarDiff) THEN
-  IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) Velo_oldAmbi(1:3) = AmbipolElecVelo(PartID)%ElecVelo(1:3)
+  IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) Velo_oldAmbi(1:3) = PartIntEn(PartID)%ElecVelo(1:3)
 END IF
 ! (1) perform the rotational periodic movement and adjust velocity vector
 rot_alpha = PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
@@ -365,7 +365,7 @@ IF(UseRotRefFrame) THEN
 END IF
 IF (DSMC%DoAmbipolarDiff) THEN
   IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
-    AmbipolElecVelo(PartID)%ElecVelo(1:3) = RotateVectorAroundAxis(Velo_oldAmbi(1:3),PartBound%RotPeriodicAxis,rot_alpha)
+    PartIntEn(PartID)%ElecVelo(1:3) = RotateVectorAroundAxis(Velo_oldAmbi(1:3),PartBound%RotPeriodicAxis,rot_alpha)
   END IF
 END IF
 
@@ -501,9 +501,8 @@ USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Intersection   ,ONLY: IntersectionWithWall, ParticleThroughSideCheck3DFast
 USE MOD_part_tools              ,ONLY: StoreLostParticleProperties
 USE MOD_Particle_Tracking_Vars  ,ONLY: NbrOfLostParticles, TrackInfo, CountNbrOfLostParts,DisplayLostParticles
-USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_part_operations         ,ONLY: CreateParticle, RemoveParticle
-USE MOD_DSMC_Vars               ,ONLY: CollisMode, useDSMC, PartIntEn, SpecDSMC
+USE MOD_DSMC_Vars               ,ONLY: CollisMode, useDSMC, PartIntEn, SpecDSMC, DSMC
 USE MOD_Particle_Vars           ,ONLY: PDM,InterPlanePartNumber, InterPlanePartIndx
 USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame, InRotRefFrame, RotRefFrameOmega, PartVeloRotRef, LastPartVeloRotRef
 USE MOD_part_tools              ,ONLY: RotateVectorAroundAxis
@@ -662,7 +661,7 @@ IF(UseRotRefSubCycling) dtVar = dtVar / REAL(nSubCyclingSteps)
 ! (2) Calculate the POI and a new random POI on corresponding inter plane using a random angle within the periodic segment
 POI(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
 IF (DSMC%DoAmbipolarDiff) THEN
-  IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) Velo_oldAmbi(1:3) = AmbipolElecVelo(PartID)%ElecVelo(1:3)
+  IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) Velo_oldAmbi(1:3) = PartIntEn(PartID)%ElecVelo(1:3)
 END IF
 
 SELECT CASE(PartBound%RotPeriodicAxis)
@@ -723,7 +722,7 @@ Velo_old(1:3) = PartState(4:6,PartID)
 PartState(4:6,PartID) = RotateVectorAroundAxis(Velo_old(1:3),PartBound%RotPeriodicAxis,RotAlpha)
 IF (DSMC%DoAmbipolarDiff) THEN
   IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
-    AmbipolElecVelo(PartID)%ElecVelo(1:3) = RotateVectorAroundAxis(Velo_oldAmbi(1:3),PartBound%RotPeriodicAxis,RotAlpha)
+    PartIntEn(PartID)%ElecVelo(1:3) = RotateVectorAroundAxis(Velo_oldAmbi(1:3),PartBound%RotPeriodicAxis,RotAlpha)
   END IF
 END IF
 
