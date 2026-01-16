@@ -308,7 +308,7 @@ CHARACTER(LEN=100) :: Substrings(25)
 INTEGER            :: SubstringsCount
 !==================================================================================================================================
 Substrings=' '
-CALL split_string(TRIM(pathname), '/', Substrings, SubstringsCount)
+CALL split_string(TRIM(pathname), TRIM(delimiter), Substrings, SubstringsCount)
 filename = ADJUSTL(TRIM(Substrings(SubstringsCount)))
 END SUBROUTINE Basename
 
