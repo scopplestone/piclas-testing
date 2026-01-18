@@ -542,19 +542,23 @@ IF(.NOT.(reason.EQ.KSP_CONVERGED_RTOL_NORMAL               .OR.&
 IF(reason.LT.0)THEN
 #endif
   ! Output used memory
-  CALL WarningMemusage(Mode=1,Threshold=5.0)
+  CALL WarningMemusage(Mode=1,Threshold=5.0) ! Mode=1: Memory per node (NOT over all nodes), Threshold=5.0% of total node memory
   !  View solver converged reason
   PetscCallA(KSPConvergedReasonView(PETScSolver,PETSC_VIEWER_STDOUT_WORLD,ierr))
   !  View solver info
   PetscCallA(KSPView(PETScSolver,PETSC_VIEWER_STDOUT_WORLD,ierr))
   IPWRITE(*,*) 'PETSc convergence failed with reason:', reason
   CALL Abort(__STAMP__,'ERROR: PETSc not converged')
-END IF
+END IF ! reason.LT.0 (i.e. not converged)
 
+! Only the MPIRoot determines the computation time required for PETSc.
 IF(MPIroot) THEN
+  ! Note that this measurement includes the time spent in the MPI routines of PETSc, which is not included in time measurements of
+  ! piclas modules to distinguish between calculation time and MPI time. Only calculation time is relevant for load balancing, but
+  ! PETSc does its own balancing method so this information here is just for comparison with the time required for the particles.
   PETScFieldTime = TimeEndPiclas-TimeStartPiclas
   CALL DisplayConvergence(PETScFieldTime, iterations, petscnorm)
-END IF
+END IF ! MPIroot
 
 ! Fill element local lambda for post processing
 ! Get the local DOF subarray

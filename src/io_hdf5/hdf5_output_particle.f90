@@ -359,6 +359,7 @@ USE MOD_Equation_Vars          ,ONLY: StrVarNames
 #endif
 USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,nVarPartStateBoundary
 USE MOD_TimeDisc_Vars          ,ONLY: iter
+USE MOD_Particle_Vars          ,ONLY: PDM
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -376,6 +377,7 @@ INTEGER(KIND=IK)               :: globnPart(6)
 CHARACTER(LEN=255)             :: FileName,PreviousFileName
 REAL                           :: PreviousTime_loc
 REAL                           :: StartT,EndT
+INTEGER                        :: ALLOCSTAT
 !===================================================================================================================================
 ! Do not write to file on restart or fresh computation
 IF(iter.EQ.0) RETURN
@@ -484,7 +486,8 @@ PartStateBoundaryVecLength = 0
 ! Re-allocate PartStateBoundary for a small number of particles and double the array size each time the
 ! maximum is reached
 DEALLOCATE(PartStateBoundary)
-ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:10))
+ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:MIN(1000,PDM%maxParticleNumber)), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in WriteBoundaryParticleToHDF5(): Cannot allocate PartStateBoundary array!')
 PartStateBoundary=0.
 
 GETTIME(EndT)
