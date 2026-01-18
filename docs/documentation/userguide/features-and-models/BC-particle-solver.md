@@ -324,7 +324,7 @@ Additional parameters, which can be utilized per boundary for models 3, 4, 12, a
     Part-Boundary1-SurfMod-SubtractWorkFunction = .FALSE.       ! Default: .TRUE.
     Part-Boundary1-SurfMod-ReflectElectron      = .TRUE.        ! Default: .FALSE.
 
-The first parameter allows to disable the subtraction of the work function from the incident electron energy. The second parameter can be used to utilize the yield function as a probability for a reflection if the incident energy is lower than the work function.
+The first parameter allows to disable the subtraction of the work function from the incident electron energy (example in `piclas/regressioncheck/NIG_PIC_poisson_Leapfrog/BC_SEE_EnergyDistribution_Constant`). The second parameter can be used to utilize the yield function as a probability for a reflection if the incident energy is lower than the work function (example in `piclas/regressioncheck/NIG_PIC_poisson_Leapfrog/BC_SEE_SquareFit_ReflectBelowThreshold`).
 
 #### Model 3/4
 
@@ -343,7 +343,7 @@ Additionally, the energy distribution can be selected with
 
     Part-BoundaryB-SurfModEnergyDistribution = Chung-Everhart-cosine
 
-It should be noted that per default the impact energy is reduced by the work function before the energy distribution. An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_DSMC/BC_SEE_PowerFit/`. Fit coefficients can be found for example in {cite}`Goebel2008`.
+It should be noted that per default the impact energy is reduced by the work function before the energy distribution. An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_PIC_poisson_Leapfrog/BC_SEE_PowerFit/`. Fit coefficients can be found for example in {cite}`Goebel2008`.
 
 #### Model 5
 

@@ -24,8 +24,7 @@ The type of the pulse can be defined with
 
     RayTracing-PulseType = Gaussian
 
-Currently, only two options are available: constant and Gaussian (default). The parameters
-
+Currently, only two options are available: constant and Gaussian (default). TODO: The parameters
 
 
 The parameter
