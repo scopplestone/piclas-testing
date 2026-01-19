@@ -754,6 +754,7 @@ USE MOD_part_tools             ,ONLY: CalcVelocity_maxwell_particle
 USE MOD_MCC_Vars               ,ONLY: PhotoIonFirstLine,PhotoIonLastLine,PhotoReacToReac,PhotonEnergies
 USE MOD_MCC_Vars               ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated,MaxPhotonXSec
 USE MOD_Part_Tools             ,ONLY: GetNextFreePosition, IncreaseMaxParticleNumber
+USE MOD_part_operations        ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -869,7 +870,7 @@ NbrOfParticle = SUM(NumPhotoIonization)
 !> 2.) Delete left-over inserted particles
 IF(TotalNbrOfReactions.GT.NbrOfParticle) THEN
   DO iPart = NbrOfParticle+1,TotalNbrOfReactions
-    PDM%ParticleInside(GetNextFreePosition(iPart)) = .FALSE.
+    CALL RemoveParticle(GetNextFreePosition(iPart))
   END DO
   TotalNbrOfReactions = NbrOfParticle
 ELSE IF(TotalNbrOfReactions.LT.NbrOfParticle) THEN

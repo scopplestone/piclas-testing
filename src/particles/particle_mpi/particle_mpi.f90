@@ -140,7 +140,6 @@ SUBROUTINE InitParticleCommSize()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars
-USE MOD_DSMC_Vars,              ONLY:useDSMC, CollisMode, DSMC
 USE MOD_Particle_Vars,          ONLY:usevMPF, PDM, UseRotRefFrame
 USE MOD_Particle_Tracking_vars, ONLY:TrackingMethod
 ! IMPLICIT VARIABLE HANDLING
@@ -167,10 +166,6 @@ PartCommSize   = PartCommSize + 1
 ! id of element
 PartCommSize   = PartCommSize + 1
 
-IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-  PartCommSize = PartCommSize + 2
-  IF(DSMC%ElectronicModel.GT.0) PartCommSize   = PartCommSize + 1
-END IF
 ! Simulation with variable particle weights
 IF (usevMPF) PartCommSize = PartCommSize+1
 
@@ -182,8 +177,8 @@ PartCommSize   = PartCommSize + 6
 PartCommSize   = PartCommSize + 1
 #endif
 
-ALLOCATE( PartMPIExchange%nPartsSend(4,0:nExchangeProcessors-1)  &
-        , PartMPIExchange%nPartsRecv(4,0:nExchangeProcessors-1)  &
+ALLOCATE( PartMPIExchange%nPartsSend(7,0:nExchangeProcessors-1)  &
+        , PartMPIExchange%nPartsRecv(7,0:nExchangeProcessors-1)  &
         , PartRecvBuf(0:nExchangeProcessors-1)                   &
         , PartSendBuf(0:nExchangeProcessors-1)                   &
         , PartMPIExchange%SendRequest(2,0:nExchangeProcessors-1) &
@@ -220,7 +215,7 @@ INTEGER               :: iProc
 PartMPIExchange%nPartsRecv=0
 DO iProc=0,nExchangeProcessors-1
   CALL MPI_IRECV( PartMPIExchange%nPartsRecv(:,iProc)                        &
-                , 4                                                          &
+                , 7                                                          &
                 , MPI_INTEGER                                                &
                 , ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc)         &
                 , 1001                                                       &
@@ -249,11 +244,11 @@ SUBROUTINE SendNbOfParticles()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Part_Tools             ,ONLY: isDepositParticle
-USE MOD_DSMC_Vars              ,ONLY: DSMC,SpecDSMC, useDSMC, PolyatomMolDSMC
+USE MOD_DSMC_Vars              ,ONLY: DSMC,SpecDSMC, useDSMC, PolyatomMolDSMC,CollisMode
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartTargetProc
 USE MOD_Particle_MPI_Vars,      ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc, halo_eps_velo
-USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,PEM,PDM,Species
+USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,PEM,PDM,Species, UseGranularSpecies
 USE MOD_Mesh_Vars              ,ONLY: ELEM_RANK
 #if USE_HDG
 USE MOD_Particle_Vars          ,ONLY: ResetVDLSpecID
@@ -322,6 +317,20 @@ DO iPart=1,PDM%ParticleVecLength
       IF(DSMC%DoAmbipolarDiff.AND.(Species(SpecID)%ChargeIC.GT.0.0)) THEN
         PartMPIExchange%nPartsSend(4,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
           PartMPIExchange%nPartsSend(4,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + 3
+      END IF      
+    END IF
+    IF ((CollisMode.GT.1)) THEN
+      IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
+        PartMPIExchange%nPartsSend(5,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
+          PartMPIExchange%nPartsSend(5,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + 2
+      END IF
+      IF ((DSMC%ElectronicModel.GT.0).AND.(Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
+        PartMPIExchange%nPartsSend(6,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
+          PartMPIExchange%nPartsSend(6,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + 1
+      END IF
+      IF (UseGranularSpecies.AND.(Species(SpecID)%InterID.EQ.100)) THEN
+        PartMPIExchange%nPartsSend(7,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
+          PartMPIExchange%nPartsSend(7,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + 1
       END IF
     END IF
   END IF
@@ -333,7 +342,7 @@ END DO ! iPart
 !--- Asynchronous communication, just send here and check for success later.
 DO iProc=0,nExchangeProcessors-1
   CALL MPI_ISEND( PartMPIExchange%nPartsSend(:,iProc)                        &
-                , 4                                                          &
+                , 7                                                          &
                 , MPI_INTEGER                                                &
                 , ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc)         &
                 , 1001                                                       &
@@ -371,7 +380,7 @@ USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange,PartCommSize,PartSendBuf,P
 USE MOD_Particle_MPI_Vars,       ONLY:nExchangeProcessors,ExchangeProcToGlobalProc
 USE MOD_Particle_Tracking_Vars,  ONLY:TrackingMethod
 USE MOD_Particle_Vars,           ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM,PartPosRef,Species
-USE MOD_Particle_Vars,           ONLY:UseRotRefFrame,PartVeloRotRef
+USE MOD_Particle_Vars,           ONLY:UseRotRefFrame,PartVeloRotRef,UseGranularSpecies
 USE MOD_part_operations         ,ONLY: RemoveParticle
 USE MOD_Part_Tools              ,ONLY: UpdateNextFreePosition
 #if defined(LSERK)
@@ -397,9 +406,13 @@ INTEGER                       :: MessageSize, nRecvParticles, nSendParticles
 INTEGER                       :: ALLOCSTAT
 ! Polyatomic Molecules
 INTEGER                       :: iPolyatMole, MsgRecvLengthPoly, MsgRecvLengthElec, MsgRecvLengthAmbi
+INTEGER                       :: MsgRecvLengthRotVib, MsgRecvLengthElectronic, MsgRecvLengthSolid
 INTEGER                       :: MsgLengthPoly(0:nExchangeProcessors-1), pos_poly(0:nExchangeProcessors-1)
 INTEGER                       :: MsgLengthElec(0:nExchangeProcessors-1), pos_elec(0:nExchangeProcessors-1)
 INTEGER                       :: MsgLengthAmbi(0:nExchangeProcessors-1), pos_ambi(0:nExchangeProcessors-1)
+INTEGER                       :: MsgLengthRotVib(0:nExchangeProcessors-1), pos_rotvib(0:nExchangeProcessors-1)
+INTEGER                       :: MsgLengthElectronic(0:nExchangeProcessors-1), pos_electronic(0:nExchangeProcessors-1)
+INTEGER                       :: MsgLengthSolid(0:nExchangeProcessors-1), pos_solid(0:nExchangeProcessors-1)
 #if defined(MEASURE_MPI_WAIT)
 INTEGER(KIND=8)               :: CounterStart(2),CounterEnd(2)
 REAL(KIND=8)                  :: Rate(2)
@@ -411,6 +424,9 @@ REAL(KIND=8)                  :: Rate(2)
 MsgLengthPoly(:) = PartMPIExchange%nPartsSend(2,:)
 MsgLengthElec(:) = PartMPIExchange%nPartsSend(3,:)
 MsgLengthAmbi(:) = PartMPIExchange%nPartsSend(4,:)
+MsgLengthRotVib(:) = PartMPIExchange%nPartsSend(5,:)
+MsgLengthElectronic(:) = PartMPIExchange%nPartsSend(6,:)
+MsgLengthSolid(:) = PartMPIExchange%nPartsSend(7,:)
 
 IF (PRESENT(UseOldVecLength)) THEN
   IF (UseOldVecLength) THEN
@@ -440,15 +456,25 @@ DO iProc=0,nExchangeProcessors-1
       pos_poly(iProc) = MessageSize
       MessageSize = MessageSize + MsgLengthPoly(iProc)
     END IF
-
     IF (DSMC%ElectronicModel.EQ.2) THEN
       pos_elec(iProc) = MessageSize
       MessageSize = MessageSize + MsgLengthElec(iProc)
     END IF
-
     IF (DSMC%DoAmbipolarDiff) THEN
       pos_ambi(iProc) = MessageSize
       MessageSize = MessageSize + MsgLengthAmbi(iProc)
+    END IF   
+    IF (CollisMode.GT.1) THEN
+      pos_rotvib(iProc) = MessageSize
+      MessageSize = MessageSize + MsgLengthRotVib(iProc)
+      IF (DSMC%ElectronicModel.GT.0) THEN
+        pos_electronic(iProc) = MessageSize
+        MessageSize = MessageSize + MsgLengthElectronic(iProc)     
+      END IF
+      IF (UseGranularSpecies) THEN
+        pos_solid(iProc) = MessageSize
+        MessageSize = MessageSize + MsgLengthSolid(iProc)
+      END IF      
     END IF
   END IF
 
@@ -500,73 +526,9 @@ DO iProc=0,nExchangeProcessors-1
       PartSendBuf(iProc)%content(    1+jPos) = REAL(PEM%GlobalElemID(iPart),KIND=8)
       jPos=jPos+1
       SpecID = PartSpecies(iPart)
-      IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-        IF (usevMPF .AND. DSMC%ElectronicModel.GT.0) THEN
-          IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
-            PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%EVib(1)
-            PartSendBuf(iProc)%content(2+jPos) = PartIntEn(iPart)%ERot(1)
-          ELSE IF (Species(SpecID)%InterID.EQ.100) THEN
-            PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%TSolid(1)
-            PartSendBuf(iProc)%content(2+jPos) = 0.0
-          ELSE
-            PartSendBuf(iProc)%content(1+jPos) = 0.0
-            PartSendBuf(iProc)%content(2+jPos) = 0.0
-          END IF
-          PartSendBuf(iProc)%content(3+jPos) = PartMPF(iPart)
-          IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
-            PartSendBuf(iProc)%content(4+jPos) = PartIntEn(iPart)%EElec(1)
-          ELSE
-            PartSendBuf(iProc)%content(4+jPos) = 0.0
-          END IF
-          jPos=jPos+4
-        ELSE IF (usevMPF) THEN
-          IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
-            PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%EVib(1)
-            PartSendBuf(iProc)%content(2+jPos) = PartIntEn(iPart)%ERot(1)
-          ELSE IF (Species(SpecID)%InterID.EQ.100) THEN
-            PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%TSolid(1)
-            PartSendBuf(iProc)%content(2+jPos) = 0.0
-          ELSE
-            PartSendBuf(iProc)%content(1+jPos) = 0.0
-            PartSendBuf(iProc)%content(2+jPos) = 0.0
-          END IF
-          PartSendBuf(iProc)%content(3+jPos) = PartMPF(iPart)
-          jPos=jPos+3
-        ELSE IF (DSMC%ElectronicModel.GT.0) THEN
-          IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
-            PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%EVib(1)
-            PartSendBuf(iProc)%content(2+jPos) = PartIntEn(iPart)%ERot(1)
-          ELSE IF (Species(SpecID)%InterID.EQ.100) THEN
-            PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%TSolid(1)
-            PartSendBuf(iProc)%content(2+jPos) = 0.0
-          ELSE
-            PartSendBuf(iProc)%content(1+jPos) = 0.0
-            PartSendBuf(iProc)%content(2+jPos) = 0.0
-          END IF
-          IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
-            PartSendBuf(iProc)%content(3+jPos) = PartIntEn(iPart)%EElec(1)
-          ELSE
-            PartSendBuf(iProc)%content(3+jPos) = 0.0
-          END IF
-          jPos=jPos+3
-        ELSE
-          IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
-            PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%EVib(1)
-            PartSendBuf(iProc)%content(2+jPos) = PartIntEn(iPart)%ERot(1)
-          ELSE IF (Species(SpecID)%InterID.EQ.100) THEN
-            PartSendBuf(iProc)%content(1+jPos) = PartIntEn(iPart)%TSolid(1)
-            PartSendBuf(iProc)%content(2+jPos) = 0.0
-          ELSE
-            PartSendBuf(iProc)%content(1+jPos) = 0.0
-            PartSendBuf(iProc)%content(2+jPos) = 0.0
-          END IF
-          jPos=jPos+2
-        END IF
-      ELSE
-        IF (usevMPF) THEN
-          PartSendBuf(iProc)%content(1+jPos) = PartMPF(iPart)
-          jPos=jPos+1
-        END IF
+      IF (usevMPF) THEN
+        PartSendBuf(iProc)%content(1+jPos) = PartMPF(iPart)
+        jPos=jPos+1
       END IF
 
       IF (useDSMC) THEN
@@ -596,6 +558,22 @@ DO iProc=0,nExchangeProcessors-1
           IF(Species(SpecID)%ChargeIC.GT.0.0)  THEN
             PartSendBuf(iProc)%content(pos_ambi(iProc)+1:pos_ambi(iProc)+ 3) = PartIntEn(iPart)%ElecVelo(1:3)
             pos_ambi(iProc) = pos_ambi(iProc) + 3
+          END IF
+        END IF
+        
+        IF (CollisMode.GT.1) THEN
+          IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
+            PartSendBuf(iProc)%content(pos_rotvib(iProc)+1) = PartIntEn(iPart)%ERot(1)
+            PartSendBuf(iProc)%content(pos_rotvib(iProc)+2) = PartIntEn(iPart)%EVib(1)
+            pos_rotvib(iProc) = pos_rotvib(iProc) + 2
+          END IF
+          IF ((DSMC%ElectronicModel.GT.0).AND.(Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
+            PartSendBuf(iProc)%content(pos_electronic(iProc)+1) = PartIntEn(iPart)%EElec(1)
+            pos_electronic(iProc) = pos_electronic(iProc) + 1
+          END IF
+          IF (UseGranularSpecies.AND.(Species(SpecID)%InterID.EQ.100)) THEN
+            PartSendBuf(iProc)%content(pos_solid(iProc)+1) = PartIntEn(iPart)%TSolid(1)
+            pos_solid(iProc) = pos_solid(iProc) + 1
           END IF
         END IF
       END IF
@@ -670,15 +648,25 @@ DO iProc=0,nExchangeProcessors-1
       MsgRecvLengthPoly = PartMPIExchange%nPartsRecv(2,iProc)
       MessageSize       = MessageSize + MsgRecvLengthPoly
     END IF
-
     IF (DSMC%ElectronicModel.EQ.2) THEN
       MsgRecvLengthElec = PartMPIExchange%nPartsRecv(3,iProc)
       MessageSize       = MessageSize + MsgRecvLengthElec
     END IF
-
     IF (DSMC%DoAmbipolarDiff) THEN
       MsgRecvLengthAmbi = PartMPIExchange%nPartsRecv(4,iProc)
       MessageSize       = MessageSize + MsgRecvLengthAmbi
+    END IF
+    IF (CollisMode.GT.1) THEN
+      MsgRecvLengthRotVib = PartMPIExchange%nPartsRecv(5,iProc)
+      MessageSize = MessageSize + MsgRecvLengthRotVib
+      IF (DSMC%ElectronicModel.GT.0) THEN
+        MsgRecvLengthElectronic = PartMPIExchange%nPartsRecv(6,iProc)
+        MessageSize = MessageSize + MsgRecvLengthElectronic    
+      END IF
+      IF (UseGranularSpecies) THEN
+        MsgRecvLengthSolid = PartMPIExchange%nPartsRecv(7,iProc)
+        MessageSize = MessageSize + MsgRecvLengthSolid
+      END IF      
     END IF
   END IF
 
@@ -688,6 +676,9 @@ DO iProc=0,nExchangeProcessors-1
     IPWRITE(*,*) 'sum of total received poly particles       ', SUM(PartMPIExchange%nPartsRecv(2,:))
     IPWRITE(*,*) 'sum of total received elec distri particles', SUM(PartMPIExchange%nPartsRecv(3,:))
     IPWRITE(*,*) 'sum of total received ambipolar particles  ', SUM(PartMPIExchange%nPartsRecv(4,:))
+    IPWRITE(*,*) 'sum of total received molecular particles  ', SUM(PartMPIExchange%nPartsRecv(5,:))
+    IPWRITE(*,*) 'sum of total received electronic particles ', SUM(PartMPIExchange%nPartsRecv(6,:))
+    IPWRITE(*,*) 'sum of total received solid particles      ', SUM(PartMPIExchange%nPartsRecv(7,:))
     CALL ABORT(__STAMP__,'  Cannot allocate PartRecvBuf, local source ProcId, Allocstat',iProc,REAL(ALLOCSTAT))
   END IF
 
@@ -719,6 +710,15 @@ DO iProc=0,nExchangeProcessors-1
     END IF
     IF (DSMC%DoAmbipolarDiff) THEN
       MessageSize = MessageSize + MsgLengthAmbi(iProc)
+    END IF
+    IF (CollisMode.GT.1) THEN
+      MessageSize = MessageSize + MsgLengthRotVib(iProc)
+      IF (DSMC%ElectronicModel.GT.0) THEN
+        MessageSize = MessageSize + MsgLengthElectronic(iProc)
+      END IF
+      IF (UseGranularSpecies) THEN
+        MessageSize = MessageSize + MsgLengthSolid(iProc)
+      END IF      
     END IF
   END IF
 
@@ -758,7 +758,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, LastPartPos
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep
-USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, InRotRefFrame, PartVeloRotRef
+USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, InRotRefFrame, PartVeloRotRef, UseGranularSpecies
 USE MOD_Particle_TimeStep      ,ONLY: GetParticleTimeStep
 USE MOD_Particle_Mesh_Vars     ,ONLY: IsExchangeElem
 USE MOD_Particle_MPI_Vars      ,ONLY: ExchangeProcToGlobalProc,DoParticleLatencyHiding
@@ -790,6 +790,7 @@ INTEGER                       :: iProc, iPos, nRecv, PartID,jPos, iPart, ElemID,
 INTEGER                       :: MessageSize, nRecvParticles
 ! Polyatomic Molecules
 INTEGER                       :: iPolyatMole, pos_poly, MsgLengthPoly, MsgLengthElec, pos_elec, pos_ambi, MsgLengthAmbi
+INTEGER                       :: MsgLengthRotVib, pos_rotvib, MsgLengthElectronic, pos_electronic, MsgLengthSolid, pos_solid
 #if defined(MEASURE_MPI_WAIT)
 INTEGER(KIND=8)               :: CounterStart(2),CounterEnd(2)
 REAL(KIND=8)                  :: Rate(2)
@@ -827,28 +828,52 @@ DO iProc=0,nExchangeProcessors-1
     ELSE
       MsgLengthPoly = 0
     END IF
-
     IF (DSMC%ElectronicModel.EQ.2) THEN
       MsgLengthElec = PartMPIExchange%nPartsRecv(3,iProc)
     ELSE
       MsgLengthElec = 0
     END IF
-
     IF (DSMC%DoAmbipolarDiff) THEN
       MsgLengthAmbi = PartMPIExchange%nPartsRecv(4,iProc)
     ELSE
       MsgLengthAmbi = 0
     END IF
+    IF (CollisMode.GT.1) THEN
+      MsgLengthRotVib = PartMPIExchange%nPartsRecv(5,iProc)
+      IF (DSMC%ElectronicModel.GT.0) THEN
+        MsgLengthElectronic = PartMPIExchange%nPartsRecv(6,iProc)
+      ELSE
+        MsgLengthElectronic = 0
+      END IF
+      IF (UseGranularSpecies) THEN
+        MsgLengthSolid = PartMPIExchange%nPartsRecv(7,iProc)
+      ELSE
+        MsgLengthSolid = 0
+      END IF 
+    ELSE
+      MsgLengthRotVib = 0
+      MsgLengthElectronic = 0
+      MsgLengthSolid = 0     
+    END IF 
     pos_poly    = MessageSize
     IF (DSMC%NumPolyatomMolecs.GT.0) MessageSize = MessageSize + MsgLengthPoly
     pos_elec    = MessageSize
     IF (DSMC%ElectronicModel.EQ.2) MessageSize = MessageSize + MsgLengthElec
     pos_ambi    = MessageSize
     IF (DSMC%DoAmbipolarDiff) MessageSize = MessageSize + MsgLengthAmbi
+    pos_rotvib = MessageSize
+    IF (CollisMode.GT.1) MessageSize = MessageSize + MsgLengthRotVib
+    pos_electronic = MessageSize
+    IF ((CollisMode.GT.1).AND.(DSMC%ElectronicModel.GT.0)) MessageSize = MessageSize + MsgLengthElectronic
+    pos_solid = MessageSize
+    IF ((CollisMode.GT.1).AND.(UseGranularSpecies)) MessageSize = MessageSize + MsgLengthSolid
   ELSE
     MsgLengthPoly = 0.
     MsgLengthElec = 0.
     MsgLengthAmbi = 0.
+    MsgLengthRotVib = 0
+    MsgLengthElectronic = 0
+    MsgLengthSolid = 0  
   END IF
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterStart(2))
@@ -866,7 +891,7 @@ DO iProc=0,nExchangeProcessors-1
   !>> DO iPart=1,nRecvParticles
   !>> nParts 1 Pos=1..17
   !>> nPart2 2 Pos=1..17,18..34
-  DO iPos=0,MessageSize-1-MsgLengthPoly - MsgLengthElec - MsgLengthAmbi,PartCommSize
+  DO iPos=0,MessageSize-1-MsgLengthPoly - MsgLengthElec - MsgLengthAmbi-MsgLengthRotVib-MsgLengthElectronic-MsgLengthSolid,PartCommSize
     ! find free position in particle array
     nRecv  = nRecv+1
     PartID = GetNextFreePosition(nRecv)
@@ -922,63 +947,9 @@ DO iProc=0,nExchangeProcessors-1
     jPos=jPos+1
 
     SpecID = PartSpecies(PartID)
-    IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-      IF (usevMPF .AND. DSMC%ElectronicModel.GT.0) THEN
-        IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
-          ALLOCATE(PartIntEn(PartID)%EVib(1),PartIntEn(PartID)%ERot(1))
-          PartIntEn(PartID)%EVib(1) = PartRecvBuf(iProc)%content(1+jPos)
-          PartIntEn(PartID)%ERot(1) = PartRecvBuf(iProc)%content(2+jPos)
-        ELSE IF (Species(SpecID)%InterID.EQ.100) THEN
-          ALLOCATE(PartIntEn(PartID)%TSolid(1))
-          PartIntEn(PartID)%TSolid(1) = PartRecvBuf(iProc)%content(1+jPos)
-        END IF
-        PartMPF(PartID)           = PartRecvBuf(iProc)%content(3+jPos)
-        IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
-          ALLOCATE(PartIntEn(PartID)%EElec(1))
-          PartIntEn(PartID)%EElec(1) = PartRecvBuf(iProc)%content(4+jPos)
-        END IF
-        jPos=jPos+4
-      ELSE IF ( usevMPF ) THEN
-        IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
-          ALLOCATE(PartIntEn(PartID)%EVib(1),PartIntEn(PartID)%ERot(1))
-          PartIntEn(PartID)%EVib(1) = PartRecvBuf(iProc)%content(1+jPos)
-          PartIntEn(PartID)%ERot(1) = PartRecvBuf(iProc)%content(2+jPos)
-        ELSE IF (Species(SpecID)%InterID.EQ.100) THEN
-          ALLOCATE(PartIntEn(PartID)%TSolid(1))
-          PartIntEn(PartID)%TSolid(1) = PartRecvBuf(iProc)%content(1+jPos)
-        END IF
-        PartMPF(PartID)           = PartRecvBuf(iProc)%content(3+jPos)
-        jPos=jPos+3
-      ELSE IF ( DSMC%ElectronicModel.GT.0) THEN
-        IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
-          ALLOCATE(PartIntEn(PartID)%EVib(1),PartIntEn(PartID)%ERot(1))
-          PartIntEn(PartID)%EVib(1) = PartRecvBuf(iProc)%content(1+jPos)
-          PartIntEn(PartID)%ERot(1) = PartRecvBuf(iProc)%content(2+jPos)
-        ELSE IF (Species(SpecID)%InterID.EQ.100) THEN
-          ALLOCATE(PartIntEn(PartID)%TSolid(1))
-          PartIntEn(PartID)%TSolid(1) = PartRecvBuf(iProc)%content(1+jPos)
-        END IF
-        IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
-          ALLOCATE(PartIntEn(PartID)%EElec(1))
-          PartIntEn(PartID)%EElec(1) = PartRecvBuf(iProc)%content(3+jPos)
-        END IF
-        jPos=jPos+3
-      ELSE
-        IF((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
-          ALLOCATE(PartIntEn(PartID)%EVib(1),PartIntEn(PartID)%ERot(1))
-          PartIntEn(PartID)%EVib(1) = PartRecvBuf(iProc)%content(1+jPos)
-          PartIntEn(PartID)%ERot(1) = PartRecvBuf(iProc)%content(2+jPos)
-        ELSE IF (Species(SpecID)%InterID.EQ.100) THEN
-          ALLOCATE(PartIntEn(PartID)%TSolid(1))
-          PartIntEn(PartID)%TSolid(1) = PartRecvBuf(iProc)%content(1+jPos)
-        END IF
-        jPos=jPos+2
-      END IF
-    ELSE
-      IF (usevMPF)THEN
-        PartMPF(PartID) = PartRecvBuf(iProc)%content(1+jPos)
-        jPos=jPos+1
-      END IF
+    IF (usevMPF)THEN
+      PartMPF(PartID) = PartRecvBuf(iProc)%content(1+jPos)
+      jPos=jPos+1
     END IF
     IF(MOD(jPos,PartCommSize).NE.0)THEN
       IPWRITE(UNIT_stdOut,*)  'jPos',jPos
@@ -1018,6 +989,26 @@ DO iProc=0,nExchangeProcessors-1
           ALLOCATE(PartIntEn(PartID)%ElecVelo(1:3))
           PartIntEn(PartID)%ElecVelo(1:3) = PartRecvBuf(iProc)%content(pos_ambi+1:pos_ambi+3)
           pos_ambi = pos_ambi + 3
+        END IF
+      END IF
+      
+      IF (CollisMode.GT.1) THEN
+        IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
+          IF(.NOT.ALLOCATED(PartIntEn(PartID)%ERot)) ALLOCATE(PartIntEn(PartID)%ERot(1))
+          IF(.NOT.ALLOCATED(PartIntEn(PartID)%EVib)) ALLOCATE(PartIntEn(PartID)%EVib(1))
+          PartIntEn(PartID)%ERot(1) = PartRecvBuf(iProc)%content(pos_rotvib+1)
+          PartIntEn(PartID)%EVib(1) = PartRecvBuf(iProc)%content(pos_rotvib+2)
+          pos_rotvib = pos_rotvib + 2
+        END IF
+        IF ((DSMC%ElectronicModel.GT.0).AND.(Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
+          IF(.NOT.ALLOCATED(PartIntEn(PartID)%EElec)) ALLOCATE(PartIntEn(PartID)%EElec(1))
+          PartIntEn(PartID)%EElec(1) = PartRecvBuf(iProc)%content(pos_electronic+1)
+          pos_electronic = pos_electronic + 1
+        END IF
+        IF (UseGranularSpecies.AND.(Species(SpecID)%InterID.EQ.100)) THEN
+          IF(.NOT.ALLOCATED(PartIntEn(PartID)%TSolid)) ALLOCATE(PartIntEn(PartID)%TSolid(1))
+          PartIntEn(PartID)%TSolid(1) = PartRecvBuf(iProc)%content(pos_solid+1)
+          pos_solid = pos_solid + 1
         END IF
       END IF
     END IF

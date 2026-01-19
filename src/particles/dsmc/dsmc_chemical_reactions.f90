@@ -1558,9 +1558,11 @@ NumProd = 2; SumWeightProd = 0.
 IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%Reactants(iReac,1)) THEN
   ReactInx(1) = Coll_pData(iPair)%iPart_p1
   ReactInx(2) = Coll_pData(iPair)%iPart_p2
-ELSE
+ELSE IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%Reactants(iReac,2)) THEN
   ReactInx(2) = Coll_pData(iPair)%iPart_p1
   ReactInx(1) = Coll_pData(iPair)%iPart_p2
+ELSE 
+  CALL abort(__STAMP__,'Species not found in Reaction Data.')
 END IF
 
 ! Set the particle weights to the same as the background species
