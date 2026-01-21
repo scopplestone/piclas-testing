@@ -592,8 +592,8 @@ DO iProc=0,nExchangeProcessors-1
     END IF ! Particle is particle with target proc-id equals local proc id
   END DO  ! iPart
 
-  IF(iPos.NE.(MessageSize-MsgLengthPoly(iProc)-MsgLengthElec(iProc)-MsgLengthAmbi(iProc))) &
-      IPWRITE(*,*) ' error message size', iPos,(MessageSize-MsgLengthPoly(iProc)-MsgLengthElec(iProc)-MsgLengthAmbi(iProc))
+  IF(iPos.NE.(MessageSize-MsgLengthPoly(iProc)-MsgLengthElec(iProc)-MsgLengthAmbi(iProc)-MsgLengthRotVib(iProc)-MsgLengthElectronic(iProc)-MsgLengthSolid(iProc))) &
+      IPWRITE(*,*) ' error message size', iPos,(MessageSize-MsgLengthPoly(iProc)-MsgLengthElec(iProc)-MsgLengthAmbi(iProc)-MsgLengthRotVib(iProc)-MsgLengthElectronic(iProc)-MsgLengthSolid(iProc))
 
 END DO ! iProc
 

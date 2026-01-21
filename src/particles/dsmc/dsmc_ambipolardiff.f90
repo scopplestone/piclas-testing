@@ -64,7 +64,6 @@ IF(useDSMC) THEN
           ,'ERROR: No electron species found for ambipolar diffusion: ' &
           ,IntInfoOpt=DSMC%AmbiDiffElecSpec)
     END IF
-    IF(.NOT.ALLOCATED(PartIntEn)) ALLOCATE(PartIntEn(PDM%maxParticleNumber))
   END IF
 END IF
 
