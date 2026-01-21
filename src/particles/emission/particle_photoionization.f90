@@ -144,7 +144,7 @@ USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars               ,ONLY: BoundaryType
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoVirtualDielectricLayer,Do2DSurfaceCharge
 USE MOD_Particle_Vars           ,ONLY: LastPartPos,PartSpecies
-USE MOD_PICDepo_Tools           ,ONLY: DepositParticleOnSurface
+USE MOD_PICDepo_Tools           ,ONLY: DepositParticleOnSurface1
 #endif /*USE_HDG*/
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcPhotonSEE
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemBaryNGeo
@@ -337,7 +337,7 @@ DO iSurfSide = 1, nComputeNodeSurfSides
               ! Calculate the opposite charge
               ChargeHole = -Species(SpecID)%ChargeIC*MPF
               ! Deposit the charge(s)
-              CALL DepositParticleOnSurface(ChargeHole, PartPosSurf(1:3), GlobElemID, SideID, 0)
+              CALL DepositParticleOnSurface1(ChargeHole, PartPosSurf(1:3), GlobElemID, SideID, 0)
             END IF ! PartBound%UseSurfaceCharge(locBCID)
           END IF ! Do2DSurfaceCharge
 #endif /*USE_HDG*/

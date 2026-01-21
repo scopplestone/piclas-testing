@@ -26,6 +26,7 @@ END INTERFACE
 !===================================================================================================================================
 PUBLIC:: DepositParticleOnNodes,CalcCellLocNodeVolumes,ReadTimeAverage,beta,DepositPhotonSEEHoles
 PUBLIC:: DepositParticleOnSurface
+PUBLIC:: DepositParticleOnSurface1
 !===================================================================================================================================
 
 CONTAINS
