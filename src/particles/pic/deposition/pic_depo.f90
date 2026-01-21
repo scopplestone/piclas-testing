@@ -862,9 +862,6 @@ DO q=0,1; DO p=0,1
   IF (COUNT(pq2iNode(:,:,SideID).EQ.i).LT.1) CALL abort(__STAMP__,' Error in Buildpq2iNode. Index missing in pq2iNode(:,:,SideID)')
 END DO; END DO ! q=0,1; DO p=0,clas2vtk1
 
-! IPWRITE(UNIT_StdOut,'(I0,A,I0)') ': v '//TRIM(__FILE__)//' +',__LINE__
-! IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-
 END SUBROUTINE Buildpq2iNode
 
 
@@ -939,10 +936,6 @@ DO j=0,Nloc;DO k=0,Nloc
     SurfNodeArea(NodIndx(3)) = SurfNodeArea(NodIndx(3)) + wGP(j)*wGP(k)*( (1.+xGP(j)) * (1.+xGP(k) )*N_SurfMesh(SideID)%SurfElem(j,k) )/4.
   END ASSOCIATE
 END DO; END DO
-! IPWRITE(*,*) 'iDepoSurfNodeID,SurfNodeArea(iDepoSurfNodeID):', iDepoSurfNodeID,SurfNodeArea(iDepoSurfNodeID)
-
-! IPWRITE(UNIT_StdOut,'(I0,A,I0)') ': v '//TRIM(__FILE__)//' +',__LINE__
-! IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 END SUBROUTINE CalculateSurfNodeArea
 

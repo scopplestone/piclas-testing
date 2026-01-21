@@ -434,10 +434,8 @@ SELECT CASE(TrackingMethod)
       ! Build stuff required for bilinear tracing algorithms
       CALL BuildSideSlabAndBoundingBox() ! Required for SideSlabNormals_Shared, SideSlabIntervals_Shared, BoundingBoxIsEmpty_Shared (requires NGeoElevated)
 
-      IPWRITE(UNIT_StdOut,'(I0,A,I0)') ': v '//TRIM(__FILE__)//' +',__LINE__
       ! Check the side type (planar, bilinear, curved)
       CALL IdentifyElemAndSideType() ! Builds ElemCurved_Shared, SideType_Shared, SideDistance_Shared, SideNormVec_Shared
-      IPWRITE(UNIT_StdOut,'(I0,A,I0)') ': v '//TRIM(__FILE__)//' +',__LINE__
 
       ! Get basevectors for (bi-)linear sides
       CALL BuildLinearSideBaseVectors() ! Required for BaseVectors0_Shared, BaseVectors1_Shared, BaseVectors2_Shared, BaseVectors3_Shared, BaseVectorsScale_Shared ! (requires NGeoElevated)
@@ -860,7 +858,7 @@ SELECT CASE (TrackingMethod)
     END IF !PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
-    IF(.NOT.UsePhotonTriaTracking)THEN
+    IF((UsePhotonTriaTracking.EQV..FALSE.) .OR. Do2DSurfaceCharge)THEN
       ! GetSideSlabNormalsAndIntervals()
       ADEALLOCATE(SideSlabNormals_Shared)
       ADEALLOCATE(SideSlabIntervals_Shared)
@@ -877,7 +875,7 @@ SELECT CASE (TrackingMethod)
       ADEALLOCATE(BaseVectors2_Shared)
       ADEALLOCATE(BaseVectors3_Shared)
       ADEALLOCATE(BaseVectorsScale_Shared)
-    END IF ! .NOT.UsePhotonTriaTracking
+    END IF ! (UsePhotonTriaTracking.EQV..FALSE.) .OR. Do2DSurfaceCharge
 
     ! BuildElementRadiusTria
     ADEALLOCATE(ElemBaryNGeo_Shared)

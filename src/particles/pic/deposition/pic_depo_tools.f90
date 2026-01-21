@@ -279,9 +279,6 @@ ReferenceSurface(1:3,1,1) = (/ 0.0,  0.0, 0.0/)
   END DO; END DO ! q=0,1; DO p=0,1
   DistSum = SUM(PartDistDepo(1:4))
 
-  ! IPWRITE(*,*) 'PartDistDepo,DistSum:', PartDistDepo,DistSum
-  ! IPWRITE(UNIT_StdOut,'(I0,A,I0)') ': v '//TRIM(__FILE__)//' +',__LINE__
-  ! IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
   END ASSOCIATE
 
   ! Loop over the four side nodes
