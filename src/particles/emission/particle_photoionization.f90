@@ -287,7 +287,7 @@ DO iSurfSide = 1, nComputeNodeSurfSides
           ! 2. Check if floating boundary conditions (FPC) are used and consider electron holes
           IF(UseFPC)THEN
             iBC = PartBound%MapToFieldBC(iPartBound)
-            IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(PartBCIndex) must be >0',IntInfoOpt=iBC)
+            IF(iBC.LE.0) CALL abort(__STAMP__,'UseFPC=T: iBC = PartBound%MapToFieldBC(PartBCIndex) must be >0',IntInfoOpt=iBC)
             IF(BoundaryType(iBC,BC_TYPE).EQ.20)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
               BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
               iUniqueFPCBC = FPC%Group(BCState,2)
@@ -298,7 +298,7 @@ DO iSurfSide = 1, nComputeNodeSurfSides
           ! 3. Check if electric potential condition (EPC) are used and consider electron holes
           IF(UseEPC)THEN
             iBC = PartBound%MapToFieldBC(iPartBound)
-            IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(PartBCIndex) must be >0',IntInfoOpt=iBC)
+            IF(iBC.LE.0) CALL abort(__STAMP__,'UseEPC=T: iBC = PartBound%MapToFieldBC(PartBCIndex) must be >0',IntInfoOpt=iBC)
             IF(BoundaryType(iBC,BC_TYPE).EQ.8)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
               BCState = BoundaryType(iBC,BC_STATE) ! State is iEPC
               iUniqueEPCBC = EPC%Group(BCState,2)
@@ -330,13 +330,16 @@ DO iSurfSide = 1, nComputeNodeSurfSides
               PartSpecies(PartID) = -PartSpecies(PartID)
             END IF ! ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0
           END IF ! DoVirtualDielectricLayer
-          ! 3b. 2D surface charge
+
+          ! 3b. 2D surface charge deposition
           IF(Do2DSurfaceCharge) THEN
+            iBC = PartBound%MapToFieldBC(iPartBound)
+            IF(iBC.LE.0) CALL abort(__STAMP__,'Do2DSurfaceCharge=T: iBC = PartBound%MapToFieldBC(PartBCIndex) must be >0',IntInfoOpt=iBC)
             ! Method 3: 2D Surface Charging
             IF (PartBound%UseSurfaceCharge(iBC)) THEN
               ! Calculate the opposite charge
               ChargeHole = -Species(SpecID)%ChargeIC*MPF
-              ! Deposit the charge(s)
+              ! Deposit the charge(s). Use the previously calcualted reference coordinates xi(1:2) directly
               CALL DepositParticleOnSurface(ChargeHole, PartPosSurf(1:3), GlobElemID, SideID, PartID=0, xi=xi(1:2))
             END IF ! PartBound%UseSurfaceCharge(locBCID)
           END IF ! Do2DSurfaceCharge

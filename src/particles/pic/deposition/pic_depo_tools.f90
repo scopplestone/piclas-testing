@@ -320,7 +320,7 @@ END SUBROUTINE DepositParticleOnSurface2
 
 
 
-SUBROUTINE DepositParticleOnSurface1(Charge,xi_in,PartPos,GlobalElemID,NonUniqueGlobalSideID,PartID)
+SUBROUTINE DepositParticleOnSurface1(Charge,PartPos,GlobalElemID,NonUniqueGlobalSideID,PartID,xi)
 ! MODULES
 USE MOD_Globals
 ! USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
@@ -347,11 +347,11 @@ USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)                  :: Charge        !< Charge that is deposited on nodes
-REAL,INTENT(IN)                  :: xi_in(1:2)
 REAL,INTENT(IN)                  :: PartPos(1:3)
 INTEGER,INTENT(IN)               :: GlobalElemID
 INTEGER,INTENT(IN)               :: NonUniqueGlobalSideID
 INTEGER,INTENT(IN)               :: PartID
+REAL,INTENT(IN),OPTIONAL         :: xi(1:2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if USE_LOADBALANCE
@@ -365,7 +365,7 @@ INTEGER                           :: localSideID, NonUniqueNodeIDtmp, CNElemID, 
 REAL                              :: normalnorm(3), evec1(3), evec2(3), Nodepointspro(1:2,4), PartPos2D(2)
 
 
-REAL                          :: xi(2)
+REAL                          :: xii(2)
 REAL                          :: P(2,4), F(2), dF_inv(2,2), s(2)
 REAL, PARAMETER               :: EPS=1E-10
 REAL                          :: T_inv(2,2), DP(2), T(2,2), xi_Out(2), alpha1, alpha2, DepoWeights(1:4)
@@ -413,52 +413,54 @@ T(:,2) = 0.5 * (Nodepointspro(:,4)-Nodepointspro(:,1))
 T_inv = Calc_inv2D(T)
 
 ! transform also the physical coordinate of the point into the unit element (this is the solution of the linear problem already)
-xi = 0.
+xii = 0.
 DP = PartPos2D - Nodepointspro(:,1)
 DO i=1,2
   DO j=1,2
-    xi(i)= xi(i) + T_inv(i,j) * DP(j)
+    xii(i)= xii(i) + T_inv(i,j) * DP(j)
   END DO
 END DO
 
-IF ((xi(1).GE.0.0.AND.xi(1).LE.2.0).AND.(xi(2).GE.0.0.AND.xi(2).LE.2.0)) THEN
-  xi = xi - (/1.,1./)
+IF ((xii(1).GE.0.0.AND.xii(1).LE.2.0).AND.(xii(2).GE.0.0.AND.xii(2).LE.2.0)) THEN
+  xii = xii - (/1.,1./)
 ELSE
-  xi = (/0.,0./)
+  xii = (/0.,0./)
 END IF
 
 
-F = Calc_F2D(xi,PartPos2D,Nodepointspro)
+F = Calc_F2D(xii,PartPos2D,Nodepointspro)
 DO WHILE(SUM(ABS(F)).GE.EPS)
-  dF_inv = Calc_dF_inv2D(xi,Nodepointspro)
+  dF_inv = Calc_dF_inv2D(xii,Nodepointspro)
   s=0.
   DO j = 1,2
     DO k = 1,2
       s(j) = s(j) + dF_inv(j,k) * F(k)
     END DO ! k
   END DO ! j
-  xi = xi - s
-  F = Calc_F2D(xi,PartPos2D,Nodepointspro)
+  xii = xii - s
+  F = Calc_F2D(xii,PartPos2D,Nodepointspro)
 END DO ! i
-IF ((xi(1).GE.-1.0.AND.xi(1).LE.1.0).AND.(xi(2).GE.-1.0.AND.xi(2).LE.1.0)) THEN
-  xi_Out = xi
-ELSE IF ((xi(1).LE.-1.0)) THEN
-  xi_Out = xi
+IF ((xii(1).GE.-1.0.AND.xii(1).LE.1.0).AND.(xii(2).GE.-1.0.AND.xii(2).LE.1.0)) THEN
+  xi_Out = xii
+ELSE IF ((xii(1).LE.-1.0)) THEN
+  xi_Out = xii
   xi_Out(1) = -0.9999999999999
-ELSE IF ((xi(1).GE.1.0)) THEN
-  xi_Out = xi
+ELSE IF ((xii(1).GE.1.0)) THEN
+  xi_Out = xii
   xi_Out(1) = 0.9999999999999
-ELSE IF ((xi(2).LE.-1.0)) THEN
-  xi_Out = xi
+ELSE IF ((xii(2).LE.-1.0)) THEN
+  xi_Out = xii
   xi_Out(2) = -0.9999999999999
-ELSE IF ((xi(2).GE.1.0)) THEN
-  xi_Out = xi
+ELSE IF ((xii(2).GE.1.0)) THEN
+  xi_Out = xii
   xi_Out(2) = 0.9999999999999
 END IF
 
-! print*,"xi_in" ,xi_in
-! print*,"xi_out",xi_out
-! IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+! IF (present(xi)) THEN
+!   print*,"xi    ",xi
+!   print*,"xi_out",xi_out
+!   IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+! END IF ! present(xi)
 ! return
 
 alpha1=0.5*(xi_Out(1)+1.0)
