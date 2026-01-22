@@ -306,7 +306,7 @@ DO iSpec=1,nSpecies
     ! instead of an UpdateNextfreePosition we update the particleVecLength only - enough ?!?
     IF(iPartTotal.GT.0) THEN
       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
-      PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(NbrOfParticle))
+      PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(0))
     END IF
 #ifdef CODE_ANALYZE
     IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL Abort(__STAMP__,'PDM%ParticleVeclength exceeds PDM%maxParticleNumber, Difference:',IntInfoOpt=PDM%ParticleVeclength-PDM%maxParticleNumber)
