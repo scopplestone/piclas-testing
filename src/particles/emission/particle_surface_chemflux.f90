@@ -464,7 +464,7 @@ DO iSF = 1, SurfChem%CatBoundNum
         IF (NbrOfParticle.NE.iPartTotal) CALL abort(__STAMP__, 'ERROR in ParticleSurfChemFlux: NbrOfParticle.NE.iPartTotal')
         IF (iPartTotal.GT.0) THEN
           PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
-          PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,PartID)
+          PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(iPartTotal))
         END IF
 #if USE_LOADBALANCE
         CALL LBPauseTime(LB_SURFFLUX,tLBStart)

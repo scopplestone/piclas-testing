@@ -356,7 +356,7 @@ DO i=1,nSpecies
     ! Update the current next free position and increase the particle vector length
     IF(NbrOfParticle.GT.0) THEN
       PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
-      PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(0))
+      PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(NbrOfParticle))
     END IF
 #ifdef CODE_ANALYZE
     IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL Abort(__STAMP__,'PDM%ParticleVeclength exceeds PDM%maxParticleNumber, Difference:',IntInfoOpt=PDM%ParticleVeclength-PDM%maxParticleNumber)

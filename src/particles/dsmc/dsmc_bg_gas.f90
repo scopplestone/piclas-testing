@@ -951,7 +951,7 @@ END DO
 ! Update the current next free position
 IF(iNewPart+NbrOfParticle.GT.0) THEN
   PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle + iNewPart
-  PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(0))
+  PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(NbrOfParticle + iNewPart))
 END IF
 #ifdef CODE_ANALYZE
 IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL Abort(__STAMP__,'PDM%ParticleVeclength exceeds PDM%maxParticleNumber, Difference:',IntInfoOpt=PDM%ParticleVeclength-PDM%maxParticleNumber)
