@@ -686,8 +686,7 @@ detjb = M (1, 1) * M (2, 2) - M (1, 2) * M (2, 1)
 IF ( detjb == 0.d0 ) then
   IPWRITE(UNIT_errOut,*)"Determinant is:",detjb
   IPWRITE(UNIT_errOut,*)"KM:",M_inv
-  CALL abort(__STAMP__, &
-        "Zero determinant of Jacobian in M_inv")
+  CALL abort(__STAMP__,"Zero determinant of Jacobian in M_inv")
 END IF
 ! Determines the inverse of xj
 M_inv (1, 1) = M (2, 2)/ detjb
