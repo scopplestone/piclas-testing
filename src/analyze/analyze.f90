@@ -191,7 +191,7 @@ IF(DoCalcErrorNorms)THEN
   ! Get logical for writing the analytical solution, the error norms L2 and LInf to .h5
   OutputErrorNormsToH5 = GETLOGICAL('OutputErrorNormsToH5')
   ! Allocate container for exact solution (Gauss-Lobatto nodes)
-  ALLOCATE(Uex(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze,1:nElems))
+  ALLOCATE(Uex(1:2*PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze,1:nElems))
   Uex = 0.
 END IF ! DoCalcErrorNorms
 
@@ -372,7 +372,7 @@ REAL,INTENT(OUT)              :: L_Inf_Error(PP_nVar) !< LInf error of the solut
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iElem,k,l,m,Nloc
-REAL                          :: U_exact(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                          :: U_exact(1:2*PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: U_NAnalyze(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
@@ -400,14 +400,17 @@ DO iElem=1,PP_nElems
         L_Inf_Error = MAX(L_Inf_Error,abs(U_NAnalyze(:,k,l,m) - U_exact(1:PP_nVar,k,l,m)))
         IntegrationWeight = wAnalyze(k)*wAnalyze(l)*wAnalyze(m)*J_NAnalyze(1,k,l,m)
         ! To sum over the elements, We compute here the square of the L_2 error
-        L_2_Error = L_2_Error+(U_NAnalyze(:,k,l,m) - U_exact(1:PP_nVar,k,l,m))*&
-                              (U_NAnalyze(:,k,l,m) - U_exact(1:PP_nVar,k,l,m))*IntegrationWeight
+        U_exact(PP_nVar+1:2*PP_nVar,k,l,m) = (U_NAnalyze(:,k,l,m) - U_exact(1:PP_nVar,k,l,m))*&
+                                             (U_NAnalyze(:,k,l,m) - U_exact(1:PP_nVar,k,l,m))*IntegrationWeight
+        ! Add contribution
+        L_2_Error(:) = L_2_Error(:)+U_exact(PP_nVar+1:2*PP_nVar,k,l,m)
       END DO ! k
     END DO ! l
   END DO ! m
   ! Output the exact solution, the L2 error and LInf error to .h5 (in NodeTypeGL = 'GAUSS-LOBATTO')
   IF(OutputErrorNormsToH5)THEN
-    Uex(1:PP_nVar,:,:,:,iElem) = U_exact(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+    Uex(        1:PP_nVar  ,:,:,:,iElem) = U_exact(        1:PP_nVar  ,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+    Uex(PP_nVar+1:2*PP_nVar,:,:,:,iElem) = U_exact(PP_nVar+1:2*PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)/MeshVolume
   END IF ! OutputErrorNormsToH5
 END DO ! iElem=1,PP_nElems
 #if USE_MPI
