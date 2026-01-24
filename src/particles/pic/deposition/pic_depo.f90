@@ -741,7 +741,6 @@ END SUBROUTINE BuildSurfVdm
 !===================================================================================================================================
 SUBROUTINE Buildpq2iNode(SideID,SubSideAreaEquiN1)
 ! MODULES
-USE MOD_Globals            ,ONLY: MPI_COMM_WORLD
 USE MOD_Preproc
 USE MOD_Globals            ,ONLY: UNIT_stdOut,abort,VECNORM3D,myrank
 USE MOD_PICDepo_Vars       ,ONLY: IsDepoSurfSide,Vdm_N_EQ,pq2iNode

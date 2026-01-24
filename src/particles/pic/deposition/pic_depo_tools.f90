@@ -58,8 +58,8 @@ USE MOD_Globals
 ! USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
 ! USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
-#if USE_LOADBALANCE
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
+#if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
 ! USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared
