@@ -1593,7 +1593,6 @@ IF(ABS(memory(3)).LE.0.) CALL abort(__STAMP__,'ERROR in WarningMemusage: Could n
 memory(1:3)=memory(1:3)/1048576.
 ! Check if X% of the total memory available is reached
 MemUsagePercent = (memory(1)/memory(3))*100.0
-MemUsagePercent = 99.32
 IF(MemUsagePercent.GT.Threshold)THEN
   WRITE(UNIT=hilf ,FMT='(F16.1)') memory(1)
   WRITE(UNIT=hilf2,FMT='(F16.1)') memory(3)
