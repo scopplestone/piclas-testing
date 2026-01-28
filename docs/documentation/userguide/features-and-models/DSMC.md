@@ -366,7 +366,9 @@ where the reaction model can be defined as follows
 
 The reactants (left-hand side) and products (right-hand side) are defined by their respective species index. The photo-ionization
 reaction is a special case to model the ionization process within a defined volume by photon impact (see Section
-{ref}`sec:particle-photo-ionization`). It should be noted that for the dissociation reaction, the first given species is the
+{ref}`sec:particle-photo-ionization` or Section {ref}`sec:raytracing-photoionzation`).
+
+It should be noted that for the dissociation reaction, the first given species is the
 molecule to be dissociated. The second given species is the non-reacting partner, which can either be defined specifically or set
 to zero to define multiple possible collision partners. In the latter case, the number of non-reactive partners and their species
 have to be given by
