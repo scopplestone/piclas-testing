@@ -321,6 +321,9 @@ LOGICAL              :: DoBoundaryParticleOutputRay ! User-defined flag to outpu
 REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:12,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle, BCindex
 !                                                  !                 2nd index: 1 to number of boundary-crossed particles
 INTEGER, PARAMETER   :: nVarPartStateBoundary=12
+REAL                 :: PartStateBoundaryMemory ! Memory requirement for the first allocation
+REAL                 :: PartStateBoundaryMemoryLimit ! Memory Limit for the array PartStateBoundary (per process)
+INTEGER              :: PartStateBoundaryResizeCounter ! Count the number of times that PartStateBoundary is resized
 INTEGER              :: PartStateBoundaryVecLength ! Number of boundary-crossed particles
 ! Virtual dielectric layer (VDL)
 LOGICAL              :: DoVirtualDielectricLayer      ! Flag set automatically if a VDL permittivity is set >= 0.0

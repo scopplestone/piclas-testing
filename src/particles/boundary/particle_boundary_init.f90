@@ -713,7 +713,7 @@ CALL InitializeVariablesSpeciesBoundary(FoundPartBoundPhotonSEE)
 PartBound%AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
 ! Surface particle output to .h5
-IF(DoBoundaryParticleOutputHDF5) CALL InitPartStateBoundary()
+IF(DoBoundaryParticleOutputHDF5) CALL InitPartStateBoundary(ReInitialise=.FALSE.)
 
 ! Set mapping from field boundary to particle boundary index and vice versa
 ALLOCATE(PartBound%MapToPartBC(1:nBCs))
@@ -1639,26 +1639,56 @@ END SUBROUTINE WriteInterPlanePosition
 
 !===================================================================================================================================
 !> Check if PartStateBoundary is already allocated (e.g. if this routine is called during load balance) and if not allocate it
+!> RAM in bit: SIZE(Array,KIND=8)*STORAGE_SIZE(Array,KIND=8)
+!> RAM in byte SIZE(Array,KIND=8)*STORAGE_SIZE(Array,KIND=8)/(8)
+!> RAM in KiB: SIZE(Array,KIND=8)*STORAGE_SIZE(Array,KIND=8)/(8*1024)
+!> RAM in MiB: SIZE(Array,KIND=8)*STORAGE_SIZE(Array,KIND=8)/(8*1024*1024)
+!> RAM in GiB: SIZE(Array,KIND=8)*STORAGE_SIZE(Array,KIND=8)/(8*1024*1024*1024)
 !===================================================================================================================================
-SUBROUTINE InitPartStateBoundary()
+SUBROUTINE InitPartStateBoundary(ReInitialise)
 ! MODULES
-USE MOD_Globals                ,ONLY: abort
-USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary
+USE MOD_Globals
+USE MOD_Globals_Vars
+USE MOD_Globals                ,ONLY: abort,CollectMemUsage
 USE MOD_Particle_Vars          ,ONLY: PDM
-USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
+USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary,PartStateBoundaryMemory,PartStateBoundary,PartStateBoundaryResizeCounter
+USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundaryMemoryLimit
+#if USE_MPI
+USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors
+#endif /*USE_MPI*/
+USE MOD_ReadInTools            ,ONLY: PrintOption
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
+LOGICAL,INTENT(IN) :: ReInitialise
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: ALLOCSTAT
 !===================================================================================================================================
 ! This array is not de-allocated during load balance as it is only written to .h5 during WriteStateToHDF5()
-
-IF(ALLOCATED(PartStateBoundary)) RETURN
-ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:MIN(1000,PDM%maxParticleNumber)), STAT=ALLOCSTAT)
+IF(ALLOCATED(PartStateBoundary).AND.(.NOT.ReInitialise)) RETURN
+! When the ReInitialise flag is passed, deallocate the array
+IF(ReInitialise) DEALLOCATE(PartStateBoundary)
+! Allocate the array using the smaller number of 1000 or max. particle number
+ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:MIN(1000,MAX(PDM%maxParticleNumber,100))), STAT=ALLOCSTAT)
+! Check if an error occurs during allocation
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
+! Nullify
 PartStateBoundary=0.
+! Set initial memory requirement in GiB
+PartStateBoundaryMemory = SIZE(PartStateBoundary,KIND=8)*STORAGE_SIZE(PartStateBoundary,KIND=8)/(8.0*1024.0*1024.0*1024.0)
+! Initialise counter
+PartStateBoundaryResizeCounter = 1
+! Get node memory at the beginning of the simulation
+IF(.NOT.ReInitialise) THEN
+  CALL CollectMemUsage(Mode=1) ! Mode=1: Memory per node (NOT over all nodes)
+  ! Set warning limit
+  PartStateBoundaryMemoryLimit = memory(3)/1048576. ! Convert KiB to GiB: ḿemory(1:3)/(1024*1024)
+#if USE_MPI
+  PartStateBoundaryMemoryLimit = PartStateBoundaryMemoryLimit/REAL(nComputeNodeProcessors) ! Divide equally among the compute node
+#endif /*USE_MPI*/
+  CALL PrintOption('PartStateBoundary warning memory limit per process in GB ','INFO',RealOpt=PartStateBoundaryMemoryLimit)
+END IF ! .NOT.ReInitialise
 END SUBROUTINE InitPartStateBoundary
 
 
@@ -1677,7 +1707,7 @@ USE MOD_TimeDisc_Vars     ,ONLY: ManualTimeStep
 USE MOD_ReadInTools       ,ONLY: GETLOGICAL
 USE MOD_Globals_Vars      ,ONLY: ProjectName
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars  ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!

@@ -341,7 +341,7 @@ DoBoundaryParticleOutputRay = GETLOGICAL('DoBoundaryParticleOutputRay')
 IF((PhotonModeBPO.GE.1)         .AND.(.NOT.DoBoundaryParticleOutputHDF5)) DoBoundaryParticleOutputHDF5 = .TRUE.
 IF((DoBoundaryParticleOutputRay).AND.(.NOT.DoBoundaryParticleOutputHDF5)) DoBoundaryParticleOutputHDF5 = .TRUE.
 
-IF(DoBoundaryParticleOutputHDF5) CALL InitPartStateBoundary()
+IF(DoBoundaryParticleOutputHDF5) CALL InitPartStateBoundary(ReInitialise=.FALSE.)
 
 #ifdef CODE_ANALYZE
 PARTOUT            = GETINT('PartOut')

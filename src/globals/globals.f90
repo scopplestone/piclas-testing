@@ -1588,9 +1588,9 @@ MemInfo = '(single-core)'
 #endif /*USE_MPI*/
 
 ! Sanity checks
-IF(ABS(memory(3)).LE.0.) CALL abort(__STAMP__,'ERROR in WarningMemusage: Could not retrieve total available memory')
-! Convert kB to GB
-memory(1:3)=memory(1:3)/1048576.
+IF(ABS(memory(3)).LE.0.) CALL abort(__STAMP__,'ERROR in WarningMemusage: Could not retrieve '//TRIM(MemInfo)//' available memory')
+! Convert KiB to GiB
+memory(1:3)=memory(1:3)/1048576. ! ḿemory(1:3)/(1024*1024)
 ! Check if X% of the total memory available is reached
 MemUsagePercent = (memory(1)/memory(3))*100.0
 IF(MemUsagePercent.GT.Threshold)THEN
