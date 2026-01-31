@@ -43,4 +43,5 @@ fi
 if [[ ${NbrOfExternalsFiles} -gt 0 ]]; then
   # Rename executable hopr to pyhope
   find ./ -type f -name "externals.ini" -exec sed -i '/externalbinary.*=\s*/s/\.\/bin\/hopr/pyhope    /' {} \;
+  find ./ -type f -name "externals.ini" -exec sed -i '/externalbinary.*=\s*/s/\.\/hopr\/build\/bin\/hopr/pyhope    /' {} \;
 fi
