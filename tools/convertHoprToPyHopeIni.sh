@@ -27,16 +27,16 @@ fi
 # Process hopr.ini files
 if [[ ${NbrOfHoprFiles} -gt 0 ]]; then
   # Deactivate all DebugVisu=T lines
-  find ./ -type f -name "hopr.ini" -exec sed -i '/[Dd]ebug[Vv]isu.*=\s*[tT]/s/[tT]/F/' {} \;
+  find ./ -type f -name "hopr*.ini" -exec sed -i '/[Dd]ebug[Vv]isu.*=\s*[tT]/s/[tT]/F/' {} \;
 
   # Replace "generateFEMconnectivity = T" with "doFEMConnect = T"
-  find ./ -type f -name "hopr.ini" -exec sed -i 's/generateFEMconnectivity/doFEMConnect/' {} \;
+  find ./ -type f -name "hopr*.ini" -exec sed -i 's/generateFEMconnectivity/doFEMConnect/' {} \;
 
   # Rename value for key MeshPostDeform from 1 to cylinder
-  find ./ -type f -name "hopr.ini" -exec sed -i '/MeshPostDeform.*=\s*1/s/1/cylinder/' {} \;
+  find ./ -type f -name "hopr*.ini" -exec sed -i '/MeshPostDeform.*=\s*1/s/1/cylinder/' {} \;
 
   # Rename value for key MeshPostDeform from 2 to sphere
-  find ./ -type f -name "hopr.ini" -exec sed -i '/MeshPostDeform.*=\s*2/s/2/sphere/' {} \;
+  find ./ -type f -name "hopr*.ini" -exec sed -i '/MeshPostDeform.*=\s*2/s/2/sphere/' {} \;
 fi
 
 # Process externals.ini files
