@@ -515,6 +515,7 @@ pyhope_download:
       paths:
         - venv
         - pyhope
+        - reggie
       policy: pull-push
   stage: build
   script:
@@ -540,6 +541,7 @@ reggie_download:
     - key: "venv"
       paths:
         - venv
+        - pyhope
         - reggie
       policy: pull-push
     - *coverage_cache
