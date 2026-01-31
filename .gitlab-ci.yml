@@ -189,17 +189,7 @@ stages:
   key: "venv"
   paths:
     - venv
-  policy: pull
-
-.reggie_cache: &reggie_cache
-  key: "reggie"
-  paths:
     - reggie
-  policy: pull
-
-.pyhope_cache: &pyhope_cache
-  key: "pyhope"
-  paths:
     - pyhope
   policy: pull
 
@@ -217,8 +207,6 @@ stages:
     paths: [build]
   cache:
     - *venv_cache
-    - *reggie_cache
-    - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}"
       paths: [build]
       policy: pull
@@ -249,8 +237,6 @@ stages:
     paths: [build_maxwell_only]
   cache:
     - *venv_cache
-    - *reggie_cache
-    - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-MAX"
       paths: [build_maxwell_only]
       policy: pull
@@ -272,8 +258,6 @@ stages:
       - build_poisson_debug_Leapfrog
   cache:
     - *venv_cache
-    - *reggie_cache
-    - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI"
       paths:
         - build_poisson_release_RK3
@@ -309,8 +293,6 @@ stages:
       - build_drift_diffusion
   cache:
     - *venv_cache
-    - *reggie_cache
-    - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-DD"
       paths:
         - build_drift_diffusion
@@ -343,8 +325,6 @@ stages:
       - build_DVM
   cache:
     - *venv_cache
-    - *reggie_cache
-    - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-DVM"
       paths:
         - build_DVM
@@ -376,7 +356,7 @@ stages:
     paths:
       - build_DVM_plasma
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DVM_plasma"
       paths:
         - build_DVM_plasma
@@ -412,8 +392,6 @@ stages:
       - build_poisson_petsc_debug_Leapfrog
   cache:
     - *venv_cache
-    - *reggie_cache
-    - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI-PETSC"
       paths:
         - build_poisson_petsc_release_RK3
@@ -446,7 +424,7 @@ stages:
     paths:
       - build_petsc_lib
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-BUILD-PETSC"
       paths:
         - build_petsc_lib
@@ -468,8 +446,6 @@ stages:
       - build_radiation
   cache:
     - *venv_cache
-    - *reggie_cache
-    - *pyhope_cache
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"
       paths:
         - build_DSMC_release
@@ -518,8 +494,7 @@ venv_create:
   extends: .default_build_param
   cache:
     - key: "venv"
-      paths:
-        - venv
+      paths: [venv]
       policy: pull-push
   stage: build
   script:
@@ -539,11 +514,8 @@ pyhope_download:
     - key: "venv"
       paths:
         - venv
-      policy: pull-push
-    - key: "pyhope"
-      paths:
         - pyhope
-      policy: push
+      policy: pull-push
   stage: build
   script:
     - source venv/bin/activate
@@ -568,10 +540,8 @@ reggie_download:
     - key: "venv"
       paths:
         - venv
+        - reggie
       policy: pull-push
-    - key: "reggie"
-      paths: [reggie]
-      policy: push
     - *coverage_cache
   stage: build
   script:
@@ -598,7 +568,7 @@ build:
   artifacts:
     paths: [build]
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}"
       paths: [build]
       policy: push
@@ -613,7 +583,7 @@ build_maxwell_only:
   artifacts:
     paths: [build_maxwell_only]
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-MAX"
       paths: [build_maxwell_only]
       policy: push
@@ -636,7 +606,7 @@ build_poisson:
       - build_poisson_debug_RK3
       - build_poisson_debug_Leapfrog
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI"
       paths:
         - build_poisson_release_RK3
@@ -684,7 +654,7 @@ build_poisson_petsc:
       - build_poisson_petsc_debug_RK3
       - build_poisson_petsc_debug_Leapfrog
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI-PETSC"
       paths:
         - build_poisson_petsc_release_RK3
@@ -721,7 +691,7 @@ build_DSMC:
       - build_DSMC_N1
       - build_radiation
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"
       paths:
         - build_DSMC_release
@@ -757,7 +727,7 @@ build_drift_diffusion:
   artifacts:
     paths: [build_drift_diffusion]
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DD"
       paths: [build_drift_diffusion]
       policy: push
@@ -776,7 +746,7 @@ build_DVM:
   artifacts:
     paths: [build_DVM]
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DVM"
       paths: [build_DVM]
       policy: push
@@ -813,7 +783,7 @@ build_DVM_plasma:
   artifacts:
     paths: [build_DVM_plasma]
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DVM_plasma"
       paths: [build_DVM_plasma]
       policy: push
@@ -842,7 +812,7 @@ build_no_git:
   tags: [withmodules-concurrent]
   stage: build_weekly
   cache:
-    <<: *reggie_cache
+    <<: *venv_cache
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME without git"
     - git clone --depth=1 --branch=$CI_COMMIT_REF_NAME git@piclas.boltzplatz.eu:piclas/piclas.git piclas-no-git
@@ -857,7 +827,7 @@ build_outside_repository:
   tags: [withmodules-concurrent]
   stage: build_weekly
   cache:
-    <<: *reggie_cache
+    <<: *venv_cache
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME outside the piclas directory/repository"
     - REPOPATH=$(echo `pwd`)
@@ -873,7 +843,7 @@ build_no_git_libs:
   tags: [withmodules-concurrent]
   stage: build_weekly
   cache:
-    <<: *reggie_cache
+    <<: *venv_cache
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME without git but with external libs"
     - git clone --depth=1 --branch=$CI_COMMIT_REF_NAME git@piclas.boltzplatz.eu:piclas/piclas.git piclas-no-git-but-libs
@@ -895,7 +865,7 @@ build_petsc_in_piclas:
     paths:
       - build_petsc_lib
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-BUILD-PETSC"
       paths:
         - build_petsc_lib
@@ -1544,7 +1514,7 @@ WEK_Radiation:
     paths:
       - build_DSMC_release_WEK_DSMC_Radiation
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"
       paths: [build_radiation]
       policy: pull
@@ -1722,7 +1692,7 @@ github_test_appimage:
   rules:
     - if: '$DO_TEST_APPIMAGE'
   cache:
-    - *reggie_cache
+    - *venv_cache
   script:
     - if [ -z "${DO_TEST_APPIMAGE}" ]; then echo "DO_TEST_APPIMAGE is empty but should contain the artifact name"; exit; else echo "Artifact ${DO_TEST_APPIMAGE}"; fi
     - if [ -z "${CI_COMMIT_REF_NAME}" ]; then echo "CI_COMMIT_REF_NAME is empty"; exit; else echo "Cloning ${CI_COMMIT_REF_NAME}"; fi
