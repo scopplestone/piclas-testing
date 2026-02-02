@@ -4,7 +4,7 @@ Certain application cases allow the utilization of a constant magnetic backgroun
 This background field can either be supplied via .csv (1D) or .h5 (2D) file, however, in this case the field must be based on an equidistant
 Cartesian mesh.
 Another method is to use the built-in tool **superB**, which is also available as stand-alone executable to generate magnetic fields
-based on magnets or coils, which results in the creation of a .h5 file containing the field data based on a PICLas (HOPR) mesh file.
+based on magnets or coils, which results in the creation of a .h5 file containing the field data based on a PICLas (PyHOPE) mesh file.
 The following two sections give an overview of using the different methods.
 
 (sec:variableExternalField)=

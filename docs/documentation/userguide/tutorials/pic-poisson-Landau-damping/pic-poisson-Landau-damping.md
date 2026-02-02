@@ -17,11 +17,11 @@ directory to a separate location
 
 where the variable `PICLAS_PATH` contains the path to the location of the piclas repository.
 
-## Mesh Generation with HOPR (pre-processing)
+## Mesh Generation with PyHOPE (pre-processing)
 
 First, the mesh file has to be created by running
 
-    hopr hopr.ini
+    pyhope hopr.ini
 
 within the *pic-poisson-landau-damping* directory.
 
