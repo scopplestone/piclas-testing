@@ -132,6 +132,10 @@ Cartesian coordinate axis (x, y, z) with its origin at (0, 0, 0).
 
 ### Intermediate Plane Definition
 If several segments with different rotation angles are defined, exactly two corresponding boundary conditions must be defined for each segment.
+In pyHope, multiple internal boundaries must be allowed by setting
+
+    CheckInternalBoundaries = F
+
 Since the plane between these segments with different rotational symmetry angles represents a non-conforming connection, additional
 two boundary conditions must be defined as `rot_periodic_inter_plane` at this intermediate plane. Both boundary conditions must refer to each other in the
 definition in order to ensure the connection.
