@@ -9,7 +9,7 @@ Within the parameter file it is possible to define different particle boundary c
     Part-Boundary2-SourceName   = BC_WALL
     Part-Boundary2-Condition    = reflective
 
-The `Part-Boundary1-SourceName=` corresponds to the name given during the preprocessing step with HOPR. The available conditions
+The `Part-Boundary1-SourceName=` corresponds to the name given during the preprocessing step with PyHOPE. The available conditions
 (`Part-Boundary1-Condition=`) are described in the table below.
 
 |         Condition          | Description                                                                                                                                                                    |
@@ -548,4 +548,3 @@ The boundary must also be specified as an *inner* boundary via
     BoundaryType                     = (/100,0/)
 
 or directly in the *hopr.ini* file that is used for creating the mesh.
-

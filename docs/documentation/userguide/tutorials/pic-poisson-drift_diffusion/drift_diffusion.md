@@ -440,7 +440,7 @@ In addition, an electronic database is needed. This can be linked or copied from
     cp $PICLAS_PATH/regressioncheck/NIG_Reservoir/MCC_BGG_MultiSpec_XSec_TCE_QK_Chem/DSMCSpecies_electronic_state_full_Data.h5 .
 
 
-### Mesh Generation with HOPR (pre-processing)-2
+### Mesh Generation with PyHOPE (pre-processing)-2
 
 The mesh generation process is identical to that described in the fluid model section. Please refer to that section for detailed instructions or you just copy the mesh from the previous part of the tutorial
 

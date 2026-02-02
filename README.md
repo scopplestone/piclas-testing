@@ -22,7 +22,7 @@ An overview of the regression tests used for continuous integration is given in 
 
 PICLas uses several external libraries as well as auxiliary functions from open source projects, including:
 
-* [HOPR (High Order Preprocessor)](https://github.com/hopr-framework/hopr)
+* [PyHOPE (High Order Preprocessor)](https://github.com/hopr-framework/PyHOPE)
 * [cmake](https://www.cmake.org)
 * [LAPACK](http://www.netlib.org/lapack/)
 * [MPI](https://www.open-mpi.org/)

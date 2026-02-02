@@ -69,7 +69,7 @@ After opening the `.geo` script file, select **Geometry &rarr; Elementary entiti
 
 Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$
 ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell
-row. As the loaded file only consists of a surface, which is meshed with Gmsh and then extruded using Hopr, the surface needs to be translated:
+row. As the loaded file only consists of a surface, which is meshed with Gmsh and then extruded using PyHOPE, the surface needs to be translated:
 
     Translate {0, 0, -1} {
         Surface{1};
@@ -113,7 +113,7 @@ The mesh can be created by simplying executing Gmsh from the terminal:
 
     gmsh 70degCone_2DSurf.geo
 
-The resulting mesh shall consist of quad elements and not triangles. Finally, it has to be converted to the file format used by **piclas** using HOPR by supplying an input file `hopr.ini` using the corresponding mode:
+The resulting mesh shall consist of quad elements and not triangles. Finally, it has to be converted to the file format used by **piclas** using PyHOPE by supplying an input file `hopr.ini` using the corresponding mode:
 
     Mode = 5
 
