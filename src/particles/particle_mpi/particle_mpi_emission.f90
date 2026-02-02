@@ -206,7 +206,7 @@ DO iSpec=1,nSpecies
       ! Neutralization at right BC (max. x-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)
       ! Check one region (emission at fixed x-position x=30 mm)
       ASSOCIATE( &
-                 x2 => 30.01e-3    ,& ! m
+                 x2 => GEO%xmaxglob ,& ! m
                  x1 => 29.99e-3-MPI_halo_eps ,& ! m
                  y2 => GEO%ymaxglob ,& ! m
                  y1 => GEO%yminglob ,& ! m
@@ -265,9 +265,9 @@ DO iSpec=1,nSpecies
       ASSOCIATE( &
                  x2 => GEO%xmaxglob  ,& ! m
                  x1 => GEO%xminglob  ,& ! m
-                 y2 => GEO%ymaxglob ,& ! m
-                 y1 => GEO%yminglob ,& ! m
-                 z2 => 30.01e-3 ,& ! m
+                 y2 => GEO%ymaxglob  ,& ! m
+                 y1 => GEO%yminglob  ,& ! m
+                 z2 => GEO%zmaxglob  ,& ! m
                  z1 => 29.99e-3-MPI_halo_eps)
        ! Check all 8 edges
        xCoords(1:3,1) = (/x1,y1,z1/)
