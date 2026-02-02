@@ -74,3 +74,123 @@ For the new particle to become a valid particle, the inside flag must be set to 
     LastPartPos(1:3,newParticleID) = Pos(1:3)
     PartState(1:3,newParticleID) = Pos(1:3)
     PartState(4:6,newParticleID) = Velocity(1:3)
+    
+## Particle Internal Energy Container (`tPartIntEn`)
+
+Each particle owns an internal energy container defined in the module `dsmc_vars`.
+This container is implemented as the derived type `tPartIntEn`, whose size is defined
+by `partveclength`.
+
+All particle-related internal properties are attached to this type and are **only
+allocated if required by the respective simulation model**.
+
+### Type Definition
+
+    TYPE tPartIntEn
+      REAL, ALLOCATABLE    :: EVib(:)        ! Vibrational energy
+      REAL, ALLOCATABLE    :: ERot(:)        ! Rotational energy
+      REAL, ALLOCATABLE    :: EElec(:)       ! Electronic energy
+      REAL, ALLOCATABLE    :: TSolid(:)      ! Temperature of solid particles
+      INTEGER, ALLOCATABLE :: QVib(:)        ! Vibrational quantum numbers
+      INTEGER, ALLOCATABLE :: QRot(:)        ! Rotational quantum numbers
+      INTEGER, ALLOCATABLE :: QElec(:)       ! Electronic quantum numbers
+      REAL, ALLOCATABLE    :: DistriFunc(:)  ! Electronic distribution function
+      REAL, ALLOCATABLE    :: ElecVelo(:)    ! Electron velocity for ambipolar diffusion
+    END TYPE tPartIntEn
+
+### Conditional Allocation of Particle Properties
+
+Not all particles carry all internal properties.
+
+Vibrational energy (`EVib`) is only allocated for molecular particles.
+For such particles, allocation is performed as:
+
+    ALLOCATE(PartIntEn(iPart)%EVib(1))
+
+Vibrational quantum numbers (`QVib`) are not required in all physical models.
+The property `TSolid` is only allocated for solid particles.
+All other internal properties follow the same conditional allocation principle.
+
+It is essential that all required properties are **allocated correctly during particle
+creation**, depending on particle type and the active physical models.
+
+---
+
+## Particle Removal and Memory Handling
+
+If a particle leaves the simulation domain (e.g. through open boundaries), disappears
+due to chemical reactions, or is removed for any other reason, it is **not sufficient**
+to only set:
+
+    PDM%ParticleInside = .FALSE.
+
+Instead, the subroutine
+
+    RemoveParticle
+
+from the module `MOD_part_operations` should be used.
+
+This routine ensures that all associated `tPartIntEn` arrays are properly deallocated
+and that internal particle data structures remain consistent.
+
+---
+
+## Extending the `tPartIntEn` Data Structure
+
+When extending `tPartIntEn` with additional particle properties, several modules
+must be adapted accordingly.
+
+### Particle Management Tools (`MOD_part_tools`)
+
+The following routines must be extended:
+
+- `ChangePartID`
+- `ReduceMaxParticleNumber`
+- `IncreaseMaxParticleNumber`
+
+Existing `PartIntEn` operators can be copied and used as templates. The old property
+handling can be duplicated and extended with the new property.
+
+---
+
+### MPI Communication of Particle Properties (`MOD_Particle_MPI`)
+
+All new particle properties that must be communicated across MPI ranks require
+explicit handling.
+
+The following routines must be extended:
+
+- `MPIParticleSend`
+- `MPIParticleRecv`
+
+Each particle property is treated independently. Existing communication structures
+for `PartIntEn` can be copied and adapted to the new property.
+
+In addition, the routine `SendNbOfParticles` must be extended.
+
+---
+
+### MPI Exchange Size and Number of Properties
+
+The 2D array
+
+    PartMPIExchange%nPartsSend(:,:)
+
+is currently allocated as:
+
+    ALLOCATE(PartMPIExchange%nPartsSend(7, 0:nExchangeProcessors-1))
+
+The value `7` represents the current maximum number of particle properties exchanged
+via MPI.
+
+When adding a new MPI-relevant particle property:
+
+- Increase this dimension accordingly (e.g. from `7` to `8`)
+- This modification is performed in the routine `InitParticleCommSize`
+
+Furthermore, the following changes are required:
+
+- Extend the particle loop inside `SendNbOfParticles`
+- Update the corresponding `MPI_ISEND` call to reflect the new number of properties
+- Apply the same changes in `IRecvNbOfParticles` for the matching `MPI_IRECV`
+
