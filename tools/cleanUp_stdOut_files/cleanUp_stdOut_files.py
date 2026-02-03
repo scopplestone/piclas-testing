@@ -163,6 +163,9 @@ def CleanSingleLines(stdfile, args):
             elif '_____________________________________________________________________________' in line_stripped:
                 # Remove '_____________________________________________________________________________'
                 changedLines+=1
+            elif '[CRAYBLAS_WARNING] Application linked against multiple cray-libsci libraries' in line_stripped:
+                # Remove '[CRAYBLAS_WARNING] Application linked against multiple cray-libsci libraries'
+                changedLines+=1
             elif not line_stripped:
                 # Remove empty lines
                 changedLines+=1
@@ -195,11 +198,15 @@ def CleanDoPrintStatusLine(stdfile, args):
 
     # Time = 0.8601E-07    dt = 0.1000E-10   eta =      0:44:32     |=========================================>        | [ 82.51%]
     arr = ['Time', 'dt', 'eta', '%', '|']
+    arr_ray = ['Photon =', 'TotalPhotons =', 'eta', '%', '|']
     n=0
     with open(stdfile_new, "w") as output_new:
         for line in lines:
             n+=1
             if all(c in line.strip("\n") for c in arr):
+                # Ignore this line and increase the counter by 1
+                changedLines+=1
+            elif all(c in line.strip("\n") for c in arr_ray):
                 # Ignore this line and increase the counter by 1
                 changedLines+=1
             else:

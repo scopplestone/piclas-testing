@@ -21,29 +21,6 @@ MODULE MOD_Particle_InterSection
 IMPLICIT NONE
 PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
-
-INTERFACE ComputePlanarCurvedIntersection
-  MODULE PROCEDURE ComputePlanarCurvedIntersection
-END INTERFACE
-
-INTERFACE ComputePlanarRectInterSection
-  MODULE PROCEDURE ComputePlanarRectInterSection
-END INTERFACE
-
-INTERFACE ComputeBilinearIntersection
-  MODULE PROCEDURE ComputeBilinearIntersection
-END INTERFACE
-
-INTERFACE ComputeCurvedIntersection
-  MODULE PROCEDURE ComputeCurvedIntersection
-END INTERFACE
-
-#ifdef CODE_ANALYZE
-INTERFACE OutputTrajectory
-  MODULE PROCEDURE OutputTrajectory
-END INTERFACE
-#endif /*CODE_ANALYZE*/
-
 ! Define an interface for the function pointer
 ABSTRACT INTERFACE
   SUBROUTINE ParticleThroughSideCheck1D2DInterface(PartID,iLocSide,Element,ThroughSide)

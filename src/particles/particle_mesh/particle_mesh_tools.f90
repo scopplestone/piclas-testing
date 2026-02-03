@@ -657,7 +657,7 @@ END DO
 
 ! We should never arrive here
 GetGlobalNonUniqueSideID=-1
-CALL ABORT(__STAMP__,'GlobalSideID not found for Elem',GlobalElemID)
+CALL ABORT(__STAMP__,'GlobalSideID not found for Elem ',GlobalElemID)
 END FUNCTION GetGlobalNonUniqueSideID
 
 !==================================================================================================================================!

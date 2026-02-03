@@ -26,6 +26,7 @@ END INTERFACE
 !===================================================================================================================================
 PUBLIC:: DepositParticleOnNodes,CalcCellLocNodeVolumes,ReadTimeAverage,beta,DepositPhotonSEEHoles
 PUBLIC:: DepositParticleOnSurface
+PUBLIC:: DepositParticleOnSurface1
 !===================================================================================================================================
 
 CONTAINS
@@ -57,8 +58,8 @@ USE MOD_Globals
 ! USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
 ! USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
-#if USE_LOADBALANCE
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
+#if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
 ! USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared
@@ -278,9 +279,6 @@ ReferenceSurface(1:3,1,1) = (/ 0.0,  0.0, 0.0/)
   END DO; END DO ! q=0,1; DO p=0,1
   DistSum = SUM(PartDistDepo(1:4))
 
-  ! IPWRITE(*,*) 'PartDistDepo,DistSum:', PartDistDepo,DistSum
-  ! IPWRITE(UNIT_StdOut,'(I0,A,I0)') ': v '//TRIM(__FILE__)//' +',__LINE__
-  ! IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
   END ASSOCIATE
 
   ! Loop over the four side nodes
@@ -322,7 +320,7 @@ END SUBROUTINE DepositParticleOnSurface2
 
 
 
-SUBROUTINE DepositParticleOnSurface1(Charge,PartPos,GlobalElemID,NonUniqueGlobalSideID,PartID)
+SUBROUTINE DepositParticleOnSurface1(Charge,PartPos,GlobalElemID,NonUniqueGlobalSideID,PartID,xi)
 ! MODULES
 USE MOD_Globals
 ! USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
@@ -353,6 +351,7 @@ REAL,INTENT(IN)                  :: PartPos(1:3)
 INTEGER,INTENT(IN)               :: GlobalElemID
 INTEGER,INTENT(IN)               :: NonUniqueGlobalSideID
 INTEGER,INTENT(IN)               :: PartID
+REAL,INTENT(IN),OPTIONAL         :: xi(1:2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if USE_LOADBALANCE
@@ -366,7 +365,7 @@ INTEGER                           :: localSideID, NonUniqueNodeIDtmp, CNElemID, 
 REAL                              :: normalnorm(3), evec1(3), evec2(3), Nodepointspro(1:2,4), PartPos2D(2)
 
 
-REAL                          :: xi(2)
+REAL                          :: xii(2)
 REAL                          :: P(2,4), F(2), dF_inv(2,2), s(2)
 REAL, PARAMETER               :: EPS=1E-10
 REAL                          :: T_inv(2,2), DP(2), T(2,2), xi_Out(2), alpha1, alpha2, DepoWeights(1:4)
@@ -414,48 +413,55 @@ T(:,2) = 0.5 * (Nodepointspro(:,4)-Nodepointspro(:,1))
 T_inv = Calc_inv2D(T)
 
 ! transform also the physical coordinate of the point into the unit element (this is the solution of the linear problem already)
-xi = 0.
+xii = 0.
 DP = PartPos2D - Nodepointspro(:,1)
 DO i=1,2
   DO j=1,2
-    xi(i)= xi(i) + T_inv(i,j) * DP(j)
+    xii(i)= xii(i) + T_inv(i,j) * DP(j)
   END DO
 END DO
 
-IF ((xi(1).GE.0.0.AND.xi(1).LE.2.0).AND.(xi(2).GE.0.0.AND.xi(2).LE.2.0)) THEN
-  xi = xi - (/1.,1./)
+IF ((xii(1).GE.0.0.AND.xii(1).LE.2.0).AND.(xii(2).GE.0.0.AND.xii(2).LE.2.0)) THEN
+  xii = xii - (/1.,1./)
 ELSE
-  xi = (/0.,0./)
+  xii = (/0.,0./)
 END IF
 
 
-F = Calc_F2D(xi,PartPos2D,Nodepointspro)
+F = Calc_F2D(xii,PartPos2D,Nodepointspro)
 DO WHILE(SUM(ABS(F)).GE.EPS)
-  dF_inv = Calc_dF_inv2D(xi,Nodepointspro)
+  dF_inv = Calc_dF_inv2D(xii,Nodepointspro)
   s=0.
   DO j = 1,2
     DO k = 1,2
       s(j) = s(j) + dF_inv(j,k) * F(k)
     END DO ! k
   END DO ! j
-  xi = xi - s
-  F = Calc_F2D(xi,PartPos2D,Nodepointspro)
+  xii = xii - s
+  F = Calc_F2D(xii,PartPos2D,Nodepointspro)
 END DO ! i
-IF ((xi(1).GE.-1.0.AND.xi(1).LE.1.0).AND.(xi(2).GE.-1.0.AND.xi(2).LE.1.0)) THEN
-  xi_Out = xi
-ELSE IF ((xi(1).LE.-1.0)) THEN
-  xi_Out = xi
+IF ((xii(1).GE.-1.0.AND.xii(1).LE.1.0).AND.(xii(2).GE.-1.0.AND.xii(2).LE.1.0)) THEN
+  xi_Out = xii
+ELSE IF ((xii(1).LE.-1.0)) THEN
+  xi_Out = xii
   xi_Out(1) = -0.9999999999999
-ELSE IF ((xi(1).GE.1.0)) THEN
-  xi_Out = xi
+ELSE IF ((xii(1).GE.1.0)) THEN
+  xi_Out = xii
   xi_Out(1) = 0.9999999999999
-ELSE IF ((xi(2).LE.-1.0)) THEN
-  xi_Out = xi
+ELSE IF ((xii(2).LE.-1.0)) THEN
+  xi_Out = xii
   xi_Out(2) = -0.9999999999999
-ELSE IF ((xi(2).GE.1.0)) THEN
-  xi_Out = xi
+ELSE IF ((xii(2).GE.1.0)) THEN
+  xi_Out = xii
   xi_Out(2) = 0.9999999999999
 END IF
+
+! IF (present(xi)) THEN
+!   print*,"xi    ",xi
+!   print*,"xi_out",xi_out
+!   IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+! END IF ! present(xi)
+! return
 
 alpha1=0.5*(xi_Out(1)+1.0)
 alpha2=0.5*(xi_Out(2)+1.0)
@@ -547,7 +553,7 @@ END SUBROUTINE DepositParticleOnSurface1
 
 
 
-SUBROUTINE DepositParticleOnSurface3(Charge,PartPos,GlobalElemID,NonUniqueGlobalSideID,PartID)
+SUBROUTINE DepositParticleOnSurface3(Charge,PartPos,GlobalElemID,NonUniqueGlobalSideID,PartID,xi)
 ! MODULES
 USE MOD_Globals
 ! USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
@@ -580,6 +586,7 @@ REAL,INTENT(IN)                  :: PartPos(1:3)
 INTEGER,INTENT(IN)               :: GlobalElemID
 INTEGER,INTENT(IN)               :: NonUniqueGlobalSideID
 INTEGER,INTENT(IN)               :: PartID
+REAL,INTENT(IN),OPTIONAL         :: xi(1:2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if USE_LOADBALANCE
@@ -593,7 +600,6 @@ INTEGER                           :: localSideID, NonUniqueNodeIDtmp, CNElemID, 
 REAL                              :: normalnorm(3), evec1(3), evec2(3), Nodepointspro(1:2,4), PartPos2D(2)
 
 
-REAL                          :: xi(2)
 REAL                          :: P(2,4), F(2), dF_inv(2,2), s(2)
 REAL, PARAMETER               :: EPS=1E-10
 REAL                          :: T_inv(2,2), DP(2), T(2,2), xi_Out(2), alpha1, alpha2, DepoWeights(1:4)
@@ -616,13 +622,19 @@ IF(ElementOnProc(GlobalElemID)) CALL LBStartTime(tLBStart) ! Start time measurem
 ! between the adjacent processes and then added to SurfNodeSourceExt
 ASSOCIATE( SurfNodeSource => SurfNodeSourceMPI )
 #endif
-lengthPartTrajectory = VECNORM3D(TrackInfo%PartTrajectory(1:3))
-CALL ComputeBiLinearIntersection(isHit,& ! OUT
-                                 TrackInfo%PartTrajectory, lengthPartTrajectory, TrackInfo%alpha,& ! IN
-                                 xi2,eta2,& ! OUT
-                                 PartID,NonUniqueGlobalSideID) ! IN
-alpha1=0.5*(xi2+1.0)
-alpha2=0.5*(eta2+1.0)
+IF (PartID.GT.0) THEN
+  lengthPartTrajectory = VECNORM3D(TrackInfo%PartTrajectory(1:3))
+  CALL ComputeBiLinearIntersection(isHit,& ! OUT
+                                   TrackInfo%PartTrajectory, lengthPartTrajectory, TrackInfo%alpha,& ! IN
+                                   xi2,eta2,& ! OUT
+                                   PartID,NonUniqueGlobalSideID) ! IN
+  alpha1=0.5*(xi2+1.0)
+  alpha2=0.5*(eta2+1.0)
+ELSE
+  IF(.NOT.PRESENT(xi)) CALL abort(__STAMP__,' DepositParticleOnSurface: PartID=0 requires xi(1:2) argument containing xi and eta coordinates', IERROR)
+  alpha1=0.5*(xi(1)+1.0)
+  alpha2=0.5*(xi(2)+1.0)
+END IF ! PartID.GT.0
 
 DepoWeights(2) = (1-alpha1)*(1-alpha2)
 DepoWeights(1) = (alpha1)*(1-alpha2)
@@ -676,8 +688,7 @@ detjb = M (1, 1) * M (2, 2) - M (1, 2) * M (2, 1)
 IF ( detjb == 0.d0 ) then
   IPWRITE(UNIT_errOut,*)"Determinant is:",detjb
   IPWRITE(UNIT_errOut,*)"KM:",M_inv
-  CALL abort(__STAMP__, &
-        "Zero determinant of Jacobian in M_inv")
+  CALL abort(__STAMP__,"Zero determinant of Jacobian in M_inv")
 END IF
 ! Determines the inverse of xj
 M_inv (1, 1) = M (2, 2)/ detjb
@@ -767,7 +778,8 @@ END FUNCTION Calc_F2D
 !===================================================================================================================================
 SUBROUTINE DepositPhotonSEEHoles(iBC,NbrOfParticle)
 ! MODULES
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Globals
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, Do2DSurfaceCharge
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Vars          ,ONLY: PEM, PartSpecies, PartState, Species, usevMPF, PartMPF
@@ -803,6 +815,8 @@ IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC))THEN
     ! Create electron hole (i.e. positive surface charge)
     CALL DepositParticleOnNodes(ChargeHole, PartState(1:3,ParticleIndex), PEM%GlobalElemID(ParticleIndex))
   END DO
+ELSEIF(Do2DSurfaceCharge) THEN
+  CALL abort(__STAMP__,'ERROR in DepositPhotonSEEHoles: 2D surface charge not implemented!')
 END IF
 END SUBROUTINE DepositPhotonSEEHoles
 

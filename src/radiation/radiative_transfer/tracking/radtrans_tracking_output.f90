@@ -50,7 +50,7 @@ USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergy_Shared,RayElemOffset,Ray
 USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergy
 #endif /*USE_MPI*/
 USE MOD_io_HDF5
-USE MOD_HDF5_output          ,ONLY: GenerateFileSkeleton
+USE MOD_HDF5_output          ,ONLY: GenerateFileSkeleton,WriteAttributeToHDF5
 USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
 USE MOD_Mesh_Vars            ,ONLY: offsetElem,nGlobalElems
 USE MOD_ChangeBasis          ,ONLY: ChangeBasis3D
@@ -277,7 +277,12 @@ END IF
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 ! Write file after last abort to prevent a corrupt output file (which might be used when restarting the simulation)
-IF(MPIRoot) CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=RadiationVolState,NodeType_in=Ray%NodeType)
+IF(MPIRoot) THEN
+  CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=RadiationVolState,NodeType_in=Ray%NodeType)
+  CALL OpenDataFile(RadiationVolState,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  CALL WriteAttributeToHDF5(File_ID, 'IntensityAmplitude', 1, RealScalar = Ray%IntensityAmplitude)
+  CALL CloseDataFile()
+END IF
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
@@ -377,7 +382,7 @@ IMPLICIT NONE
 CHARACTER(LEN=255)                  :: Statedummy
 CHARACTER(LEN=255)                  :: H5_Name, H5_Name2
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
-INTEGER                             :: GlobalSideID, iSurfSide, OutputCounter, SurfSideNb, p, q
+INTEGER                             :: GlobalSideID, GlobalNbSideID, iSurfSide, OutputCounter, SurfSideNb, p, q
 INTEGER,PARAMETER                   :: nVar2D=3
 REAL                                :: tstart,tend
 REAL, ALLOCATABLE                   :: helpArray(:,:,:,:)
@@ -405,12 +410,13 @@ IF (mySurfRank.EQ.0) THEN
   Statedummy = 'RadiationSurfState'
   ! Write file header
   CALL WriteHDF5Header(Statedummy,File_ID)
-  CALL WriteAttributeToHDF5(File_ID , 'DSMC_nSurfSample' , 1       , IntegerScalar = Ray%nSurfSample        )
-  CALL WriteAttributeToHDF5(File_ID , 'MeshFile'         , 1       , StrScalar     = (/TRIM(MeshFile)/) )
-  CALL WriteAttributeToHDF5(File_ID , 'BC_Surf'          , nSurfBC , StrArray      = SurfBCName         )
-  CALL WriteAttributeToHDF5(File_ID , 'N'                , 1       , IntegerScalar = Ray%nSurfSample        )
-  CALL WriteAttributeToHDF5(File_ID , 'NodeType'         , 1       , StrScalar     = (/Ray%NodeType/)   )
-  CALL WriteAttributeToHDF5(File_ID , 'Time'             , 1       , RealScalar    = 0.                 )
+  CALL WriteAttributeToHDF5(File_ID , 'DSMC_nSurfSample'  , 1       , IntegerScalar = Ray%nSurfSample       )
+  CALL WriteAttributeToHDF5(File_ID , 'MeshFile'          , 1       , StrScalar     = (/TRIM(MeshFile)/)    )
+  CALL WriteAttributeToHDF5(File_ID , 'BC_Surf'           , nSurfBC , StrArray      = SurfBCName            )
+  CALL WriteAttributeToHDF5(File_ID , 'N'                 , 1       , IntegerScalar = Ray%nSurfSample       )
+  CALL WriteAttributeToHDF5(File_ID , 'NodeType'          , 1       , StrScalar     = (/Ray%NodeType/)      )
+  CALL WriteAttributeToHDF5(File_ID , 'Time'              , 1       , RealScalar    = 0.                    )
+  CALL WriteAttributeToHDF5(File_ID , 'IntensityAmplitude', 1       , RealScalar    = Ray%IntensityAmplitude)
 
   ALLOCATE(Str2DVarNames(1:nVar2D))
   ! fill varnames for total values
@@ -449,25 +455,30 @@ ASSOCIATE (&
   OutputCounter = 0
   DO iSurfSide = 1,nComputeNodeSurfSides
     GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
-    IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
-      IF(GlobalSideID.LT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)) THEN
-        SurfSideNb = GlobalSide2SurfSide(SURF_SIDEID,SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))
-        ! Add your contribution to my inner BC
+    GlobalNbSideID = SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)
+    ! Treatment of inner BC's: check whether the surface side has a neighbour, indicating an inner BC
+    IF(GlobalNbSideID.GT.0) THEN
+      SurfSideNb = GlobalSide2SurfSide(SURF_SIDEID,GlobalNbSideID)
+      ! Add neighbour's contribution to my inner BC with the smaller global side index
+      IF(GlobalSideID.LT.GlobalNbSideID) THEN
         PhotonSampWall(:,:,:,iSurfSide) = PhotonSampWall(:,:,:,iSurfSide) + PhotonSampWall(:,:,:,SurfSideNb)
       ELSE
         CYCLE
       END IF
     END IF
     OutputCounter = OutputCounter + 1
+    ! Write PhotonCount
     helpArray(1,1:nSurfSample,1:nSurfSample,OutputCounter) = PhotonSampWall(1,1:nSurfSample,1:nSurfSample,iSurfSide)
-    helpArray2(OutputCounter) = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
-    !  SurfaceArea should be changed to 1:SurfMesh%nSides if inner sampling sides exist...
+    ! Write HeatFlux
     DO p = 1, INT(nSurfSample)
       DO q = 1, INT(nSurfSample)
         helpArray(2,p,q,OutputCounter) = PhotonSampWall(2,p,q,iSurfSide)/PhotonSurfSideArea(p,q,iSurfSide)
-        helpArray(3,p,q,OutputCounter) = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
       END DO ! q = 1, nSurfSample
     END DO ! p = 1, nSurfSample
+    ! Write iBC
+    helpArray(3,1:nSurfSample,1:nSurfSample,OutputCounter) = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
+    ! Write GlobalSideID
+    helpArray2(OutputCounter) = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
   END DO
   ! WARNING: Only the sampling leaders write the data to .h5
   CALL WriteArrayToHDF5(DataSetName=H5_Name  , rank=4      ,                                  &

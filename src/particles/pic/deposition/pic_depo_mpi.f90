@@ -1084,9 +1084,6 @@ INTEGER(KIND=8)                :: CounterStart,CounterEnd
 REAL(KIND=8)                   :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
-! print*,""
-! CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-! IPWRITE(*,*) 'CALLLLLLLLINNNNNNNNGGGGGGGGGGGG CollectSurfNodeAreaOnMPIRoot()'
 ! 1) Receive surface node area data
 ! Only MPIRoot receives data from all other processes
 IF (MPIRoot) THEN
@@ -1176,8 +1173,6 @@ IF (MPIRoot) THEN
     END DO
   END DO
 END IF ! MPIRoot
-! IPWRITE(*,*) 'SurfNodeArea:', SurfNodeArea
-! IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 END SUBROUTINE CollectSurfNodeAreaOnMPIRoot
 
 
@@ -1565,8 +1560,6 @@ IF (.NOT.MPIRoot) THEN
   END DO
 END IF ! .NOT.MPIRoot
 
-! IPWRITE(*,*) 'SurfNodeArea:', SurfNodeArea
-! IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 END SUBROUTINE ReverseExchangeSurfNodeArea
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*USE_MPI*/

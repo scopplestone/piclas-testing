@@ -46,6 +46,7 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact,SWIVarT
 USE MOD_part_tools                ,ONLY: GetParticleWeight
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
 #if USE_HDG
+USE MOD_Particle_Boundary_Vars    ,ONLY: DoVirtualDielectricLayer
 USE MOD_Particle_Vars             ,ONLY: ResetVDLSpecID
 #endif/*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
@@ -73,7 +74,7 @@ SubQ = TrackInfo%q
 SpecID = PartSpecies(PartID)
 #if USE_HDG
 ! Check particle index for VDL particles and reset to original species index
-SpecID = ResetVDLSpecID(PartID)
+IF(DoVirtualDielectricLayer) SpecID = ResetVDLSpecID(PartID)
 #endif/*USE_HDG*/
 
 IF(usevMPF) THEN
@@ -231,9 +232,11 @@ END SUBROUTINE SampleImpactProperties
 !----------------------------------------------------------------------------------------------------------------------------------!
 SUBROUTINE StoreBoundaryParticleProperties(iPart,SpecID,PartPos,PartTrajectory,SurfaceNormal,iPartBound,mode,MPF_optIN,Velo_optIN)
 ! MODULES
+USE MOD_Globals
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,Species,PartState
 USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength
+USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundaryMemoryLimit,PartStateBoundaryMemory,PartStateBoundaryResizeCounter
 USE MOD_TimeDisc_Vars          ,ONLY: time
 USE MOD_Globals_Vars           ,ONLY: PI, Joule2eV
 USE MOD_Array_Operations       ,ONLY: ChangeSizeArray
@@ -253,7 +256,7 @@ REAL,INTENT(IN),OPTIONAL :: MPF_optIN !> Supply the MPF in special cases
 REAL,INTENT(IN),OPTIONAL :: Velo_optIN(1:3) !> Supply the velocity in special cases
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                 :: MPF
+REAL                 :: MPF,PartStateBoundaryMemUsage
 INTEGER              :: dims(2)
 !===================================================================================================================================
 IF(PRESENT(MPF_optIN))THEN
@@ -271,11 +274,21 @@ dims = SHAPE(PartStateBoundary)
 ASSOCIATE( iMax => PartStateBoundaryVecLength )
   ! Increase maximum number of boundary-impact particles
   iMax = iMax + 1
-
   ! Check if array maximum is reached and increase size if it does
   IF(iMax.GT.dims(2))THEN
     ! Utilizing routine using MOVE_ALLOC and increase array by 20%
     CALL ChangeSizeArray(PartStateBoundary,dims(2),CEILING(dims(2)*1.2),0.)
+    ! Increment counter
+    PartStateBoundaryResizeCounter = PartStateBoundaryResizeCounter + 1
+    ! Check if the memory limit per core is reached
+    PartStateBoundaryMemUsage = PartStateBoundaryMemory*1.2**(PartStateBoundaryResizeCounter-1)
+    IF (PartStateBoundaryMemUsage.GT.PartStateBoundaryMemoryLimit) THEN
+      ! Output warning
+      IPWRITE(UNIT_StdOut,'(I0,A,I0,A,ES8.2,A,ES8.2,A,I0,A)') ' Warning: PartStateBoundary has been resized ',&
+        PartStateBoundaryResizeCounter,' times to [',&
+        PartStateBoundaryMemUsage,'] GB, which has passed the process limit of [',&
+        PartStateBoundaryMemoryLimit, '] GB (',dims(2),' particles)'
+    END IF
   END IF
 
   PartStateBoundary(1:3,iMax) = PartPos

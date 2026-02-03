@@ -401,7 +401,6 @@ IF(.NOT.readFEMconnectivity) CALL abort(__STAMP__,'Error in surface deposition i
 ! Set flag when performinggg load balancing: The MPIRoot keeps all arrays and does not deallocate them as it has the global mappings
 InitializeSurfNodeArrays = .FALSE.
 IF (.NOT.PerformLoadBalance.OR.(PerformLoadBalance.AND.(.NOT.MPIRoot))) InitializeSurfNodeArrays = .TRUE.
-! IF(XOR(PerformLoadBalance,MPIRoot)) InitializeSurfNodeArrays = .TRUE.
 #endif /*USE_LOADBALANCE*/
 
 ! Surface mapping from p,q-system to iNode (node coord system)
@@ -675,6 +674,8 @@ IF(.NOT.PerformLoadBalance) CALL CollectSurfNodeAreaOnMPIRoot()
 ! Initialize the the SurfNodeArea(iDepoSurfNodeID) container on all processes except MPIRoot, which distribtues the data to all others
 CALL ReverseExchangeSurfNodeArea()
 #endif /*USE_MPI*/
+! All processes, except the MPIRoot re-allocate the array during load balance and the MPIRoot sends each process the surface charge
+! they need
 IF (InitializeSurfNodeArrays) THEN
   ALLOCATE(SurfNodeSource(1:nDepoSurfNodesTotal))
   SurfNodeSource=0.0
@@ -740,7 +741,6 @@ END SUBROUTINE BuildSurfVdm
 !===================================================================================================================================
 SUBROUTINE Buildpq2iNode(SideID,SubSideAreaEquiN1)
 ! MODULES
-USE MOD_Globals            ,ONLY: MPI_COMM_WORLD
 USE MOD_Preproc
 USE MOD_Globals            ,ONLY: UNIT_stdOut,abort,VECNORM3D,myrank
 USE MOD_PICDepo_Vars       ,ONLY: IsDepoSurfSide,Vdm_N_EQ,pq2iNode
@@ -862,9 +862,6 @@ DO q=0,1; DO p=0,1
   IF (COUNT(pq2iNode(:,:,SideID).EQ.i).LT.1) CALL abort(__STAMP__,' Error in Buildpq2iNode. Index missing in pq2iNode(:,:,SideID)')
 END DO; END DO ! q=0,1; DO p=0,clas2vtk1
 
-! IPWRITE(UNIT_StdOut,'(I0,A,I0)') ': v '//TRIM(__FILE__)//' +',__LINE__
-! IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-
 END SUBROUTINE Buildpq2iNode
 
 
@@ -939,10 +936,6 @@ DO j=0,Nloc;DO k=0,Nloc
     SurfNodeArea(NodIndx(3)) = SurfNodeArea(NodIndx(3)) + wGP(j)*wGP(k)*( (1.+xGP(j)) * (1.+xGP(k) )*N_SurfMesh(SideID)%SurfElem(j,k) )/4.
   END ASSOCIATE
 END DO; END DO
-! IPWRITE(*,*) 'iDepoSurfNodeID,SurfNodeArea(iDepoSurfNodeID):', iDepoSurfNodeID,SurfNodeArea(iDepoSurfNodeID)
-
-! IPWRITE(UNIT_StdOut,'(I0,A,I0)') ': v '//TRIM(__FILE__)//' +',__LINE__
-! IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 END SUBROUTINE CalculateSurfNodeArea
 
@@ -2437,6 +2430,8 @@ IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
   END IF ! DoDielectricSurfaceCharge
 
   IF (Do2DSurfaceCharge) THEN
+    ! Exchange deposited charge if load balance is performed because the next exchange would be in the hdg solver
+    CALL ExchangeSurfNodeSourceMPI()
     SDEALLOCATE(SurfNodeSourceMPI)
     SDEALLOCATE(pq2iNode)
     SDEALLOCATE(Vdm_EQ_N)

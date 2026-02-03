@@ -120,8 +120,7 @@ END IF
 
 IF (nArgs.LT.1) THEN
   ! If not, print out error message containing valid syntax
-  CALL CollectiveStop(__STAMP__,&
-  'ERROR - Please supply at least one .h5 files or a parameter file (or simply --NVisu=INTEGER) followed by h5 files!')
+  CALL CollectiveStop(__STAMP__,'ERROR - Please supply at least one .h5 files or a parameter file (or simply --NVisu=INTEGER) followed by h5 files!')
 END IF
 
 ! Measure init duration
@@ -149,8 +148,7 @@ ELSE
     CmdLineMode = .TRUE.
   ELSE
   ! Neither parameter file nor NVisu have been specified
-  CALL CollectiveStop(__STAMP__,&
-    'ERROR - First argument must be a parameter file or NVisu must be specified per --NVisu=INTEGER.')
+  CALL CollectiveStop(__STAMP__,'ERROR - First argument must be a parameter file or NVisu must be specified per --NVisu=INTEGER.')
   END IF
 END IF
 
@@ -224,8 +222,7 @@ END IF
 CALL InitIOHDF5()
 ! Get length of the floating number time stamp
 TimeStampLength = GETINT('TimeStampLength')
-IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(__STAMP__&
-    ,'TimeStampLength cannot be smaller than 4 and not larger than 30')
+IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(__STAMP__,'TimeStampLength cannot be smaller than 4 and not larger than 30')
 WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
 #ifdef PARTICLES
@@ -818,6 +815,7 @@ USE MOD_VTK                   ,ONLY: WriteDataToVTK
 USE MOD_IO_HDF5               ,ONLY: HSize
 USE MOD_piclas2vtk_Vars       ,ONLY: ElemLocal, Nloc_Visu, PointToCellSwitch, NVisuAdd
 USE MOD_ReadInTools           ,ONLY: PrintOption
+USE MOD_StringTools           ,ONLY: Basename
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -852,7 +850,7 @@ INTEGER,ALLOCATABLE             :: Nloc_HDF5(:)                      !< Array fo
 LOGICAL                         :: DGSourceExists,DGTimeDerivativeExists,TimeExists,DGSourceExtExists,DMDMode,DGSolutionDatasetExists
 LOGICAL                         :: ElemDataExists, NlocFound
 CHARACTER(LEN=16)               :: hilf
-CHARACTER(LEN=255)              :: DMDFields(1:16), Dataset, NodeType
+CHARACTER(LEN=255)              :: DMDFields(1:16), Dataset, NodeType, OutputNameLoc
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesAdd(:)
 ! p-Adaption
 TYPE tNGeo
@@ -865,6 +863,7 @@ END TYPE tNVisu
 
 TYPE(tNGeo),ALLOCATABLE         :: NVisuGeo(:)                  !< Container for polynomial degree specific variables [1:NlocMax]
 TYPE(tNVisu),ALLOCATABLE        :: NVisuLocal(:,:)              !< Container for polynomial degree specific variables [1:NlocMax,1:NlocMaxVisu]
+CHARACTER(LEN=100)              :: InputStateFileName
 !===================================================================================================================================
 ! 1.) Open given file to get the number of elements, the order and the name of the mesh file
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
@@ -1264,10 +1263,18 @@ DO iField = 1, nFields
   ELSEIF(OutputName.EQ.'State')THEN
     FileString_DG=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution',OutputTime))//'.vtu'
   ELSE
-    IF(TimeExists)THEN
-      FileString_DG=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(OutputName),OutputTime))//'.vtu'
+    ! Adjust OutputName when converting ErrorNorms
+    CALL Basename(TRIM(InputStateFile), '/', InputStateFileName)
+    IF (StringBeginsWith(InputStateFileName,TRIM(ProjectName)//'_ErrorNorms')) THEN
+      OutputNameLoc = TRIM(OutputName)//'_ErrorNorms'
     ELSE
-      FileString_DG=TRIM(ProjectName)//'_'//TRIM(OutputName)//'.vtu'
+      OutputNameLoc = TRIM(OutputName)
+    END IF ! StringBeginsWith(InputStateFileName,TRIM(ProjectName)//'_ErrorNorms')
+    ! Check if a time stamp is present
+    IF(TimeExists)THEN
+      FileString_DG=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(OutputNameLoc),OutputTime))//'.vtu'
+    ELSE
+      FileString_DG=TRIM(ProjectName)//'_'//TRIM(OutputNameLoc)//'.vtu'
     END IF ! TimeExists
   END IF
 
