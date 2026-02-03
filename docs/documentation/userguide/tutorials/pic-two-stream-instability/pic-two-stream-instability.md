@@ -20,7 +20,7 @@ directory of the piclas repository to a separate location
 
 where the variable `PICLAS_PATH` contains the path to the location of the piclas repository.
 
-## Mesh Generation with HOPR (pre-processing)
+## Mesh Generation with PyHOPE (pre-processing)
 
 In a first step, the mesh file in HDF5 format is created.
 The mesh files used by **piclas** are created by supplying an input file *hopr.ini* with the required information for a mesh that
@@ -28,7 +28,7 @@ has either been created by an external mesh generator or directly from block-str
 Here, a block-structured grid is created directly from the information in the hopr.ini file.
 To create the *.h5* mesh file, run
 
-    hopr hopr.ini
+    pyhope hopr.ini
 
 This creates the mesh file *two_stream_instability_mesh.h5* in HDF5 format.
 The size of the simulation domain is set to [$4\pi\times0.03\times0.03$] m$^{3}$ and is defined by the single block information
