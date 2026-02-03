@@ -596,9 +596,11 @@ IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC
   ! 3. Case: Temperature required for the mean free path with the VHS model
   ! 4. Case: Needed to calculate the correction factor
   CALL CalcInstantTransTemp(iPartIndx_NodeTotal,TotalPartNum)
-  IF ((DSMC%ElectronicModel.GT.0).OR.useRelaxProbCorrFactor) CALL CalcInstantElecTempXi(iPartIndx_NodeTotal,TotalPartNum)
   IF(((SelectionProc.EQ.2).OR.(useRelaxProbCorrFactor)).AND..NOT.(DSMC%VibAHO)) CALL CalcGammaVib()
-  IF (useRelaxProbCorrFactor.AND.(DSMC%ElectronicModel.GT.0)) CALL CalcProbCorrFactorElec()
+  IF (useRelaxProbCorrFactor.AND.(DSMC%ElectronicModel.EQ.1)) THEN
+    CALL CalcInstantElecTempXi(iPartIndx_NodeTotal,TotalPartNum)
+    CALL CalcProbCorrFactorElec()
+  END IF  
 END IF
 
 IF (CollInf%ProhibitDoubleColl.AND.(nPair.EQ.1)) THEN
