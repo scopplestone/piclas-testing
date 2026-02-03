@@ -177,8 +177,8 @@ PartCommSize   = PartCommSize + 6
 PartCommSize   = PartCommSize + 1
 #endif
 
-ALLOCATE( PartMPIExchange%nPartsSend(7,0:nExchangeProcessors-1)  &
-        , PartMPIExchange%nPartsRecv(7,0:nExchangeProcessors-1)  &
+ALLOCATE( PartMPIExchange%nPartsSend(nPartMPIData,0:nExchangeProcessors-1)  &
+        , PartMPIExchange%nPartsRecv(nPartMPIData,0:nExchangeProcessors-1)  &
         , PartRecvBuf(0:nExchangeProcessors-1)                   &
         , PartSendBuf(0:nExchangeProcessors-1)                   &
         , PartMPIExchange%SendRequest(2,0:nExchangeProcessors-1) &
@@ -215,7 +215,7 @@ INTEGER               :: iProc
 PartMPIExchange%nPartsRecv=0
 DO iProc=0,nExchangeProcessors-1
   CALL MPI_IRECV( PartMPIExchange%nPartsRecv(:,iProc)                        &
-                , 7                                                          &
+                , nPartMPIData                                                          &
                 , MPI_INTEGER                                                &
                 , ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc)         &
                 , 1001                                                       &
@@ -342,7 +342,7 @@ END DO ! iPart
 !--- Asynchronous communication, just send here and check for success later.
 DO iProc=0,nExchangeProcessors-1
   CALL MPI_ISEND( PartMPIExchange%nPartsSend(:,iProc)                        &
-                , 7                                                          &
+                , nPartMPIData                                               &
                 , MPI_INTEGER                                                &
                 , ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc)         &
                 , 1001                                                       &
@@ -487,10 +487,6 @@ DO iProc=0,nExchangeProcessors-1
 
   ! build message
   DO iPart=1,nPartLength
-
-    ! TODO: This seems like a valid check to me, why is it commented out?
-    !IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
-
     ! particle belongs on target proc
     IF (PartTargetProc(iPart).EQ.iProc) THEN
       !>> particle position in physical space
