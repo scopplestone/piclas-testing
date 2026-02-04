@@ -201,7 +201,7 @@ SUBROUTINE IRecvNbOfParticles()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_MPI_Vars,      ONLY:PartMPIExchange
+USE MOD_Particle_MPI_Vars,      ONLY:PartMPIExchange, nPartMPIData
 USE MOD_Particle_MPI_Vars,      ONLY:nExchangeProcessors,ExchangeProcToGlobalProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -246,7 +246,7 @@ USE MOD_Preproc
 USE MOD_Part_Tools             ,ONLY: isDepositParticle
 USE MOD_DSMC_Vars              ,ONLY: DSMC,SpecDSMC, useDSMC, PolyatomMolDSMC,CollisMode
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartTargetProc
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartTargetProc, nPartMPIData
 USE MOD_Particle_MPI_Vars,      ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc, halo_eps_velo
 USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,PEM,PDM,Species, UseGranularSpecies
 USE MOD_Mesh_Vars              ,ONLY: ELEM_RANK
