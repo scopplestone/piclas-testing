@@ -126,7 +126,7 @@ to only set:
 
 Instead, the subroutine
 
-    RemoveParticle
+    RemoveParticle(iPart)
 
 from the module `MOD_part_operations` should be used.
 
@@ -151,6 +151,8 @@ The following routines must be extended:
 Existing `PartIntEn` operators can be copied and used as templates. The old property
 handling can be duplicated and extended with the new property.
 
+Furthermore, the `RemoveParticle` routine must be extended.
+
 ---
 
 ### MPI Communication of Particle Properties (`MOD_Particle_MPI`)
@@ -172,25 +174,24 @@ In addition, the routine `SendNbOfParticles` must be extended.
 
 ### MPI Exchange Size and Number of Properties
 
-The 2D array
+The size of the 2D array `PartMPIExchange%nPartsSend(:,:)` is managed by a global variable named `nPartMPIData`, located in the module `MOD_Particle_MPI_Vars`.
 
-    PartMPIExchange%nPartsSend(:,:)
+The array is allocated as follows:
 
-is currently allocated as:
+```fortran
+ALLOCATE(PartMPIExchange%nPartsSend(nPartMPIData, 0:nExchangeProcessors-1))
+```
 
-    ALLOCATE(PartMPIExchange%nPartsSend(7, 0:nExchangeProcessors-1))
+The variable `nPartMPIData` defines the total number of particle properties exchanged via MPI. This centralized approach ensures that any change to the number of properties propagates throughout the communication logic.
 
-The value `7` represents the current maximum number of particle properties exchanged
-via MPI.
+#### Adding a New MPI-Relevant Particle Property
 
-When adding a new MPI-relevant particle property:
+To include an additional property, follow this simplified procedure:
 
-- Increase this dimension accordingly (e.g. from `7` to `8`)
-- This modification is performed in the routine `InitParticleCommSize`
+* **Update the Global Variable:** Increment the value of `nPartMPIData` within the `MOD_Particle_MPI_Vars` module (e.g., change it from 7 to 8).
 
-Furthermore, the following changes are required:
+By utilizing this global variable, the following components update automatically without further manual intervention:
 
-- Extend the particle loop inside `SendNbOfParticles`
-- Update the corresponding `MPI_ISEND` call to reflect the new number of properties
-- Apply the same changes in `IRecvNbOfParticles` for the matching `MPI_IRECV`
-
+* The allocation logic in `InitParticleCommSize`.
+* The particle loop and the `MPI_ISEND` call within `SendNbOfParticles`.
+* The `MPI_IRECV` logic within `IRecvNbOfParticles`.
