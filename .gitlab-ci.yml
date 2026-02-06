@@ -1572,6 +1572,164 @@ reggie_coverage:
     when: on_success
   rules:
     - if: '$DO_REGGIE_COVERAGE'
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage ".post": Update release notes (if merging a branch into master.dev)
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+update-release-notes:
+  stage: .post
+  tags: [withmodules-concurrent]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == "master.dev"'
+  script:
+    - |
+      set -e
+      API="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}"
+      TMPFILE="/tmp/release-notes-${CI_JOB_ID:-$$}"
+
+      # Get the MR that was just merged
+      curl -sf --header "PRIVATE-TOKEN: ${RELEASE_BOT_TOKEN}" \
+        "${API}/repository/commits/${CI_COMMIT_SHA}/merge_requests" \
+        -o "${TMPFILE}-mr.json"
+
+      MR_IID=$(jq -r '.[0].iid' "${TMPFILE}-mr.json")
+      MR_TITLE=$(jq -r '.[0].title' "${TMPFILE}-mr.json")
+      LABELS=$(jq -r '.[0].labels[]' "${TMPFILE}-mr.json")
+      SHORT_SHA=$(echo "$CI_COMMIT_SHA" | cut -c1-8)
+
+      [ "$MR_IID" = "null" ] && { echo "No MR found, skipping"; rm -f ${TMPFILE}*.json; exit 0; }
+
+      # Get all participants of the MR
+      curl -sf --header "PRIVATE-TOKEN: ${RELEASE_BOT_TOKEN}" \
+        "${API}/merge_requests/${MR_IID}/participants" \
+        -o "${TMPFILE}-participants.json"
+
+      PARTICIPANTS=$(jq -r '[.[].name] | join(", ")' "${TMPFILE}-participants.json")
+
+      # Determine category from labels
+      if echo "$LABELS" | grep -qi "^feature$"; then
+        CATEGORY="Features"
+      elif echo "$LABELS" | grep -qi "^improvement$"; then
+        CATEGORY="Improvements"
+      elif echo "$LABELS" | grep -qi "^bugfix$"; then
+        CATEGORY="Fixes"
+      else
+        CATEGORY="Documentation/Tools/Regression Testing"
+      fi
+
+      # Find the open release MR (master.dev -> master)
+      curl -sf --header "PRIVATE-TOKEN: ${RELEASE_BOT_TOKEN}" \
+        "${API}/merge_requests?state=opened&source_branch=master.dev&target_branch=master" \
+        -o "${TMPFILE}-rel.json"
+
+      REL_IID=$(jq -r '.[0].iid' "${TMPFILE}-rel.json")
+
+      # If no open release MR exists, create one
+      if [ "$REL_IID" = "null" ]; then
+        echo "Creating release MR..."
+
+        # Fetch the Release merge request template
+        TEMPLATE=$(curl -sf --header "PRIVATE-TOKEN: ${RELEASE_BOT_TOKEN}" \
+          "${API}/repository/files/.gitlab%2Fmerge_request_templates%2FRelease.md/raw?ref=master.dev")
+
+        curl -sf --request POST \
+          --header "PRIVATE-TOKEN: ${RELEASE_BOT_TOKEN}" \
+          --header "Content-Type: application/json" \
+          --data "$(jq -n \
+            --arg desc "$TEMPLATE" \
+            '{
+              source_branch: "master.dev",
+              target_branch: "master",
+              title: "Release X.X.X",
+              description: $desc,
+              labels: "Release"
+            }')" \
+          "${API}/merge_requests" \
+          -o "${TMPFILE}-rel.json"
+
+        REL_IID=$(jq -r '.iid' "${TMPFILE}-rel.json")
+
+        if [ "$REL_IID" = "null" ]; then
+          echo "ERROR: Failed to create release MR"
+          jq . "${TMPFILE}-rel.json"
+          rm -f ${TMPFILE}*.json
+          exit 1
+        fi
+
+        echo "✓ Created release MR !${REL_IID}"
+        DESC=$(jq -r '.description // ""' "${TMPFILE}-rel.json")
+      else
+        DESC=$(jq -r '.[0].description // ""' "${TMPFILE}-rel.json")
+      fi
+
+      # Avoid duplicates (check by commit hash)
+      if echo "$DESC" | grep -q "\[${SHORT_SHA}\]"; then
+        echo "Already listed"
+        rm -f ${TMPFILE}*.json
+        exit 0
+      fi
+
+      # Build entry safely using jq (handles all escaping)
+      ENTRY=$(jq -n -r \
+        --arg title "$MR_TITLE" \
+        --arg sha "$SHORT_SHA" \
+        --arg participants "$PARTICIPANTS" \
+        '"* \($title) [\($sha)] - Author(s): \($participants)"')
+
+      HEADING="### ${CATEGORY}"
+
+      # Insert entry under the correct heading, or create it
+      if echo "$DESC" | grep -q "^${HEADING}$"; then
+        export HEADING ENTRY
+        UPDATED=$(echo "$DESC" | awk '
+          BEGIN { heading=ENVIRON["HEADING"]; entry=ENVIRON["ENTRY"]; blanks=0 }
+          {
+            if ($0 == heading) {
+              found=1; print; next
+            }
+            if (found && !inserted) {
+              if (/^[[:space:]]*$/) {
+                blanks++
+                next
+              }
+              if (/^### /) {
+                print entry
+                for (i=0; i<blanks; i++) print ""
+                blanks=0
+                inserted=1
+              } else {
+                for (i=0; i<blanks; i++) print ""
+                blanks=0
+              }
+            }
+            print
+          }
+          END { if (found && !inserted) print entry }
+        ')
+      else
+        UPDATED=$(printf '%s\n\n%s\n%s' "$DESC" "$HEADING" "$ENTRY")
+      fi
+
+      # Update the release MR description
+      curl -sf --request PUT \
+        --header "PRIVATE-TOKEN: ${RELEASE_BOT_TOKEN}" \
+        --header "Content-Type: application/json" \
+        --data "$(jq -n --arg d "$UPDATED" '{description: $d}')" \
+        "${API}/merge_requests/${REL_IID}" > /dev/null
+
+      # Instead of updating, just show what would happen
+      # echo "DRY RUN — would add to !${REL_IID}:"
+      # echo "$ENTRY"
+      # echo ""
+      # echo "Full updated description:"
+      # echo "$UPDATED"
+
+      # Clean up
+      rm -f "${TMPFILE}-mr.json" "${TMPFILE}-participants.json" "${TMPFILE}-rel.json"
+
+      echo ""
+      echo "Added to !${REL_IID} under ${CATEGORY}: ${ENTRY}"
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tutorials": Run tutorials via reggie to check their continued functionality
