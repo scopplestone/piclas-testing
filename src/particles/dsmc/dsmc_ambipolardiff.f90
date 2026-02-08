@@ -14,8 +14,7 @@
 
 MODULE MOD_DSMC_AmbipolarDiffusion
 !===================================================================================================================================
-! Module for use of a background gas for the simulation of trace species (if number density of bg gas is multiple orders of
-! magnitude larger than the trace species)
+!> Ambipolar Diffusion: Electrons are attached to and move with the ions, but still have their own velocity vector for collisions
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -33,16 +32,16 @@ CONTAINS
 
 SUBROUTINE InitializeVariablesAmbipolarDiff()
 !===================================================================================================================================
-!> Ambipolar Diffusion: Electrons are attached to and move with the ions, but still have their own velocity vector for collisions
+!> Determine and store the electron species index
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars        ,ONLY: ElementaryCharge
-USE MOD_Particle_Vars       ,ONLY: nSpecies,Species, PDM
-USE MOD_DSMC_Vars           ,ONLY: useDSMC, DSMC, PartIntEn
+USE MOD_Particle_Vars       ,ONLY: nSpecies,Species
+USE MOD_DSMC_Vars           ,ONLY: useDSMC, DSMC
 ! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -60,9 +59,7 @@ IF(useDSMC) THEN
       IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1) DSMC%AmbiDiffElecSpec=iSpec
     END DO
     IF(DSMC%AmbiDiffElecSpec.EQ.0) THEN
-      CALL abort(__STAMP__&
-          ,'ERROR: No electron species found for ambipolar diffusion: ' &
-          ,IntInfoOpt=DSMC%AmbiDiffElecSpec)
+      CALL abort(__STAMP__,'ERROR: No electron species found for ambipolar diffusion: ',IntInfoOpt=DSMC%AmbiDiffElecSpec)
     END IF
   END IF
 END IF
@@ -100,9 +97,7 @@ REAL                            :: iRanPart(3, NbrOfParticle), Vec3D(3)
 IF(NbrOfParticle.LT.1) RETURN
 IF(Species(FractNbr)%ChargeIC.LE.0.0) RETURN
 IF(NbrOfParticle.GT.PDM%maxParticleNumber)THEN
-     CALL abort(&
-__STAMP__&
-,'NbrOfParticle > PDM%maxParticleNumber!')
+  CALL abort(__STAMP__,'NbrOfParticle > PDM%maxParticleNumber!')
 END IF
 
 velocityDistribution=Species(FractNbr)%Init(iInit)%velocityDistribution
@@ -153,7 +148,7 @@ SUBROUTINE AD_InsertParticles(iPartIndx_Node, nPart, iPartIndx_NodeTotalAmbi, To
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars               ,ONLY: BGGas, CollisMode, DSMC, PartIntEn
+USE MOD_DSMC_Vars               ,ONLY: BGGas, DSMC, PartIntEn
 USE MOD_DSMC_Vars               ,ONLY: DSMCSumOfFormedParticles, newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_PARTICLE_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, Species, PartMPF, usevMPF
 USE MOD_PARTICLE_Vars           ,ONLY: UseVarTimeStep, PartTimeStep

@@ -473,7 +473,7 @@ REAL,   INTENT(IN)             :: OutputTime
 LOGICAL,INTENT(IN)             :: finalizeFile
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)             :: FileString,hilf,hilf2
+CHARACTER(LEN=255)             :: FileString,hilf
 CHARACTER(LEN=255)             :: tmp255
 REAL                           :: startT,endT
 #if USE_HDG
@@ -487,6 +487,7 @@ INTEGER,PARAMETER       :: AddVar=0
 #ifdef discrete_velocity
 ! REAL,DIMENSION(PP_nVar_FV) :: Weights, VeloX, VeloY, VeloZ
 ! INTEGER                    :: iVel, jVel, kVel, upos
+CHARACTER(LEN=255)           :: hilf2
 INTEGER                      :: iSpec
 #endif
 !===================================================================================================================================

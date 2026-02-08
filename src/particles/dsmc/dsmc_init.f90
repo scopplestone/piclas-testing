@@ -431,7 +431,7 @@ IF (DSMC%ElectronicModel.GT.0) THEN
     CASE(5) ! Vibronic Model
     CASE DEFAULT
       CALL Abort(__STAMP__,'ERROR: Please select an electronic model between 1 and 4!')
-  END SELECT 
+  END SELECT
 ENDIF
 
 DSMC%ElectronicModelDatabase = TRIM(GETSTR('Particles-DSMCElectronicDatabase','none'))
@@ -2030,10 +2030,7 @@ SDEALLOCATE(DSMC%CalcVibProb)
 SDEALLOCATE(DSMC%CalcRotProb)
 SDEALLOCATE(DSMC%InstantTXiElec)
 SDEALLOCATE(SampDSMC)
-!TODO
 SDEALLOCATE(PartIntEn)
-
-
 SDEALLOCATE(ElecRelaxPart)
 SDEALLOCATE(SpecDSMC)
 IF(DSMC%NumPolyatomMolecs.GT.0) THEN
@@ -2111,7 +2108,6 @@ SDEALLOCATE(CollInf%dref)
 SDEALLOCATE(CollInf%Tref)
 SDEALLOCATE(CollInf%OldCollPartner)
 CollInf%ProhibitDoubleColl=.FALSE.
-! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_Solution)
 SDEALLOCATE(DSMC_SolutionPressTens)
 CALL DeleteElemNodeVol()

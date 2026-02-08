@@ -55,14 +55,6 @@ INTERFACE MPIParticleRecv
   MODULE PROCEDURE MPIParticleRecv
 END INTERFACE
 
-!INTERFACE InitHaloMesh
-!  MODULE PROCEDURE InitHaloMesh
-!END INTERFACE
-
-!INTERFACE ExchangeBezierControlPoints3D
-!  MODULE PROCEDURE ExchangeBezierControlPoints3D
-!END INTERFACE
-
 PUBLIC :: InitParticleMPI
 PUBLIC :: InitParticleCommSize
 PUBLIC :: SendNbOfParticles
@@ -70,8 +62,6 @@ PUBLIC :: IRecvNbOfParticles
 PUBLIC :: MPIParticleSend
 PUBLIC :: MPIParticleRecv
 PUBLIC :: FinalizeParticleMPI
-!PUBLIC :: InitHaloMesh
-!PUBLIC :: ExchangeBezierControlPoints3D
 #else
 PUBLIC :: InitParticleMPI
 #endif /*USE_MPI*/
@@ -80,10 +70,10 @@ PUBLIC :: InitParticleMPI
 
 CONTAINS
 
+!===================================================================================================================================
+! Read-in particle communication parameters
+!===================================================================================================================================
 SUBROUTINE InitParticleMPI()
-!===================================================================================================================================
-! read required parameters
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
@@ -131,11 +121,11 @@ END SUBROUTINE InitParticleMPI
 
 
 #if USE_MPI
+!===================================================================================================================================
+!> get size of Particle-MPI-Message. Unfortunately, this subroutine have to be called after particle_init because
+!> all required features have to be read from the ini-File
+!===================================================================================================================================
 SUBROUTINE InitParticleCommSize()
-!===================================================================================================================================
-! get size of Particle-MPI-Message. Unfortunately, this subroutine have to be called after particle_init because
-! all required features have to be read from the ini-File
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
@@ -194,10 +184,10 @@ PartMPIExchange%nPartsRecv=0
 END SUBROUTINE InitParticleCommSize
 
 
+!===================================================================================================================================
+!> Open Recv-Buffer for number of received particles
+!===================================================================================================================================
 SUBROUTINE IRecvNbOfParticles()
-!===================================================================================================================================
-! Open Recv-Buffer for number of received particles
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
@@ -215,31 +205,30 @@ INTEGER               :: iProc
 PartMPIExchange%nPartsRecv=0
 DO iProc=0,nExchangeProcessors-1
   CALL MPI_IRECV( PartMPIExchange%nPartsRecv(:,iProc)                        &
-                , nPartMPIData                                                          &
+                , nPartMPIData                                               &
                 , MPI_INTEGER                                                &
                 , ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc)         &
                 , 1001                                                       &
-                , MPI_COMM_PICLAS                                               &
+                , MPI_COMM_PICLAS                                            &
                 , PartMPIExchange%RecvRequest(1,iProc)                       &
                 , IERROR )
- ! IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__&
- !         ,' MPI Communication error', IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error for PartMPIExchange%nPartsRecv', IERROR)
 END DO ! iProc
 
 END SUBROUTINE IRecvNbOfParticles
 
 
+!===================================================================================================================================
+!> This routine sends the number of send particles, for which the following steps are performed:
+!> 1) Compute number of Send Particles
+!> 2) Perform MPI_ISEND with number of particles
+!> The remaining steps are performed in SendParticles
+!> 3) Build Message
+!> 4) MPI_WAIT for number of received particles
+!> 5) Open Receive-Buffer for particle message -> MPI_IRECV
+!> 6) Send Particles -> MPI_ISEND
+!===================================================================================================================================
 SUBROUTINE SendNbOfParticles()
-!===================================================================================================================================
-! This routine sends the number of send particles, for which the following steps are performed:
-! 1) Compute number of Send Particles
-! 2) Perform MPI_ISEND with number of particles
-! The remaining steps are performed in SendParticles
-! 3) Build Message
-! 4) MPI_WAIT for number of received particles
-! 5) Open Receive-Buffer for particle message -> MPI_IRECV
-! 6) Send Particles -> MPI_ISEND
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
@@ -263,7 +252,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart,ElemID, iPolyatMole
-INTEGER                       :: iProc,ProcID, SpecID
+INTEGER                       :: iProc,ProcID, SpecID, ExchangeProc
 !===================================================================================================================================
 ! 1) get number of send particles
 !--- Count number of particles in cells in the halo region and add them to the message
@@ -279,9 +268,11 @@ DO iPart=1,PDM%ParticleVecLength
   ! Particle on local proc, do nothing
   IF (ProcID.EQ.myRank) CYCLE
 
+  ExchangeProc = GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)
+
   ! Sanity check (fails here if halo region is too small or particle is over speed of light because the time step is too large)
-  IF(GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID).LT.0)THEN
-    IPWRITE (*,*) "GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) =", GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)
+  IF(ExchangeProc.LT.0)THEN
+    IPWRITE (*,*) "GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) =", ExchangeProc
     IPWRITE (*,*) "ProcID                                              =", ProcID
     IPWRITE (*,*) "global ElemID                                       =", ElemID
     IPWRITE(UNIT_StdOut,'(I12,A,3(ES25.14E3))') " PartState(1:3,iPart)            =", PartState(1:3,iPart)
@@ -291,12 +282,10 @@ DO iPart=1,PDM%ParticleVecLength
     CALL abort(__STAMP__,'Error: GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) is negative. '//&
                          'The halo region might be too small. Try increasing Particles-HaloEpsVelo! '//&
                          'If this does not help, then maybe the time step is too big. Try reducing ManualTimeStep!')
-  END IF ! GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID).LT.0
+  END IF ! ExchangeProc.LT.0
 
   ! Add particle to target proc count
-
-  PartMPIExchange%nPartsSend(1,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
-    PartMPIExchange%nPartsSend(1,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + 1
+  PartMPIExchange%nPartsSend(1,ExchangeProc) =  PartMPIExchange%nPartsSend(1,ExchangeProc) + 1
   IF (useDSMC) THEN
     SpecID = PartSpecies(iPart)
 #if USE_HDG
@@ -306,35 +295,28 @@ DO iPart=1,PDM%ParticleVecLength
     IF ((DSMC%NumPolyatomMolecs.GT.0).OR.(DSMC%ElectronicModel.EQ.2).OR.DSMC%DoAmbipolarDiff) THEN
       IF((DSMC%NumPolyatomMolecs.GT.0).AND.(SpecDSMC(SpecID)%PolyatomicMol)) THEN
         iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
-        PartMPIExchange%nPartsSend(2,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
-          PartMPIExchange%nPartsSend(2,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + PolyatomMolDSMC(iPolyatMole)%VibDOF
+        PartMPIExchange%nPartsSend(2,ExchangeProc) =  PartMPIExchange%nPartsSend(2,ExchangeProc) + PolyatomMolDSMC(iPolyatMole)%VibDOF
       END IF
-      IF ((DSMC%ElectronicModel.EQ.2).AND. &
-          (.NOT.((Species(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized))) THEN
-        PartMPIExchange%nPartsSend(3,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
-          PartMPIExchange%nPartsSend(3,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + SpecDSMC(SpecID)%MaxElecQuant
+      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((Species(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized))) THEN
+        PartMPIExchange%nPartsSend(3,ExchangeProc) =  PartMPIExchange%nPartsSend(3,ExchangeProc) + SpecDSMC(SpecID)%MaxElecQuant
       END IF
       IF(DSMC%DoAmbipolarDiff.AND.(Species(SpecID)%ChargeIC.GT.0.0)) THEN
-        PartMPIExchange%nPartsSend(4,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
-          PartMPIExchange%nPartsSend(4,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + 3
-      END IF      
+        PartMPIExchange%nPartsSend(4,ExchangeProc) =  PartMPIExchange%nPartsSend(4,ExchangeProc) + 3
+      END IF
     END IF
     IF ((CollisMode.GT.1)) THEN
       IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
-        PartMPIExchange%nPartsSend(5,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
-          PartMPIExchange%nPartsSend(5,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + 2
+        PartMPIExchange%nPartsSend(5,ExchangeProc) =  PartMPIExchange%nPartsSend(5,ExchangeProc) + 2
       END IF
       IF ((DSMC%ElectronicModel.GT.0).AND.(Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
-        PartMPIExchange%nPartsSend(6,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
-          PartMPIExchange%nPartsSend(6,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + 1
+        PartMPIExchange%nPartsSend(6,ExchangeProc) =  PartMPIExchange%nPartsSend(6,ExchangeProc) + 1
       END IF
       IF (UseGranularSpecies.AND.(Species(SpecID)%InterID.EQ.100)) THEN
-        PartMPIExchange%nPartsSend(7,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
-          PartMPIExchange%nPartsSend(7,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + 1
+        PartMPIExchange%nPartsSend(7,ExchangeProc) =  PartMPIExchange%nPartsSend(7,ExchangeProc) + 1
       END IF
     END IF
   END IF
-  PartTargetProc(iPart) = GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)
+  PartTargetProc(iPart) = ExchangeProc
 END DO ! iPart
 
 ! 2) send number of send particles
@@ -349,29 +331,27 @@ DO iProc=0,nExchangeProcessors-1
                 , MPI_COMM_PICLAS                                               &
                 , PartMPIExchange%SendRequest(1,iProc)                       &
                 , IERROR )
-  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(&
-    __STAMP__&
-    ,' MPI Communication error', IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error for PartMPIExchange%nPartsSend', IERROR)
 END DO ! iProc
 
 END SUBROUTINE SendNbOfParticles
 
 
+!===================================================================================================================================
+!> this routine sends the particles. Following steps are performed
+!> first steps are performed in SendNbOfParticles
+!> 1) Compute number of Send Particles
+!> 2) Perform MPI_ISEND with number of particles
+!> Starting Here:
+!> 3) Build Message
+!> 4) MPI_WAIT for number of received particles
+!> 5) Open Receive-Buffer for particle message -> MPI_IRECV
+!> 6) Send Particles -> MPI_ISEND
+!> CAUTION: If particles are sent for deposition, PartTargetProc has the information, if a particle is sent
+!>          and after the build and wait for number of particles reused to build array with external parts
+!>          information in PartState,.. can be reused, because they are not overwritten
+!===================================================================================================================================
 SUBROUTINE MPIParticleSend(UseOldVecLength)
-!===================================================================================================================================
-! this routine sends the particles. Following steps are performed
-! first steps are performed in SendNbOfParticles
-! 1) Compute number of Send Particles
-! 2) Perform MPI_ISEND with number of particles
-! Starting Here:
-! 3) Build Message
-! 4) MPI_WAIT for number of received particles
-! 5) Open Receive-Buffer for particle message -> MPI_IRECV
-! 6) Send Particles -> MPI_ISEND
-! CAUTION: If particles are sent for deposition, PartTargetProc has the information, if a particle is sent
-!          and after the build and wait for number of particles reused to build array with external parts
-!          information in PartState,.. can be reused, because they are not overwritten
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
@@ -419,8 +399,8 @@ REAL(KIND=8)                  :: Rate(2)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 
-!--- Determining the number of additional variables due to VibQuantsPar of polyatomic particles
-!--- (size varies depending on the species of particle)
+!--- Determining the number of additional variables due to particle internal data
+!--- (size varies depending on the species of particle and utilized model)
 MsgLengthPoly(:) = PartMPIExchange%nPartsSend(2,:)
 MsgLengthElec(:) = PartMPIExchange%nPartsSend(3,:)
 MsgLengthAmbi(:) = PartMPIExchange%nPartsSend(4,:)
@@ -450,31 +430,37 @@ DO iProc=0,nExchangeProcessors-1
   ! allocate SendBuff of required size
   MessageSize=nSendParticles*PartCommSize
 
-  ! polyatomic molecules follow behind the previous message
+  ! Additional particle data follows behind the previous message
   IF (useDSMC) THEN
+    ! Quantum numbers of polyatomic vibrational excitation
     IF(DSMC%NumPolyatomMolecs.GT.0) THEN
       pos_poly(iProc) = MessageSize
       MessageSize = MessageSize + MsgLengthPoly(iProc)
     END IF
+    ! Distribution function of electron excitation model
     IF (DSMC%ElectronicModel.EQ.2) THEN
       pos_elec(iProc) = MessageSize
       MessageSize = MessageSize + MsgLengthElec(iProc)
     END IF
+    ! Ambipolar diffusion
     IF (DSMC%DoAmbipolarDiff) THEN
       pos_ambi(iProc) = MessageSize
       MessageSize = MessageSize + MsgLengthAmbi(iProc)
-    END IF   
+    END IF
     IF (CollisMode.GT.1) THEN
+      ! Rotational and vibrational excitation
       pos_rotvib(iProc) = MessageSize
       MessageSize = MessageSize + MsgLengthRotVib(iProc)
+      ! Electronic excitation
       IF (DSMC%ElectronicModel.GT.0) THEN
         pos_electronic(iProc) = MessageSize
-        MessageSize = MessageSize + MsgLengthElectronic(iProc)     
+        MessageSize = MessageSize + MsgLengthElectronic(iProc)
       END IF
+      ! Granular / solid particle temperature
       IF (UseGranularSpecies) THEN
         pos_solid(iProc) = MessageSize
         MessageSize = MessageSize + MsgLengthSolid(iProc)
-      END IF      
+      END IF
     END IF
   END IF
 
@@ -482,8 +468,7 @@ DO iProc=0,nExchangeProcessors-1
   IF (MessageSize.EQ.0) CYCLE
 
   ALLOCATE(PartSendBuf(iProc)%content(MessageSize),STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) &
-    CALL ABORT(__STAMP__,'  Cannot allocate PartSendBuf, local ProcId, ALLOCSTAT',iProc,REAL(ALLOCSTAT))
+  IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,'  Cannot allocate PartSendBuf, local ProcId, ALLOCSTAT',iProc,REAL(ALLOCSTAT))
 
   ! build message
   DO iPart=1,nPartLength
@@ -527,12 +512,13 @@ DO iProc=0,nExchangeProcessors-1
         jPos=jPos+1
       END IF
 
+      !>> add additional particle information
       IF (useDSMC) THEN
 #if USE_HDG
         ! Check particle index for VDL particles and reset to original species index
         SpecID = ResetVDLSpecID(iPart)
 #endif/*USE_HDG*/
-        !--- put the polyatomic vibquants per particle at the end of the message
+        !--- add the polyatomic vibquants per particle
         IF (DSMC%NumPolyatomMolecs.GT.0) THEN
           IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
             iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
@@ -541,7 +527,7 @@ DO iProc=0,nExchangeProcessors-1
             pos_poly(iProc) = pos_poly(iProc) + PolyatomMolDSMC(iPolyatMole)%VibDOF
           END IF
         END IF
-
+        !--- add the electronic distribution function per particle
         IF (DSMC%ElectronicModel.EQ.2) THEN
           IF(.NOT.((Species(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
             PartSendBuf(iProc)%content(pos_elec(iProc)+1:pos_elec(iProc)+ SpecDSMC(SpecID)%MaxElecQuant) &
@@ -549,24 +535,26 @@ DO iProc=0,nExchangeProcessors-1
             pos_elec(iProc) = pos_elec(iProc) + SpecDSMC(SpecID)%MaxElecQuant
           END IF
         END IF
-
+        !--- add electron velocity for ambipolar diffusion
         IF (DSMC%DoAmbipolarDiff) THEN
           IF(Species(SpecID)%ChargeIC.GT.0.0)  THEN
             PartSendBuf(iProc)%content(pos_ambi(iProc)+1:pos_ambi(iProc)+ 3) = PartIntEn(iPart)%ElecVelo(1:3)
             pos_ambi(iProc) = pos_ambi(iProc) + 3
           END IF
         END IF
-        
         IF (CollisMode.GT.1) THEN
+          !--- add rotational and vibrational energy
           IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
             PartSendBuf(iProc)%content(pos_rotvib(iProc)+1) = PartIntEn(iPart)%ERot(1)
             PartSendBuf(iProc)%content(pos_rotvib(iProc)+2) = PartIntEn(iPart)%EVib(1)
             pos_rotvib(iProc) = pos_rotvib(iProc) + 2
           END IF
+          !--- add electronic energy
           IF ((DSMC%ElectronicModel.GT.0).AND.(Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
             PartSendBuf(iProc)%content(pos_electronic(iProc)+1) = PartIntEn(iPart)%EElec(1)
             pos_electronic(iProc) = pos_electronic(iProc) + 1
           END IF
+          !--- add temperature of the granular / solid particle
           IF (UseGranularSpecies.AND.(Species(SpecID)%InterID.EQ.100)) THEN
             PartSendBuf(iProc)%content(pos_solid(iProc)+1) = PartIntEn(iPart)%TSolid(1)
             pos_solid(iProc) = pos_solid(iProc) + 1
@@ -578,19 +566,22 @@ DO iProc=0,nExchangeProcessors-1
       IF(MOD(jPos,PartCommSize).NE.0) THEN
         IPWRITE(UNIT_stdOut,*)  'PartCommSize',PartCommSize
         IPWRITE(UNIT_stdOut,*)  'jPos',jPos
-        CALL ABORT( __STAMP__,' Particle-wrong sending message size!')
+        CALL ABORT( __STAMP__,' ERROR in MPIParticleSend: wrong sending message size!')
       END IF
 
       ! increment message position to next element, PartCommSize.EQ.jPos
       iPos=iPos+PartCommSize
-      ! particle is ready for send, now it can deleted
+      ! particle is ready for send, now it can be deleted
       CALL RemoveParticle(iPart)
     END IF ! Particle is particle with target proc-id equals local proc id
   END DO  ! iPart
 
-  IF(iPos.NE.(MessageSize-MsgLengthPoly(iProc)-MsgLengthElec(iProc)-MsgLengthAmbi(iProc)-MsgLengthRotVib(iProc)-MsgLengthElectronic(iProc)-MsgLengthSolid(iProc))) &
-      IPWRITE(*,*) ' error message size', iPos,(MessageSize-MsgLengthPoly(iProc)-MsgLengthElec(iProc)-MsgLengthAmbi(iProc)-MsgLengthRotVib(iProc)-MsgLengthElectronic(iProc)-MsgLengthSolid(iProc))
-
+  ! Sanity check
+  IF(iPos.NE.(MessageSize - MsgLengthPoly(iProc)-MsgLengthElec(iProc)-MsgLengthAmbi(iProc) &
+      - MsgLengthRotVib(iProc)-MsgLengthElectronic(iProc)-MsgLengthSolid(iProc))) THEN
+      IPWRITE(*,*) ' iPos, MessageSize', iPos, (MessageSize-MsgLengthPoly(iProc)-MsgLengthElec(iProc)-MsgLengthAmbi(iProc)-MsgLengthRotVib(iProc)-MsgLengthElectronic(iProc)-MsgLengthSolid(iProc))
+      CALL ABORT(__STAMP__,' ERROR in MPIParticleSend: Unexpected message size!')
+  END IF
 END DO ! iProc
 
 ! 4) Finish Received number of particles
@@ -599,13 +590,13 @@ DO iProc=0,nExchangeProcessors-1
   CALL SYSTEM_CLOCK(count=CounterStart(1))
 #endif /*defined(MEASURE_MPI_WAIT)*/
   CALL MPI_WAIT(PartMPIExchange%SendRequest(1,iProc),MPI_STATUS_IGNORE,IERROR)
-  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error for PartMPIExchange%SendRequest', IERROR)
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd(1), count_rate=Rate(1))
   CALL SYSTEM_CLOCK(count=CounterStart(2))
 #endif /*defined(MEASURE_MPI_WAIT)*/
   CALL MPI_WAIT(PartMPIExchange%RecvRequest(1,iProc),MPI_STATUS_IGNORE,IERROR)
-  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error for PartMPIExchange%RecvRequest', IERROR)
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd(2), count_rate=Rate(2))
   MPIW8TimePart(1)  = MPIW8TimePart(1) + REAL(CounterEnd(1)-CounterStart(1),8)/Rate(1)
@@ -657,12 +648,12 @@ DO iProc=0,nExchangeProcessors-1
       MessageSize = MessageSize + MsgRecvLengthRotVib
       IF (DSMC%ElectronicModel.GT.0) THEN
         MsgRecvLengthElectronic = PartMPIExchange%nPartsRecv(6,iProc)
-        MessageSize = MessageSize + MsgRecvLengthElectronic    
+        MessageSize = MessageSize + MsgRecvLengthElectronic
       END IF
       IF (UseGranularSpecies) THEN
         MsgRecvLengthSolid = PartMPIExchange%nPartsRecv(7,iProc)
         MessageSize = MessageSize + MsgRecvLengthSolid
-      END IF      
+      END IF
     END IF
   END IF
 
@@ -686,7 +677,7 @@ DO iProc=0,nExchangeProcessors-1
                 , MPI_COMM_PICLAS                                               &
                 , PartMPIExchange%RecvRequest(2,iProc)                       &
                 , IERROR )
-  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error for PartRecvBuf', IERROR)
 END DO ! iProc
 
 ! 6) Send Particles
@@ -714,7 +705,7 @@ DO iProc=0,nExchangeProcessors-1
       END IF
       IF (UseGranularSpecies) THEN
         MessageSize = MessageSize + MsgLengthSolid(iProc)
-      END IF      
+      END IF
     END IF
   END IF
 
@@ -726,7 +717,7 @@ DO iProc=0,nExchangeProcessors-1
                 , MPI_COMM_PICLAS                                               &
                 , PartMPIExchange%SendRequest(2,iProc)                       &
                 , IERROR )
-  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error for PartSendBuf', IERROR)
 
   ! Deallocate sendBuffer after send was successful, see MPIParticleRecv
 END DO ! iProc
@@ -736,14 +727,14 @@ IF(PDM%UNFPafterMPIPartSend) CALL UpdateNextFreePosition()
 END SUBROUTINE MPIParticleSend
 
 
+!===================================================================================================================================
+!> this routine finishes the communication and places the particle information in the correct arrays. Following steps are performed
+!> 1) Finish all send requests -> MPI_WAIT
+!> 2) Finish all recv requests -> MPI_WAIT
+!> 3) Place particle information in correct arrays
+!> 4) Deallocate send and recv buffers
+!===================================================================================================================================
 SUBROUTINE MPIParticleRecv(DoMPIUpdateNextFreePos)
-!===================================================================================================================================
-! this routine finishes the communication and places the particle information in the correct arrays. Following steps are performed
-! 1) Finish all send requests -> MPI_WAIT
-! 2) Finish all recv requests -> MPI_WAIT
-! 3) Place particle information in correct arrays
-! 4) Deallocate send and recv buffers
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
@@ -802,7 +793,7 @@ DO iProc=0,nExchangeProcessors-1
   CALL SYSTEM_CLOCK(count=CounterStart(1))
 #endif /*defined(MEASURE_MPI_WAIT)*/
   CALL MPI_WAIT(PartMPIExchange%SendRequest(2,iProc),MPI_STATUS_IGNORE,IERROR)
-  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error for PartMPIExchange%SendRequest', IERROR)
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd(1), count_rate=Rate(1))
   MPIW8TimePart(3) = MPIW8TimePart(3) + REAL(CounterEnd(1)-CounterStart(1),8)/Rate(1)
@@ -845,12 +836,12 @@ DO iProc=0,nExchangeProcessors-1
         MsgLengthSolid = PartMPIExchange%nPartsRecv(7,iProc)
       ELSE
         MsgLengthSolid = 0
-      END IF 
+      END IF
     ELSE
       MsgLengthRotVib = 0
       MsgLengthElectronic = 0
-      MsgLengthSolid = 0     
-    END IF 
+      MsgLengthSolid = 0
+    END IF
     pos_poly    = MessageSize
     IF (DSMC%NumPolyatomMolecs.GT.0) MessageSize = MessageSize + MsgLengthPoly
     pos_elec    = MessageSize
@@ -869,7 +860,7 @@ DO iProc=0,nExchangeProcessors-1
     MsgLengthAmbi = 0.
     MsgLengthRotVib = 0
     MsgLengthElectronic = 0
-    MsgLengthSolid = 0  
+    MsgLengthSolid = 0
   END IF
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterStart(2))
@@ -930,16 +921,6 @@ DO iProc=0,nExchangeProcessors-1
 
     !>> particle element
     PEM%GlobalElemID(PartID)     = INT(PartRecvBuf(iProc)%content(1+jPos),KIND=4)
-
-!           ! Consider special particles that are communicated with negative species ID (phantom/ghost particles that are deposited on a
-!           ! surface with their charge and are then removed here after deposition)
-!           IF(PartSpecies(PartID).LT.0)THEN
-!             PartSpecies(PartID) = -PartSpecies(PartID) ! make positive species ID again
-!             CALL DepositParticleOnNodes(PartID,PartState(1:3,PartID),PEM%GlobalElemID(PartID))
-!             PartSpecies(PartID) = 0 ! For safety: nullify the speciesID
-!             PDM%ParticleInside(PartID) = .FALSE.
-!             CYCLE ! Continue the loop with the next particle
-!           END IF ! PartSpecies(PartID).LT.0
     jPos=jPos+1
 
     SpecID = PartSpecies(PartID)
@@ -949,7 +930,7 @@ DO iProc=0,nExchangeProcessors-1
     END IF
     IF(MOD(jPos,PartCommSize).NE.0)THEN
       IPWRITE(UNIT_stdOut,*)  'jPos',jPos
-      CALL ABORT(__STAMP__,' Particle-wrong receiving message size!')
+      CALL ABORT(__STAMP__,' ERROR in MPIParticleRecv: wrong receiving message size!')
     END IF
 
     IF (useDSMC) THEN
@@ -987,7 +968,7 @@ DO iProc=0,nExchangeProcessors-1
           pos_ambi = pos_ambi + 3
         END IF
       END IF
-      
+
       IF (CollisMode.GT.1) THEN
         IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
           IF(.NOT.ALLOCATED(PartIntEn(PartID)%ERot)) ALLOCATE(PartIntEn(PartID)%ERot(1))
@@ -1042,7 +1023,6 @@ DO iProc=0,nExchangeProcessors-1
       END IF
     END IF
   END DO
-
 END DO ! iProc
 
 IF(PartMPIExchange%nMPIParticles.GT.0) THEN
@@ -1054,7 +1034,7 @@ IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL Abort(__STAMP__,'PDM%Par
 DO PartID=PDM%ParticleVecLength+1,PDM%maxParticleNumber
   IF (PDM%ParticleInside(PartID)) THEN
     IPWRITE(*,*) PartID,PDM%ParticleVecLength,PDM%maxParticleNumber
-    CALL Abort(__STAMP__,'Particle outside PDM%ParticleVeclength',IntInfoOpt=PartID)
+    CALL Abort(__STAMP__,'ERROR in MPIParticleRecv: Particle outside PDM%ParticleVeclength',IntInfoOpt=PartID)
   END IF
 END DO
 #endif
@@ -1079,10 +1059,10 @@ PartMPIExchange%nPartsSend=0
 END SUBROUTINE MPIParticleRecv
 
 
+!===================================================================================================================================
+!> Finalize particle MPI communication arrays
+!===================================================================================================================================
 SUBROUTINE FinalizeParticleMPI()
-!===================================================================================================================================
-! read required parameters
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_MPI_Vars

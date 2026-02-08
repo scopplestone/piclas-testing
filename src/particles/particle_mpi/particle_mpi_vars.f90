@@ -111,7 +111,7 @@ TYPE (tParticleMPIExchange)               :: PartMPIExchange
 TYPE (tParticleMPIExchange)               :: PartMPIInsert
 TYPE (tParticleMPIExchange)               :: PartMPILocate
 
-INTEGER                                   :: nPartMPIData = 7               ! max possible number of  types communicated during particle MPI
+INTEGER                                   :: nPartMPIData = 7               ! max possible number of types communicated during particle MPI
 
 INTEGER,ALLOCATABLE                       :: PartTargetProc(:)              ! local rank id for communication
 REAL, ALLOCATABLE                         :: PartShiftVector(:,:)           ! store particle periodic map
