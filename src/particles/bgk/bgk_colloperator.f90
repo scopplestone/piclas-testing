@@ -1110,7 +1110,6 @@ DO iLoop = 1, nPart
         VibRelaxWeightSpec(iSpec) = VibRelaxWeightSpec(iSpec) + partWeight
         iPartIndx_NodeRelaxVib(nVibRelax) = iPart
         ! Sum up total vibrational energy of all relaxing particles, considering zero-point energy, and add to translational energy
-
         OldEn = OldEn + (PartIntEn(iPartIndx_NodeRelaxVib(nVibRelax))%EVib(1) - SpecDSMC(iSpec)%EZeroPoint) * partWeight
       END IF
     END IF

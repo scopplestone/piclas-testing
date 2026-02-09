@@ -2383,7 +2383,6 @@ FUNCTION GetNextFreePosition(Offset)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars        ,ONLY: PDM
-USE MOD_DSMC_Vars            ,ONLY: PartIntEn,CollisMode, useDSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

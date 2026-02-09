@@ -137,7 +137,7 @@ END SUBROUTINE SplitAndMerge
 SUBROUTINE MergeParticles(iPartIndx_Node_in, nPart, nPartNew, iElem)
 ! MODULES
 USE MOD_Globals               ,ONLY: ISFINITE
-USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, Species, CellEelec_vMPF, CellEvib_vMPF
+USE MOD_Particle_Vars         ,ONLY: PartState, PartMPF, PartSpecies, Species, CellEelec_vMPF, CellEvib_vMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: PartIntEn, CollisMode, SpecDSMC, DSMC, PolyatomMolDSMC
 USE MOD_Particle_Analyze_Tools,ONLY: CalcTelec, CalcTVibPoly

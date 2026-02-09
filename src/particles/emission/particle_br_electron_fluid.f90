@@ -916,9 +916,7 @@ USE MOD_PreProc
 USE MOD_Particle_Vars       ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies,usevMPF
 USE MOD_PIC_Analyze         ,ONLY: CalculateBRElectronsPerCell
 USE MOD_Mesh_Vars           ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo,offsetElem
-USE MOD_DSMC_Vars           ,ONLY: CollisMode,DSMC
 USE MOD_part_emission_tools ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_DSMC_Vars           ,ONLY: useDSMC
 USE MOD_Eval_xyz            ,ONLY: TensorProductInterpolation
 USE MOD_HDF5_input          ,ONLY: OpenDataFile,CloseDataFile,ReadArray
 USE MOD_HDF5_Input          ,ONLY: File_ID,DatasetExists

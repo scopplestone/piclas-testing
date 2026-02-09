@@ -79,11 +79,11 @@ REAL, ALLOCATABLE     :: Xi_vib_DOF(:), VibEnergyDOF(:,:)
 REAL                  :: betaV
 REAL                  :: A(3,3), Work(1000), W(3), trace, nu, Theta, iRan, NewEnRot, NewEnVib, OldEnRot
 REAL                  :: ProbAddPart,  RotExp, VibExp, TEqui, TRot, TVib, xi_rot, xi_vib_old, dtCell
-INTEGER               :: INFO, iQuant, iQuaMax, nRotRelax, nVibRelax, info_dgesv, iSpec
+INTEGER               :: INFO, iQuant, iQuaMax, nRotRelax, nVibRelax, info_dgesv
 REAL                  :: partWeight, totalWeight, vBulkAll(3)
 #ifdef CODE_ANALYZE
 REAL                  :: Energy_old,Energy_new,Momentum_old(3),Momentum_new(3)
-INTEGER               :: iMom, iPart
+INTEGER               :: iMom, iPart, iSpec
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
 #ifdef CODE_ANALYZE

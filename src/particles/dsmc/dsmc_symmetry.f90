@@ -281,7 +281,7 @@ DO iPart = 1, ParticleWeighting%ClonePartNum(DelayCounter)
       ALLOCATE(PartIntEn(PositionNbr)%QVib(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
       PartIntEn(PositionNbr)%QVib(:) = ClonedParticles(iPart,DelayCounter)%VibQuants(:)
     END IF
-  END IF  
+  END IF
   ! Set the global element number with the offset
   PEM%GlobalElemID(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Element
   ! Set the LastGlobalElemID index to zero to skip the clones during the first tracking after their insertion, otherwise tracking
@@ -452,7 +452,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: NewSize,i,ii,ALLOCSTAT, SpecID
+INTEGER                              :: NewSize,i,ii,ALLOCSTAT
 TYPE (tClonedParticles), ALLOCATABLE :: ClonedParticles_new(:,:)
 !===================================================================================================================================
 NewSize = MAX(CEILING(ParticleWeighting%CloneVecLength * (1+PDM%MaxPartNumIncrease)),ParticleWeighting%CloneVecLength+ParticleWeighting%CloneVecLengthDelta)
