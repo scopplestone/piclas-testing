@@ -83,6 +83,8 @@ ELSE
 END IF
 locnPart = 1
 tmpnPartElem = 0
+! The first loop over elems only calculates the number of particles to be inserted per cell. 
+! Therefore, IncreaseMaxParticleNumber is only called once, which is significantly faster.
 DO iElem = 1, nElems
   GlobalElemID = iElem + offsetElem
   CNElemID = GetCNElemID(GlobalElemID)
