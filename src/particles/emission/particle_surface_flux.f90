@@ -1307,7 +1307,7 @@ USE MOD_Particle_Sampling_Vars    ,ONLY: AdaptBCMapElemToSample, AdaptBCMacroVal
 USE MOD_Part_Tools                ,ONLY: InRotRefFrameCheck, GetNextFreePosition
 USE MOD_Particle_SurfaceFlux_Vars ,ONLY: tSurfaceFlux
 USE MOD_Mesh_Vars                 ,ONLY: SideToElem
-USE MOD_DSMC_Vars                 ,ONLY: AmbiPolarSFMapping, AmbipolElecVelo, DSMC
+USE MOD_DSMC_Vars                 ,ONLY: AmbiPolarSFMapping, DSMC, PartIntEn
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1435,9 +1435,9 @@ CASE('constant')
     ! Build complete velo-vector
     Vec3D(1:3) = vec_nIn(1:3) * SF%VeloIC
     IF(Mode.EQ.3) THEN    ! Ambipolar diffusion
-      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
-      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
-      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = Vec3D(1:3)
+      IF (ALLOCATED(PartIntEn(PositionNbr)%ElecVelo)) DEALLOCATE(PartIntEn(PositionNbr)%ElecVelo)
+      ALLOCATE(PartIntEn(PositionNbr)%ElecVelo(3))
+      PartIntEn(PositionNbr)%ElecVelo(1:3) = Vec3D(1:3)
     ELSE
       PartState(4:6,PositionNbr) = Vec3D(1:3)
     END IF
@@ -1601,9 +1601,9 @@ CASE('maxwell','maxwell_lpn')
     Vec3D(1:3) = Vec3D(1:3) + vec_t1(1:3) * ( Velo_t1+Velo1*SQRT(BoltzmannConst*T/Species(iSpec)%MassIC) )
     Vec3D(1:3) = Vec3D(1:3) + vec_t2(1:3) * ( Velo_t2+Velo2*SQRT(BoltzmannConst*T/Species(iSpec)%MassIC) )
     IF(Mode.EQ.3) THEN    ! Ambipolar diffusion
-      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
-      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
-      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = Vec3D(1:3)
+      IF (ALLOCATED(PartIntEn(PositionNbr)%ElecVelo)) DEALLOCATE(PartIntEn(PositionNbr)%ElecVelo)
+      ALLOCATE(PartIntEn(PositionNbr)%ElecVelo(3))
+      PartIntEn(PositionNbr)%ElecVelo(1:3) = Vec3D(1:3)
     ELSE
       PartState(4:6,PositionNbr) = Vec3D(1:3)
     END IF

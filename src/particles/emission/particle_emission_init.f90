@@ -486,6 +486,7 @@ USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptiveBC
 USE MOD_Particle_Sampling_Adapt ,ONLY: AdaptiveBCSampling, CalcAdaptBCPartNumOutBackup
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_DSMC_Init               ,ONLY: SetVarVibProb2Elems
+USE MOD_part_operations         ,ONLY: RemoveParticle
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -583,7 +584,7 @@ IF(DoDielectric)THEN
     DO iPart = 1,PDM%ParticleVecLength
       ! Remove particles in dielectric elements
       CNElemID = GetCNElemID(PEM%GlobalElemID(iPart))
-      IF(isDielectricElem_Shared(CNElemID)) PDM%ParticleInside(iPart) = .FALSE.
+      IF(isDielectricElem_Shared(CNElemID)) CALL RemoveParticle(iPart)
     END DO
   END IF
 END IF
