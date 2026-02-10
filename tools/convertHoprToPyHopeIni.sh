@@ -37,6 +37,9 @@ if [[ ${NbrOfHoprFiles} -gt 0 ]]; then
 
   # Rename value for key MeshPostDeform from 2 to sphere
   find ./ -type f -name "hopr*.ini" -exec sed -i '/MeshPostDeform.*=\s*2/s/2/sphere/' {} \;
+
+  # Remove all lines with postScaleMesh as this variable no longer exists
+  find ./ -type f -name "hopr*.ini" -exec sed -i '/postscalemesh/Id' {} \;
 fi
 
 # Process externals.ini files
