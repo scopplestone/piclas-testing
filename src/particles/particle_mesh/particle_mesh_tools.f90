@@ -1987,6 +1987,7 @@ REAL                           :: sendbuf
 REAL,ALLOCATABLE               :: recvbuf(:)
 #endif
 INTEGER                        :: nPeriodicVectorsParameterIni
+REAL,PARAMETER                 :: CartesianTolerance=1e-9
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 ! Find number of periodic vectors
@@ -2052,7 +2053,7 @@ SideLoop: DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobalElem)+1,ElemInfo_
       ! Check if the periodic vector is ALMOST aligned with a Cartesian direction
       DO iVec = 1,3
         ! IF (ABS(Vec(iVec)).GT.0 .AND. ABS(Vec(iVec))*VECNORM3D(Vec).LT.1E-12) CYCLE SideLoop
-        IF (ABS(Vec(iVec)).GT.0 .AND. ABS(Vec(iVec)).LT.1E-12*VECNORM3D(Vec)) Vec(iVec) = 0.
+        IF (ABS(Vec(iVec)).GT.0 .AND. ABS(Vec(iVec)).LT.CartesianTolerance*VECNORM3D(Vec)) Vec(iVec) = 0.
       END DO
 
       GEO%PeriodicVectors(:,BCALPHA) = Vec
