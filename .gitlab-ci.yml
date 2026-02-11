@@ -1524,7 +1524,6 @@ WEK_DVM:
 code_coverage:
   extends: .defaults
   stage: .post
-  needs: [cleanup]
   script:
     - echo "Generating combined coverage report..."
     # old coverage .json files are removed in the .pre stage (cleanup job), since it should only be done once
