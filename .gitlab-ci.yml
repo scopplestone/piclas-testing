@@ -528,7 +528,7 @@ pyhope_download:
     # Install PyHOPE
     # - uv pip install --upgrade pyhope
     # - PYHOPEBRANCH=main
-    - PYHOPEBRANCH=main
+    - PYHOPEBRANCH=bugfix.mesh.cylinder
     - git clone --single-branch --branch ${PYHOPEBRANCH} git@github.com:hopr-framework/PyHOPE pyhope
     - if [ -d "pyhope" ]; then cd pyhope ; uv pip install -e . --upgrade ; cd .. ; fi ;
     - cd ..
