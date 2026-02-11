@@ -275,7 +275,7 @@ if [[ ! -e "${MODULEFILE}" || ${UPDATEMODE} -eq 1 ]]; then
     sed -i 's\OPENBLASTOPDIR\'${OPENBLASINSTALLDIR}'\gI' ${MODULEFILE}
   else
     echo -e "${RED}ERROR: No module file created for OPENBLAS-${OPENBLASVERSION} for GCC-${GCCVERSION}${NC}"
-    echo -e "${RED}ERROR: no installation found in ${OPENBLASBUILDDIR}/bin${NC}"
+    echo -e "${RED}ERROR: no installation found in ${OPENBLASBUILDDIR}/lib/libopenblas.a${NC}"
   fi
 else
   echo -e "${YELLOW}WARNING: OPENBLAS-${OPENBLASVERSION} already created: module file exists under ${MODULEFILE}${NC}"
