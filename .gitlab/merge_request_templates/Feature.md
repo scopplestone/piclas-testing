@@ -38,4 +38,4 @@
 * Add line to **Release Notes** for the next **Release X.X.X** under [Merge requests](https://piclas.boltzplatz.eu/piclas/piclas/-/merge_requests) with a short description of this MR. Note that the commit hash is created upon pressing the merge button and is displayed in the **Activity** section afterwards.
 * [ ] Run the regression checks, which should test the new feature (either new tests or existing tests using the added lines) with code coverage (`DO_CODE_COVERAGE=T` or locally to avoid unnecessary runs) and check that
   * [ ] all new features are tested (visible as green/red bars next to each code line in merge request diff view)
-* [ ] Make sure that the merge request title is appropriate and concise, since it will be automatically utilized for the release notes
+* [ ] Make sure to label the merge request accordingly (Improvement / Feature) and that the merge request title is appropriate and concise, since it will be automatically utilized for the release notes

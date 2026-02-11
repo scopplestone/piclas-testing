@@ -13,4 +13,4 @@ Closes #number
   * [ ] `PICLAS_SHARED_MEMORY = OMPI_COMM_TYPE_CORE` for splitting at process level, .i.e, each process yields a logical node
   * [ ] `PICLAS_SHARED_MEMORY = PICLAS_COMM_TYPE_NODE` for splitting at 2 processes per logical node
 * [ ] Replace `MPI_COMM_WORLD` with `MPI_COMM_PICLAS`
-* [ ] Make sure that the merge request title is appropriate and concise, since it will be automatically utilized for the release notes
+* [ ] Make sure to label the merge request accordingly (Bug / Improvement) and that the merge request title is appropriate and concise, since it will be automatically utilized for the release notes
