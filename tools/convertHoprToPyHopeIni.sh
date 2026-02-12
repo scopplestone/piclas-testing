@@ -2,6 +2,29 @@
 # Script for changing all hopr.ini file in the cwd and below from the old HOPR format input to the new PyHOPE parameter format
 # Creation date: 2025-10-15
 
+# Check command line arguments
+for ARG in "$@"; do
+  if [ "${ARG}" == "--help" ] || [ ${ARG} == "-h" ]; then
+    echo "This scripts searches recursively in the current directory for hopr*.ini and externals.ini files"
+    echo "and changed specific flags/settings from old (hopr) to new (pyhope) compatibility."
+    echo ""
+    echo "Input arguments:"
+    echo ""
+    echo "  --help/-h            Print this help information. No other arguments are allowed."
+    echo ""
+    echo "Usage example:"
+    echo ""
+    echo "  cd ~/piclas/regressioncheck && ~/piclas/tools/convertHoprToPyHopeIni.sh"
+    echo ""
+    echo "or simply run the script within the directory, where the hopr*.ini file is"
+    echo ""
+    echo "  ~/piclas/tools/convertHoprToPyHopeIni.sh"
+    exit 0
+  fi
+  echo "ERROR: This script takes no input arguments except '--help'"
+  exit 1
+done
+
 if test -t 1; then # if terminal
   NbrOfColors=$(which tput > /dev/null && tput colors) # supports color
   if test -n "$NbrOfColors" && test $NbrOfColors -ge 8; then
