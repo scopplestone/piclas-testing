@@ -560,7 +560,8 @@ reggie_download:
     - if [ ! -d "reggie/.git" ]; then
         if [ -f "reggie/.day" ]; then mv reggie/.day .; fi ;
         if [ -d "reggie" ]; then rm -rf reggie ; fi ;
-        git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
+        REGGIEBRANCH=improvement.rfactor.performcheck ;
+        git clone --single-branch --branch ${REGGIEBRANCH} git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
         if [ -d "reggie" ]; source venv/bin/activate ; then cd reggie ; uv pip install -e . ; cd .. ; fi ;
         if [ -f ".day" ]; then mv .day reggie/. ; fi ;
       fi
