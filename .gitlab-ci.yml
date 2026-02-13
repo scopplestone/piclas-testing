@@ -528,7 +528,7 @@ pyhope_download:
     # Install PyHOPE
     # - uv pip install --upgrade pyhope
     # - PYHOPEBRANCH=main
-    - PYHOPEBRANCH=bugfix.mesh.cylinder
+    - PYHOPEBRANCH=main ;
     - git clone --single-branch --branch ${PYHOPEBRANCH} git@github.com:hopr-framework/PyHOPE pyhope
     - if [ -d "pyhope" ]; then cd pyhope ; uv pip install -e . --upgrade ; cd .. ; fi ;
     - cd ..
@@ -560,7 +560,7 @@ reggie_download:
     - if [ ! -d "reggie/.git" ]; then
         if [ -f "reggie/.day" ]; then mv reggie/.day .; fi ;
         if [ -d "reggie" ]; then rm -rf reggie ; fi ;
-        REGGIEBRANCH=improvement.rfactor.performcheck ;
+        REGGIEBRANCH=master ;
         git clone --single-branch --branch ${REGGIEBRANCH} git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
         if [ -d "reggie" ]; source venv/bin/activate ; then cd reggie ; uv pip install -e . ; cd .. ; fi ;
         if [ -f ".day" ]; then mv .day reggie/. ; fi ;
