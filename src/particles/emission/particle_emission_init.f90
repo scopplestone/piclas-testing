@@ -151,6 +151,7 @@ USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_MPI*/
 USE MOD_Restart_Vars     ,ONLY: DoRestart
 USE MOD_Analyze_Vars     ,ONLY: DoSurfModelAnalyze
+USE MOD_StringTools      ,ONLY: LowCase
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -161,6 +162,7 @@ USE MOD_Analyze_Vars     ,ONLY: DoSurfModelAnalyze
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iInit
 CHARACTER(32)         :: hilf, hilf2, DefStr
+CHARACTER(255)        :: NeutralizationSourceLoc
 REAL                  :: MPFOld
 !===================================================================================================================================
 ALLOCATE(SpecReset(1:nSpecies))
@@ -338,6 +340,8 @@ DO iSpec = 1, nSpecies
          '3D_Liu2010_neutralization_Szabo')
       Species(iSpec)%Init(iInit)%ParticleEmissionType = 9
       NeutralizationSource = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-NeutralizationSource'))
+      CALL LowCase(NeutralizationSource, NeutralizationSourceLoc)
+      NeutralizationSource = TRIM(NeutralizationSourceLoc)
       NeutralizationBalance = 0
       UseNeutralization = .TRUE.
       DoSurfModelAnalyze = .TRUE.
