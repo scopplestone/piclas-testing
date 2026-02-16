@@ -666,7 +666,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
           PDM%ParticleInside(  CurrentPartNum) = .TRUE.
 
           IF(TrackingMethod.EQ.REFMAPPING) &
-            CALL GetPositionInRefElem(PartState(1:3,CurrentPartNum),PartPosRef(1:3,CurrentPartNum),PEM%GlobalElemID(iMissingParticle))
+            CALL GetPositionInRefElem(PartState(1:3,CurrentPartNum),PartPosRef(1:3,CurrentPartNum),PEM%GlobalElemID(CurrentPartNum))
 
           IndexOfFoundParticles(iMissingParticle) = 1
           PEM%LastGlobalElemID(CurrentPartNum)    = PEM%GlobalElemID(CurrentPartNum)
