@@ -63,6 +63,9 @@ if [[ ${NbrOfHoprFiles} -gt 0 ]]; then
 
   # Remove all lines with postScaleMesh as this variable no longer exists
   find ./ -type f -name "hopr*.ini" -exec sed -i '/postscalemesh/Id' {} \;
+
+  # Remove all lines with meshTemplate as this variable no longer exists
+  find ./ -type f -name "hopr*.ini" -exec sed -i '/meshTemplate/Id' {} \;
 fi
 
 # Process externals.ini files

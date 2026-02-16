@@ -1,5 +1,5 @@
 # Maxwell-PIC p-adaption
-- non-orthogonal mesh: pyhope split2hex 1x1x1 -> 96 elements
+- non-orthogonal mesh: pyhope split2hex 1x1x1 -> 24 elements
 - 1,2,3,4,5 processes
 - N=1,2,3
 - load balance (not via H5 I/O)
