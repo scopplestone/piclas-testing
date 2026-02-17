@@ -174,10 +174,9 @@ To define the cuboid the following parameters are required:
 (sec:particle-photo-ionization)=
 ### Photo-ionization
 
-A special case is the ionization of a background gas through photon impact, modelling a light pulse. The volume affected by the
-light pulse is approximated by a cylinder (or honeycomb/rectangle), which is defined as described in
-Section {ref}`sec:particle-cylinder-init`.
-Additionally, the SpaceIC has to be adapted and additional parameters are required:
+A special case is the ionization of a background gas through photon impact, modelling a light pulse. Note that only a single-species
+background gas is supported at the moment. The volume affected by the light pulse is approximated by a cylinder (or honeycomb/rectangle),
+which is defined as described in Section {ref}`sec:particle-cylinder-init`. Additionally, the SpaceIC has to be adapted and additional parameters are required:
 
     Part-Species1-Init1-SpaceIC       = photon_cylinder ! or photon_honeycomb, or photon_rectangle
     Part-Species1-Init1-PulseDuration = 1               ! [s]
@@ -202,7 +201,7 @@ The intensity can be scaled with an additional factor to account for example for
     Part-Species1-Init1-EffectiveIntensityFactor    = 1         ! [-]
 
 It should be noted that this initialization should be done with a particle species (i.e. not the background gas species) that is
-also a product of the ionization reaction. The ionization reactions are defined as described in Section {ref}`sec:DSMC-chemistry` by
+also a product of the ionization reaction (e.g. the electron species). The ionization reactions are defined as described in Section {ref}`sec:DSMC-chemistry` by
 
     DSMC-NumOfReactions = 1
     DSMC-Reaction1-ReactionType = phIon

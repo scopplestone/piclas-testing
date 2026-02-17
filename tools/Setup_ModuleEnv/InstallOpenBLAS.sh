@@ -100,7 +100,7 @@ do
     LOADMODULES=0
     # Set desired versions
     GCCVERSION=14.2.0
-    GCCVERSION=15.2.0
+    # GCCVERSION=15.2.0
 
   fi
 
@@ -111,7 +111,8 @@ do
 
 done
 
-OPENBLASVERSION=v0.3.31
+OPENBLASVERSION=v0.3.29
+# OPENBLASVERSION=v0.3.31
 OPENBLASDOWNLOAD='https://github.com/OpenMathLib/OpenBLAS.git'
 
 # --------------------------------------------------------------------------------------------------

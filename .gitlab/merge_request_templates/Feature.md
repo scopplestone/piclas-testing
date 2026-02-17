@@ -5,7 +5,7 @@
 ## Merge Request Checklist
 
 * [ ] Make sure the [Style Guide](https://piclas.readthedocs.io/en/latest/developerguide/styleguide.html) is respected
-* [ ] Make sure the [Best Practices](https://piclas.readthedocs.io/en/latest/developerguide/styleguide.html) guide is followed
+* [ ] Make sure the [Best Practices](https://piclas.readthedocs.io/en/latest/developerguide/bestpractices.html) guide is followed
 * Maximum number of 10 compiler warnings
   * [ ] Check with specific compiler settings for the feature branch via `./tools/test_max_warnings.sh`. Number of found warnings:
   * [ ] Run [pipeline](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines/new) for the feature branch and supply the variables `DO_CHECKIN=T` and `CHECK_WARNINGS=T` for automatic compiler warning tests for other compiler flag combinations
@@ -38,3 +38,4 @@
 * Add line to **Release Notes** for the next **Release X.X.X** under [Merge requests](https://piclas.boltzplatz.eu/piclas/piclas/-/merge_requests) with a short description of this MR. Note that the commit hash is created upon pressing the merge button and is displayed in the **Activity** section afterwards.
 * [ ] Run the regression checks, which should test the new feature (either new tests or existing tests using the added lines) with code coverage (`DO_CODE_COVERAGE=T` or locally to avoid unnecessary runs) and check that
   * [ ] all new features are tested (visible as green/red bars next to each code line in merge request diff view)
+* [ ] Make sure to label the merge request accordingly (Improvement / Feature) and that the merge request title is appropriate and concise, since it will be automatically utilized for the release notes
