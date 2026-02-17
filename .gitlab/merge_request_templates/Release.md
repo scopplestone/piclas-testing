@@ -68,8 +68,6 @@ DO_DEPLOY = T
 
 # Release Notes
 
-## Release 3.X.X
-
 ### Breaking/Parameter Changes
 
 *

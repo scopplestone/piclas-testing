@@ -1577,11 +1577,15 @@ reggie_coverage:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage ".post": Update release notes (if merging a branch into master.dev)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-update-release-notes:
+update_release_notes:
   stage: .post
   tags: [withmodules-concurrent]
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'  # do not run, when MR is created
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'             # do not run, when the pipeline has been scheduled
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "web"'                  # do not run for manual pipelines from the web interface
       when: never
     - if: '$CI_COMMIT_BRANCH == "master.dev"'
   script:
@@ -1590,17 +1594,50 @@ update-release-notes:
       API="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}"
       TMPFILE="/tmp/release-notes-${CI_JOB_ID:-$$}"
 
-      # Get the MR that was just merged
+      echo "=== Automatic release notes ==="
+      echo "Commit: ${CI_COMMIT_SHA}"
+      echo "Branch: ${CI_COMMIT_BRANCH}"
+      echo "API:    ${API}"
+      echo ""
+
+      # Find the merge request belonging to the current commit sha (assuming the default message "See merge request" has not been adapted)
+      echo "--- Resolving merge request from commit message ---"
+      COMMIT_MSG=$(git log -1 --format=%B "$CI_COMMIT_SHA")
+      MR_IID=$(echo "$COMMIT_MSG" | grep -oP 'See merge request.*!\K[0-9]+' || true)
+
+      if [ -z "$MR_IID" ]; then
+        echo "No merge request reference found in commit message, skipping"
+        echo "Commit message: ${COMMIT_MSG}"
+        exit 0
+      fi
+
+      echo "Found MR !${MR_IID}"
+
+      # Fetch MR details
+      echo ""
+      echo "--- Fetching MR !${MR_IID} details ---"
       curl -sf --header "PRIVATE-TOKEN: ${RELEASE_BOT_TOKEN}" \
-        "${API}/repository/commits/${CI_COMMIT_SHA}/merge_requests" \
+        "${API}/merge_requests/${MR_IID}" \
         -o "${TMPFILE}-mr.json"
 
-      MR_IID=$(jq -r '.[0].iid' "${TMPFILE}-mr.json")
-      MR_TITLE=$(jq -r '.[0].title' "${TMPFILE}-mr.json")
-      LABELS=$(jq -r '.[0].labels[]' "${TMPFILE}-mr.json")
+      MR_TITLE=$(jq -r '.title' "${TMPFILE}-mr.json")
+      LABELS=$(jq -r '.labels[]' "${TMPFILE}-mr.json")
       SHORT_SHA=$(echo "$CI_COMMIT_SHA" | cut -c1-8)
 
-      [ "$MR_IID" = "null" ] && { echo "No MR found, skipping"; rm -f ${TMPFILE}*.json; exit 0; }
+      # Strip branch name prefix like "[feature.branch] " from title
+      MR_TITLE=$(echo "$MR_TITLE" | sed 's/^\[[^]]*\] *//')
+
+      echo "Title:  ${MR_TITLE}"
+      echo "SHA:    ${SHORT_SHA}"
+      echo "Labels: $(echo "$LABELS" | tr '\n' ', ' | sed 's/,$//')"
+
+      # Skip if explicitly excluded from release notes
+      if echo "$LABELS" | grep -qi "^no-release-notes$"; then
+        echo ""
+        echo "Skipping (no-release-notes label found)"
+        rm -f "${TMPFILE}-mr.json" "${TMPFILE}-rel.json"
+        exit 0
+      fi
 
       # Determine category from labels
       if echo "$LABELS" | grep -qi "^feature$"; then
@@ -1612,8 +1649,11 @@ update-release-notes:
       else
         CATEGORY="Documentation/Tools/Regression Testing"
       fi
+      echo "Category: ${CATEGORY}"
 
       # Find the open release MR (master.dev -> master)
+      echo ""
+      echo "--- Looking for open release MR (master.dev -> master) ---"
       curl -sf --header "PRIVATE-TOKEN: ${RELEASE_BOT_TOKEN}" \
         "${API}/merge_requests?state=opened&source_branch=master.dev&target_branch=master" \
         -o "${TMPFILE}-rel.json"
@@ -1622,9 +1662,10 @@ update-release-notes:
 
       # If no open release MR exists, create one
       if [ "$REL_IID" = "null" ]; then
-        echo "Creating release MR..."
+        echo "No open release MR found, creating one..."
 
         # Fetch the Release merge request template
+        echo "Fetching Release template..."
         TEMPLATE=$(curl -sf --header "PRIVATE-TOKEN: ${RELEASE_BOT_TOKEN}" \
           "${API}/repository/files/.gitlab%2Fmerge_request_templates%2FRelease.md/raw?ref=master.dev")
 
@@ -1648,33 +1689,38 @@ update-release-notes:
         if [ "$REL_IID" = "null" ]; then
           echo "ERROR: Failed to create release MR"
           jq . "${TMPFILE}-rel.json"
-          rm -f ${TMPFILE}*.json
+          rm -f "${TMPFILE}-mr.json" "${TMPFILE}-rel.json"
           exit 1
         fi
 
         echo "Created release MR !${REL_IID}"
         DESC=$(jq -r '.description // ""' "${TMPFILE}-rel.json")
       else
+        echo "Found release MR !${REL_IID}"
         DESC=$(jq -r '.[0].description // ""' "${TMPFILE}-rel.json")
       fi
 
       # Avoid duplicates (check by commit hash)
       if echo "$DESC" | grep -q "\[${SHORT_SHA}\]"; then
-        echo "Already listed"
-        rm -f ${TMPFILE}*.json
+        echo ""
+        echo "Entry with commit [${SHORT_SHA}] already exists, skipping"
+        rm -f "${TMPFILE}-mr.json" "${TMPFILE}-rel.json"
         exit 0
       fi
 
       # Build entry safely using jq (handles all escaping)
-      ENTRY=$(jq -n -r \
-        --arg title "$MR_TITLE" \
-        --arg sha "$SHORT_SHA" \
-        '"* \($title) [\($sha)]"')
+      ENTRY=$(jq -n -r --arg title "$MR_TITLE" --arg sha "$SHORT_SHA" '"* \($title) [\($sha)]"')
 
       HEADING="### ${CATEGORY}"
 
+      echo ""
+      echo "--- Updating release MR !${REL_IID} ---"
+      echo "Heading: ${HEADING}"
+      echo "Entry:   ${ENTRY}"
+
       # Insert entry under the correct heading, or create it
       if echo "$DESC" | grep -q "^${HEADING}$"; then
+        echo "Found existing heading, inserting entry..."
         export HEADING ENTRY
         UPDATED=$(echo "$DESC" | awk '
           BEGIN { heading=ENVIRON["HEADING"]; entry=ENVIRON["ENTRY"]; blanks=0 }
@@ -1702,6 +1748,7 @@ update-release-notes:
           END { if (found && !inserted) print entry }
         ')
       else
+        echo "Heading not found, appending new section..."
         UPDATED=$(printf '%s\n\n%s\n%s' "$DESC" "$HEADING" "$ENTRY")
       fi
 
@@ -1713,7 +1760,7 @@ update-release-notes:
         "${API}/merge_requests/${REL_IID}" > /dev/null
 
       # Instead of updating, just show what would happen
-      # echo "DRY RUN — would add to !${REL_IID}:"
+      # echo "DRY RUN - would add to !${REL_IID}:"
       # echo "$ENTRY"
       # echo ""
       # echo "Full updated description:"
