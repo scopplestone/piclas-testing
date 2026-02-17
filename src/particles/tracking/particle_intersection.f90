@@ -64,7 +64,7 @@ PUBLIC :: ComputeBilinearIntersection
 PUBLIC :: ComputeCurvedIntersection
 PUBLIC :: InitParticleThroughSideCheck1D2D
 PUBLIC :: ParticleThroughSideCheck3DFast, ParticleThroughSideCheck1D2D
-PUBLIC :: ParticleThroughSideLastPosCheck
+PUBLIC :: ParticleThroughSideLastPosCheck, ParticleThroughSideCheck2DRotSym
 #ifdef CODE_ANALYZE
 PUBLIC :: OutputTrajectory
 #endif /*CODE_ANALYZE*/
@@ -381,6 +381,161 @@ IF (t(1) >= 0.0 .AND. t(1) <= 1.0 .AND. t(2) >= 0.0 .AND. t(2) <= 1.0) THEN
 END IF
 
 END SUBROUTINE ParticleThroughSideCheck2D
+
+
+!===================================================================================================================================
+!> Routine to check whether a photon crossed the given side.
+!===================================================================================================================================
+SUBROUTINE ParticleThroughSideCheck2DRotSym(PartID, iLocSide,Element,ThroughSide)
+! MODULES
+USE MOD_Globals             ,ONLY: abort
+USE MOD_Particle_Mesh_Vars  ,ONLY: ElemSideNodeID2D_Shared, NodeCoords_Shared
+USE MOD_Particle_Vars       ,ONLY: LastPartPos,PartState
+USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackInfo
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)              :: ThroughSide
+INTEGER,INTENT(IN)               :: iLocSide, Element
+INTEGER,INTENT(IN)               :: PartID
+!REAL, INTENT(OUT)                :: IntersectionPos(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: CNElemID
+REAL                             :: y_pos_start,x_pos_start,yNode1,xNode1,yNode2,xNode2,sy,sz,sx
+REAL                             :: l1,S1,l2,S2,l,S
+REAL                             :: beta, alpha, deltay, a, b, c, tmpsqrt
+!===================================================================================================================================
+CNElemID = GetCNElemID(Element)
+
+! Sanity check
+IF(CNElemID.LE.0) CALL abort(__STAMP__,'PhotonIntersectionWithSide2D() found CNElemID<=0')
+
+ThroughSide = .FALSE.
+
+xNode1 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
+yNode1 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
+xNode2 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
+yNode2 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
+
+x_pos_start=LastPartPos(1,PartID)
+y_pos_start=LastPartPos(2,PartID)
+
+sx=TrackInfo%PartTrajectory(1)
+sy=TrackInfo%PartTrajectory(2)
+sz=TrackInfo%PartTrajectory(3)
+
+IF (sx .EQ. 0.0) THEN
+  IF (xNode1.EQ.xNode2) THEN
+    l = (y_pos_start-yNode1)/(yNode2-yNode1)
+  ELSE
+    l = (x_pos_start-xNode1)/(xNode2-xNode1)
+  END IF
+  a = sy*sy + sz*sz
+  b = 2*sy*y_pos_start
+  c = y_pos_start*y_pos_start - yNode1*yNode1 + 2.*l*yNode1*yNode1 - l*l*yNode1*yNode1 &
+      - 2.*yNode1*yNode2*l + 2.*yNode1*yNode2*l*l - yNode2*yNode2*l*l
+  tmpsqrt = b*b - 4.*a*c
+  IF (tmpsqrt.LE.0.0) THEN
+    RETURN
+  END IF
+  S1 = (-b+SQRT(tmpsqrt))/(2.*a)
+  S2 = (-b-SQRT(tmpsqrt))/(2.*a)
+
+!  IF(isLastSide) THEN
+!    IF (ALMOSTEQUAL(S1,S2)) THEN
+!      RETURN ! TODO
+!    ELSE IF (ABS(S1).GT.ABS(S2)) THEN
+!      S=S1
+!    ELSE
+!      S=S2
+!    END IF
+!  ELSE
+    IF (S1.LE.0.0) THEN
+      S = S2
+    ELSE
+      IF (S2.GT.0.0) THEN
+        IF(S2.GT.S1) THEN
+          S = S1
+        ELSE
+          S = S2
+        END IF
+      ELSE
+        S = S1
+      END IF
+    END IF
+!  END IF
+
+
+ELSE
+  alpha = (xNode1 - x_pos_start) / sx
+  beta = (xNode2 - xNode1) / sx
+  deltay = (yNode2 - yNode1)
+  a = beta*beta*sy*sy - deltay*deltay + beta*beta*sz*sz
+  b = 2.*beta*sy*y_pos_start + 2.*alpha*beta*sy*sy - 2.*deltay*yNode1 + 2.*alpha*beta*sz*sz
+  c = y_pos_start*y_pos_start - yNode1*yNode1 + 2.*alpha*sy*y_pos_start + alpha*alpha*sy*sy + sz*sz*alpha*alpha
+  tmpsqrt = b*b - 4.*a*c
+  IF (tmpsqrt.LE.0.0) THEN
+    RETURN
+  END IF
+  l1 = (-b + SQRT(tmpsqrt))/(2.*a)
+  S1 = (xNode1-x_pos_start+(xNode2-xNode1)*l1)/sx
+  l2 = (-b - SQRT(tmpsqrt))/(2.*a)
+  S2 = (xNode1-x_pos_start+(xNode2-xNode1)*l2)/sx
+
+!  IF (isLastSide) THEN
+!    IF (ALMOSTEQUAL(S1,S2).AND.ALMOSTEQUAL(ABS(l1),ABS(l2))) THEN
+!      RETURN
+!    ELSE IF (ALMOSTEQUAL(S1,S2)) THEN
+!      IF (ABS(l1).GT.ABS(l2)) THEN
+!        l=l1; S=S1
+!      ELSE
+!        l=l2; S=S2
+!      END IF
+!    ELSE IF (ALMOSTZERO(S1).AND.ALMOSTZERO(S2)) THEN
+!      IF (ABS(l1).GT.ABS(l2)) THEN
+!        l=l1; S=S1
+!      ELSE
+!        l=l2; S=S2
+!      END IF
+!    ELSE IF (ABS(S1).GT.ABS(S2)) THEN       !though same spot again, caused by numerical inaccuray (discard shorter solution)
+!      l=l1; S=S1
+!    ELSE
+!      l=l2; S=S2
+!    END IF
+!  ELSE 
+  IF ((l1.LE.0.0).OR.(l1.GE.1.0)) THEN !if 1 is not a valid intersection -> 2
+    l = l2; S = S2
+  ELSE                                      !1 is valid intersection
+    IF ((S1.LE.0.0)) THEN                   !1 would be moving backwards -> 2
+      l = l2; S = S2
+    ELSE
+      IF ((l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0)) THEN !1 and 2 valid -> chose shorter one
+        IF (S2.GT.S1) THEN
+          l=l1; S=S1
+        ELSE
+          l=l2; S=S2
+        END IF
+      ELSE                                  !1 is only valid intersection -> 1
+        l=l1; S=S1
+      END IF
+    END IF
+  END IF
+
+END IF
+
+IF((S .GT. 0.0).AND.(S.LT.TrackInfo%lengthPartTrajectory) .AND. (0.0 .LE. l) .AND. (l .LE. 1.0)) THEN
+  ThroughSide = .TRUE.
+!  IntersectionPos(1) = LastPartPos(1,PartID) + S*sx
+!  IntersectionPos(2) = LastPartPos(2,PartID) + S*sy
+!  IntersectionPos(3) = S*sz
+  TrackInfo%alpha = S
+END IF
+
+END SUBROUTINE ParticleThroughSideCheck2DRotSym
 
 SUBROUTINE ParticleThroughSideCheck1D(PartID,iLocSide,Element,ThroughSide)
 !===================================================================================================================================

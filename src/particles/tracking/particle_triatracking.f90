@@ -500,8 +500,9 @@ USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks,MeasureTrackTime, TrackInfo
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound
-USE MOD_Particle_Intersection       ,ONLY: ParticleThroughSideCheck1D2D
+USE MOD_Particle_Intersection       ,ONLY: ParticleThroughSideCheck1D2D, ParticleThroughSideCheck2DRotSym
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
+USE MOD_Symmetry_Vars               ,ONLY: Symmetry
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars                   ,ONLY: offsetElem
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime, LBElemSplitTime, LBElemPauseTime
@@ -574,7 +575,11 @@ DO WHILE (.NOT.PartisDone)
         nbSideID = SideInfo_Shared(SIDE_NBSIDEID,nbSideID)
         NblocSideID =  SideInfo_Shared(SIDE_LOCALID,nbSideID)
         ThroughSide = .FALSE.
-        CALL ParticleThroughSideCheck1D2D(i,NblocSideID,NbElemID,ThroughSide)
+        IF (Symmetry%AxisymmetricExact) THEN
+          CALL ParticleThroughSideCheck2DRotSym(i,NblocSideID,NbElemID,ThroughSide)
+        ELSE
+          CALL ParticleThroughSideCheck1D2D(i,NblocSideID,NbElemID,ThroughSide)
+        END IF
         IF (ThroughSide) THEN
           ! Store the information for this side for future checks, if this side was already treated
           oldElemIsMortar = .TRUE.
@@ -588,7 +593,11 @@ DO WHILE (.NOT.PartisDone)
     ELSE  ! Regular side
       IF (TempSideID.EQ.TrackInfo%LastSide) CYCLE
       ThroughSide = .FALSE.
-      CALL ParticleThroughSideCheck1D2D(i,localSideID,ElemID,ThroughSide)
+      IF (Symmetry%AxisymmetricExact) THEN
+        CALL ParticleThroughSideCheck2DRotSym(i,localSideID,ElemID,ThroughSide)
+      ELSE
+        CALL ParticleThroughSideCheck1D2D(i,localSideID,ElemID,ThroughSide)
+      END IF
       IF (ThroughSide) THEN
         NrOfThroughSides = NrOfThroughSides + 1
         SideID = TempSideID
