@@ -685,7 +685,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
           ! DSMC-specific variables
           IF (useDSMC) THEN
             IF (CollisMode.GT.1) THEN
-              IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN          
+              IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
                 IF (.NOT.ALLOCATED(PartIntEn(CurrentPartNum)%EVib)) ALLOCATE(PartIntEn(CurrentPartNum)%EVib(1), PartIntEn(CurrentPartNum)%ERot(1))
                 PartIntEn(CurrentPartNum)%EVib = RecBuff(1+iPos,iPart)
                 PartIntEn(CurrentPartNum)%ERot = RecBuff(2+iPos,iPart)
@@ -887,6 +887,7 @@ USE MOD_io_hdf5
 USE MOD_Restart_Vars              ,ONLY: RestartFile
 USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, nGlobalSurfSides
 USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp, GlobalSide2SurfSide
+USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars           ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED
@@ -907,7 +908,7 @@ LOGICAL                   :: AdaptiveWallTempExists
 !===================================================================================================================================
 ! Leave routine if no surface sides have been defined in the domain
 IF (nGlobalSurfSides.EQ.0) RETURN
-LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Restarting Adaptive Wall Temperature...'
+LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Restarting adaptive wall temperature...'
 #if USE_MPI
 ! Only the surface leaders open the file
 IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
