@@ -128,7 +128,7 @@ developed code, the [reggie2.0](https://github.com/piclas-framework/reggie2.0) t
 
 ## Compression of HDF5 reference files
 When creating .h5 reference files that are used for comparison in regression tests, it is very beneficial to compress these to a minimum
-before commiting and pushing them to the git repository.
+before committing and pushing them to the git repository.
 Consider the following example with an `analysis.ini` file containing
 
     ! hdf5 diff
@@ -155,15 +155,17 @@ The argument `-i` is only used to create the reference file from a single-core e
 the same result is obviously required.
 Additionally, unnecessary parts of the .h5 file can be removed if these are not required for the reggie analysis.
 This can be achieved by modifying the .h5 file directly with, e.g., [hdfview](https://www.hdfgroup.org/download-hdfview/).
-Open the reference file with [hdfview](https://www.hdfgroup.org/download-hdfview/) and remove all datasets that are not needed and
-resize the dataset `SurfaceData` so that it only contains one single property, name `Total_TorqueZ`.
-After saving the file to the disk, it is neccessary to remove the occupied disk space of the deleted datasets via
+Open the reference file with [hdfview](https://www.hdfgroup.org/download-hdfview/), remove all datasets that are not needed and
+resize the dataset `SurfaceData` so that it only contains one single property, name `Total_TorqueZ`. If most of the options,
+when right-clicking on the dataset are not available, make sure to `Reload File As` -> `Read/Write` first.
+After saving the file to the disk, it is necessary to remove the occupied disk space of the deleted datasets via
 
     h5repack -i original.h5 -o compressed.h5
 
 and
 
-    h5repack -v -f SHUF -f GZIP=9 original.h5 compressed-shuffled.h5
+    h5repack -v -f SHUF -f GZIP=9 original.h5 compressed-shuffled-GZIP9.h5
+    h5repack -v -f GZIP=9 original.h5 compressed-GZIP9.h5
 
 by trying both commands and using the smaller resulting .h5 file.
 [Note that shuffle by itself will do nothing to compress. It simply re-orders bytes in memory in hopes of making the resulting
