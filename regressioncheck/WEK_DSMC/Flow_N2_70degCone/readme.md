@@ -8,3 +8,6 @@
   * Conventional radial weighting along y-axis
   * Linear weighting along a coordinate axis
   * Linear weighting along a user-defined vector
+* Macroscopic restart is tested with cell_local weighting method
+* Read-in of wall temperature is tested and compared with reference after a single timestep (no adaption)
+  * Using a macroscopic restart (wall temperature is read-in afterwards) since different particle weighting methods are tested with the first run
