@@ -386,10 +386,10 @@ END SUBROUTINE ParticleThroughSideCheck2D
 !===================================================================================================================================
 !> Routine to check whether a photon crossed the given side.
 !===================================================================================================================================
-SUBROUTINE ParticleThroughSideCheck2DRotSym(PartID, iLocSide,Element,ThroughSide)
+SUBROUTINE ParticleThroughSideCheck2DRotSym(PartID, iLocSide,Element, SideID,ThroughSide)
 ! MODULES
 USE MOD_Globals             ,ONLY: abort
-USE MOD_Particle_Mesh_Vars  ,ONLY: ElemSideNodeID2D_Shared, NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars  ,ONLY: ElemSideNodeID2D_Shared, NodeCoords_Shared, SideInfo_Shared
 USE MOD_Particle_Vars       ,ONLY: LastPartPos,PartState
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackInfo
@@ -399,7 +399,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 LOGICAL,INTENT(OUT)              :: ThroughSide
-INTEGER,INTENT(IN)               :: iLocSide, Element
+INTEGER,INTENT(IN)               :: iLocSide, Element, SideID
 INTEGER,INTENT(IN)               :: PartID
 !REAL, INTENT(OUT)                :: IntersectionPos(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -444,32 +444,19 @@ IF (sx .EQ. 0.0) THEN
   END IF
   S1 = (-b+SQRT(tmpsqrt))/(2.*a)
   S2 = (-b-SQRT(tmpsqrt))/(2.*a)
-
-!  IF(isLastSide) THEN
-!    IF (ALMOSTEQUAL(S1,S2)) THEN
-!      RETURN ! TODO
-!    ELSE IF (ABS(S1).GT.ABS(S2)) THEN
-!      S=S1
-!    ELSE
-!      S=S2
-!    END IF
-!  ELSE
-    IF (S1.LE.0.0) THEN
-      S = S2
-    ELSE
-      IF (S2.GT.0.0) THEN
-        IF(S2.GT.S1) THEN
-          S = S1
-        ELSE
-          S = S2
-        END IF
-      ELSE
+  IF (S1.LE.0.0) THEN
+    S = S2
+  ELSE
+    IF (S2.GT.0.0) THEN
+      IF(S2.GT.S1) THEN
         S = S1
+      ELSE
+        S = S2
       END IF
+    ELSE
+      S = S1
     END IF
-!  END IF
-
-
+  END IF
 ELSE
   alpha = (xNode1 - x_pos_start) / sx
   beta = (xNode2 - xNode1) / sx
@@ -477,61 +464,52 @@ ELSE
   a = beta*beta*sy*sy - deltay*deltay + beta*beta*sz*sz
   b = 2.*beta*sy*y_pos_start + 2.*alpha*beta*sy*sy - 2.*deltay*yNode1 + 2.*alpha*beta*sz*sz
   c = y_pos_start*y_pos_start - yNode1*yNode1 + 2.*alpha*sy*y_pos_start + alpha*alpha*sy*sy + sz*sz*alpha*alpha
+  ! Check if equation is nearly lQinear (trajectory nearly parallel to cone surface)
+  ! Quadratic equation
   tmpsqrt = b*b - 4.*a*c
-  IF (tmpsqrt.LE.0.0) THEN
+  IF (tmpsqrt.LE.0.0) THEN  
     RETURN
   END IF
+     
   l1 = (-b + SQRT(tmpsqrt))/(2.*a)
   S1 = (xNode1-x_pos_start+(xNode2-xNode1)*l1)/sx
   l2 = (-b - SQRT(tmpsqrt))/(2.*a)
   S2 = (xNode1-x_pos_start+(xNode2-xNode1)*l2)/sx
 
-!  IF (isLastSide) THEN
-!    IF (ALMOSTEQUAL(S1,S2).AND.ALMOSTEQUAL(ABS(l1),ABS(l2))) THEN
-!      RETURN
-!    ELSE IF (ALMOSTEQUAL(S1,S2)) THEN
-!      IF (ABS(l1).GT.ABS(l2)) THEN
-!        l=l1; S=S1
-!      ELSE
-!        l=l2; S=S2
-!      END IF
-!    ELSE IF (ALMOSTZERO(S1).AND.ALMOSTZERO(S2)) THEN
-!      IF (ABS(l1).GT.ABS(l2)) THEN
-!        l=l1; S=S1
-!      ELSE
-!        l=l2; S=S2
-!      END IF
-!    ELSE IF (ABS(S1).GT.ABS(S2)) THEN       !though same spot again, caused by numerical inaccuray (discard shorter solution)
-!      l=l1; S=S1
-!    ELSE
-!      l=l2; S=S2
-!    END IF
-!  ELSE 
-  IF ((l1.LE.0.0).OR.(l1.GE.1.0)) THEN !if 1 is not a valid intersection -> 2
-    l = l2; S = S2
-  ELSE                                      !1 is valid intersection
-    IF ((S1.LE.0.0)) THEN                   !1 would be moving backwards -> 2
-      l = l2; S = S2
-    ELSE
-      IF ((l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0)) THEN !1 and 2 valid -> chose shorter one
-        IF (S2.GT.S1) THEN
-          l=l1; S=S1
-        ELSE
-          l=l2; S=S2
-        END IF
-      ELSE                                  !1 is only valid intersection -> 1
+  IF ((l1.GT.0.0).AND.(l1.LT.1.0).AND.(S1.GT.0.0).AND.(S1.LT.TrackInfo%lengthPartTrajectory).AND. &
+    (l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0).AND.(S2.LT.TrackInfo%lengthPartTrajectory)) THEN
+    IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
+      IF (S2.GT.S1) THEN
         l=l1; S=S1
+      ELSE
+        l=l2; S=S2
+      END IF
+    ELSE
+      S = -1.; l=-1.
+    END IF
+  ELSE
+    IF ((l1.LE.0.0).OR.(l1.GE.1.0)) THEN !if 1 is not a valid intersection -> 2
+      l = l2; S = S2
+    ELSE                                      !1 is valid intersection
+      IF ((S1.LE.0.0)) THEN                   !1 would be moving backwards -> 2
+        l = l2; S = S2
+      ELSE
+        IF ((l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0)) THEN !1 and 2 valid -> chose shorter one
+          IF (S2.GT.S1) THEN
+            l=l1; S=S1
+          ELSE
+            l=l2; S=S2
+          END IF
+        ELSE                                  !1 is only valid intersection -> 1
+          l=l1; S=S1
+        END IF
       END IF
     END IF
   END IF
-
 END IF
 
-IF((S .GT. 0.0).AND.(S.LT.TrackInfo%lengthPartTrajectory) .AND. (0.0 .LE. l) .AND. (l .LE. 1.0)) THEN
+IF((S .GT. 0.0).AND.(S.LT.TrackInfo%lengthPartTrajectory) .AND. (0.0 .LE. l) .AND. (l .LE. 1.0).AND.(S.GT.TrackInfo%alpha)) THEN
   ThroughSide = .TRUE.
-!  IntersectionPos(1) = LastPartPos(1,PartID) + S*sx
-!  IntersectionPos(2) = LastPartPos(2,PartID) + S*sy
-!  IntersectionPos(3) = S*sz
   TrackInfo%alpha = S
 END IF
 

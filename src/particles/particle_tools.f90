@@ -2254,6 +2254,7 @@ IF(Symmetry%Axisymmetric) THEN
       ElectronVelo(2) = NewYVelo
     END IF
     Pos(2)  = NewYPart
+    IF (Symmetry%AxisymmetricExact) Pos(2) = ABS(Pos(2))
     Pos(3)  = 0.0
   ELSE
     ! IF (PartState(1,iPart).LT.0.0) THEN

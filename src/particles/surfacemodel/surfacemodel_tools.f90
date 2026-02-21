@@ -120,7 +120,7 @@ INTEGER                              :: locBCID, SpecID, CNElemID, iLocSide
 LOGICAL                              :: SymmetricCase
 REAL                                 :: POI_vec(1:3)
 REAL                                 :: NormNewVeloPush(1:3)
-REAL                                 :: dtVar, n_loctmp(3), nValIntersec
+REAL                                 :: dtVar, n_loctmp(3), nValIntersec, rotVelY, rotVelZ, rotPosY
 !===================================================================================================================================
 ! Initialize
 SymmetricCase = .FALSE.
@@ -206,6 +206,33 @@ TrackInfo%PartTrajectory(1:3)     = TrackInfo%PartTrajectory(1:3)-2.*DOT_PRODUCT
 ! Mirror the LastPartPos for new particle position
 PartState(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*(TrackInfo%lengthPartTrajectory - TrackInfo%alpha)
 
+IF (Symmetry%AxisymmetricExact) THEN
+  rotPosY = SQRT(LastPartPos(2,PartID)**2 + (LastPartPos(3,PartID))**2)
+  ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
+  !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
+  ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
+  ! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
+  IF (DSMC%DoAmbipolarDiff) THEN
+    IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
+      rotVelY = (PartIntEn(PartID)%ElecVelo(2)*(LastPartPos(2,PartID))+PartIntEn(PartID)%ElecVelo(3)*LastPartPos(3,PartID))/rotPosY
+      rotVelZ = (-PartIntEn(PartID)%ElecVelo(2)*LastPartPos(3,PartID)+PartIntEn(PartID)%ElecVelo(3)*(LastPartPos(2,PartID)))/rotPosY
+      PartIntEn(PartID)%ElecVelo(2) = rotVelY
+      PartIntEn(PartID)%ElecVelo(3) = rotVelZ
+    END IF
+  END IF
+  rotVelY = (PartState(5,PartID)*(LastPartPos(2,PartID))+PartState(6,PartID)*LastPartPos(3,PartID))/rotPosY
+  rotVelZ = (-PartState(5,PartID)*LastPartPos(3,PartID)+PartState(6,PartID)*(LastPartPos(2,PartID)))/rotPosY
+  PartState(5,PartID) = rotVelY
+  PartState(6,PartID) = rotVelZ
+  rotVelY = (PartState(2,PartID)*(LastPartPos(2,PartID))+PartState(3,PartID)*LastPartPos(3,PartID))/rotPosY
+  rotVelZ = (-PartState(2,PartID)*LastPartPos(3,PartID)+PartState(3,PartID)*(LastPartPos(2,PartID)))/rotPosY    
+  PartState(2,PartID) = rotVelY
+  PartState(3,PartID) = rotVelZ
+  
+  LastPartPos(2,PartID) = rotPosY
+  LastPartPos(3,PartID) = 0.
+END IF
+
 IF(UseRotRefFrame) THEN
   ! Check if rotational frame of reference is used, otherwise mirror the LastPartPos for new particle position
   IF(InRotRefFrame(PartID)) THEN
@@ -239,6 +266,7 @@ IF(ALMOSTZERO(TrackInfo%lengthPartTrajectory)) THEN
 ELSE
   TrackInfo%PartTrajectory=TrackInfo%PartTrajectory/TrackInfo%lengthPartTrajectory
 END IF
+TrackInfo%alpha = 0.
 ! #endif
 
 #if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
@@ -501,7 +529,7 @@ IF(Symmetry%Axisymmetric.AND.(.NOT.Symmetry%AxisymmetricExact)) THEN
   PartState(3,PartID) = 0.0
   NewVelo(2) = rotVelY
   NewVelo(3) = rotVelZ
-
+  
   ! First check ensures that the normal vector of the side is not almost entirely in the x-direction (thus avoiding ny = 0)
   IF (ABS(nx).LT.0.999) THEN
     ! If particle has been rotated in the opposite direction of the normal vector, shift last particle position slightly
@@ -511,6 +539,30 @@ IF(Symmetry%Axisymmetric.AND.(.NOT.Symmetry%AxisymmetricExact)) THEN
       TrackInfo%LastSide = 0
     END IF
   END IF
+ELSE IF (Symmetry%AxisymmetricExact) THEN
+  rotPosY = SQRT(LastPartPos(2,PartID)**2 + (LastPartPos(3,PartID))**2) 
+  ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
+  !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
+  ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
+  ! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
+  IF (DSMC%DoAmbipolarDiff) THEN
+    IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
+      rotVelY = (NewVeloAmbi(2)*(LastPartPos(2,PartID))+NewVeloAmbi(3)*LastPartPos(3,PartID))/rotPosY
+      rotVelZ = (-NewVeloAmbi(2)*LastPartPos(3,PartID)+NewVeloAmbi(3)*(LastPartPos(2,PartID)))/rotPosY
+      NewVeloAmbi(2) = rotVelY
+      NewVeloAmbi(3) = rotVelZ
+    END IF
+  END IF
+  rotVelY = (NewVelo(2)*(LastPartPos(2,PartID))+NewVelo(3)*LastPartPos(3,PartID))/rotPosY
+  rotVelZ = (-NewVelo(2)*LastPartPos(3,PartID)+NewVelo(3)*(LastPartPos(2,PartID)))/rotPosY
+  NewVelo(2) = rotVelY
+  NewVelo(3) = rotVelZ
+  rotVelY = (PartState(2,PartID)*(LastPartPos(2,PartID))+PartState(3,PartID)*LastPartPos(3,PartID))/rotPosY
+  rotVelZ = (-PartState(2,PartID)*LastPartPos(3,PartID)+PartState(3,PartID)*(LastPartPos(2,PartID)))/rotPosY
+  PartState(2,PartID) = rotVelY
+  PartState(3,PartID) = rotVelZ
+  LastPartPos(2,PartID) = rotPosY
+  LastPartPos(3,PartID) = 0.
 END IF ! Symmetry%Axisymmetric
 
 IF(Symmetry%Order.LT.3) THEN
@@ -536,7 +588,7 @@ ELSE
 END IF
 
 IF(ABS(TrackInfo%lengthPartTrajectory).GT.0.) TrackInfo%PartTrajectory=TrackInfo%PartTrajectory/TrackInfo%lengthPartTrajectory
-
+TrackInfo%alpha = 0.
 #if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
 #endif
