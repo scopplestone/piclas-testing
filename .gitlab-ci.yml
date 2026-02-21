@@ -95,6 +95,11 @@ before_script:
       module purge || true;
       module load  cmake/4.1.2  gcc/14.2.0  mpich/4.3.1/gcc/14.2.0        hdf5/1.14.6/gcc/14.2.0/mpich/4.3.1        hopr/master/gcc/14.2.0/mpich/4.3.1/hdf5/1.14.6        petsc/3.22.5/gcc/14.2.0/mpich/4.3.1 || true;
     fi
+  - if [ -n "${DO_OPENMPI}" ]; then
+      echo "DO_OPENMPI activated. Loading OpenMPI.";
+      module purge || true;
+      module load  cmake/4.1.2  gcc/14.2.0  openmpi/5.0.8/gcc/14.2.0      hdf5/1.14.6/gcc/14.2.0/openmpi/5.0.8      hopr/master/gcc/14.2.0/openmpi/5.0.8/hdf5/1.14.6      petsc/3.22.5/gcc/14.2.0/openmpi/5.0.8 || true;
+    fi
   - if [ -n "${DO_MPICH}" ]; then
       echo "DO_MPICH activated. Loading MPICH.";
       module purge || true;
