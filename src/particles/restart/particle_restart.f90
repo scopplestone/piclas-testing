@@ -1070,6 +1070,7 @@ END IF
 
 END SUBROUTINE CatalyticRestart
 
+
 SUBROUTINE MacroscopicRestart()
 !===================================================================================================================================
 !> Read-in of the element data from a DSMC state and insertion of particles based on the macroscopic values
@@ -1084,6 +1085,7 @@ USE MOD_Restart_Vars  ,ONLY: MacroRestartFileName, MacroRestartValues
 USE MOD_Mesh_Vars     ,ONLY: offsetElem, nElems
 USE MOD_Particle_Vars ,ONLY: nSpecies
 USE MOD_Macro_Restart ,ONLY: MacroRestart_InsertParticles
+USE MOD_HDF5_Input    ,ONLY: PyHOPECompatibilityCheck
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1092,14 +1094,17 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: nVar_HDF5, iVar, iSpec, iElem
-REAL, ALLOCATABLE                 :: ElemData_HDF5(:,:)
-CHARACTER(LEN=255)                :: File_Type
+INTEGER            :: nVar_HDF5, iVar, iSpec, iElem
+REAL, ALLOCATABLE  :: ElemData_HDF5(:,:)
+CHARACTER(LEN=255) :: File_Type
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,*) 'Using macroscopic values from file: ',TRIM(MacroRestartFileName)
 
 CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
+
+! Check PyHOPE versions in restart.h5 file
+CALL PyHOPECompatibilityCheck(File_ID,'macroscopic restart')
 
 ! Check if the provided file is a DSMC state file.
 CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)

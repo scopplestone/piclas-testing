@@ -325,43 +325,48 @@ WRITE(UNIT_stdOut,'(A)',ADVANCE='YES')'DONE'
 END SUBROUTINE RemoveHDF5
 
 
-SUBROUTINE WriteHDF5Header(FileType_in,File_ID)
+SUBROUTINE WriteHDF5Header(FileType_in,Loc_ID)
 !===================================================================================================================================
 ! Subroutine to write a distinct file header to each HDF5 file
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars ,ONLY: ProgramName,FileVersionReal,FileVersionInt,ProjectName,PiclasVersionStr
 USE MOD_Globals_Vars ,ONLY: MajorVersion,MinorVersion,PatchVersion
+USE MOD_Mesh_Vars    ,ONLY: MeshVersion
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)              :: FileType_in
-INTEGER(HID_T),INTENT(IN)                :: File_ID
+INTEGER(HID_T),INTENT(IN)                :: Loc_ID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)                       :: tmp255
 !===================================================================================================================================
-! Write a small file header to identify a Flexi HDF5 files
-! Attributes are program name, file type identifier, project name and version number
-
-!===================================================================================================================================
-! Write a small file header to identify a Flexi HDF5 files
+! Write PyHOPE version
+IF (MeshVersion%PyHOPEVersionMajor.GE.0) THEN ! PyHOPE mesh
+  CALL WriteAttributeToHDF5(Loc_ID,'PyHOPEVersionMajor',1,IntegerScalar=MeshVersion%PyHOPEVersionMajor)
+  CALL WriteAttributeToHDF5(Loc_ID,'PyHOPEVersionMinor',1,IntegerScalar=MeshVersion%PyHOPEVersionMinor)
+  CALL WriteAttributeToHDF5(Loc_ID,'PyHOPEVersionPatch',1,IntegerScalar=MeshVersion%PyHOPEVersionPatch)
+END IF ! MeshVersion%PyHOPEVersionMajor.GE.0
 
 ! First write program name
 tmp255=TRIM(ProgramName)
-CALL WriteAttributeToHDF5(File_ID,'Program'     ,1,StrScalar=(/tmp255/))
+CALL WriteAttributeToHDF5(Loc_ID,'Program'     ,1,StrScalar=(/tmp255/))
 tmp255=TRIM(FileType_in)
-CALL WriteAttributeToHDF5(File_ID,'File_Type'   ,1,StrScalar=(/tmp255/))
+CALL WriteAttributeToHDF5(Loc_ID,'File_Type'   ,1,StrScalar=(/tmp255/))
 tmp255=TRIM(ProjectName)
-CALL WriteAttributeToHDF5(File_ID,'Project_Name',1,StrScalar=(/tmp255/))
-CALL WriteAttributeToHDF5(File_ID,'File_Version',1,RealScalar=FileVersionReal)
+CALL WriteAttributeToHDF5(Loc_ID,'Project_Name',1,StrScalar=(/tmp255/))
+CALL WriteAttributeToHDF5(Loc_ID,'File_Version',1,RealScalar=FileVersionReal)
 WRITE(UNIT=PiclasVersionStr,FMT='(I0,A1,I0,A1,I0)') MajorVersion,".",MinorVersion,".",PatchVersion
 tmp255=TRIM(PiclasVersionStr)
-CALL WriteAttributeToHDF5(File_ID,'Piclas_Version',1,StrScalar=(/tmp255/))
-CALL WriteAttributeToHDF5(File_ID,'Piclas_VersionInt',1,IntegerScalar=FileVersionInt)
+CALL WriteAttributeToHDF5(Loc_ID,'Piclas_Version',1,StrScalar=(/tmp255/))
+CALL WriteAttributeToHDF5(Loc_ID,'Piclas_VersionInt',1,IntegerScalar=FileVersionInt)
+CALL WriteAttributeToHDF5(Loc_ID,'Piclas_VersionMajor',1,IntegerScalar=MajorVersion)
+CALL WriteAttributeToHDF5(Loc_ID,'Piclas_VersionMinor',1,IntegerScalar=MinorVersion)
+CALL WriteAttributeToHDF5(Loc_ID,'Piclas_VersionPatch',1,IntegerScalar=PatchVersion)
 END SUBROUTINE WriteHDF5Header
 
 

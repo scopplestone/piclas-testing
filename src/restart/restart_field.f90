@@ -24,23 +24,15 @@ MODULE MOD_Restart_Field
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-
-!#if USE_LOADBALANCE
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-INTERFACE FieldRestart
-  MODULE PROCEDURE FieldRestart
-END INTERFACE
-
 PUBLIC :: FieldRestart
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
-!#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
 CONTAINS
 
 
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-!#if USE_LOADBALANCE
 SUBROUTINE FieldRestart()
 !===================================================================================================================================
 ! routine performing the field restart
@@ -128,6 +120,7 @@ USE MOD_DistFunc               ,ONLY: GradDistribution
 USE MOD_Equation_Vars_FV       ,ONLY: DVMSpecData, DVMnSpecies, DVMnMacro, DVMnSpecTot
 #endif /*DVM*/
 USE MOD_Mesh_Vars              ,ONLY: nElems,OffsetElem
+USE MOD_HDF5_Input             ,ONLY: PyHOPECompatibilityCheck
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -565,10 +558,9 @@ ELSE ! Normal restart
   ELSE ! Use the solution in the restart file
     SWRITE(UNIT_stdOut,*)'Restarting from File: ',TRIM(RestartFile)
     CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
-    ! Read in time from restart file
-    !CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
+    ! Check PyHOPE versions in restart.h5 file
+    CALL PyHOPECompatibilityCheck(File_ID,'field restart')
     ! Read in state
-
 #if !(PP_TimeDiscMethod==700)
     ! TODO: Do we need this for the HDG solver? It seems so .... For the iterative solver to start with the optimal solution?
     CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
@@ -1052,7 +1044,6 @@ DEALLOCATE(ElemData)
 
 END SUBROUTINE GetNlocFromElemDataFromHDF5
 #endif /*!(PP_TimeDiscMethod==700)*/
-!#endif /*USE_LOADBALANCE*/
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 END MODULE MOD_Restart_Field

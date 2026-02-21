@@ -50,7 +50,13 @@ LOGICAL                         :: GetMeshMinMaxBoundariesIsDone !< don't call t
 REAL,ALLOCATABLE,DIMENSION(:,:) :: ElemBaryNGeo                  !< element local basis: origin
 
 
+TYPE tFileVersion
+  INTEGER                      :: PyHOPEVersionMajor !< Major version of PyHOPE, e.g., 0
+  INTEGER                      :: PyHOPEVersionMinor !< Minor version of PyHOPE, e.g., 9
+  INTEGER                      :: PyHOPEVersionPatch !< Patch version of PyHOPE, e.g., 0
+END TYPE tFileVersion
 
+TYPE(tFileVersion) :: MeshVersion
 
 
 TYPE, PUBLIC :: Mesh
