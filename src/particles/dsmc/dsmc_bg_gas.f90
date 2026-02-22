@@ -129,6 +129,12 @@ DO iSpec = 1, nSpecies
   END IF
 END DO
 
+IF(BGGas%NumberOfSpecies.GT.1) THEN
+  DO iSpec = 1, nSpecies
+    IF(ANY(Species(iSpec)%Init(:)%ParticleEmissionType.EQ.7)) CALL abort(__STAMP__, 'ERROR: Photo-ionization through species emission and multi-species background gas is not implemented yet!')
+  END DO
+END IF
+
 IF(DoMacroscopicRestart) CALL abort(__STAMP__, 'Constant background gas and macroscopic restart are not compatible!')
 
 ! 2.) Allocation
