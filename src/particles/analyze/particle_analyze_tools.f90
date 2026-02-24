@@ -2846,6 +2846,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER              :: iSpec,iSpec2,Nloc
 INTEGER              :: iElem,i,j,k,iPart
+LOGICAL              :: doParticle(1:PDM%ParticleVecLength)
 !===================================================================================================================================
 
 iSpec2=0
@@ -2855,22 +2856,23 @@ END DO !iElem = 1, nElems
 DO iSpec=1,nSpecies
   IF(.NOT.DoPowerDensity(iSpec)) CYCLE
   iSpec2=iSpec2+1
-  IF(PartLorentzType.EQ.5) THEN
-    ! map particle from gamma v to v
+  ! Select particles of considered species
+  DoParticle(:)=.FALSE.
   DO iPart=1,PDM%ParticleVecLength
-      IF(PDM%ParticleInside(iPart)) CYCLE
-      IF(PartSpecies(iPart).NE.iSpec) CYCLE
-      CALL GammaVeloToPartVelo(iPart)
-    END DO ! iPart
-      END IF
+    IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+    IF(PartSpecies(iPart).NE.iSpec) CYCLE
+    DoParticle(iPart)=.TRUE.
+    ! map particle from gamma v to v
+    IF(PartLorentzType.EQ.5) CALL GammaVeloToPartVelo(iPart)
+  END DO ! iPart
 
   ! compute particle source terms on field solver of considered species
-  CALL Deposition()
+  CALL Deposition(doParticle_In=DoParticle(1:PDM%ParticleVecLength))
 
   IF(PartLorentzType.EQ.5) THEN
     ! map particle from v to v gamma
     DO iPart=1,PDM%ParticleVecLength
-      IF(PDM%ParticleInside(iPart)) CYCLE
+      IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
       IF(PartSpecies(iPart).NE.iSpec) CYCLE
       CALL PartVeloToGammaVelo(iPart)
     END DO ! iPart
