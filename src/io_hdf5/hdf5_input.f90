@@ -856,9 +856,9 @@ END IF ! PyHOPEVersionMajorExists
 ! hopr   | hopr      | allowed
 ! -----------------------------------
 IF (MeshVersion%PyHOPEVersionMajor.GE.0) THEN ! PyHOPE mesh
-  IF (FileVersion%PyHOPEVersionMajor.LT.0) CALL abort(__STAMP__,' PyHOPE mesh file + HOPR '//TRIM(FileType)//' file not allowed!')
+  IF (FileVersion%PyHOPEVersionMajor.LT.0) CALL CollectiveStop(__STAMP__,' PyHOPE mesh file + HOPR '//TRIM(FileType)//' file not allowed!')
 ELSE IF (FileVersion%PyHOPEVersionMajor.GE.0) THEN ! PyHOPE restart file
-  IF (MeshVersion%PyHOPEVersionMajor.LT.0) CALL abort(__STAMP__,' PyHOPE '//TRIM(FileType)//' file + HOPR mesh file not allowed!')
+  IF (MeshVersion%PyHOPEVersionMajor.LT.0) CALL CollectiveStop(__STAMP__,' PyHOPE '//TRIM(FileType)//' file + HOPR mesh file not allowed!')
 END IF ! MeshVersion%PyHOPEVersionMajor.GE.0
 END SUBROUTINE PyHOPECompatibilityCheck
 

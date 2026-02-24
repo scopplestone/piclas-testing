@@ -31,7 +31,7 @@
 
     Part-Species2-Init2-SpaceIC = 2D_Liu2010_neutralization_Szabo
 
-- Output of particle flux, total electric current and emitted SEE over time into SurfaceAnalyze.csv for particle boundaries 1,2 and 3via
+- Output of particle flux, total electric current and emitted SEE over time into SurfaceAnalyze.csv for particle boundaries 1,2 and 3 via
 
     CalcBoundaryParticleOutput = T
     BPO-NPartBoundaries        = 3         ! Nbr of boundaries
