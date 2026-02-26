@@ -896,7 +896,7 @@ run_build_petsc_in_piclas:
   <<: *defaults_poisson_build_petsc_lib
   stage: reggie_weekly
   script:
-    - cd build_petsc_lib ; reggie ../regressioncheck/NIG_poisson_PETSC -e ./bin/piclas
+    - cd build_petsc_lib ; reggie ../regressioncheck/WEK_poisson_PETSC -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
@@ -1130,19 +1130,17 @@ NIG_convtest_t_poisson:
   script:
     - cd build ;  reggie ../regressioncheck/NIG_convtest_t_poisson
 
-# TODO: Re-name/structure NIG_convtest_poisson_Release to WEK_convtest_poisson_Release in branch feature.p.adaption
-NIG_convtest_poisson_Release:
+WEK_convtest_poisson_Release:
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build ;  reggie ../regressioncheck/NIG_convtest_poisson
+    - cd build ;  reggie ../regressioncheck/WEK_convtest_poisson
 
-# TODO: Re-name/structure NIG_convtest_poisson_Debug to WEK_convtest_poisson_Debug in branch feature.p.adaption
-NIG_convtest_poisson_Debug: # This uses the same reggie as /NIG_convtest_poisson but compile everything with CMAKE_BUILD_TYPE = Debug
+WEK_convtest_poisson_Debug: # This uses the same reggie as WEK_convtest_poisson but compile everything with CMAKE_BUILD_TYPE = Debug
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build ;  reggie -t Debug ../regressioncheck/NIG_convtest_poisson
+    - cd build ;  reggie -t Debug ../regressioncheck/WEK_convtest_poisson
 
 NIG_PIC_poisson_RK3:
   <<: *defaults_nightly
@@ -1150,12 +1148,11 @@ NIG_PIC_poisson_RK3:
   script:
     - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_RK3/
 
-# TODO: Re-name/structure NIG_PIC_poisson_Boris-Leapfrog to WEK_PIC_poisson_Boris-Leapfrog in branch feature.p.adaption
-NIG_PIC_poisson_Boris-Leapfrog:
+WEK_PIC_poisson_Boris-Leapfrog:
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_Boris-Leapfrog/
+    - cd build ; reggie ../regressioncheck/WEK_PIC_poisson_Boris-Leapfrog/
 
 NIG_PIC_poisson_Leapfrog_Release:
   <<: *defaults_nightly
@@ -1188,12 +1185,11 @@ NIG_poisson:
   script:
     - cd build ; reggie ../regressioncheck/NIG_poisson/
 
-# TODO: Re-name/structure NIG_poisson_PETSC-Leapfrog to WEK_poisson_PETSC-Leapfrog in branch feature.p.adaption
-NIG_poisson_PETSC:
+WEK_poisson_PETSC:
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build ; reggie ../regressioncheck/NIG_poisson_PETSC/
+    - cd build ; reggie ../regressioncheck/WEK_poisson_PETSC/
 
 NIG_maxwell_RK4:
   <<: *defaults_nightly
