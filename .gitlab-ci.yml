@@ -42,6 +42,7 @@ workflow:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Load modules on new boltzplatz reggie
 before_script:
+  - source venv/bin/activate || true
   - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
   - export MESHESDIR=True
   - ulimit -s unlimited
@@ -88,11 +89,16 @@ before_script:
   - if [ "$((10#$day % 2))" == "0" ]; then
       echo "Even day number ($day). Loading OpenMPI";
       module purge || true;
-      module load  cmake/4.1.2  gcc/14.2.0  openmpi/5.0.8/gcc/14.2.0      hdf5/1.14.6/gcc/14.2.0/openmpi/5.0.8      hopr/master/gcc/14.2.0/openmpi/5.0.8/hdf5/1.14.6      petsc/3.22.5/gcc/14.2.0/openmpi/5.0.8 || true;
+      module load  cmake/4.1.2  gcc/14.2.0  openmpi/5.0.9/gcc/14.2.0      hdf5/1.14.6/gcc/14.2.0/openmpi/5.0.9      hopr/master/gcc/14.2.0/openmpi/5.0.9/hdf5/1.14.6      petsc/3.22.5/gcc/14.2.0/openmpi/5.0.9 || true;
     else
       echo "Odd day number ($day). Loading MPICH";
       module purge || true;
       module load  cmake/4.1.2  gcc/14.2.0  mpich/4.3.1/gcc/14.2.0        hdf5/1.14.6/gcc/14.2.0/mpich/4.3.1        hopr/master/gcc/14.2.0/mpich/4.3.1/hdf5/1.14.6        petsc/3.22.5/gcc/14.2.0/mpich/4.3.1 || true;
+    fi
+  - if [ -n "${DO_OPENMPI}" ]; then
+      echo "DO_OPENMPI activated. Loading OpenMPI.";
+      module purge || true;
+      module load  cmake/4.1.2  gcc/14.2.0  openmpi/5.0.9/gcc/14.2.0      hdf5/1.14.6/gcc/14.2.0/openmpi/5.0.9      hopr/master/gcc/14.2.0/openmpi/5.0.9/hdf5/1.14.6      petsc/3.22.5/gcc/14.2.0/openmpi/5.0.9 || true;
     fi
   - if [ -n "${DO_MPICH}" ]; then
       echo "DO_MPICH activated. Loading MPICH.";
@@ -186,9 +192,12 @@ stages:
   <<: *default_build_param
   allow_failure: true
 
-.reggie_cache: &reggie_cache
-  key: "reggie"
-  paths: [reggie]
+.venv_cache: &venv_cache
+  key: "venv"
+  paths:
+    - venv
+    - reggie
+    - pyhope
   policy: pull
 
 .coverage_cache: &coverage_cache
@@ -205,7 +214,7 @@ stages:
   artifacts:
     paths: [build]
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}"
       paths: [build]
       policy: pull
@@ -235,7 +244,7 @@ stages:
   artifacts:
     paths: [build_maxwell_only]
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-MAX"
       paths: [build_maxwell_only]
       policy: pull
@@ -256,7 +265,7 @@ stages:
       - build_poisson_debug_RK3
       - build_poisson_debug_Leapfrog
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI"
       paths:
         - build_poisson_release_RK3
@@ -291,7 +300,7 @@ stages:
     paths:
       - build_drift_diffusion
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DD"
       paths:
         - build_drift_diffusion
@@ -323,7 +332,7 @@ stages:
     paths:
       - build_DVM
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DVM"
       paths:
         - build_DVM
@@ -355,7 +364,7 @@ stages:
     paths:
       - build_DVM_plasma
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DVM_plasma"
       paths:
         - build_DVM_plasma
@@ -390,7 +399,7 @@ stages:
       - build_poisson_petsc_debug_RK3
       - build_poisson_petsc_debug_Leapfrog
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI-PETSC"
       paths:
         - build_poisson_petsc_release_RK3
@@ -423,7 +432,7 @@ stages:
     paths:
       - build_petsc_lib
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-BUILD-PETSC"
       paths:
         - build_petsc_lib
@@ -444,7 +453,7 @@ stages:
       - build_DSMC_N1
       - build_radiation
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"
       paths:
         - build_DSMC_release
@@ -489,17 +498,61 @@ cleanup:
 # Stage "build": Build on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 
+venv_create:
+  extends: .default_build_param
+  cache:
+    - key: "venv"
+      paths: [venv]
+      policy: pull-push
+  stage: build
+  script:
+    - deactivate || true
+    - rm -rf venv
+    - python3 -m venv venv
+    - source venv/bin/activate
+    - python3 -m ensurepip
+    - python3 -m pip install uv
+    - uv pip install --upgrade setuptools wheel
+    - uv pip install --upgrade pytest pytest-cov
+
+pyhope_download:
+  extends: .default_build_param
+  needs: [venv_create]
+  cache:
+    - key: "venv"
+      paths:
+        - venv
+        - pyhope
+        - reggie
+      policy: pull-push
+  stage: build
+  script:
+    - source venv/bin/activate
+    # PyHOPE needs NRG Gmsh, pre-install it
+    - uv pip install https://gitlab.iag.uni-stuttgart.de/libs/python-gmsh/-/raw/master/gmsh-4.14.0.post1-py3-none-linux_x86_64.whl
+    # Install PyHOPE
+    # - uv pip install --upgrade pyhope
+    - PYHOPEBRANCH=main ;  # default: main
+    - git clone --single-branch --branch ${PYHOPEBRANCH} git@github.com:hopr-framework/PyHOPE pyhope
+    - if [ -d "pyhope" ]; then cd pyhope ; uv pip install -e . --upgrade ; cd .. ; fi ;
+    - cd ..
+    - pyhope --version
+
 reggie_download:
   extends: .default_build_param
+  needs: [pyhope_download]
   # rules:
     # Overwrite the rules from default_build_param to ensure that reggie is available when the appimages are tested
     # - when: on_success
   artifacts:
     paths: [reggie]
   cache:
-    - key: "reggie"
-      paths: [reggie]
-      policy: push
+    - key: "venv"
+      paths:
+        - venv
+        - pyhope
+        - reggie
+      policy: pull-push
     - *coverage_cache
   stage: build
   script:
@@ -511,8 +564,9 @@ reggie_download:
     - if [ ! -d "reggie/.git" ]; then
         if [ -f "reggie/.day" ]; then mv reggie/.day .; fi ;
         if [ -d "reggie" ]; then rm -rf reggie ; fi ;
-        git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
-        if [ -d "reggie" ]; then cd reggie ; pip install -e . --break-system-packages ; cd .. ; fi ;
+        REGGIEBRANCH=master ;
+        git clone --single-branch --branch ${REGGIEBRANCH} git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
+        if [ -d "reggie" ]; source venv/bin/activate ; then cd reggie ; uv pip install -e . ; cd .. ; fi ;
         if [ -f ".day" ]; then mv .day reggie/. ; fi ;
       fi
     # Test reggie installation
@@ -527,7 +581,7 @@ build:
   artifacts:
     paths: [build]
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}"
       paths: [build]
       policy: push
@@ -542,7 +596,7 @@ build_maxwell_only:
   artifacts:
     paths: [build_maxwell_only]
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-MAX"
       paths: [build_maxwell_only]
       policy: push
@@ -565,7 +619,7 @@ build_poisson:
       - build_poisson_debug_RK3
       - build_poisson_debug_Leapfrog
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI"
       paths:
         - build_poisson_release_RK3
@@ -613,7 +667,7 @@ build_poisson_petsc:
       - build_poisson_petsc_debug_RK3
       - build_poisson_petsc_debug_Leapfrog
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI-PETSC"
       paths:
         - build_poisson_petsc_release_RK3
@@ -650,7 +704,7 @@ build_DSMC:
       - build_DSMC_N1
       - build_radiation
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"
       paths:
         - build_DSMC_release
@@ -686,7 +740,7 @@ build_drift_diffusion:
   artifacts:
     paths: [build_drift_diffusion]
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DD"
       paths: [build_drift_diffusion]
       policy: push
@@ -705,7 +759,7 @@ build_DVM:
   artifacts:
     paths: [build_DVM]
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DVM"
       paths: [build_DVM]
       policy: push
@@ -714,13 +768,35 @@ build_DVM:
     - mkdir -p build_DVM ; cd build_DVM
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=ED-DVM -DPICLAS_PARTICLES=OFF; $GENERATOR -j $NCORES all
 
+# build_hopr:
+#   extends: .default_build_param
+#   artifacts:
+#     paths: [hopr]
+#   cache:
+#     - *reggie_cache
+#   stage: build_weekly
+#   script:
+#     - git clone https://github.com/hopr-framework/hopr.git hopr;
+#     - cd hopr ; mkdir -p build ; cd build;
+#     - echo `pwd`
+#     - cmake .. -DLIBS_BUILD_HDF5=OFF
+#     - echo $GENERATOR
+#     - echo $NCORES
+#     - $GENERATOR -j $NCORES all
+#     - ls bin/hopr
+#     #- $GENERATOR -j $NCORES all &> output.txt;
+#     #- tail -n 20 output.txt;
+#     #- rm output.txt;
+#   rules:
+#     - if: '$DO_WEEKLY'
+
 build_DVM_plasma:
   extends: .default_build_param
   needs: [reggie_download]
   artifacts:
     paths: [build_DVM_plasma]
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DVM_plasma"
       paths: [build_DVM_plasma]
       policy: push
@@ -729,49 +805,27 @@ build_DVM_plasma:
     - mkdir -p build_DVM_plasma ; cd build_DVM_plasma
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=PLOESMA -DPICLAS_PARTICLES=OFF -DLIBS_USE_PETSC=ON; $GENERATOR -j $NCORES all
 
-build_hopr:
-  extends: .default_build_param
-  artifacts:
-    paths: [hopr]
-  cache:
-    - *reggie_cache
-  stage: build_weekly
-  script:
-    - git clone https://github.com/hopr-framework/hopr.git hopr;
-    - cd hopr ; mkdir -p build ; cd build;
-    - echo `pwd`
-    - cmake .. -DLIBS_BUILD_HDF5=OFF
-    - echo $GENERATOR
-    - echo $NCORES
-    - $GENERATOR -j $NCORES all
-    - ls bin/hopr
-    #- $GENERATOR -j $NCORES all &> output.txt;
-    #- tail -n 20 output.txt;
-    #- rm output.txt;
-  rules:
-    - if: '$DO_WEEKLY'
-
-build_hopr_in_piclas:
-  tags: [withmodules-concurrent]
-  needs: [reggie_download]
-  cache:
-    <<: *reggie_cache
-  stage: build_weekly
-  script:
-    - mkdir -p build_hopr_lib ; cd build_hopr_lib
-    - reggie ../regressioncheck/WEK_HOPR
-  rules:
-    #- if: '$DO_CORE_SPLIT'
-      #when: never
-    #- if: '$DO_NODE_SPLIT'
-      #when: never
-    - if: '$DO_WEEKLY'
+# build_hopr_in_piclas:
+#   tags: [withmodules-concurrent]
+#   needs: [reggie_download]
+#   cache:
+#     <<: *reggie_cache
+#   stage: build_weekly
+#   script:
+#     - mkdir -p build_hopr_lib ; cd build_hopr_lib
+#     - reggie ../regressioncheck/WEK_HOPR
+#   rules:
+#     #- if: '$DO_CORE_SPLIT'
+#       #when: never
+#     #- if: '$DO_NODE_SPLIT'
+#       #when: never
+#     - if: '$DO_WEEKLY'
 
 build_no_git:
   tags: [withmodules-concurrent]
   stage: build_weekly
   cache:
-    <<: *reggie_cache
+    <<: *venv_cache
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME without git"
     - git clone --depth=1 --branch=$CI_COMMIT_REF_NAME git@piclas.boltzplatz.eu:piclas/piclas.git piclas-no-git
@@ -786,7 +840,7 @@ build_outside_repository:
   tags: [withmodules-concurrent]
   stage: build_weekly
   cache:
-    <<: *reggie_cache
+    <<: *venv_cache
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME outside the piclas directory/repository"
     - REPOPATH=$(echo `pwd`)
@@ -802,7 +856,7 @@ build_no_git_libs:
   tags: [withmodules-concurrent]
   stage: build_weekly
   cache:
-    <<: *reggie_cache
+    <<: *venv_cache
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME without git but with external libs"
     - git clone --depth=1 --branch=$CI_COMMIT_REF_NAME git@piclas.boltzplatz.eu:piclas/piclas.git piclas-no-git-but-libs
@@ -824,7 +878,7 @@ build_petsc_in_piclas:
     paths:
       - build_petsc_lib
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-BUILD-PETSC"
       paths:
         - build_petsc_lib
@@ -1474,7 +1528,7 @@ WEK_Radiation:
     paths:
       - build_DSMC_release_WEK_DSMC_Radiation
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"
       paths: [build_radiation]
       policy: pull
@@ -1789,6 +1843,7 @@ documentation:
   extends: .default_build_param
   stage: build
   script:
+    - deactivate || true
     - cd docs/documentation
     - python3 -m pip install --exists-action=w --no-cache-dir -r requirements.txt --break-system-packages
     - python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html

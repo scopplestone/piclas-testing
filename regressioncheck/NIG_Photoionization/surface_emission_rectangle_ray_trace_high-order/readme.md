@@ -1,7 +1,7 @@
 # Photoionization: Surface Emission via SEE for ray tracing with high-order refinement
 * **Comparing**: RadiationSurfState.h5 and RadiationVolState.h5 with reference files, the total number of real electrons in the system with a numerical ref. solution
-+ hopr mesh is built on-the-fly
-  - 0.) single-core hopr run (pre-external)
++ pyhope mesh is built on-the-fly
+  - 0.) single-core pyhope run (pre-external)
 + Ray tracing model from which surface emission is calculated
   - 1.) reference files are created by single-core run (pre-external)
 * Particle emission due to secondary electron emission from a surface

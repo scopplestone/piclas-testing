@@ -68,12 +68,9 @@ developed code, the [reggie2.0](https://github.com/piclas-framework/reggie2.0) t
 
    Note that `-DLIBS_USE_PETSC=ON` has been adjusted in the above command.
    This will compile the *piclas* executable and it will be placed in the current directory under *bin*.
-   Important note: Some regression tests build the hopr meshes "on-the-fly", hence, the *hopr* executable is required additionally.
-   There are different possibilities to supply the *hopr* executable that is required:
-
-   1. Set the compile flag `LIBS_DOWNLOAD_HOPR=ON`, which automatically downloads the *hopr* executable and places a link under
-      *./bin* in the current build directory. This can be used if the *piclas* executable is compiled by hand.
-   1. Set the environment variable via `export HOPR_PATH=/path/to/hopr` to point to the *hopr* executable on the current system
+   Important note: Some regression tests build the **PyHOPE** meshes "on-the-fly", hence, the *pyhope* tool is required additionally.
+   **pyhope** needs to be pre-installed on the system and an installation guide can be found on
+   [GitHub - PyHOPE](https://github.com/hopr-framework/PyHOPE).
 
 1. Run the [reggie2.0](https://github.com/piclas-framework/reggie2.0) tool either a) automatic mode or b) pre-compiled mode:
 
@@ -311,7 +308,7 @@ which gives the expanded version of utilized `extends:` and `<<:` templates.
 
 When running `gitlab-ci-local` on a system with a module environment, it is neccessary to pass the local modules that are used for compiling
 ```
-DO_RUN_LOCAL="cmake/3.30.3   gcc/14.2.0   mpich/4.1.2/gcc/14.2.0    hdf5/1.14.0/gcc/14.2.0/mpich/4.1.2    hopr/master/gcc/14.2.0/mpich/4.1.2/hdf5/1.14.0    petsc/3.21.6/gcc/14.2.0/mpich/4.1.2"
+DO_RUN_LOCAL="cmake/3.30.3   gcc/14.2.0   mpich/4.1.2/gcc/14.2.0    hdf5/1.14.0/gcc/14.2.0/mpich/4.1.2    petsc/3.21.6/gcc/14.2.0/mpich/4.1.2"
 gitlab-ci-local --variable DO_RUN_LOCAL=$DO_RUN_LOCAL
 ```
 If multiple variables are required add them to the command
@@ -323,7 +320,7 @@ to envoke additional options of the pipeline.
 ### Example
 To run a specific reggie job, in this case a *weekly* reggie that depends on another job, the following parameters are passed
 ```
-DO_RUN_LOCAL="cmake/3.30.3   gcc/14.2.0   mpich/4.1.2/gcc/14.2.0    hdf5/1.14.0/gcc/14.2.0/mpich/4.1.2    hopr/master/gcc/14.2.0/mpich/4.1.2/hdf5/1.14.0    petsc/3.21.6/gcc/14.2.0/mpich/4.1.2"
+DO_RUN_LOCAL="cmake/3.30.3   gcc/14.2.0   mpich/4.1.2/gcc/14.2.0    hdf5/1.14.0/gcc/14.2.0/mpich/4.1.2    petsc/3.21.6/gcc/14.2.0/mpich/4.1.2"
 gitlab-ci-local --shell-isolation --needs WEK_Radiation --variable DO_RUN_LOCAL=$DO_RUN_LOCAL --variable DO_WEEKLY=T
 ```
 where the arguments are listed and explained in the following table

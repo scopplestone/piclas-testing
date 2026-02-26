@@ -151,6 +151,7 @@ USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_MPI*/
 USE MOD_Restart_Vars     ,ONLY: DoRestart
 USE MOD_Analyze_Vars     ,ONLY: DoSurfModelAnalyze
+USE MOD_StringTools      ,ONLY: LowCase
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -161,6 +162,7 @@ USE MOD_Analyze_Vars     ,ONLY: DoSurfModelAnalyze
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iInit
 CHARACTER(32)         :: hilf, hilf2, DefStr
+CHARACTER(255)        :: NeutralizationSourceLoc
 REAL                  :: MPFOld
 !===================================================================================================================================
 ALLOCATE(SpecReset(1:nSpecies))
@@ -338,6 +340,8 @@ DO iSpec = 1, nSpecies
          '3D_Liu2010_neutralization_Szabo')
       Species(iSpec)%Init(iInit)%ParticleEmissionType = 9
       NeutralizationSource = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-NeutralizationSource'))
+      CALL LowCase(NeutralizationSource, NeutralizationSourceLoc)
+      NeutralizationSource = TRIM(NeutralizationSourceLoc)
       NeutralizationBalance = 0
       UseNeutralization = .TRUE.
       DoSurfModelAnalyze = .TRUE.
@@ -447,16 +451,14 @@ END IF
 
 #if drift_diffusion
 !-- Sanity check for drift-diffusion electron fluid model
-IF(.NOT.ANY(BGGas%BackgroundSpecies)) CALL CollectiveStop(__STAMP__,&
-  'ERROR: The drift-diffusion electron fluid model requires at least one species to be of type SpaceIC=background')
+IF(.NOT.ANY(BGGas%BackgroundSpecies)) CALL CollectiveStop(__STAMP__,'ERROR: The drift-diffusion electron fluid model requires at least one species to be of type SpaceIC=background')
 #endif /*drift_diffusion*/
 
 IF(UseGranularSpecies) THEN
   IF(BGGas%NumberOfSpecies.GT.1) CALL CollectiveStop(__STAMP__,&
     'ERROR: Granular species works only with a maximum of 1 BGG species!')
   IF(BGGas%NumberOfSpecies.EQ.1) THEN
-    IF((.NOT.BGGas%UseDistribution).AND.(.NOT.BGGas%UseRegions)) CALL CollectiveStop(__STAMP__,&
-      'ERROR: Granular species works only with a background gas distribution or regions!')
+    IF((.NOT.BGGas%UseDistribution).AND.(.NOT.BGGas%UseRegions)) CALL CollectiveStop(__STAMP__,'ERROR: Granular species works only with a background gas distribution or regions!')
   END IF
 END IF
 
@@ -633,8 +635,7 @@ REAL                    :: factor
 !===================================================================================================================================
 Species(iSpec)%Init(iInit)%ParticleEmissionType = 7
 ! Abort if a background gas distribution is used (CalcPhotoIonizationNumber assumes a constant distribution)
-IF(BGGas%UseDistribution) CALL abort(__STAMP__,&
-  'ERROR: Photo-ionization and a background gas distribution is not implemented yet!')
+IF(BGGas%UseDistribution) CALL abort(__STAMP__,'ERROR: Photo-ionization and a background gas distribution is not implemented yet!')
 ! Check coordinate system of normal vector and two tangential vectors (they must form an orthogonal basis)
 ASSOCIATE( n1 => UNITVECTOR(Species(iSpec)%Init(iInit)%NormalIC)      ,&
            n2 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC) ,&
@@ -645,8 +646,7 @@ ASSOCIATE( n1 => UNITVECTOR(Species(iSpec)%Init(iInit)%NormalIC)      ,&
       !,TRIM(hilf2)//': NormalIC and BaseVector1IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(n1,n2))
   !IF(DOT_PRODUCT(n1,n3).GT.1e-4) CALL abort(__STAMP__&
       !,TRIM(hilf2)//': NormalIC and BaseVector2IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(n1,n3))
-  IF(DOT_PRODUCT(n2,n3).GT.1e-4) CALL abort(__STAMP__&
-      ,TRIM(hilf2)//': BaseVector1IC and BaseVector2IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(n2,n3))
+  IF(DOT_PRODUCT(n2,n3).GT.1e-4) CALL abort(__STAMP__,TRIM(hilf2)//': BaseVector1IC and BaseVector2IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(n2,n3))
   ! Settings only for rectangle emission
   SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
   CASE('photon_SEE_rectangle','photon_rectangle')

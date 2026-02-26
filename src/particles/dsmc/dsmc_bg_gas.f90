@@ -1035,6 +1035,7 @@ USE MOD_DSMC_Vars        ,ONLY: BGGas
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+ USE MOD_HDF5_Input      ,ONLY: PyHOPECompatibilityCheck
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1051,6 +1052,10 @@ LBWRITE(UNIT_stdOut,*) 'BGGas distribution - Using macroscopic values from file:
 
 CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
+! Check PyHOPE versions in BGGasDistribution.h5 file
+CALL PyHOPECompatibilityCheck(File_ID,'BGGas distribution')
+
+! Check ElemData container size
 CALL GetDataSize(File_ID,'ElemData',nDims,HSize,attrib=.FALSE.)
 nVarHDF5  = INT(HSize(1),4)
 IF(nVarHDF5.LT.10) CALL abort(__STAMP__,'ERROR in BGGas_ReadInDistribution: Number of variables in DSMCState is below 10. Something is wrong with the input file!')
