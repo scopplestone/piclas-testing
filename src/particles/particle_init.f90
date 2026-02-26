@@ -1082,9 +1082,7 @@ USE MOD_PreProc
 USE MOD_Particle_Vars       ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies
 USE MOD_Particle_Vars       ,ONLY: InitialIonizationChargeAverage,InitialIonizationSpeciesID,InitialIonizationSpecies
 USE MOD_Mesh_Vars           ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo,offsetElem
-USE MOD_DSMC_Vars           ,ONLY: CollisMode,DSMC,PartStateIntEn
 USE MOD_part_emission_tools ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_DSMC_Vars           ,ONLY: useDSMC
 USE MOD_Eval_xyz            ,ONLY: TensorProductInterpolation
 USE MOD_Part_Tools          ,ONLY: GetNextFreePosition
 #if USE_LOADBALANCE
@@ -1210,12 +1208,6 @@ DO iElem=1,PP_nElems
     CALL TensorProductInterpolation(PartPosRef(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem) &
                       ,PartState(1:3,ParticleIndexNbr)) !Map into phys. space
 
-    ! Set the internal energies (vb, rot and electronic) to zero if needed
-    IF ((useDSMC).AND.(CollisMode.GT.1)) THEN
-      PartStateIntEn(1,ParticleIndexNbr) = 0.
-      PartStateIntEn(2,ParticleIndexNbr) = 0.
-      IF (DSMC%ElectronicModel.GT.0)  PartStateIntEn(3,ParticleIndexNbr) = 0.
-    END IF
 
     ! Set the element ID of the electron to the current element ID
     PEM%GlobalElemID(ParticleIndexNbr) = iElem + offsetElem

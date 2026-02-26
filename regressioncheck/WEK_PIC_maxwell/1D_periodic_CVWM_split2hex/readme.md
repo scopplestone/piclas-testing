@@ -5,4 +5,4 @@
 - create restart + reference file in ./pre-piclas/parameter.ini with MPI=1 (single-core run)
   - restart from /pre-piclas/plasma_wave_State_000.00000000000000000.h5 using 1,2,...,30 cores
   - compare output with /pre-piclas/plasma_wave_State_000.00000000010000000.h5
-- split-to-hex grid with 768 hex elements
+- split-to-hex grid with 648 hex elements

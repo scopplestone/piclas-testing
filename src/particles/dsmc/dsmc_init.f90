@@ -415,14 +415,12 @@ END IF
 DSMC%ElectronicModel         = GETINT('Particles-DSMC-ElectronicModel')
 IF(SampleElecExcitation.AND.(DSMC%ElectronicModel.NE.3)) CALL CollectiveStop(__STAMP__,&
     'Part-SampleElectronicExcitation = T requires Particles-DSMC-ElectronicModel = 3')
+ALLOCATE(PartIntEn(PDM%maxParticleNumber))
 IF (DSMC%ElectronicModel.GT.0) THEN
-  ! Allocate internal energy array WITH electronic energy
-  ALLOCATE(PartStateIntEn(1:3,PDM%maxParticleNumber))
   ! Allocate model-specific variables
   SELECT CASE(DSMC%ElectronicModel)
     CASE(1) ! Model by Liechty, each particle has a specific electronic state
     CASE(2) ! Model by Burt, each particle has an electronic distribution function
-      IF(.NOT.ALLOCATED(ElectronicDistriPart)) ALLOCATE(ElectronicDistriPart(PDM%maxParticleNumber))
     CASE(3) ! MCC model, utilizing cross-section data for specific levels
       IF(SelectionProc.EQ.2) THEN
         CALL Abort(__STAMP__,'ERROR: Selected combination of -SelectionProcedure (2) and -ElectronicModel (3) not supported!')
@@ -430,15 +428,11 @@ IF (DSMC%ElectronicModel.GT.0) THEN
     CASE(4) ! Landau-Teller based model, relaxation of given distribution function
       ALLOCATE(ElecRelaxPart(1:PDM%maxParticleNumber))
       ElecRelaxPart = .TRUE.
+    CASE(5) ! Vibronic Model
     CASE DEFAULT
       CALL Abort(__STAMP__,'ERROR: Please select an electronic model between 1 and 4!')
   END SELECT
-ELSE
-  ! Allocate internal energy array WITHOUT electronic energy
-  ALLOCATE(PartStateIntEn(1:2,PDM%maxParticleNumber))
 ENDIF
-
-PartStateIntEn = 0. ! nullify
 
 DSMC%ElectronicModelDatabase = TRIM(GETSTR('Particles-DSMCElectronicDatabase','none'))
 IF (SpeciesDatabase.EQ.'none') THEN
@@ -1144,7 +1138,6 @@ ELSE !CollisMode.GT.0
         ! method is used (Gimelshein, SelectionProc = 2)
         CALL Abort(__STAMP__,'ERROR: No single-mode polyatomic relaxation possible with chosen selection procedure! SelectionProc:', SelectionProc)
       END IF
-      IF(.NOT.ALLOCATED(VibQuantsPar)) ALLOCATE(VibQuantsPar(PDM%maxParticleNumber))
       ALLOCATE(PolyatomMolDSMC(DSMC%NumPolyatomMolecs))
       DO iSpec = 1, nSpecies
         IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
@@ -1303,11 +1296,9 @@ ELSE !CollisMode.GT.0
     ! 3. Case: Temperature required for the mean free path with the VHS model
     ALLOCATE(DSMC%InstantTransTemp(nSpecies+1))
     DSMC%InstantTransTemp = 0.0
-    IF((DSMC%ElectronicModel.EQ.2).OR.useRelaxProbCorrFactor) THEN
+    IF (useRelaxProbCorrFactor.AND.(DSMC%ElectronicModel.EQ.1)) THEN
       ALLOCATE(DSMC%InstantTXiElec(2,nSpecies))
       DSMC%InstantTXiElec = 0.0
-    END IF
-    IF (useRelaxProbCorrFactor.AND.(DSMC%ElectronicModel.EQ.1)) THEN
       DO iSpec = 1, nSpecies
         ALLOCATE(SpecDSMC(iSpec)%ElecRelaxCorrectFac(nSpecies))
       END DO
@@ -2039,7 +2030,7 @@ SDEALLOCATE(DSMC%CalcVibProb)
 SDEALLOCATE(DSMC%CalcRotProb)
 SDEALLOCATE(DSMC%InstantTXiElec)
 SDEALLOCATE(SampDSMC)
-SDEALLOCATE(PartStateIntEn)
+SDEALLOCATE(PartIntEn)
 SDEALLOCATE(ElecRelaxPart)
 SDEALLOCATE(SpecDSMC)
 IF(DSMC%NumPolyatomMolecs.GT.0) THEN
@@ -2117,8 +2108,6 @@ SDEALLOCATE(CollInf%dref)
 SDEALLOCATE(CollInf%Tref)
 SDEALLOCATE(CollInf%OldCollPartner)
 CollInf%ProhibitDoubleColl=.FALSE.
-!SDEALLOCATE(VibQuantsPar)
-! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_Solution)
 SDEALLOCATE(DSMC_SolutionPressTens)
 CALL DeleteElemNodeVol()

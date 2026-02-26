@@ -29,7 +29,9 @@ PUBLIC :: DepositionMethod
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ABSTRACT INTERFACE
-  SUBROUTINE DepositionMethodInterface(stage_opt)
+  SUBROUTINE DepositionMethodInterface(doParticle_In, stage_opt)
+    USE MOD_Particle_Vars ,ONLY: PDM
+    LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! Marked particles for deposition
     INTEGER,INTENT(IN),OPTIONAL :: stage_opt ! TODO: definition of this variable
   END SUBROUTINE
 END INTERFACE
@@ -219,7 +221,7 @@ CALL DepositionMethod_CM()
 END SUBROUTINE InitDepositionMethod
 
 
-SUBROUTINE DepositionMethod_CVW(stage_opt)
+SUBROUTINE DepositionMethod_CVW(doParticle_In, stage_opt)
 !===================================================================================================================================
 ! 'cell_volweight'
 ! Linear charge density distribution within a cell (discontinuous across cell interfaces)
@@ -250,6 +252,7 @@ USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! Marked particles for deposition
 INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -290,7 +293,11 @@ END IF
 ALLOCATE(BGMSourceCellVol(SourceDim:4,0:1,0:1,0:1,1:nElems))
 BGMSourceCellVol(:,:,:,:,:) = 0.0
 DO iPart = 1,PDM%ParticleVecLength
-  IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+  IF(PRESENT(doParticle_In))THEN ! Used for selective deposition of particles in analyze tools
+    IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
+  ELSE
+    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+  END IF
   ! Don't deposit neutral particles!
   IF(.NOT.isDepositParticle(iPart)) CYCLE
   IF (usevMPF) THEN
@@ -370,7 +377,7 @@ iPart=stage_opt
 END SUBROUTINE DepositionMethod_CVW
 
 
-SUBROUTINE DepositionMethod_CVWM(stage_opt)
+SUBROUTINE DepositionMethod_CVWM(doParticle_In, stage_opt)
 !===================================================================================================================================
 ! 'cell_volweight_mean'
 ! Linear charge density distribution within a cell (continuous across cell interfaces)
@@ -410,6 +417,7 @@ USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! Marked particles for deposition
 INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -469,7 +477,11 @@ END DO
 
 ! Loop all particles and deposit their charge contribution
 DO iPart=1,PDM%ParticleVecLength
-  IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+  IF(PRESENT(doParticle_In))THEN ! Used for selective deposition of particles in analyze tools
+    IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
+  ELSE
+    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+  END IF
   IF (isDepositParticle(iPart)) THEN
     IF (usevMPF) THEN
       Charge = Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
@@ -744,7 +756,7 @@ iNode=stage_opt
 END SUBROUTINE DepositionMethod_CVWM
 
 
-SUBROUTINE DepositionMethod_CM(stage_opt)
+SUBROUTINE DepositionMethod_CM(doParticle_In, stage_opt)
 !===================================================================================================================================
 ! 'cell_mean'
 ! Constant charge density distribution within a cell (discontinuous across cell interfaces)
@@ -773,6 +785,7 @@ USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! Marked particles for deposition
 INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -808,7 +821,11 @@ END IF
 #endif
 
 DO iPart = 1,PDM%ParticleVecLength
-  IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+  IF(PRESENT(doParticle_In))THEN ! Used for selective deposition of particles in analyze tools
+    IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
+  ELSE
+    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+  END IF
   ! Don't deposit neutral particles!
   IF(.NOT.isDepositParticle(iPart)) CYCLE
   IF (usevMPF) THEN
@@ -848,7 +865,7 @@ iPart=stage_opt
 END SUBROUTINE DepositionMethod_CM
 
 
-SUBROUTINE DepositionMethod_SF(stage_opt)
+SUBROUTINE DepositionMethod_SF(doParticle_In, stage_opt)
 !===================================================================================================================================
 ! 'shape_function'
 ! Smooth polynomial deposition via "shape functions" of various order in 3D
@@ -879,6 +896,7 @@ USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBPauseTime
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! Marked particles for deposition
 INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -917,7 +935,11 @@ IF ((stage.EQ.0).OR.(stage.EQ.1)) THEN
 
   DO iPart=1,PDM%ParticleVecLength
     ! Check if particle is inside the domain
-    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+    IF(PRESENT(doParticle_In))THEN ! Used for selective deposition of particles in analyze tools
+      IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
+    ELSE
+      IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+    END IF
     ! Check if particle is to be deposited
     IF (.NOT.isDepositParticle(iPart)) CYCLE
     ! Calculate the charge of the particle

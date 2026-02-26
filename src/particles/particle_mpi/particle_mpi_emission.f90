@@ -55,6 +55,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_StringTools        ,ONLY: STRICMP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -237,8 +238,8 @@ DO iSpec=1,nSpecies
           BCID   = SideInfo_Shared(SIDE_BCID,iSide)
           ! Only check BC sides with BC index > 0
           IF(BCID.GT.0)THEN
-            ! Check if neutralization BC is found
-            IF(TRIM(BoundaryName(BCID)).EQ.TRIM(NeutralizationSource))THEN
+            ! Check if neutralization BC is found. Compare strings ignoring the capitalization
+            IF(STRICMP(BoundaryName(BCID), NeutralizationSource))THEN
               ! Add up the number of neutralization elems
               nNeutralizationElems = nNeutralizationElems + 1
               ! Flag element

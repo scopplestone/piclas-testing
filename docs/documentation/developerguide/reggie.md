@@ -123,6 +123,52 @@ developed code, the [reggie2.0](https://github.com/piclas-framework/reggie2.0) t
    An example is given under [regressioncheck/WEK_DSMC/ChannelFlow_SurfChem_AdsorpDesorp_CO_O2](https://github.com/piclas-framework/piclas/blob/master/regressioncheck/WEK_DSMC/ChannelFlow_SurfChem_AdsorpDesorp_CO_O2/analyze.ini)
    where *.h5* files are compared.
 
+## Compression of HDF5 reference files
+When creating .h5 reference files that are used for comparison in regression tests, it is very beneficial to compress these to a minimum
+before committing and pushing them to the git repository.
+Consider the following example with an `analysis.ini` file containing
+
+    ! hdf5 diff
+    h5diff_file            = TestRotatingWall_DSMCSurfState_000.00100000000000000.h5
+    h5diff_reference_file  = TestRotatingWall_DSMCSurfState_000.00100000000000000_reference.h5
+    h5diff_data_set        = SurfaceData
+    h5diff_tolerance_value = 40E-2
+    h5diff_tolerance_type  = relative
+    h5diff_var_attribute   = VarNamesSurface
+    h5diff_var_name        = Total_TorqueZ
+    h5diff_max_differences = 15
+
+where the only field in the .h5 file that is used for comparison in the regression test is `Total_TorqueZ`.
+Everything else in the file in not required for the reggie.
+As described in the previous section, most reggie analysis functions can be run with the argument `-z, --rc`, which copies a file
+resulting from a piclas simulation as reference file directly into the regression test directory to be used in future runs without
+the need for copying the file and renaming it by hand
+
+    reggie -iz ../regressioncheck/WEK_DSMC/Torque_Output
+
+which creates the file `TestRotatingWall_DSMCSurfState_000.00100000000000000_reference.h5` in the directory
+`/WEK_DSMC/Torque_Output`.
+The argument `-i` is only used to create the reference file from a single-core execution as the test later uses more processes, but
+the same result is obviously required.
+Additionally, unnecessary parts of the .h5 file can be removed if these are not required for the reggie analysis.
+This can be achieved by modifying the .h5 file directly with, e.g., [hdfview](https://www.hdfgroup.org/download-hdfview/).
+Open the reference file with [hdfview](https://www.hdfgroup.org/download-hdfview/), remove all datasets that are not needed and
+resize the dataset `SurfaceData` so that it only contains one single property, name `Total_TorqueZ`. If most of the options,
+when right-clicking on the dataset are not available, make sure to `Reload File As` -> `Read/Write` first.
+After saving the file to the disk, it is necessary to remove the occupied disk space of the deleted datasets via
+
+    h5repack -i original.h5 -o compressed.h5
+
+and
+
+    h5repack -v -f SHUF -f GZIP=9 original.h5 compressed-shuffled-GZIP9.h5
+    h5repack -v -f GZIP=9 original.h5 compressed-GZIP9.h5
+
+by trying both commands and using the smaller resulting .h5 file.
+[Note that shuffle by itself will do nothing to compress. It simply re-orders bytes in memory in hopes of making the resulting
+byte-stream easier to compress for something like GZIP than it would be able to do otherwise. This is because GZIP is a byte-level
+compressor. It doesn’t know about things like shorts or ints or doubles.](https://forum.hdfgroup.org/t/h5repack-gzip-1-slow/4283/5)
+
 ## Running GitLab *.gitlab-ci.yml* Tests
 
 The GitLab CI/CD tests can either be run *locally* or *remotely* and both methods are explained in the following.

@@ -941,7 +941,7 @@ END IF
 END SUBROUTINE InitAxisymmetrySF
 
 
-SUBROUTINE Deposition(stage_opt)
+SUBROUTINE Deposition(doParticle_In, stage_opt)
 !============================================================================================================================
 ! This subroutine performs the deposition of the particle charge and current density to the grid
 ! following list of distribution methods are implemented
@@ -970,6 +970,7 @@ USE MOD_TimeDisc_Vars         ,ONLY: time
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT variable declaration
+LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength) ! Marked particles for deposition
 INTEGER,INTENT(IN),OPTIONAL   :: stage_opt ! TODO: definition of this variable
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT variable declaration
@@ -1007,7 +1008,11 @@ IF((stage.EQ.0).OR.(stage.EQ.1))THEN
   END DO ! iElem = 1, nElems
 END IF
 
-CALL DepositionMethod(stage_opt=stage)
+IF(PRESENT(doParticle_In)) THEN
+  CALL DepositionMethod(doParticle_In, stage_opt=stage)
+ELSE
+  CALL DepositionMethod(stage_opt=stage)
+END IF
 
 IF((stage.EQ.0).OR.(stage.EQ.4)) THEN
   IF(MOD(iter,PartAnalyzeStep).EQ.0) THEN
