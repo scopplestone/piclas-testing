@@ -2834,6 +2834,8 @@ USE MOD_DG_Vars          ,ONLY: U_N
 #endif
 USE MOD_DG_Vars          ,ONLY: N_DG_Mapping
 USE MOD_Mesh_Vars        ,ONLY: offSetElem,nElems
+USE MOD_Particle_Analyze_Vars ,ONLY: DoVerifyCharge,PartAnalyzeStep
+USE MOD_TimeDisc_Vars         ,ONLY: iter
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -2867,7 +2869,7 @@ DO iSpec=1,nSpecies
   END DO ! iPart
 
   ! compute particle source terms on field solver of considered species
-  CALL Deposition(doParticle_In=DoParticle(1:PDM%ParticleVecLength))
+  CALL Deposition(doParticle_In=DoParticle(1:PDM%ParticleVecLength), skipVerifyCharge_opt = .TRUE.)
 
   IF(PartLorentzType.EQ.5) THEN
     ! map particle from v to v gamma
@@ -2909,6 +2911,12 @@ DO iSpec=1,nSpecies
     END DO ! k=0,Nloc
   END DO ! iElem=1,PP_nElems
 END DO
+
+! Fix PS_N(iElem)%PartSource(4,:,:,:) so that it contains all particles of all species if DoVerifyCharge=T
+! as it is required in VerifyDepositedCharge()
+IF(MOD(iter,PartAnalyzeStep).EQ.0) THEN
+  IF(DoVerifyCharge) CALL Deposition()
+END IF
 
 END SUBROUTINE CalcPowerDensity
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
