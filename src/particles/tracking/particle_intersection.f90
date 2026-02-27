@@ -386,7 +386,7 @@ END SUBROUTINE ParticleThroughSideCheck2D
 !===================================================================================================================================
 !> Routine to check whether a photon crossed the given side.
 !===================================================================================================================================
-SUBROUTINE ParticleThroughSideCheck2DRotSym(PartID, iLocSide,Element, SideID,ThroughSide)
+SUBROUTINE ParticleThroughSideCheck2DRotSym(PartID, iLocSide,Element, SideID,ThroughSide, Distance,LastInterCount)
 ! MODULES
 USE MOD_Globals             ,ONLY: abort
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemSideNodeID2D_Shared, NodeCoords_Shared, SideInfo_Shared
@@ -401,7 +401,8 @@ IMPLICIT NONE
 LOGICAL,INTENT(OUT)              :: ThroughSide
 INTEGER,INTENT(IN)               :: iLocSide, Element, SideID
 INTEGER,INTENT(IN)               :: PartID
-!REAL, INTENT(OUT)                :: IntersectionPos(3)
+REAL, INTENT(OUT)                :: Distance
+INTEGER, INTENT(OUT)             :: LastInterCount
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                          :: CNElemID
@@ -457,6 +458,7 @@ IF (sx .EQ. 0.0) THEN
       S = S1
     END IF
   END IF
+  LastInterCount = 0
 ELSE
   alpha = (xNode1 - x_pos_start) / sx
   beta = (xNode2 - xNode1) / sx
@@ -474,18 +476,33 @@ ELSE
   l1 = (-b + SQRT(tmpsqrt))/(2.*a)
   S1 = (xNode1-x_pos_start+(xNode2-xNode1)*l1)/sx
   l2 = (-b - SQRT(tmpsqrt))/(2.*a)
-  S2 = (xNode1-x_pos_start+(xNode2-xNode1)*l2)/sx
+  S2 = (xNode1-x_pos_start+(xNode2-xNode1)*l2)/sx 
 
-  IF ((l1.GT.0.0).AND.(l1.LT.1.0).AND.(S1.GT.0.0).AND.(S1.LT.TrackInfo%lengthPartTrajectory).AND. &
-    (l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0).AND.(S2.LT.TrackInfo%lengthPartTrajectory)) THEN
+  IF (((l1.GT.0.0).AND.(l1.LT.1.0).AND.(S1.GT.0.0).AND.(S1.LT.TrackInfo%lengthPartTrajectory).AND. &
+    (l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0).AND.(S2.LT.TrackInfo%lengthPartTrajectory)).OR.(TrackInfo%LastIntersectCount.GT.0)) THEN
     IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
       IF (S2.GT.S1) THEN
         l=l1; S=S1
       ELSE
         l=l2; S=S2
       END IF
+      LastInterCount=0
     ELSE
-      S = -1.; l=-1.
+      IF (TrackInfo%LastIntersectCount.EQ.0) THEN
+        IF (S2.GT.S1) THEN
+          l=l1; S=S1
+        ELSE
+          l=l2; S=S2
+        END IF  
+        LastInterCount=1
+      ELSE  
+        IF (S2.GT.S1) THEN
+          l=l2; S=S2
+        ELSE
+          l=l1; S=S1  
+        END IF      
+        LastInterCount=0        
+      END IF
     END IF
   ELSE
     IF ((l1.LE.0.0).OR.(l1.GE.1.0)) THEN !if 1 is not a valid intersection -> 2
@@ -505,12 +522,15 @@ ELSE
         END IF
       END IF
     END IF
+    LastInterCount = 0
   END IF
 END IF
 
 IF((S .GT. 0.0).AND.(S.LT.TrackInfo%lengthPartTrajectory) .AND. (0.0 .LE. l) .AND. (l .LE. 1.0).AND.(S.GT.TrackInfo%alpha)) THEN
   ThroughSide = .TRUE.
-  TrackInfo%alpha = S
+  Distance = S
+ELSE
+  LastInterCount=0
 END IF
 
 END SUBROUTINE ParticleThroughSideCheck2DRotSym
