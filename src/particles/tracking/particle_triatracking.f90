@@ -541,9 +541,11 @@ CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 IF (MeasureTrackTime) nTracks=nTracks+1
 PartisDone = .FALSE.
+TrackInfo%LastIntersectCount=0
 IF (PEM%LastGlobalElemID(i).LT.0) THEN
   TrackInfo%LastSide = -PEM%LastGlobalElemID(i)
   ElemID = PEM%GlobalElemID(i)
+  IF (Symmetry%AxisymmetricExact) TrackInfo%LastIntersectCount=2
 ELSE
   ElemID = PEM%LastGlobalElemID(i)
   TrackInfo%LastSide = 0
@@ -553,7 +555,6 @@ SideID = 0
 tmpDistance = 0.
 ! 1) Loop tracking until particle is considered "done" (either localized or deleted)
 TrackInfo%alpha=0.
-TrackInfo%LastIntersectCount=0
 TrackInfo%PartTrajectory(1:3)=PartState(1:3,i) - LastPartPos(1:3,i)
 TrackInfo%lengthPartTrajectory=VECNORM3D(TrackInfo%PartTrajectory(1:3))
 IF(ABS(TrackInfo%lengthPartTrajectory).GT.0.) TrackInfo%PartTrajectory = TrackInfo%PartTrajectory &

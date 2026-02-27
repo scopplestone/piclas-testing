@@ -411,7 +411,7 @@ REAL                             :: l1,S1,l2,S2,l,S
 REAL                             :: beta, alpha, deltay, a, b, c, tmpsqrt
 !===================================================================================================================================
 CNElemID = GetCNElemID(Element)
-
+Distance = 0.
 ! Sanity check
 IF(CNElemID.LE.0) CALL abort(__STAMP__,'PhotonIntersectionWithSide2D() found CNElemID<=0')
 
@@ -479,7 +479,7 @@ ELSE
   S2 = (xNode1-x_pos_start+(xNode2-xNode1)*l2)/sx 
 
   IF (((l1.GT.0.0).AND.(l1.LT.1.0).AND.(S1.GT.0.0).AND.(S1.LT.TrackInfo%lengthPartTrajectory).AND. &
-    (l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0).AND.(S2.LT.TrackInfo%lengthPartTrajectory)).OR.(TrackInfo%LastIntersectCount.GT.0)) THEN
+    (l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0).AND.(S2.LT.TrackInfo%lengthPartTrajectory)).OR.(TrackInfo%LastIntersectCount.EQ.1)) THEN
     IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
       IF (S2.GT.S1) THEN
         l=l1; S=S1
