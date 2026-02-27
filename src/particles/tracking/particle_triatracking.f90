@@ -69,14 +69,17 @@ SUBROUTINE ParticleTriaTracking()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY: UseRotRefSubCycling
-USE MOD_Particle_Vars               ,ONLY: PEM,PDM,InterPlanePartNumber, InterPlanePartIndx
+USE MOD_Particle_Vars               ,ONLY: PEM,PDM,InterPlanePartNumber, InterPlanePartIndx, PartState
 USE MOD_DSMC_Symmetry               ,ONLY: AdjustParticleWeight, SetInClones
 USE MOD_part_tools                  ,ONLY: ParticleOnProc
 USE MOD_DSMC_Vars                   ,ONLY: ParticleWeighting
 !----- Used for RotRef Subcycling
 USE MOD_part_RHS                    ,ONLY: CalcPartPosInRotRef
+USE MOD_Timedisc_vars
 !-----
 ! IMPLICIT VARIABLE HANDLING
+
+USE MOD_Mesh_Vars                   ,ONLY: offsetElem, nElems
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -525,9 +528,9 @@ INTEGER                          :: LocalSide, NrOfThroughSides
 INTEGER                          :: SideID,TempSideID,iLocSide, localSideID
 LOGICAL                          :: ThroughSide, PartisDone
 LOGICAL                          :: crossedBC, oldElemIsMortar
-INTEGER                          :: tmpSideID(4), tmpLocSideID(4), minIndx
+INTEGER                          :: tmpSideID(4), tmpLocSideID(4), minIndx, LastInterCount, InterCountLastSide
 LOGICAL                          :: tmpIsMortar(4)
-REAL                             :: tmpDistance(4)
+REAL                             :: tmpDistance(4), tmpLastIntersectCount(4), Distance
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
@@ -550,6 +553,7 @@ SideID = 0
 tmpDistance = 0.
 ! 1) Loop tracking until particle is considered "done" (either localized or deleted)
 TrackInfo%alpha=0.
+TrackInfo%LastIntersectCount=0
 TrackInfo%PartTrajectory(1:3)=PartState(1:3,i) - LastPartPos(1:3,i)
 TrackInfo%lengthPartTrajectory=VECNORM3D(TrackInfo%PartTrajectory(1:3))
 IF(ABS(TrackInfo%lengthPartTrajectory).GT.0.) TrackInfo%PartTrajectory = TrackInfo%PartTrajectory &
@@ -559,7 +563,9 @@ DO WHILE (.NOT.PartisDone)
   ! 1a) The side through which the particle went is determined by checking each side of the element (ParticleThroughSideCheck1D2D)
   NrOfThroughSides = 0
   nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
+  InterCountLastSide = TrackInfo%LastIntersectCount
   SideLoop: DO iLocSide=1,nlocSides
+    TrackInfo%LastIntersectCount = 0
     TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
     ! Skip symmetry side
     IF(SideIsSymSide(TempSideID)) CYCLE
@@ -571,7 +577,17 @@ DO WHILE (.NOT.PartisDone)
       nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,TempSideID).EQ.-1)
       DO ind = 1, nMortarElems
         nbSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide + ind
-        IF (nbSideID.EQ.TrackInfo%LastSide) CYCLE
+        IF (nbSideID.EQ.TrackInfo%LastSide) THEN
+          IF (Symmetry%AxisymmetricExact) THEN
+            IF (InterCountLastSide.EQ.0) THEN
+              CYCLE
+            ELSE
+              TrackInfo%LastIntersectCount = InterCountLastSide
+            END IF
+          ELSE
+            CYCLE
+          END IF
+        END IF
         NbElemID = SideInfo_Shared(SIDE_NBELEMID,nbSideID)
         ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
         ! no way to recover it during runtime
@@ -581,7 +597,7 @@ DO WHILE (.NOT.PartisDone)
         NblocSideID =  SideInfo_Shared(SIDE_LOCALID,nbSideID)
         ThroughSide = .FALSE.
         IF (Symmetry%AxisymmetricExact) THEN
-          CALL ParticleThroughSideCheck2DRotSym(i,NblocSideID,NbElemID,nbSideID ,ThroughSide)
+          CALL ParticleThroughSideCheck2DRotSym(i,NblocSideID,NbElemID,nbSideID ,ThroughSide, Distance, LastInterCount)
         ELSE
           CALL ParticleThroughSideCheck1D2D(i,NblocSideID,NbElemID,ThroughSide)
         END IF
@@ -595,17 +611,28 @@ DO WHILE (.NOT.PartisDone)
             tmpSideID(NrOfThroughSides) = SideID
             tmpLocSideID(NrOfThroughSides) = LocalSide
             tmpIsMortar(NrOfThroughSides) = oldElemIsMortar
-            tmpDistance(NrOfThroughSides) = TrackInfo%alpha
+            tmpDistance(NrOfThroughSides) = Distance !TrackInfo%alpha
+            tmpLastIntersectCount(NrOfThroughSides) = LastInterCount !TrackInfo%LastIntersectCount
           ELSE
             EXIT SideLoop
           END IF
         END IF
       END DO
     ELSE  ! Regular side
-      IF (TempSideID.EQ.TrackInfo%LastSide) CYCLE
+      IF (TempSideID.EQ.TrackInfo%LastSide) THEN
+        IF (Symmetry%AxisymmetricExact) THEN
+          IF (InterCountLastSide.EQ.0) THEN
+            CYCLE
+          ELSE
+            TrackInfo%LastIntersectCount = InterCountLastSide
+          END IF
+        ELSE
+          CYCLE
+        END IF
+      END IF
       ThroughSide = .FALSE.
       IF (Symmetry%AxisymmetricExact) THEN
-        CALL ParticleThroughSideCheck2DRotSym(i,localSideID,ElemID,TempSideID,ThroughSide)
+        CALL ParticleThroughSideCheck2DRotSym(i,localSideID,ElemID,TempSideID,ThroughSide, Distance, LastInterCount)
       ELSE
         CALL ParticleThroughSideCheck1D2D(i,localSideID,ElemID,ThroughSide)
       END IF
@@ -617,7 +644,8 @@ DO WHILE (.NOT.PartisDone)
           tmpSideID(NrOfThroughSides) = SideID
           tmpLocSideID(NrOfThroughSides) = LocalSide
           tmpIsMortar(NrOfThroughSides) = oldElemIsMortar
-          tmpDistance(NrOfThroughSides) = TrackInfo%alpha
+          tmpDistance(NrOfThroughSides) = Distance ! TrackInfo%alpha
+          tmpLastIntersectCount(NrOfThroughSides) = LastInterCount !TrackInfo%LastIntersectCount
         ELSE
           EXIT SideLoop
         END IF
@@ -630,13 +658,20 @@ DO WHILE (.NOT.PartisDone)
     ELSE
       TrackInfo%LastSide = SideInfo_Shared(SIDE_NBSIDEID,SideID)
     END IF
+    IF (Symmetry%AxisymmetricExact) THEN
+      TrackInfo%LastIntersectCount = tmpLastIntersectCount(1)
+      TrackInfo%alpha = tmpDistance(1)
+      TrackInfo%LastIntersectCount = tmpLastIntersectCount(1)
+    END IF
   END IF
   IF (Symmetry%AxisymmetricExact) THEN
     IF (NrOfThroughSides.GT.1) THEN
       minIndx = MINLOC(tmpDistance(1:NrOfThroughSides),1)
+      TrackInfo%alpha = tmpDistance(minIndx)
       oldElemIsMortar = tmpIsMortar(minIndx)
       LocalSide = tmpLocSideID(minIndx)
       SideID = tmpSideID(minIndx)
+      TrackInfo%LastIntersectCount = tmpLastIntersectCount(minIndx)
       IF (oldElemIsMortar) THEN
         TrackInfo%LastSide = SideID
       ELSE
