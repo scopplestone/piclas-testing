@@ -42,7 +42,7 @@ IMPLICIT NONE
 CALL prms%SetSection("Particle Symmetry")
 CALL prms%CreateIntOption(    'Particles-Symmetry-Order'        , 'Order of the Simulation 1, 2 or 3 D', '3')
 CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetric', 'Activating an axisymmetric simulation with the same mesh requirements as for the 2D case (y is then the radial direction)', '.FALSE.')
-CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetricExact', 'Activating an exact rotated particle tracking for axisymmetric simulations', '.FALSE.')
+CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetricExact', 'Activating an exact rotated particle tracking for axisymmetric simulations', '.TRUE.')
 
 END SUBROUTINE DefineParametersSymmetry
 
