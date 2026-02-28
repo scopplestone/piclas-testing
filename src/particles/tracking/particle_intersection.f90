@@ -393,6 +393,7 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: ElemSideNodeID2D_Shared, NodeCoords_Shared, S
 USE MOD_Particle_Vars       ,ONLY: LastPartPos,PartState
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackInfo
+USE MOD_Globals_Vars          ,ONLY: EpsMach
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -408,7 +409,8 @@ INTEGER, INTENT(OUT)             :: LastInterCount
 INTEGER                          :: CNElemID
 REAL                             :: y_pos_start,x_pos_start,yNode1,xNode1,yNode2,xNode2,sy,sz,sx
 REAL                             :: l1,S1,l2,S2,l,S
-REAL                             :: beta, alpha, deltay, a, b, c, tmpsqrt
+REAL                             :: beta, alpha, a, b, c, tmpsqrt
+REAL                             :: dx,dy          
 !===================================================================================================================================
 CNElemID = GetCNElemID(Element)
 Distance = 0.
@@ -428,55 +430,30 @@ y_pos_start=LastPartPos(2,PartID)
 sx=TrackInfo%PartTrajectory(1)
 sy=TrackInfo%PartTrajectory(2)
 sz=TrackInfo%PartTrajectory(3)
+dx = xNode2 - xNode1
+dy = yNode2 - yNode1
 
-IF (sx .EQ. 0.0) THEN
-  IF (xNode1.EQ.xNode2) THEN
-    l = (y_pos_start-yNode1)/(yNode2-yNode1)
-  ELSE
-    l = (x_pos_start-xNode1)/(xNode2-xNode1)
-  END IF
-  a = sy*sy + sz*sz
-  b = 2*sy*y_pos_start
-  c = y_pos_start*y_pos_start - yNode1*yNode1 + 2.*l*yNode1*yNode1 - l*l*yNode1*yNode1 &
-      - 2.*yNode1*yNode2*l + 2.*yNode1*yNode2*l*l - yNode2*yNode2*l*l
-  tmpsqrt = b*b - 4.*a*c
-  IF (tmpsqrt.LE.0.0) THEN
-    RETURN
-  END IF
-  S1 = (-b+SQRT(tmpsqrt))/(2.*a)
-  S2 = (-b-SQRT(tmpsqrt))/(2.*a)
-  IF (S1.LE.0.0) THEN
-    S = S2
-  ELSE
-    IF (S2.GT.0.0) THEN
-      IF(S2.GT.S1) THEN
-        S = S1
-      ELSE
-        S = S2
-      END IF
-    ELSE
-      S = S1
-    END IF
-  END IF
+IF (ABS(dx).LT.EpsMach ) THEN
+  S = (xNode1 - x_pos_start) / sx
+  tmpsqrt = SQRT((y_pos_start + sy*S)**2 + (sz*S)**2)
+  l = ( tmpsqrt - yNode1)/dy
   LastInterCount = 0
-ELSE
-  alpha = (xNode1 - x_pos_start) / sx
-  beta = (xNode2 - xNode1) / sx
-  deltay = (yNode2 - yNode1)
-  a = beta*beta*sy*sy - deltay*deltay + beta*beta*sz*sz
-  b = 2.*beta*sy*y_pos_start + 2.*alpha*beta*sy*sy - 2.*deltay*yNode1 + 2.*alpha*beta*sz*sz
-  c = y_pos_start*y_pos_start - yNode1*yNode1 + 2.*alpha*sy*y_pos_start + alpha*alpha*sy*sy + sz*sz*alpha*alpha
-  ! Check if equation is nearly lQinear (trajectory nearly parallel to cone surface)
-  ! Quadratic equation
-  tmpsqrt = b*b - 4.*a*c
-  IF (tmpsqrt.LE.0.0) THEN  
+ELSE  
+  alpha = dy / dx
+  beta = yNode1 + alpha * (x_pos_start - xNode1)
+
+  a = sy*sy + sz*sz - (alpha*sx)*(alpha*sx)
+  b = 2.0*y_pos_start*sy - 2.0*beta*alpha*sx
+  c = y_pos_start*y_pos_start - beta*beta
+  tmpsqrt = b*b - 4.0*a*c
+  IF (tmpsqrt.LE.0.0) THEN
+    LastInterCount = 0
     RETURN
   END IF
-     
-  l1 = (-b + SQRT(tmpsqrt))/(2.*a)
-  S1 = (xNode1-x_pos_start+(xNode2-xNode1)*l1)/sx
-  l2 = (-b - SQRT(tmpsqrt))/(2.*a)
-  S2 = (xNode1-x_pos_start+(xNode2-xNode1)*l2)/sx 
+  S1 = (-b + SQRT(tmpsqrt)) / (2.*a)
+  S2 = (-b - SQRT(tmpsqrt)) / (2.*a)
+  l1 = (x_pos_start + sx*S1 - xNode1) / dx
+  l2 = (x_pos_start + sx*S2 - xNode1) / dx
 
   IF (((l1.GT.0.0).AND.(l1.LT.1.0).AND.(S1.GT.0.0).AND.(S1.LT.TrackInfo%lengthPartTrajectory).AND. &
     (l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0).AND.(S2.LT.TrackInfo%lengthPartTrajectory)).OR.(TrackInfo%LastIntersectCount.EQ.1)) THEN
