@@ -941,7 +941,7 @@ END IF
 END SUBROUTINE InitAxisymmetrySF
 
 
-SUBROUTINE Deposition(stage_opt)
+SUBROUTINE Deposition(doParticle_In, stage_opt, skipVerifyCharge_opt)
 !============================================================================================================================
 ! This subroutine performs the deposition of the particle charge and current density to the grid
 ! following list of distribution methods are implemented
@@ -970,15 +970,20 @@ USE MOD_TimeDisc_Vars         ,ONLY: time
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT variable declaration
+LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength) ! Marked particles for deposition
 INTEGER,INTENT(IN),OPTIONAL   :: stage_opt ! TODO: definition of this variable
+LOGICAL,INTENT(IN),OPTIONAL   :: skipVerifyCharge_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT variable declaration
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Local variable declaration
 INTEGER                       :: stage,iElem
+LOGICAL                       :: skipVerifyCharge
 !===================================================================================================================================
 ! Return, if no deposition is required
 IF(.NOT.DoDeposition) RETURN
+
+! Set stage when using Runge-Kutta methods
 IF (PRESENT(stage_opt)) THEN
   stage = stage_opt
 ELSE
@@ -1001,17 +1006,30 @@ IF (iter.GT.0 .AND. HDGSkip.NE.0) THEN
 END IF
 #endif /*USE_HDG*/
 
+! Nullify the charge container
 IF((stage.EQ.0).OR.(stage.EQ.1))THEN
   DO iElem = 1, nElems
     PS_N(iElem)%PartSource = 0.0
   END DO ! iElem = 1, nElems
 END IF
 
-CALL DepositionMethod(stage_opt=stage)
+! Check whether only specific particles are to be deposited using the logical vector doParticle_In(1:PDM%ParticleVecLength)
+IF(PRESENT(doParticle_In)) THEN
+  CALL DepositionMethod(doParticle_In, stage_opt=stage)
+ELSE
+  CALL DepositionMethod(stage_opt=stage)
+END IF
 
+! Deposited charge verification: Compare the deposited charge in PS_N(:)%PartSource(4,:,:,:) with the sum of all particles charges
+! divided by the system volume
 IF((stage.EQ.0).OR.(stage.EQ.4)) THEN
   IF(MOD(iter,PartAnalyzeStep).EQ.0) THEN
-    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+    IF (PRESENT(skipVerifyCharge_opt)) THEN
+      skipVerifyCharge = skipVerifyCharge_opt
+    ELSE
+      skipVerifyCharge = .FALSE.
+    END IF
+    IF(DoVerifyCharge.AND.(.NOT.skipVerifyCharge)) CALL VerifyDepositedCharge()
   END IF
 END IF
 

@@ -51,8 +51,20 @@ INTEGER                       :: SelectionProc              ! Mode of Selection 
 INTEGER                       :: PairE_vMPF(2)              ! 1: Pair chosen for energy redistribution
                                                             ! 2: partical with minimal MPF of this Pair
 LOGICAL                       :: useDSMC
-REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! 1st index: 1:npartmax
-!                                                           ! 2nd index: Evib, Erot, Eel
+
+TYPE tPartIntEn
+  REAL, ALLOCATABLE           :: EVib(:)                    ! Vibrational Energy
+  REAL, ALLOCATABLE           :: ERot(:)                    ! Rotational Energy
+  REAL, ALLOCATABLE           :: EElec(:)                   ! Electronic Energy
+  REAL, ALLOCATABLE           :: TSolid(:)                  ! Temperature of Solid Particles
+  INTEGER, ALLOCATABLE        :: QVib(:)                    ! Vibrational Quantum numbers
+  INTEGER, ALLOCATABLE        :: QRot(:)                    ! Rotational Quantum numbers
+  INTEGER, ALLOCATABLE        :: QElec(:)                   ! Electronic Quantum numbers
+  REAL, ALLOCATABLE           :: DistriFunc(:)              ! Electronic distribution function
+  REAL, ALLOCATABLE           :: ElecVelo(:)                ! Electron velocity for ambipolar diffusion
+END TYPE tPartIntEn
+
+TYPE(tPartIntEn), ALLOCATABLE :: PartIntEn(:)        
 
 LOGICAL                       :: useRelaxProbCorrFactor     ! Use the relaxation probability correction factor of Lumpkin
 
@@ -133,7 +145,7 @@ TYPE tClonedParticles
   ! Clone Delay: Clones are inserted at the next time step
   INTEGER                     :: Species
   REAL                        :: PartState(1:6)
-  REAL                        :: PartStateIntEn(1:3)
+  TYPE(tPartIntEn)            :: PartIntEn
   INTEGER                     :: Element
   REAL                        :: LastPartPos(1:3)
   REAL                        :: WeightingFactor
@@ -544,17 +556,6 @@ END TYPE
 
 TYPE (tPolyatomMolDSMC), ALLOCATABLE    :: PolyatomMolDSMC(:)        ! Infos for Polyatomic Molecule
 
-TYPE tPolyatomMolVibQuant !DSMC Species Param
-  INTEGER, ALLOCATABLE            :: Quants(:)            ! Vib quants of each DOF for each particle
-END TYPE
-
-TYPE (tPolyatomMolVibQuant), ALLOCATABLE    :: VibQuantsPar(:)
-
-TYPE tAmbipolElecVelo !DSMC Species Param
-  REAL, ALLOCATABLE            :: ElecVelo(:)            ! Vib quants of each DOF for each particle
-END TYPE
-
-TYPE (tAmbipolElecVelo), ALLOCATABLE    :: AmbipolElecVelo(:)
 INTEGER, ALLOCATABLE            :: AmbiPolarSFMapping(:,:)
 INTEGER, ALLOCATABLE            :: iPartIndx_NodeNewAmbi(:)
 INTEGER                         :: newAmbiParts
@@ -564,12 +565,6 @@ INTEGER                         :: newElecRelaxParts
 INTEGER, ALLOCATABLE            :: iPartIndx_NodeElecRelaxChem(:)
 INTEGER                         :: nElecRelaxChemParts
 LOGICAL, ALLOCATABLE            :: ElecRelaxPart(:)
-
-TYPE tElectronicDistriPart !DSMC Species Param
-  REAL, ALLOCATABLE               :: DistriFunc(:)            ! Vib quants of each DOF for each particle
-END TYPE
-
-TYPE (tElectronicDistriPart), ALLOCATABLE    :: ElectronicDistriPart(:)
 
 ! MacValout and MacroVolSample have to be separated due to autoinitialrestart
 INTEGER(KIND=8)                  :: iter_macvalout             ! iterations since last macro volume output

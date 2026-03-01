@@ -55,6 +55,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_StringTools        ,ONLY: STRICMP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -206,7 +207,7 @@ DO iSpec=1,nSpecies
       ! Neutralization at right BC (max. x-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)
       ! Check one region (emission at fixed x-position x=30 mm)
       ASSOCIATE( &
-                 x2 => 30.01e-3    ,& ! m
+                 x2 => GEO%xmaxglob ,& ! m
                  x1 => 29.99e-3-MPI_halo_eps ,& ! m
                  y2 => GEO%ymaxglob ,& ! m
                  y1 => GEO%yminglob ,& ! m
@@ -237,8 +238,8 @@ DO iSpec=1,nSpecies
           BCID   = SideInfo_Shared(SIDE_BCID,iSide)
           ! Only check BC sides with BC index > 0
           IF(BCID.GT.0)THEN
-            ! Check if neutralization BC is found
-            IF(TRIM(BoundaryName(BCID)).EQ.TRIM(NeutralizationSource))THEN
+            ! Check if neutralization BC is found. Compare strings ignoring the capitalization
+            IF(STRICMP(BoundaryName(BCID), NeutralizationSource))THEN
               ! Add up the number of neutralization elems
               nNeutralizationElems = nNeutralizationElems + 1
               ! Flag element
@@ -265,9 +266,9 @@ DO iSpec=1,nSpecies
       ASSOCIATE( &
                  x2 => GEO%xmaxglob  ,& ! m
                  x1 => GEO%xminglob  ,& ! m
-                 y2 => GEO%ymaxglob ,& ! m
-                 y1 => GEO%yminglob ,& ! m
-                 z2 => 30.01e-3 ,& ! m
+                 y2 => GEO%ymaxglob  ,& ! m
+                 y1 => GEO%yminglob  ,& ! m
+                 z2 => GEO%zmaxglob  ,& ! m
                  z1 => 29.99e-3-MPI_halo_eps)
        ! Check all 8 edges
        xCoords(1:3,1) = (/x1,y1,z1/)

@@ -60,6 +60,7 @@ fi
 # DOWNLOAD and INSTALL Linaro (example linaro-24.0.6)
 # For current releases, see: https://www.linaroforge.com/download-documentation
 LINAROVERSION='24.0.6'
+LINAROVERSION='25.1.1'
 
 LINAROINSTALLDIR=${INSTALLDIR}/linaro/forge/${LINAROVERSION}
 MODULEFILE=${INSTALLDIR}/modules/modulefiles/utilities/linaro/${LINAROVERSION}
@@ -123,7 +124,7 @@ if [ ! -e "${MODULEFILE}" ]; then
     read -p "[Step 2 of 2: Remove build directory/source files] Are you sure that you want to delete ${BUILDDIR} ?"
     if [ -n ${BUILDDIR} ]; then
       if [ -d ${BUILDDIR} ]; then
-        # Delte the linaro directory
+        # Delete the linaro directory
         rm -r ${BUILDDIR}
 
         # Extract tar.gz file

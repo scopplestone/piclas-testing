@@ -1,7 +1,7 @@
 # Boundary Conditions - Field Solver
 
 Boundary conditions are defined in the mesh creation step in the hopr.ini file and can be modified when running PICLas in the
-corresponding *parameter.ini* file. In the *hopr.ini* file, which is read by the *hopr* executable, a boundary is defined by
+corresponding *parameter.ini* file. In the *hopr.ini* file, which is read by *PyHOPE*, a boundary is defined by
 
     BoundaryName = BC_Inflow   ! BC index 1 (from  position in the parameter file)
     BoundaryType = (/4,0,0,0/) ! (/ Type, curveIndex, State, alpha /)
@@ -384,7 +384,7 @@ setting
 which is set true by default, hence, removing the particles.
 
 ### Dielectric Zones
-Regions or zones (corresponding to zones as defined by hopr) can also be used to define dielectrics.
+Regions or zones (corresponding to zones as defined by PyHOPE) can also be used to define dielectrics.
 In this case, the number of zones must be supplied
 
     DielectricNbrOfZones = 8
