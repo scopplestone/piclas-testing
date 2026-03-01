@@ -23,7 +23,7 @@ Examples are located within the regression test directory
     regressioncheck/CHE_PIC_maxwell_RK4/gyrotron_variable_Bz
     regressioncheck/CHE_PIC_maxwell_RK4/2D_variable_B
     regressioncheck/CHE_PIC_maxwell_RK4/3D_variable_B
-    regressioncheck/NIG_PIC_poisson_Boris-Leapfrog/EBeam_2D-axisym-with-B-field
+    regressioncheck/WEK_PIC_poisson_Boris-Leapfrog/EBeam_2D-axisym-with-B-field
 
 for 1D, 2D and 3D fields, respectively. Note that 1D currently only allows magnetic fields of type $B_{z}(z)$ and 2D only allows the
 components $B_{r}(r,z)$ and $B_{z}(r,z)$ that comprise a rotationally symmetric vector field $\textbf{B}$.
