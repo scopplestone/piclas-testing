@@ -393,7 +393,6 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: ElemSideNodeID2D_Shared, NodeCoords_Shared, S
 USE MOD_Particle_Vars       ,ONLY: LastPartPos,PartState
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackInfo
-USE MOD_Globals_Vars          ,ONLY: EpsMach
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -410,7 +409,8 @@ INTEGER                          :: CNElemID
 REAL                             :: y_pos_start,x_pos_start,yNode1,xNode1,yNode2,xNode2,sy,sz,sx
 REAL                             :: l1,S1,l2,S2,l,S
 REAL                             :: beta, alpha, a, b, c, tmpsqrt
-REAL                             :: dx,dy          
+REAL                             :: dx,dy     
+REAL, PARAMETER                  :: eps = 1E-8     
 !===================================================================================================================================
 CNElemID = GetCNElemID(Element)
 Distance = 0.
@@ -433,7 +433,7 @@ sz=TrackInfo%PartTrajectory(3)
 dx = xNode2 - xNode1
 dy = yNode2 - yNode1
 
-IF (ABS(dx).LT.EpsMach ) THEN
+IF (ABS(dx).LT.eps*ABS(xNode2)) THEN
   S = (xNode1 - x_pos_start) / sx
   tmpsqrt = SQRT((y_pos_start + sy*S)**2 + (sz*S)**2)
   l = ( tmpsqrt - yNode1)/dy

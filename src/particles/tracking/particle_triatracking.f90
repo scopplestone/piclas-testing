@@ -570,6 +570,9 @@ DO WHILE (.NOT.PartisDone)
     TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
     ! Skip symmetry side
     IF(SideIsSymSide(TempSideID)) CYCLE
+    IF ((Symmetry%AxisymmetricExact).AND.(SideInfo_Shared(SIDE_BCID,TempSideID).GT.0)) THEN
+        IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,TempSideID))).EQ.PartBound%SymmetryAxis) CYCLE
+    END IF
     localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
     ! Side is not one of the 6 local sides
     IF (localSideID.LE.0) CYCLE
