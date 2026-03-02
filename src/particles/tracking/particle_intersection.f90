@@ -405,12 +405,12 @@ REAL, INTENT(OUT)                :: Distance
 INTEGER, INTENT(OUT)             :: LastInterCount
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: CNElemID
+INTEGER                          :: CNElemID, interseccase
 REAL                             :: y_pos_start,x_pos_start,yNode1,xNode1,yNode2,xNode2,sy,sz,sx
 REAL                             :: l1,S1,l2,S2,l,S
-REAL                             :: beta, alpha, a, b, c, tmpsqrt
-REAL                             :: dx,dy     
-REAL, PARAMETER                  :: eps = 1E-8     
+REAL                             :: beta, alpha,deltay, a, b, c, tmpsqrt
+REAL                             :: dx,dy, len2, lenPart2     
+REAL, PARAMETER                  :: eps = 1E-18
 !===================================================================================================================================
 CNElemID = GetCNElemID(Element)
 Distance = 0.
@@ -432,13 +432,24 @@ sy=TrackInfo%PartTrajectory(2)
 sz=TrackInfo%PartTrajectory(3)
 dx = xNode2 - xNode1
 dy = yNode2 - yNode1
+len2= dx*dx+dy*dy
+lenPart2=sx*sx+sy*sy+sz*sz
+IF((dx*dx/len2).GT.(sx*sx/lenPart2)) THEN
+  IF ((dx*dx).GT.eps*len2) THEN
+    interseccase=1
+  ELSE
+    interseccase=3
+  END IF
+ELSE
+  IF ((sx*sx).GT.eps*lenPart2) THEN
+    interseccase=2
+  ELSE
+    interseccase=3
+  END IF
+END IF
 
-IF (ABS(dx).LT.eps*ABS(xNode2)) THEN
-  S = (xNode1 - x_pos_start) / sx
-  tmpsqrt = SQRT((y_pos_start + sy*S)**2 + (sz*S)**2)
-  l = ( tmpsqrt - yNode1)/dy
-  LastInterCount = 0
-ELSE  
+SELECT CASE (interseccase)
+CASE(1)
   alpha = dy / dx
   beta = yNode1 + alpha * (x_pos_start - xNode1)
 
@@ -501,7 +512,77 @@ ELSE
     END IF
     LastInterCount = 0
   END IF
-END IF
+CASE(2)
+  alpha = (xNode1 - x_pos_start) / sx
+  beta = (xNode2 - xNode1) / sx
+  deltay = (yNode2 - yNode1)
+  a = beta*beta*sy*sy - deltay*deltay + beta*beta*sz*sz
+  b = 2.*beta*sy*y_pos_start + 2.*alpha*beta*sy*sy - 2.*deltay*yNode1 + 2.*alpha*beta*sz*sz
+  c = y_pos_start*y_pos_start - yNode1*yNode1 + 2.*alpha*sy*y_pos_start + alpha*alpha*sy*sy + sz*sz*alpha*alpha
+  ! Check if equation is nearly lQinear (trajectory nearly parallel to cone surface)
+  ! Quadratic equation
+  tmpsqrt = b*b - 4.*a*c
+  IF (tmpsqrt.LE.0.0) THEN  
+    LastInterCount = 0
+    RETURN
+  END IF
+  l1 = (-b + SQRT(tmpsqrt))/(2.*a)
+  S1 = (xNode1-x_pos_start+(xNode2-xNode1)*l1)/sx
+  l2 = (-b - SQRT(tmpsqrt))/(2.*a)
+  S2 = (xNode1-x_pos_start+(xNode2-xNode1)*l2)/sx 
+
+  IF (((l1.GT.0.0).AND.(l1.LT.1.0).AND.(S1.GT.0.0).AND.(S1.LT.TrackInfo%lengthPartTrajectory).AND. &
+    (l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0).AND.(S2.LT.TrackInfo%lengthPartTrajectory)).OR.(TrackInfo%LastIntersectCount.EQ.1)) THEN
+    IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
+      IF (S2.GT.S1) THEN
+        l=l1; S=S1
+      ELSE
+        l=l2; S=S2
+      END IF
+      LastInterCount=0
+    ELSE
+      IF (TrackInfo%LastIntersectCount.EQ.0) THEN
+        IF (S2.GT.S1) THEN
+          l=l1; S=S1
+        ELSE
+          l=l2; S=S2
+        END IF  
+        LastInterCount=1
+      ELSE  
+        IF (S2.GT.S1) THEN
+          l=l2; S=S2
+        ELSE
+          l=l1; S=S1  
+        END IF      
+        LastInterCount=0        
+      END IF
+    END IF
+  ELSE
+    IF ((l1.LE.0.0).OR.(l1.GE.1.0)) THEN !if 1 is not a valid intersection -> 2
+      l = l2; S = S2
+    ELSE                                      !1 is valid intersection
+      IF ((S1.LE.0.0)) THEN                   !1 would be moving backwards -> 2
+        l = l2; S = S2
+      ELSE
+        IF ((l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0)) THEN !1 and 2 valid -> chose shorter one
+          IF (S2.GT.S1) THEN
+            l=l1; S=S1
+          ELSE
+            l=l2; S=S2
+          END IF
+        ELSE                                  !1 is only valid intersection -> 1
+          l=l1; S=S1
+        END IF
+      END IF
+    END IF
+    LastInterCount = 0
+  END IF
+CASE(3)
+  S = (xNode1 - x_pos_start) / sx
+  tmpsqrt = SQRT((y_pos_start + sy*S)**2 + (sz*S)**2)
+  l = ( tmpsqrt - yNode1)/dy
+  LastInterCount = 0
+END SELECT
 
 IF((S .GT. 0.0).AND.(S.LT.TrackInfo%lengthPartTrajectory) .AND. (0.0 .LE. l) .AND. (l .LE. 1.0).AND.(S.GT.TrackInfo%alpha)) THEN
   ThroughSide = .TRUE.
