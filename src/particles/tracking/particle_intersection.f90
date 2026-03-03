@@ -468,32 +468,36 @@ CASE(1)
 
   IF (((l1.GT.0.0).AND.(l1.LT.1.0).AND.(S1.GT.0.0).AND.(S1.LT.TrackInfo%lengthPartTrajectory).AND. &
     (l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0).AND.(S2.LT.TrackInfo%lengthPartTrajectory)).OR.(TrackInfo%LastIntersectCount.EQ.1)) THEN
-    IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
+    IF (TrackInfo%LastIntersectCount.EQ.0) THEN
       IF (S2.GT.S1) THEN
         l=l1; S=S1
       ELSE
         l=l2; S=S2
+      END IF  
+      LastInterCount=1
+    ELSE IF (TrackInfo%LastIntersectCount.EQ.2) THEN
+      IF (ABS(S2).GT.ABS(S1)) THEN
+        l=l2; S=S2
+      ELSE
+        l=l1; S=S1
       END IF
       LastInterCount=0
-    ELSE
-      IF (TrackInfo%LastIntersectCount.EQ.0) THEN
-        IF (S2.GT.S1) THEN
-          l=l1; S=S1
-        ELSE
-          l=l2; S=S2
-        END IF  
-        LastInterCount=1
-      ELSE  
-        IF (S2.GT.S1) THEN
-          l=l2; S=S2
-        ELSE
-          l=l1; S=S1  
-        END IF      
-        LastInterCount=0        
-      END IF
+    ELSE 
+      IF (S2.GT.S1) THEN
+        l=l2; S=S2
+      ELSE
+        l=l1; S=S1  
+      END IF      
+      LastInterCount=0        
     END IF
   ELSE
-    IF ((l1.LE.0.0).OR.(l1.GE.1.0)) THEN !if 1 is not a valid intersection -> 2
+    IF (TrackInfo%LastIntersectCount.EQ.2) THEN
+      IF (ABS(S2).GT.ABS(S1)) THEN
+        l=l2; S=S2
+      ELSE
+        l=l1; S=S1
+      END IF
+    ELSE IF ((l1.LE.0.0).OR.(l1.GE.1.0)) THEN !if 1 is not a valid intersection -> 2
       l = l2; S = S2
     ELSE                                      !1 is valid intersection
       IF ((S1.LE.0.0)) THEN                   !1 would be moving backwards -> 2
@@ -533,32 +537,36 @@ CASE(2)
 
   IF (((l1.GT.0.0).AND.(l1.LT.1.0).AND.(S1.GT.0.0).AND.(S1.LT.TrackInfo%lengthPartTrajectory).AND. &
     (l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0).AND.(S2.LT.TrackInfo%lengthPartTrajectory)).OR.(TrackInfo%LastIntersectCount.EQ.1)) THEN
-    IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
+    IF (TrackInfo%LastIntersectCount.EQ.0) THEN
       IF (S2.GT.S1) THEN
         l=l1; S=S1
       ELSE
         l=l2; S=S2
+      END IF  
+      LastInterCount=1
+    ELSE IF (TrackInfo%LastIntersectCount.EQ.2) THEN
+      IF (ABS(S2).GT.ABS(S1)) THEN
+        l=l2; S=S2
+      ELSE
+        l=l1; S=S1
       END IF
       LastInterCount=0
-    ELSE
-      IF (TrackInfo%LastIntersectCount.EQ.0) THEN
-        IF (S2.GT.S1) THEN
-          l=l1; S=S1
-        ELSE
-          l=l2; S=S2
-        END IF  
-        LastInterCount=1
-      ELSE  
-        IF (S2.GT.S1) THEN
-          l=l2; S=S2
-        ELSE
-          l=l1; S=S1  
-        END IF      
-        LastInterCount=0        
-      END IF
+    ELSE  
+      IF (S2.GT.S1) THEN
+        l=l2; S=S2
+      ELSE
+        l=l1; S=S1  
+      END IF      
+      LastInterCount=0        
     END IF
   ELSE
-    IF ((l1.LE.0.0).OR.(l1.GE.1.0)) THEN !if 1 is not a valid intersection -> 2
+    IF (TrackInfo%LastIntersectCount.EQ.2) THEN
+      IF (ABS(S2).GT.ABS(S1)) THEN
+        l=l2; S=S2
+      ELSE
+        l=l1; S=S1
+      END IF
+    ELSE IF ((l1.LE.0.0).OR.(l1.GE.1.0)) THEN !if 1 is not a valid intersection -> 2
       l = l2; S = S2
     ELSE                                      !1 is valid intersection
       IF ((S1.LE.0.0)) THEN                   !1 would be moving backwards -> 2
@@ -587,6 +595,7 @@ END SELECT
 IF((S .GT. 0.0).AND.(S.LT.TrackInfo%lengthPartTrajectory) .AND. (0.0 .LE. l) .AND. (l .LE. 1.0).AND.(S.GT.TrackInfo%alpha)) THEN
   ThroughSide = .TRUE.
   Distance = S
+  IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) LastInterCount = 2
 ELSE
   LastInterCount=0
 END IF
