@@ -167,7 +167,7 @@ should look like this
      CMakeLists.txt
      CONTRIBUTORS.md
      docs
-     LICENCE.md
+     LICENSE.md
      README.md
      REFERENCE.md
      REGGIE.md
