@@ -1017,6 +1017,18 @@ NIG_Reservoir:
   script:
     - cd build_DSMC_release/ ; reggie ../regressioncheck/NIG_Reservoir -e bin/piclas
 
+NIG_Reservoir_single_core:
+  <<: *defaults_DSMC_nightly
+  stage: reggie_DSMC_nightly
+  script:
+    - cd build_DSMC_release/ ; reggie ../regressioncheck/NIG_Reservoir_single_core -e bin/piclas
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_WEEKLY'
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run tracking examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
