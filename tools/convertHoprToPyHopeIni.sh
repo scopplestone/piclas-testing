@@ -67,6 +67,9 @@ if [[ ${NbrOfHoprFiles} -gt 0 ]]; then
   # Remove all lines with meshTemplate as this variable no longer exists
   find ./ -type f -name "hopr*.ini" -exec sed -i '/meshTemplate/Id' {} \;
 
+  # Remove all lines with sfc_type as this variable no longer exists
+  find ./ -type f -name "hopr*.ini" -exec sed -i '/sfc_type/Id' {} \;
+
   # Rename all mesh modes with external meshes (2, 5) to "Mode = external"
   find ./ -type f -name "hopr*.ini" -exec sed -i '/Mode.*=\s*[25].*/s/[25].*/external/' {} \;
 
