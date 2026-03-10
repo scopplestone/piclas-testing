@@ -61,20 +61,27 @@ if [[ ${NbrOfHoprFiles} -gt 0 ]]; then
   # Rename value for key MeshPostDeform from 2 to sphere
   find ./ -type f -name "hopr*.ini" -exec sed -i '/MeshPostDeform.*=\s*2/s/2/sphere/' {} \;
 
-  # Remove all lines with postScaleMesh as this variable no longer exists
-  find ./ -type f -name "hopr*.ini" -exec sed -i '/postscalemesh/Id' {} \;
-
-  # Remove all lines with meshTemplate as this variable no longer exists
-  find ./ -type f -name "hopr*.ini" -exec sed -i '/meshTemplate/Id' {} \;
-
-  # Remove all lines with sfc_type as this variable no longer exists
-  find ./ -type f -name "hopr*.ini" -exec sed -i '/sfc_type/Id' {} \;
+  # Remove all lines with the following strings as these variables no longer exist in pyhope
+  # - postScaleMesh
+  # - meshTemplate
+  # - sfc_type
+  # - SpaceQuandt
+  # - MeshDim
+  # - lowerZ_BC
+  # - upperZ_BC
+  find ./ -type f -name "hopr*.ini" -exec sed -i '/postscalemesh\|meshTemplate\|sfc_type\|SpaceQuandt\|MeshDim\|lowerZ_BC\|upperZ_BC/Id' {} \;
 
   # Rename all mesh modes with external meshes (2, 5) to "Mode = external"
   find ./ -type f -name "hopr*.ini" -exec sed -i '/Mode.*=\s*[25].*/s/[25].*/external/' {} \;
 
   # Rename mesh "Mode = 11" with  "Mode = internal"
   find ./ -type f -name "hopr*.ini" -exec sed -i '/Mode.*=\s*11.*/s/11.*/internal/' {} \;
+
+  # Rename mesh "zLength" to "MeshExtrudeLength"
+  find ./ -type f -name "hopr*.ini" -exec sed -i 's/zLength/MeshExtrudeLength/' {} \;
+
+  # Rename mesh "nElemsZ" to "MeshExtrudeElems"
+  find ./ -type f -name "hopr*.ini" -exec sed -i 's/nElemsZ/MeshExtrudeElems/' {} \;
 fi
 
 # Process externals.ini files
