@@ -38,7 +38,7 @@ PROCEDURE(RotInitPolyRoutine),POINTER :: RotInitPolyRoutineFuncPTR !< pointer de
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CalcRadWeightMPF, isChargedParticle
-PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums, BuildTransGaussNums2
+PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums, BuildQuietGaussNums
 PUBLIC :: CalcXiElec,ParticleOnProc, CalcVelocity_maxwell_particle
 PUBLIC :: CalcERotDataset_particle, CalcERot_particle, CalcERotQuant_particle, CalcEVib_particle, CalcEElec_particle
 PUBLIC :: RotInitPolyRoutineFuncPTR
@@ -1112,7 +1112,7 @@ END DO
 
 END SUBROUTINE BuildTransGaussNums
 
-SUBROUTINE BuildTransGaussNums2(nPart, iRanPart)
+SUBROUTINE BuildQuietGaussNums(nPart, iRanPart)
 !===================================================================================================================================
 !> Builds "not so random" Gauss numbers with a zero mean and a variance of one
 !===================================================================================================================================
@@ -1153,7 +1153,7 @@ DO iLoop = 1, nPart
   tmp = tmp + 2 * tmp2
 END DO
 
-END SUBROUTINE BuildTransGaussNums2
+END SUBROUTINE BuildQuietGaussNums
 
 
 PPURE REAL FUNCTION CalcXiElec(Telec, iSpec)

@@ -344,7 +344,7 @@ Each type of the initialisation set might have a different set of parameters and
     Part-Species1-Init1-SpaceIC               = cos_distribution          ! Cosine distribution is space
     Part-Species1-Init1-ParticleNumber        = 40000                     ! Number of simulation particles for species #1 and initialisation #1
     Part-Species1-Init1-maxParticleNumber-x   = 40000                     ! Number of simulation particles in x-direction for species #1 and initialisation #1
-    Part-Species1-Init1-velocityDistribution  = maxwell_distribution_1D   ! Constant velocity distribution
+    Part-Species1-Init1-velocityDistribution  = maxwell_1D_quiet         ! Pseudo maxwellian velocity distribution
     Part-Species1-Init1-MWTemperatureIC       = 0.72429730341e23          ! Translational temprature
     Part-Species1-Init1-maxParticleNumber-y   = 1                         ! Number of particles in y
     Part-Species1-Init1-maxParticleNumber-z   = 1                         ! Number of particles in z
@@ -395,7 +395,7 @@ This help module can also output the complete set of parameters via
 
     piclas --help
 
-or a subset of them by supplying a section via 
+or a subset of them by supplying a section via
 
     piclas --help "HDG"
 
