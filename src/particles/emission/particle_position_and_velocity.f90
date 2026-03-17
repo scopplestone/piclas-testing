@@ -589,7 +589,7 @@ CASE('maxwell')
   END DO
 CASE('maxwell_1D')
   ALLOCATE(iRanPart(3, NbrOfParticle))
-  CALL BuildTransGaussNums(NbrOfParticle, iRanPart(1,:))
+  CALL BuildTransGaussNums(NbrOfParticle, iRanPart)
   maxwellfac = SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(FractNbr)%MassIC)
   DO iPart = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
