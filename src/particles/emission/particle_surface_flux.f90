@@ -198,7 +198,11 @@ DO iSpec=1,nSpecies
 
             AcceptPos=.TRUE.
             IF (SF%CircularInflow) THEN !check rmax-rejection
-              IF (.NOT.InSideCircularInflow(iSpec, iSF, iSide, Particle_pos)) AcceptPos=.FALSE.
+              IF(Species(iSpec)%Surfaceflux(iSF)%racetrackLength.GT.0.0) THEN
+                IF (.NOT.InSideRaceTrackInflow(iSpec, iSF, iSide, Particle_pos)) AcceptPos=.FALSE.
+              ELSE
+                IF (.NOT.InSideCircularInflow(iSpec, iSF, iSide, Particle_pos)) AcceptPos=.FALSE.
+              END IF
             END IF ! CircularInflow
             !-- save position if accepted:
             IF (AcceptPos) THEN
@@ -587,6 +591,65 @@ CASE DEFAULT
 END SELECT !SurfFluxSideRejectType
 
 END FUNCTION InSideCircularInflow
+
+
+!===================================================================================================================================
+!> Determines whether a particle position lies inside the race track (stadium) shaped inflow region.
+!> Uses the distance from the particle to the central line segment of the race track.
+!===================================================================================================================================
+FUNCTION InSideRaceTrackInflow(iSpec, iSF, iSide, Particle_pos)
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars           ,ONLY: Species
+USE MOD_Particle_Boundary_Tools ,ONLY: PointToSegmentDist2D
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: iSpec, iSF, iSide
+REAL, INTENT(IN)                :: Particle_pos(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! RESULT
+LOGICAL                         :: InSideRaceTrackInflow
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                            :: point(2), origin(2), dirVec(2), halfLength
+REAL                            :: segA(2), segB(2), dist
+!===================================================================================================================================
+InSideRaceTrackInflow = .FALSE.
+
+SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide))
+CASE(0) ! Complete side is inside valid bounds
+  InSideRaceTrackInflow = .TRUE.
+
+CASE(1) ! Complete side is outside of valid bounds
+  CALL abort(__STAMP__,'side outside of valid bounds was considered although nVFR=0...?!')
+
+CASE(2) ! Side is partly inside valid bounds
+  origin     = Species(iSpec)%Surfaceflux(iSF)%origin
+  dirVec     = Species(iSpec)%Surfaceflux(iSF)%racetrackDir
+  halfLength = Species(iSpec)%Surfaceflux(iSF)%racetrackLength
+
+  ! Particle position in origin-shifted 2D surface coordinates
+  point(1) = Particle_pos(Species(iSpec)%Surfaceflux(iSF)%dir(2)) - origin(1)
+  point(2) = Particle_pos(Species(iSpec)%Surfaceflux(iSF)%dir(3)) - origin(2)
+
+  ! Central segment endpoints
+  segA = -halfLength * dirVec
+  segB =  halfLength * dirVec
+
+  ! Distance to central segment
+  dist = PointToSegmentDist2D(point, segA, segB)
+
+  IF ((dist .LE. Species(iSpec)%Surfaceflux(iSF)%rmax) .AND. (dist .GE. Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
+    InSideRaceTrackInflow = .TRUE.
+  END IF
+
+CASE DEFAULT
+  CALL abort(__STAMP__,'wrong SurfFluxSideRejectType!')
+END SELECT
+
+END FUNCTION InSideRaceTrackInflow
 
 
 !===================================================================================================================================

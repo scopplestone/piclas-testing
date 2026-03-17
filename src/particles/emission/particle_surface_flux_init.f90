@@ -90,6 +90,11 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-rmax', &
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-rmin', &
                                 'Minimal radius of the circular inflow to define a ring (rmax defined) or exclude an inner ' //&
                                 'circle (rmax undefined)', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-RacetrackLength', &
+                                'Length of the custom inflow to define a race track / stadium, where rmax and rmin define the half circles', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-RacetrackDir', &
+                                'Direction vector for the line segment of the race track / stadium:\n' //&
+                                'x (=1): (y,z); y (=2): (z,x); z (=3): (x,y)', numberedmulti=.TRUE., no=2)
 ! === Adaptive surface flux types
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-Adaptive' &
                                       , 'Flag for the definition of adaptive boundary conditions', '.FALSE.', numberedmulti=.TRUE.)
@@ -348,7 +353,7 @@ DO iSpec=1,nSpecies
         IF(ALMOSTEQUAL(Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow,0.)) CALL CalcConstMassflowWeightForZeroMassFlow(iSpec,iSF)
         ! Circular inflow in combination with AdaptiveType = 4 requires the partial circle area per tria side
         IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
-          IF(Symmetry%Axisymmetric) CALL abort(__STAMP__, 'ERROR: Circular inflow is not implemented with axisymmetric simulations!')
+          IF(Symmetry%Axisymmetric) CALL abort(__STAMP__, 'ERROR: Circular inflow + adaptive surface flux (type = 4) is not implemented with axisymmetric simulations!')
           ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
                   1:BCdata_auxSF(currentBC)%SideNumber))
           Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide = 0.0
@@ -410,6 +415,7 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas, DoRadialWeighting, DoLinea
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, TriaSurfaceFlux
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_SurfaceModel_Vars
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
@@ -515,6 +521,18 @@ DO iSpec=1,nSpecies
         ELSE
           ! Neither rmin nor rmax have been defined
           CALL abort(__STAMP__,'ERROR in Surface Flux with CircularInflow: A maximum (=rmax) and/or a minimum radius(=rmin) have to be defined!')
+        END IF
+        ! Stadium / race track definition
+        SF%racetrackLength     = GETREAL('Part-Species'//TRIM(hilf2)//'-RacetrackLength')
+        IF(SF%racetrackLength.GT.0.) THEN
+          IF(Symmetry%Axisymmetric) CALL abort(__STAMP__,'ERROR in Surface Flux: Racetrack / stadium inflow is not available for axisymmetric simulations!')
+          SF%racetrackDir   = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-RacetrackDir',2)
+          IF(.NOT.ALMOSTEQUALRELATIVE(SF%rmax,HUGE(SF%rmax),1E-1)) THEN
+            ! Length was input as total length, including the half cirles, we require only the half length between the circle segments
+            SF%racetrackLength = (SF%racetrackLength - 2.*SF%rmax) / 2.
+          ELSE
+            CALL abort(__STAMP__,'ERROR in Surface Flux with Stadium Inflow: A maximum (=rmax) has to be defined!')
+          END IF
         END IF
       END IF
     END IF !.NOT.VeloIsNormal
@@ -1001,7 +1019,7 @@ USE MOD_Mesh_Vars              ,ONLY: offsetElem, SideToElem
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
-USE MOD_Particle_Boundary_Tools,ONLY: GetRadialDistance2D
+USE MOD_Particle_Boundary_Tools,ONLY: GetRadialDistance2D,GetRacetrackDistrance2D
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Vars          ,ONLY: CountCircInflowType
 #endif
@@ -1023,7 +1041,14 @@ ElemID = SideToElem(S2E_ELEM_ID,BCSideID)
 iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
 GlobalSideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
 
-CALL GetRadialDistance2D(GlobalSideID,Species(iSpec)%Surfaceflux(iSF)%dir,Species(iSpec)%Surfaceflux(iSF)%origin,rmin,rmax)
+IF(Species(iSpec)%Surfaceflux(iSF)%racetrackLength.GT.0.0) THEN
+  ! Stadium / racetrack inflow
+  CALL GetRacetrackDistrance2D(GlobalSideID,Species(iSpec)%Surfaceflux(iSF)%dir,Species(iSpec)%Surfaceflux(iSF)%origin, &
+                               Species(iSpec)%Surfaceflux(iSF)%racetrackDir,Species(iSpec)%Surfaceflux(iSF)%racetrackLength,rmin,rmax)
+ELSE
+  ! Regular circular inflow
+  CALL GetRadialDistance2D(GlobalSideID,Species(iSpec)%Surfaceflux(iSF)%dir,Species(iSpec)%Surfaceflux(iSF)%origin,rmin,rmax)
+END IF
 
 ! define rejecttype
 IF ( (rmin .GT. Species(iSpec)%Surfaceflux(iSF)%rmax) .OR. (rmax .LT. Species(iSpec)%Surfaceflux(iSF)%rmin) ) THEN

@@ -27,7 +27,8 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: CalcWallSample
 PUBLIC :: StoreBoundaryParticleProperties
-PUBLIC :: GetRadialDistance2D
+PUBLIC :: GetRadialDistance2D,GetRacetrackDistrance2D
+PUBLIC :: PointToSegmentDist2D
 !===================================================================================================================================
 
 CONTAINS
@@ -353,13 +354,14 @@ REAL                          :: BoundingBox(1:3,1:8), point(2), vec(2)
 REAL                          :: Vector1(3),Vector2(3),Vector3(3),xyzNod(3),corner(3),VecBoundingBox(3),radiusCorner(2,4)
 LOGICAL                       :: r0inside
 !===================================================================================================================================
-! Determine which cells are inside/outside/partially inside the defined region
+! Get bounding box
 IF (TrackingMethod.EQ.TRIATRACKING) THEN
   CALL GetSideBoundingBoxTria(GlobalSideID,BoundingBox)
 ELSE
   CALL GetSideBoundingBox(GlobalSideID,BoundingBox)
 END IF
 IF(Symmetry%Axisymmetric) THEN
+  ! Store the y-coordinate (=2) of bounding box only: the first two nodes have yMin (= 1), and the third has yMax (= 3)
   rmin = BoundingBox(2,1)
   rmax = BoundingBox(2,3)
 ELSE
@@ -430,6 +432,241 @@ END IF
 END SUBROUTINE GetRadialDistance2D
 
 
+!===================================================================================================================================
+!> Determine the minimum and maximum distance to the user-defined racetrack
+!===================================================================================================================================
+SUBROUTINE GetRacetrackDistrance2D(GlobalSideID, dir, origin, dirVec, halfLength, rmin, rmax)
+! MODULES
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_Particle_Surfaces       ,ONLY: GetSideBoundingBox
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetSideBoundingBoxTria
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: GlobalSideID, dir(3)
+REAL, INTENT(IN)              :: origin(2)        !< Center of the racetrack/stadium in surface plane coordinates
+REAL, INTENT(IN)              :: dirVec(2)        !< Normalized direction vector of the straight section
+REAL, INTENT(IN)              :: halfLength       !< Half-length of the straight section (> 0)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)             :: rmin,rmax
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iNode
+REAL                          :: BoundingBox(1:3,1:8)
+REAL                          :: Vector1(3), Vector2(3), Vector3(3), xyzNod(3), corner(2), VecBoundingBox(3)
+REAL                          :: point(2), vec(2), edgeA(2), edgeB(2)
+REAL                          :: segA(2), segB(2)     ! Central segment endpoints (origin-shifted)
+REAL                          :: radiusCorner(2,4)
+REAL                          :: d1, d2, d3, d4
+REAL                          :: bbMin2D(2), bbMax2D(2)
+REAL                          :: boxCorners(2,4), boxEdgeA(2), boxEdgeB(2)
+LOGICAL                       :: segInside
+!===================================================================================================================================
+! Get bounding box
+IF (TrackingMethod.EQ.TRIATRACKING) THEN
+  CALL GetSideBoundingBoxTria(GlobalSideID, BoundingBox)
+ELSE
+  CALL GetSideBoundingBox(GlobalSideID, BoundingBox)
+END IF
+
+! Central segment endpoints in origin-shifted 2D surface coordinates
+segA = -halfLength * dirVec
+segB =  halfLength * dirVec
+
+! Bounding box extents in 3D
+xyzNod(1) = MINVAL(BoundingBox(1,:))
+xyzNod(2) = MINVAL(BoundingBox(2,:))
+xyzNod(3) = MINVAL(BoundingBox(3,:))
+VecBoundingBox(1) = MAXVAL(BoundingBox(1,:)) - MINVAL(BoundingBox(1,:))
+VecBoundingBox(2) = MAXVAL(BoundingBox(2,:)) - MINVAL(BoundingBox(2,:))
+VecBoundingBox(3) = MAXVAL(BoundingBox(3,:)) - MINVAL(BoundingBox(3,:))
+
+Vector1(:) = 0.
+Vector2(:) = 0.
+Vector3(:) = 0.
+Vector1(dir(2)) = VecBoundingBox(dir(2))
+Vector2(dir(2)) = VecBoundingBox(dir(2))
+Vector2(dir(3)) = VecBoundingBox(dir(3))
+Vector3(dir(3)) = VecBoundingBox(dir(3))
+
+!-- rmax: maximum distance from any bounding box corner to the central segment
+DO iNode = 1, 4
+  SELECT CASE(iNode)
+  CASE(1)
+    corner(1) = xyzNod(dir(2)) - origin(1)
+    corner(2) = xyzNod(dir(3)) - origin(2)
+  CASE(2)
+    corner(1) = xyzNod(dir(2)) + Vector1(dir(2)) - origin(1)
+    corner(2) = xyzNod(dir(3)) + Vector1(dir(3)) - origin(2)
+  CASE(3)
+    corner(1) = xyzNod(dir(2)) + Vector2(dir(2)) - origin(1)
+    corner(2) = xyzNod(dir(3)) + Vector2(dir(3)) - origin(2)
+  CASE(4)
+    corner(1) = xyzNod(dir(2)) + Vector3(dir(2)) - origin(1)
+    corner(2) = xyzNod(dir(3)) + Vector3(dir(3)) - origin(2)
+  END SELECT
+  radiusCorner(1, iNode) = PointToSegmentDist2D(corner, segA, segB)
+END DO
+rmax = MAXVAL(radiusCorner(1, 1:4))
+
+!-- rmin: minimum distance from any bounding box edge to the central segment
+!   For non-intersecting segments, the minimum distance is attained at an endpoint.
+!   We check 4 candidate distances per edge: 2 edge endpoints to central segment,
+!   and 2 central segment endpoints to the edge.
+DO iNode = 1, 4
+  SELECT CASE(iNode)
+  CASE(1)
+    point = (/xyzNod(dir(2)), xyzNod(dir(3))/) - origin
+    vec   = (/Vector1(dir(2)), Vector1(dir(3))/)
+  CASE(2)
+    point = (/xyzNod(dir(2)), xyzNod(dir(3))/) - origin
+    vec   = (/Vector3(dir(2)), Vector3(dir(3))/)
+  CASE(3)
+    point = (/xyzNod(dir(2)), xyzNod(dir(3))/) + (/Vector2(dir(2)), Vector2(dir(3))/) - origin
+    vec   = (/-Vector1(dir(2)), -Vector1(dir(3))/)
+  CASE(4)
+    point = (/xyzNod(dir(2)), xyzNod(dir(3))/) + (/Vector2(dir(2)), Vector2(dir(3))/) - origin
+    vec   = (/-Vector3(dir(2)), -Vector3(dir(3))/)
+  END SELECT
+
+  edgeA = point
+  edgeB = point + vec
+
+  ! 4 candidate distances: edge endpoints to central segment, central endpoints to edge
+  d1 = PointToSegmentDist2D(edgeA, segA, segB)
+  d2 = PointToSegmentDist2D(edgeB, segA, segB)
+  d3 = PointToSegmentDist2D(segA,  edgeA, edgeB)
+  d4 = PointToSegmentDist2D(segB,  edgeA, edgeB)
+
+  radiusCorner(2, iNode) = MIN(d1, d2, d3, d4)
+END DO
+
+!-- Check if any part of the central segment lies inside the bounding box
+segInside = .FALSE.
+
+! Bounding box bounds in origin-shifted 2D surface coordinates
+bbMin2D(1) = MINVAL(BoundingBox(dir(2),:)) - origin(1)
+bbMin2D(2) = MINVAL(BoundingBox(dir(3),:)) - origin(2)
+bbMax2D(1) = MAXVAL(BoundingBox(dir(2),:)) - origin(1)
+bbMax2D(2) = MAXVAL(BoundingBox(dir(3),:)) - origin(2)
+
+! Check if either central segment endpoint is inside the bounding box
+IF ( (segA(1) .GE. bbMin2D(1)) .AND. (segA(1) .LE. bbMax2D(1)) .AND. &
+     (segA(2) .GE. bbMin2D(2)) .AND. (segA(2) .LE. bbMax2D(2)) ) THEN
+  segInside = .TRUE.
+END IF
+IF ( (segB(1) .GE. bbMin2D(1)) .AND. (segB(1) .LE. bbMax2D(1)) .AND. &
+     (segB(2) .GE. bbMin2D(2)) .AND. (segB(2) .LE. bbMax2D(2)) ) THEN
+  segInside = .TRUE.
+END IF
+
+! Check if the central segment intersects any bounding box edge
+IF (.NOT. segInside) THEN
+  ! Define the 4 corners of the bounding box in origin-shifted 2D
+  boxCorners(:,1) = bbMin2D
+  boxCorners(:,2) = (/bbMax2D(1), bbMin2D(2)/)
+  boxCorners(:,3) = bbMax2D
+  boxCorners(:,4) = (/bbMin2D(1), bbMax2D(2)/)
+
+  ! Test intersection with each of the 4 bounding box edges
+  DO iNode = 1, 4
+    boxEdgeA = boxCorners(:, iNode)
+    boxEdgeB = boxCorners(:, MOD(iNode, 4) + 1)
+    IF (SegmentsIntersect2D(segA, segB, boxEdgeA, boxEdgeB)) THEN
+      segInside = .TRUE.
+      EXIT
+    END IF
+  END DO
+END IF
+
+IF (segInside) THEN
+  rmin = 0.
+ELSE
+  rmin = MINVAL(radiusCorner(2, 1:4))
+END IF
+
+END SUBROUTINE GetRacetrackDistrance2D
+
+!===================================================================================================================================
+!> Computes the minimum distance from a 2D point to a line segment defined by endpoints segA and segB.
+!> If the segment is degenerate (segA = segB), returns the distance to that point.
+!===================================================================================================================================
+FUNCTION PointToSegmentDist2D(point, segA, segB) RESULT(dist)
+!-----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)  :: point(2)   !< Query point
+REAL, INTENT(IN)  :: segA(2)    !< Segment start point
+REAL, INTENT(IN)  :: segB(2)    !< Segment end point
+!-----------------------------------------------------------------------------------------------------------------------------------
+! RESULT
+REAL              :: dist
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL              :: seg(2), rel(2), diff(2), relDist, segLenSq
+!===================================================================================================================================
+seg      = segB - segA
+rel      = point - segA
+segLenSq = DOT_PRODUCT(seg, seg)
+
+! Degenerate segment: both endpoints coincide
+IF (segLenSq .EQ. 0.) THEN
+  dist = SQRT(DOT_PRODUCT(rel, rel))
+  RETURN
+END IF
+
+! Project point onto segment line, normalize to [0,1]
+relDist    = DOT_PRODUCT(rel, seg) / segLenSq
+! If distance is greater than 1 or smaller than 0, move the point of evaluation to the respective segment
+relDist    = MAX(0., MIN(1., relDist))
+diff = point - (segA + relDist * seg)
+dist = SQRT(DOT_PRODUCT(diff, diff))
+
+END FUNCTION PointToSegmentDist2D
+
+
+!===================================================================================================================================
+!> Tests whether two 2D line segments (a1,a2) and (b1,b2) have a proper (non-collinear) intersection.
+!> Uses the cross-product orientation test.
+!===================================================================================================================================
+FUNCTION SegmentsIntersect2D(a1, a2, b1, b2) RESULT(intersect)
+!-----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)  :: a1(2)   !< Segment A start
+REAL, INTENT(IN)  :: a2(2)   !< Segment A end
+REAL, INTENT(IN)  :: b1(2)   !< Segment B start
+REAL, INTENT(IN)  :: b2(2)   !< Segment B end
+!-----------------------------------------------------------------------------------------------------------------------------------
+! RESULT
+LOGICAL           :: intersect
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL              :: da(2), db(2), d1, d2, d3, d4
+!===================================================================================================================================
+da = a2 - a1
+db = b2 - b1
+
+! Orientation of b1, b2 w.r.t. segment A
+d1 = da(1) * (b1(2) - a1(2)) - da(2) * (b1(1) - a1(1))
+d2 = da(1) * (b2(2) - a1(2)) - da(2) * (b2(1) - a1(1))
+
+! Orientation of a1, a2 w.r.t. segment B
+d3 = db(1) * (a1(2) - b1(2)) - db(2) * (a1(1) - b1(1))
+d4 = db(1) * (a2(2) - b1(2)) - db(2) * (a2(1) - b1(1))
+
+intersect = (d1 * d2 .LT. 0.) .AND. (d3 * d4 .LT. 0.)
+
+END FUNCTION SegmentsIntersect2D
+
+
 SUBROUTINE SampleSurfaceGroupProperties(SurfSideID,PartID,SpecID,SampleType,TorqueArray,ETrans,MPF)
 !===================================================================================================================================
 !> Sampling of torque and energy for surface group output
@@ -492,7 +729,7 @@ IF(iGroup.NE.0) THEN
           SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) - PartIntEn(PartID)%EVib(1) * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
         END IF
         IF(DSMC%ElectronicModel.GT.0) THEN
-          IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN  
+          IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
           !----  Sampling for internal (electronic) energy accommodation at walls
             SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) - PartIntEn(PartID)%EElec(1) * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
           END IF
