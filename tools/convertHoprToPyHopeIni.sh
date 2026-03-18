@@ -64,12 +64,11 @@ if [[ ${NbrOfHoprFiles} -gt 0 ]]; then
   # Remove all lines with the following strings as these variables no longer exist in pyhope
   # - postScaleMesh
   # - meshTemplate
-  # - sfc_type
   # - SpaceQuandt
   # - MeshDim
   # - lowerZ_BC
   # - upperZ_BC
-  find ./ -type f -name "hopr*.ini" -exec sed -i '/postscalemesh\|meshTemplate\|sfc_type\|SpaceQuandt\|MeshDim\|lowerZ_BC\|upperZ_BC/Id' {} \;
+  find ./ -type f -name "hopr*.ini" -exec sed -i '/postscalemesh\|meshTemplate\|SpaceQuandt\|MeshDim\|lowerZ_BC\|upperZ_BC/Id' {} \;
 
   # Rename all mesh modes with external meshes (2, 5) to "Mode = external"
   find ./ -type f -name "hopr*.ini" -exec sed -i '/Mode.*=\s*[25].*/s/[25].*/external/' {} \;
@@ -82,6 +81,9 @@ if [[ ${NbrOfHoprFiles} -gt 0 ]]; then
 
   # Rename mesh "nElemsZ" to "MeshExtrudeElems"
   find ./ -type f -name "hopr*.ini" -exec sed -i 's/nElemsZ/MeshExtrudeElems/' {} \;
+
+  # Rename mesh "sfc_type" to "MeshSortingSFC"
+  find ./ -type f -name "hopr*.ini" -exec sed -i 's/sfc_type/MeshSortingSFC/' {} \;
 fi
 
 # Process externals.ini files
