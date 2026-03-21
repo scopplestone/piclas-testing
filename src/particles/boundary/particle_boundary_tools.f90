@@ -27,7 +27,7 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: CalcWallSample
 PUBLIC :: StoreBoundaryParticleProperties
-PUBLIC :: GetRadialDistance2D,GetRacetrackDistrance2D
+PUBLIC :: GetRadialDistance2D,GetRacetrackDistance2D
 PUBLIC :: PointToSegmentDist2D
 !===================================================================================================================================
 
@@ -327,24 +327,23 @@ END ASSOCIATE
 END SUBROUTINE StoreBoundaryParticleProperties
 
 
+!===================================================================================================================================
+!> Determines the minimum and maximum radial distance from a side's bounding box to a given origin on a surface.
+!===================================================================================================================================
 SUBROUTINE GetRadialDistance2D(GlobalSideID,dir,origin,rmin,rmax)
-!===================================================================================================================================
-! Determines the radial distance to a given origin on a surface
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES
 USE MOD_Globals
 USE MOD_Particle_Surfaces       ,ONLY: GetSideBoundingBox
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetSideBoundingBoxTria
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Symmetry_Vars           ,ONLY: Symmetry
-!----------------------------------------------------------------------------------------------------------------------------------!
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: GlobalSideID, dir(3)
 REAL, INTENT(IN)              :: origin(2)
-!----------------------------------------------------------------------------------------------------------------------------------!
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)             :: rmin,rmax
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -379,7 +378,7 @@ ELSE
   Vector2(dir(2)) = VecBoundingBox(dir(2))
   Vector2(dir(3)) = VecBoundingBox(dir(3))
   Vector3(dir(3)) = VecBoundingBox(dir(3))
-  !-- determine rmax (and corners)
+  !-- determine rmax: maximum distance to the origin, which will always be at the corners
   DO iNode=1,4
     SELECT CASE(iNode)
     CASE(1)
@@ -396,7 +395,7 @@ ELSE
     radiusCorner(1,iNode)=SQRT(corner(dir(2))**2+corner(dir(3))**2)
   END DO !iNode
   rmax=MAXVAL(radiusCorner(1,1:4))
-  !-- determine rmin
+  !-- determine rmin: minimum distance to the origin, considering the distance to the edges, which might be minimal between corners
   DO iNode=1,4
     SELECT CASE(iNode)
     CASE(1)
@@ -412,16 +411,18 @@ ELSE
       point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
       vec=(/-Vector3(dir(2)),-Vector3(dir(3))/)
     END SELECT
+    ! determine the closest point on the edge to the origin
     vec=point + MIN(MAX(-DOT_PRODUCT(point,vec)/DOT_PRODUCT(vec,vec),0.),1.)*vec
     radiusCorner(2,iNode)=SQRT(DOT_PRODUCT(vec,vec)) !rmin
   END DO !iNode
-  !-- determine if r0 is inside of bounding box
+  !-- determine if the origin is inside of bounding box
   IF ((origin(1) .GE. MINVAL(BoundingBox(dir(2),:))) .AND. &
       (origin(1) .LE. MAXVAL(BoundingBox(dir(2),:))) .AND. &
       (origin(2) .GE. MINVAL(BoundingBox(dir(3),:))) .AND. &
       (origin(2) .LE. MAXVAL(BoundingBox(dir(3),:))) ) THEN
       r0inside = .TRUE.
   END IF
+  !-- set rmin to zero to force the side to be classified as partially "inside", otherwise determine the smallest distance
   IF (r0inside) THEN
     rmin = 0.
   ELSE
@@ -435,14 +436,13 @@ END SUBROUTINE GetRadialDistance2D
 !===================================================================================================================================
 !> Determine the minimum and maximum distance to the user-defined racetrack
 !===================================================================================================================================
-SUBROUTINE GetRacetrackDistrance2D(GlobalSideID, dir, origin, dirVec, halfLength, rmin, rmax)
+SUBROUTINE GetRacetrackDistance2D(GlobalSideID, dir, origin, dirVec, halfLength, rmin, rmax)
 ! MODULES
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Surfaces       ,ONLY: GetSideBoundingBox
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetSideBoundingBoxTria
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -590,14 +590,19 @@ ELSE
   rmin = MINVAL(radiusCorner(2, 1:4))
 END IF
 
-END SUBROUTINE GetRacetrackDistrance2D
+END SUBROUTINE GetRacetrackDistance2D
+
 
 !===================================================================================================================================
 !> Computes the minimum distance from a 2D point to a line segment defined by endpoints segA and segB.
-!> If the segment is degenerate (segA = segB), returns the distance to that point.
+!> If the segment is degenerate (segA = segB), returns the distance to that point but should not happen, as this is treated with a
+!> separate case with GetRadialDistance2D
 !===================================================================================================================================
 FUNCTION PointToSegmentDist2D(point, segA, segB) RESULT(dist)
+! MODULES
+USE MOD_Globals
 !-----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -611,22 +616,25 @@ REAL              :: dist
 ! LOCAL VARIABLES
 REAL              :: seg(2), rel(2), diff(2), relDist, segLenSq
 !===================================================================================================================================
+! Distance and length (squared) between half circles
 seg      = segB - segA
+segLenSq = DOT_PRODUCT(seg,seg)
+! Vector between point and segment start
 rel      = point - segA
-segLenSq = DOT_PRODUCT(seg, seg)
 
 ! Degenerate segment: both endpoints coincide
 IF (segLenSq .EQ. 0.) THEN
-  dist = SQRT(DOT_PRODUCT(rel, rel))
+  dist = VECNORM2D(rel)
   RETURN
 END IF
 
 ! Project point onto segment line, normalize to [0,1]
 relDist    = DOT_PRODUCT(rel, seg) / segLenSq
-! If distance is greater than 1 or smaller than 0, move the point of evaluation to the respective segment
+! If distance is greater than 1 or smaller than 0, move the point of evaluation to the end of the respective segment
 relDist    = MAX(0., MIN(1., relDist))
+! Move point along the line segment to get the distance perpendicular to it
 diff = point - (segA + relDist * seg)
-dist = SQRT(DOT_PRODUCT(diff, diff))
+dist = VECNORM2D(diff)
 
 END FUNCTION PointToSegmentDist2D
 

@@ -527,8 +527,10 @@ DO iSpec=1,nSpecies
         IF(SF%racetrackLength.GT.0.) THEN
           IF(Symmetry%Axisymmetric) CALL abort(__STAMP__,'ERROR in Surface Flux: Racetrack / stadium inflow is not available for axisymmetric simulations!')
           SF%racetrackDir   = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-RacetrackDir',2)
+          !--- normalize racetrackDir
+          IF (.NOT. ALL(SF%racetrackDir(:).EQ.0.)) SF%racetrackDir = SF%racetrackDir / VECNORM2D(SF%racetrackDir)
+          ! Length was input as total length, including the half cirles, we require only the half length between the circle segments
           IF(.NOT.ALMOSTEQUALRELATIVE(SF%rmax,HUGE(SF%rmax),1E-1)) THEN
-            ! Length was input as total length, including the half cirles, we require only the half length between the circle segments
             SF%racetrackLength = (SF%racetrackLength - 2.*SF%rmax) / 2.
           ELSE
             CALL abort(__STAMP__,'ERROR in Surface Flux with Stadium Inflow: A maximum (=rmax) has to be defined!')
@@ -1019,7 +1021,7 @@ USE MOD_Mesh_Vars              ,ONLY: offsetElem, SideToElem
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
-USE MOD_Particle_Boundary_Tools,ONLY: GetRadialDistance2D,GetRacetrackDistrance2D
+USE MOD_Particle_Boundary_Tools,ONLY: GetRadialDistance2D,GetRacetrackDistance2D
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Vars          ,ONLY: CountCircInflowType
 #endif
@@ -1043,7 +1045,7 @@ GlobalSideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
 
 IF(Species(iSpec)%Surfaceflux(iSF)%racetrackLength.GT.0.0) THEN
   ! Stadium / racetrack inflow
-  CALL GetRacetrackDistrance2D(GlobalSideID,Species(iSpec)%Surfaceflux(iSF)%dir,Species(iSpec)%Surfaceflux(iSF)%origin, &
+  CALL GetRacetrackDistance2D(GlobalSideID,Species(iSpec)%Surfaceflux(iSF)%dir,Species(iSpec)%Surfaceflux(iSF)%origin, &
                                Species(iSpec)%Surfaceflux(iSF)%racetrackDir,Species(iSpec)%Surfaceflux(iSF)%racetrackLength,rmin,rmax)
 ELSE
   ! Regular circular inflow
