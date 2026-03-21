@@ -529,9 +529,12 @@ DO iSpec=1,nSpecies
           SF%racetrackDir   = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-RacetrackDir',2)
           !--- normalize racetrackDir
           IF (.NOT. ALL(SF%racetrackDir(:).EQ.0.)) SF%racetrackDir = SF%racetrackDir / VECNORM2D(SF%racetrackDir)
-          ! Length was input as total length, including the half cirles, we require only the half length between the circle segments
+          !--- adjust length and calculate new surface flux area
           IF(.NOT.ALMOSTEQUALRELATIVE(SF%rmax,HUGE(SF%rmax),1E-1)) THEN
+            ! Length was input as total length, including the half cirles, we require only the half length between the circle segments
             SF%racetrackLength = (SF%racetrackLength - 2.*SF%rmax) / 2.
+            ! Add the area of the inner segment
+            SF%totalAreaSF = SF%totalAreaSF + 4.*SF%racetrackLength * (SF%rmax-SF%rmin)
           ELSE
             CALL abort(__STAMP__,'ERROR in Surface Flux with Stadium Inflow: A maximum (=rmax) has to be defined!')
           END IF
