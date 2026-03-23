@@ -1027,7 +1027,7 @@ NIG_Reservoir_single_core:
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_WEEKLY'
+    - if: '$DO_NIGHTLY'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run tracking examples on nightly
@@ -1562,6 +1562,18 @@ WEK_Reservoir:
   stage: reggie_weekly
   script:
     - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_Reservoir -e bin/piclas
+
+WEK_Reservoir_single_core:
+  <<: *defaults_DSMC_weekly
+  stage: reggie_weekly
+  script:
+    - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_Reservoir_single_core -e bin/piclas
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_WEEKLY'
 
 WEK_FPFlow:
   <<: *defaults_weekly
