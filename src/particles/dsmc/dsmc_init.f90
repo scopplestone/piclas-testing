@@ -166,7 +166,7 @@ CALL prms%CreateLogicalOption(   'Particles-DSMC-averagedCollisionParameters'  &
                                             '    collision-specific parameters(F)\n    can be found in tables e.g. in\n'//&
                                             '    VHS/VSS: krishnan2015\n             (https://doi.org/10.2514/6.2015-3373)\n'//&
                                             '    VHS/VSS: krishnan2016\n             (https://doi.org/10.1063/1.4939719)', 'T')
-CALL prms%CreateIntOption(   'Part-Collision[$]-partnerSpecies[$]'  &
+CALL prms%CreateIntArrayOption( 'Part-Collision[$]-partnerSpecies'  &
                                            ,'Colliding partnerSpecies(1,2) equal to SpeciesID from ini.\n'//&
                                             'e.g: Collision ID=1 Ar+NO\n     Part-Species2(Ar) + Part-Species3(NO)\n'//&
                                             '     write Part-Collision1-partnerSpecies1=2\n'//&
@@ -340,10 +340,12 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(32)         :: hilf , hilf2
 INTEGER               :: iCase, iSpec, jSpec, iInit, iDOF, VarNum, err
-INTEGER               :: iColl, jColl, pColl  ! for collision parameter read in
+INTEGER               :: iColl, jColl, pColl, CollInfAv  ! for collision parameter read in
 REAL                  :: A1, A2, delta_ij     ! species constant for cross section (p. 24 Laux)
 LOGICAL               :: PostCollPointerSet
 LOGICAL               :: AttrExists
+LOGICAL               :: CollParDefined
+LOGICAL, ALLOCATABLE  :: CollInfUseAv(:)
 CHARACTER(LEN=64)     :: dsetname
 INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
 INTEGER               :: IntToLog
@@ -620,14 +622,15 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
       CollInf%collidingSpecies(iColl,:) = GETINTARRAY('Part-Collision'//TRIM(hilf)//'-partnerSpecies',2,'0,0')
     END DO ! iColl = CollInf%NumCase
   END IF ! averagedCollisionParameters
+  CollInfAv = 0 ! Count the number of defined collision parameter
   DO iColl = 1, CollInf%NumCase ! check if any collidingSpecies pair is set multiple times
     WRITE(UNIT=hilf,FMT='(I0)') iColl
+    IF ((CollInf%collidingSpecies(iColl,1).NE.0).AND.(CollInf%collidingSpecies(iColl,2).NE.0)) CollInfAv = CollInfAv + 1
     DO pColl = 1,2 ! collision partner
       WRITE (UNIT = hilf2,FMT = '(I0)') pColl
-      IF (CollInf%collidingSpecies(iColl,pColl) .EQ. 0) THEN
-          CALL Abort(__STAMP__,'ERROR: Partner species '//TRIM(hilf2)//' for Collision'//TRIM(hilf)//' not defined. '// &
-                    'Part-Collision'//TRIM(hilf)//'-partnerSpecies required ')
-      END IF ! collidingSpecies .EQ. 0
+          ! CALL Abort(__STAMP__,'ERROR: Partner species '//TRIM(hilf2)//' for Collision'//TRIM(hilf)//' not defined. '// &
+          !           'Part-Collision'//TRIM(hilf)//'-partnerSpecies required ')
+      ! END IF ! collidingSpecies .EQ. 0
       IF (CollInf%collidingSpecies(iColl,pColl).GT.nSpecies) THEN
         CALL Abort(__STAMP__,'ERROR: Partner species '//TRIM(hilf2)//' for Collision'//TRIM(hilf)//' .GT. nSpecies')
       END IF
@@ -644,6 +647,31 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
       END IF ! check for redundant collision partner combination
     END DO !jColl = nColl
   END DO ! iColl = nColl
+
+  IF(.NOT.CollInf%averagedCollisionParameters) THEN
+    ALLOCATE(CollInfUseAv(CollInf%NumCase))
+    CollInfUseAv = .FALSE.
+    DO iSpec = 1, nSpecies
+      DO jSpec = iSpec, nSpecies
+        CollParDefined = .FALSE.
+        DO iColl = 1, CollInf%NumCase
+          IF (((CollInf%collidingSpecies(iColl,1).EQ.iSpec).AND.(CollInf%collidingSpecies(iColl,2).EQ.jSpec)) &
+              .OR.((CollInf%collidingSpecies(iColl,2).EQ.iSpec).AND.(CollInf%collidingSpecies(iColl,1).EQ.jSpec))) THEN
+            CollParDefined = .TRUE. ! Not averaged parameter are defined for the collision
+          END IF
+        END DO
+        ! Use averaged values for the not defined parameter
+        IF (.NOT.CollParDefined) THEN
+          CollInfAv = CollInfAv + 1
+          CollInfUseAv(CollInfAv) = .TRUE.
+          CollInf%collidingSpecies(CollInfAv,1) = iSpec
+          CollInf%collidingSpecies(CollInfAv,2) = jSpec
+          LBWRITE(*,*) 'Collision-specific parameter for ', iSpec, jSpec, ' not defined. Use of average values.'
+        END IF
+      END DO
+    END DO
+    DEALLOCATE(CollInfAv)
+  END IF
 
   ! allocate and initialize collision parameter arrays
   ALLOCATE(CollInf%Tref(nSpecies,nSpecies))
@@ -662,10 +690,17 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
       CollInf%omega (iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%omega + SpecDSMC(jSpec)%omega)
       CollInf%alphaVSS  (iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%alphaVSS  + SpecDSMC(jSpec)%alphaVSS)
     ELSE ! collision-specific parameters
-      CollInf%Tref      (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-Tref'     )
-      CollInf%dref      (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-dref'     )
-      CollInf%omega (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-omega'    )
-      CollInf%alphaVSS  (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-alphaVSS' )
+      IF (.NOT.CollInfUseAv(iColl)) THEN
+        CollInf%Tref      (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-Tref'     )
+        CollInf%dref      (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-dref'     )
+        CollInf%omega (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-omega'    )
+        CollInf%alphaVSS  (iSpec,jSpec) = GETREAL('Part-Collision'//TRIM(hilf)//'-alphaVSS' )
+      ELSE
+        CollInf%Tref      (iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%Tref      + SpecDSMC(jSpec)%Tref)
+        CollInf%dref      (iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%dref      + SpecDSMC(jSpec)%dref)
+        CollInf%omega (iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%omega + SpecDSMC(jSpec)%omega)
+        CollInf%alphaVSS  (iSpec,jSpec) = 0.5 * (SpecDSMC(iSpec)%alphaVSS  + SpecDSMC(jSpec)%alphaVSS)
+      END IF
     END IF ! averagedCollisionParameters
     IF (iSpec.NE.jSpec) THEN ! fill lower triangular matrix
       CollInf%Tref      (jSpec,iSpec) = CollInf%Tref      (iSpec,jSpec)
