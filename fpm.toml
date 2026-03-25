@@ -1,0 +1,64 @@
+# General information
+name        = "piclas"
+version     = "4.1.0"
+licence     = "GPL-3.0"
+description = "PICLas is a parallel, three-dimensional PIC-DSMC solver"
+homepage    = "https://piclas.readthedocs.io/en/latest/"
+
+# Author and copyright information
+author      = "PICLas Developers"
+maintainer  = "info@boltzplatz.eu"
+copyright   = "2025-20XX PICLas Developers"
+
+# Library configuration
+source-dir  = "src"
+
+# Dependencies
+[dependencies]
+blas        = "*"
+lapack      = "*"
+mpi         = "*"
+
+# External libraries
+[build]
+link        = ["blas", "lapack"]
+
+# Automatic target discovery
+auto-executables  = false
+auto-examples     = false
+auto-tests        = false
+
+# Fortran features
+[fortran]
+implicit-external = false
+implicit-typing   = false
+source-form       = "free"
+
+# Preprocessor configuration
+[preprocess]
+[preprocess.cpp]
+suffixes          = ["f90", "t90"]
+
+# Linting
+[extra.fortitude.check]
+select            = ["C", "E", "MOD", "OB", "PORT", "S"]
+ignore            = ["C003",    # C003: implicit-external-procedures
+                     "C021",    # C021: no-real-suffix
+                     "C022",    # C022: implicit-real-kind
+                     "C121",    # C121: use-all
+                     "E001",    # E001: syntax-error   > disabled because of false positives with PreProcessor
+                     "S001",    # S001: line-too-long
+                     "MOD011",  # MOD011: old-style-array-literal
+                     "MOD021",  # MOD021: deprecated-relational-operator
+                     "S102",    # S102: incorrect-space-before-comment
+                     "S201",    # S201: superfluous-implicit-none
+                    ]
+[extra.fortitude.check.per-file-ignores]
+"src/**/*_vars.f90"                     = ["C132"]  # Vars files need to be public
+"src/globals/globals.f90"               = ["C132"]  # Globals needs to public
+"src/io_hdf5/io_hdf5.f90"               = ["C131"]  # HDF5 needs to be public
+"src/io_hdf5/hdf5_output.f90"           = ["T041"]  # Userblock needs assumed size variables
+"src/output/output.f90"                 = ["T041"]  # Userblock needs assumed size variables
+"src/globals/preprocessing.f90"         = ["C132"]  # PreProc needs to be public
+"src/readintools/isovaryingstring.f90"  = ["T042"]  # ISO Varying String needs assumed size variables
+"src/readintools/stringtools.f90"       = ["T042"]  # ISO Varying String needs assumed size variables

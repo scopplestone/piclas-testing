@@ -4,6 +4,7 @@
 GLOBALS='./src/globals/globals_vars.f90'
 WORKFLOW='.github/workflows/cmake-ninja.yml'
 CMAKELISTS='CMakeLists.txt'
+FPMTOML='fpm.toml'
 
 if test -t 1; then # if terminal
   NbrOfColors=$(which tput > /dev/null && tput colors) # supports color
@@ -45,6 +46,11 @@ fi
 
 if [[ ! -f ${CMAKELISTS} ]]; then
   echo "${RED}Could not find ${CMAKELISTS}${NC}"
+  exit 1
+fi
+
+if [[ ! -f ${FPMTOML} ]]; then
+  echo "${RED}Could not find ${FPMTOML}${NC}"
   exit 1
 fi
 
@@ -94,4 +100,13 @@ if [[ -z ${CHECKCMAKELISTS} ]]; then
   exit 1
 else
   sed -i "s/.*SET(PROJECT_VER.*/SET(PROJECT_VER  \"${1}\")/" ${CMAKELISTS}
+fi
+
+# Update version in fpm.toml
+CHECKCMAKELISTS=$(grep -in "version" ${FPMTOML} | grep "=")
+if [[ -z ${CHECKCMAKELISTS} ]]; then
+  echo "${RED}Could not find 'version...=' in ${FPMTOML} using grep${NC}"
+  exit 1
+else
+  sed -i "s/.*version.*=.*\".*\"/version     = \"${1}\"/" ${FPMTOML}
 fi

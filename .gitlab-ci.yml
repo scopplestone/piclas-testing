@@ -257,6 +257,7 @@ before_script:
 # Stages
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 stages:
+  - lint
   - build
   - build_weekly
   - reggie_checkin_short
@@ -298,6 +299,27 @@ stages:
       when: never
     # In all other cases, the job is added to the pipeline, with when: on_success
     - when: on_success
+
+.default_python_param: &default_python_param
+  <<: *default_build_param
+
+.default_python: &default_python
+  <<: *default_python_param
+  allow_failure: false
+
+.defaults_python: &defaults_python
+  extends: .default_python
+  variables:
+    # The project directory will be cleaned up at the end of the build
+    FF_ENABLE_JOB_CLEANUP: true
+    # The trace force send interval for logs is dynamically adjusted based on the trace update interval
+    FF_USE_DYNAMIC_TRACE_FORCE_SEND_INTERVAL: true
+    # Fastzip is a performant archiver for cache/artifact archiving and extraction
+    FF_USE_FASTZIP: true
+    # Use fast compression for artifacts, resulting in larger archives
+    ARTIFACT_COMPRESSION_LEVEL: "fast"
+    # Use no compression for caches
+    CACHE_COMPRESSION_LEVEL: "fastest"
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Default parameters for the testing stage only (reusing the previous template)
@@ -606,6 +628,36 @@ cleanup:
       fi
   rules:
     - if: $[[ inputs.DO_CODE_COVERAGE ]] == true
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "lint": Run the linters
+# policy: allow failure without stopping pipeline only on feature branches
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+fortitude:
+  <<: *defaults_python
+  stage: lint
+  dependencies: []
+  script:
+    - fortitude --version
+    - fortitude check --output-format=grouped src
+  rules:
+    # Skip running this job for merge requests targeting the default branch
+  - if: '$CI_MERGE_REQUEST_ID && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH'
+    when: never
+    # For feature branches, allow failure without stopping the pipeline
+  - if: '$CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH'
+    allow_failure: true
+    # For master branch, do not allow failure without stopping the pipeline
+  - when: always
+    allow_failure: false
+
+ruff:
+  <<: *defaults_python
+  stage: lint
+  dependencies: []
+  script:
+    - ruff --version
+    - ruff check --extend-ignore=E201,E202,E203,E221,E222,E225,E231,E271,E272 --line-length=132 --preview docs tools
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "build": Build on check-in
