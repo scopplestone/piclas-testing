@@ -279,6 +279,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem_Shared
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_HDF5_Input             ,ONLY: PyHOPECompatibilityCheck
 !#if MPI
 !#endif /*MPI*/
 IMPLICIT NONE
@@ -315,6 +316,8 @@ IF(myComputeNodeRank.EQ.0)THEN
 #else
   CALL OpenDataFile(RadiationSurfState,create=.FALSE.,single=.TRUE. ,readOnly=.TRUE.)
 #endif
+  ! Check PyHOPE versions in restart.h5 file
+  CALL PyHOPECompatibilityCheck(File_ID,'ray tracing result')
   CALL DatasetExists(File_ID,'SurfaceDataGlobalSideIndex',ContainerExists)
   IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'SurfaceDataGlobalSideIndex container not in '//TRIM(RadiationSurfState))
   CALL GetDataSize(File_ID,'SurfaceDataGlobalSideIndex',nDims,HSize,attrib=.FALSE.)

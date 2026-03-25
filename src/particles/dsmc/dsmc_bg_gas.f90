@@ -129,6 +129,12 @@ DO iSpec = 1, nSpecies
   END IF
 END DO
 
+IF(BGGas%NumberOfSpecies.GT.1) THEN
+  DO iSpec = 1, nSpecies
+    IF(ANY(Species(iSpec)%Init(:)%ParticleEmissionType.EQ.7)) CALL abort(__STAMP__, 'ERROR: Photo-ionization through species emission and multi-species background gas is not implemented yet!')
+  END DO
+END IF
+
 IF(DoMacroscopicRestart) CALL abort(__STAMP__, 'Constant background gas and macroscopic restart are not compatible!')
 
 ! 2.) Allocation
@@ -501,7 +507,7 @@ SUBROUTINE DSMC_pairing_bggas(iElem)
 USE MOD_Globals
 USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcMeanFreePath
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
+USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartIntEn, DSMC, SelectionProc
 USE MOD_Particle_Vars         ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,Species,UseGranularSpecies
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offsetElem
@@ -572,7 +578,10 @@ DO iLoop = 1, nPart
   MPF = GetParticleWeight(iPart)
   CollInf%Coll_SpecPartNum(iSpec) = CollInf%Coll_SpecPartNum(iSpec) + MPF
   ! Calculation of mean vibrational energy per cell and iter, necessary for dissociation probability
-  IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) + PartStateIntEn(1,iPart) * MPF
+  IF (CollisMode.EQ.3) THEN
+    IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) &
+      ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) + PartIntEn(iPart)%EVib(1) * MPF
+  END IF
   ! Creating pairs for species, which are not the background species
   IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN
     Coll_pData(iPair)%iPart_p1 = iPart
@@ -685,6 +694,7 @@ SUBROUTINE BGGas_DeleteParticles()
 USE MOD_DSMC_Vars           ,ONLY: BGGas
 USE MOD_PARTICLE_Vars       ,ONLY: PDM, PartSpecies
 USE MOD_part_tools          ,ONLY: UpdateNextFreePosition
+USE MOD_part_operations     ,ONLY: RemoveParticle
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers  ,ONLY: LBStartTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -708,7 +718,7 @@ CALL LBStartTime(tLBStart)
 DO iPart = 1, PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
     ! No Pt_temp=0 necessary, because it is a ghost particle
-    IF(BGGas%BackgroundSpecies(PartSpecies(iPart))) PDM%ParticleInside(iPart) = .FALSE.
+    IF(BGGas%BackgroundSpecies(PartSpecies(iPart))) CALL RemoveParticle(iPart)
   END IF
 END DO
 BGGas%PairingPartner = 0
@@ -735,8 +745,8 @@ SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,TotalNbrOfReactions)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
-USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollisMode, ChemReac, PartStateIntEn, DSMC
+USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib,CalcMeanFreePath
+USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollisMode, ChemReac, DSMC
 USE MOD_DSMC_Vars              ,ONLY: DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, BGGas
 USE MOD_Particle_Vars          ,ONLY: PEM, PDM, PartSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
@@ -750,6 +760,7 @@ USE MOD_part_tools             ,ONLY: CalcVelocity_maxwell_particle
 USE MOD_MCC_Vars               ,ONLY: PhotoIonFirstLine,PhotoIonLastLine,PhotoReacToReac,PhotonEnergies
 USE MOD_MCC_Vars               ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated,MaxPhotonXSec
 USE MOD_Part_Tools             ,ONLY: GetNextFreePosition, IncreaseMaxParticleNumber
+USE MOD_part_operations        ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -865,7 +876,7 @@ NbrOfParticle = SUM(NumPhotoIonization)
 !> 2.) Delete left-over inserted particles
 IF(TotalNbrOfReactions.GT.NbrOfParticle) THEN
   DO iPart = NbrOfParticle+1,TotalNbrOfReactions
-    PDM%ParticleInside(GetNextFreePosition(iPart)) = .FALSE.
+    CALL RemoveParticle(GetNextFreePosition(iPart))
   END DO
   TotalNbrOfReactions = NbrOfParticle
 ELSE IF(TotalNbrOfReactions.LT.NbrOfParticle) THEN
@@ -939,9 +950,6 @@ DO iPart = 1, NbrOfParticle
   END IF
   ! Velocity (set it to zero, as it will be subtracted in the chemistry module)
   PartState(4:6,ParticleIndex) = 0.
-  ! Internal energies (set it to zero)
-  PartStateIntEn(1:2,ParticleIndex) = 0.
-  IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,ParticleIndex) = 0.
 END DO
 
 
@@ -1027,6 +1035,7 @@ USE MOD_DSMC_Vars        ,ONLY: BGGas
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+ USE MOD_HDF5_Input      ,ONLY: PyHOPECompatibilityCheck
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1043,6 +1052,10 @@ LBWRITE(UNIT_stdOut,*) 'BGGas distribution - Using macroscopic values from file:
 
 CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
+! Check PyHOPE versions in BGGasDistribution.h5 file
+CALL PyHOPECompatibilityCheck(File_ID,'BGGas distribution')
+
+! Check ElemData container size
 CALL GetDataSize(File_ID,'ElemData',nDims,HSize,attrib=.FALSE.)
 nVarHDF5  = INT(HSize(1),4)
 IF(nVarHDF5.LT.10) CALL abort(__STAMP__,'ERROR in BGGas_ReadInDistribution: Number of variables in DSMCState is below 10. Something is wrong with the input file!')
@@ -1092,8 +1105,8 @@ END SUBROUTINE BGGas_ReadInDistribution
 SUBROUTINE BGGas_TraceSpeciesSplit(iElem, nPart, nPair)
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars             ,ONLY: BGGas, CollisMode, PartStateIntEn, DSMC
-USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, VibQuantsPar, PolyatomMolDSMC
+USE MOD_DSMC_Vars             ,ONLY: BGGas, CollisMode, PartIntEn, DSMC
+USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, PolyatomMolDSMC
 USE MOD_Particle_Vars         ,ONLY: PEM,PartSpecies,PartState,PartMPF,Species
 USE MOD_Part_Tools            ,ONLY: GetNextFreePosition
 ! IMPLICIT VARIABLE HANDLING
@@ -1150,13 +1163,22 @@ DO iLoop = 1, nPart
       ! Copy properties from the particle species
       PartState(4:6,PartIndex) = PartState(4:6,iPart)
       IF(CollisMode.GT.1) THEN
-        PartStateIntEn(1:2,PartIndex) = PartStateIntEn(1:2,iPart)
-        IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-          IF(ALLOCATED(VibQuantsPar(PartIndex)%Quants)) DEALLOCATE(VibQuantsPar(PartIndex)%Quants)
-          ALLOCATE(VibQuantsPar(PartIndex)%Quants(PolyatomMolDSMC(SpecDSMC(iSpec)%SpecToPolyArray)%VibDOF))
-          VibQuantsPar(PartIndex)%Quants(:) = VibQuantsPar(iPart)%Quants(:)
+        IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
+          ALLOCATE(PartIntEn(PartIndex)%EVib(1), PartIntEn(PartIndex)%ERot(1))
+          PartIntEn(PartIndex)%EVib = PartIntEn(iPart)%EVib
+          PartIntEn(PartIndex)%ERot = PartIntEn(iPart)%ERot
         END IF
-        IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,PartIndex) = PartStateIntEn(3,iPart)
+        IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+          IF(ALLOCATED(PartIntEn(PartIndex)%QVib)) DEALLOCATE(PartIntEn(PartIndex)%QVib)
+          ALLOCATE(PartIntEn(PartIndex)%QVib(PolyatomMolDSMC(SpecDSMC(iSpec)%SpecToPolyArray)%VibDOF))
+          PartIntEn(PartIndex)%QVib(:) = PartIntEn(iPart)%QVib(:)
+        END IF
+        IF(DSMC%ElectronicModel.GT.0) THEN
+          IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+            ALLOCATE(PartIntEn(PartIndex)%EElec(1))
+            PartIntEn(PartIndex)%EElec = PartIntEn(iPart)%EElec
+          END IF
+        END IF
       END IF
       ! Update cell-local particle list
       LocalElemID = PEM%LocalElemID(PartIndex)

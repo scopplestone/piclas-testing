@@ -1037,6 +1037,11 @@ END IF
 ! 3) Calculate the actual number of particles per side
 IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
   ! Adaptive Type = 4
+  IF(ParticleWeighting%PerformCloning) THEN
+    MPF = Species(iSpec)%Surfaceflux(iSF)%WeightingFactor(iSide)
+  ELSE
+    MPF = Species(iSpec)%MacroParticleFactor
+  END IF
   IF(ParticleWeighting%UseSubdivision) THEN
     ! Subdivide the side into smaller subsides to improve distribution
     PartInsSubSide = 0
@@ -1050,14 +1055,15 @@ IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
                 / Species(iSpec)%MacroParticleFactor + RandVal1)
         PartInsSubSide = PartInsSubSide + ParticleWeighting%PartInsSide(iSub)
       END DO
+    ELSE
+      ! Side parallel to rotational axis
+      CALL RANDOM_NUMBER(RandVal1)
+      PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide)         &
+                        * (Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow * dtVar / Species(iSpec)%MassIC + AdaptBCPartNumOut(iSpec,iSF)) &
+                        / MPF +RandVal1)
     END IF
   ELSE
-    IF(ParticleWeighting%PerformCloning) THEN
-      MPF = Species(iSpec)%Surfaceflux(iSF)%WeightingFactor(iSide)
-    ELSE
-      MPF = Species(iSpec)%MacroParticleFactor
-    END IF
-    ! No subdivision due to axisymmetry and weighting (for other particle weighting methods: weight is included in nVFR)
+    ! No subdivision due to axisymmetry and weighting
     CALL RANDOM_NUMBER(RandVal1)
     PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide)         &
                       * (Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow * dtVar / Species(iSpec)%MassIC + AdaptBCPartNumOut(iSpec,iSF)) &
@@ -1076,9 +1082,13 @@ ELSE
                 * dtVar * Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) * vSF + RandVal1)
         PartInsSubSide = PartInsSubSide + ParticleWeighting%PartInsSide(iSub)
       END DO
+    ELSE
+      ! Side parallel to rotational axis
+      CALL RANDOM_NUMBER(RandVal1)
+      PartInsSubSide = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor * dtVar * nVFR + RandVal1)
     END IF
   ELSE
-    ! No subdivision due to axisymmetry and weighting (for other particle weighting methods: weight is included in nVFR)
+    ! No subdivision due to axisymmetry and weighting
     CALL RANDOM_NUMBER(RandVal1)
     PartInsSubSide = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor * dtVar * nVFR + RandVal1)
   END IF
@@ -1297,7 +1307,7 @@ USE MOD_Particle_Sampling_Vars    ,ONLY: AdaptBCMapElemToSample, AdaptBCMacroVal
 USE MOD_Part_Tools                ,ONLY: InRotRefFrameCheck, GetNextFreePosition
 USE MOD_Particle_SurfaceFlux_Vars ,ONLY: tSurfaceFlux
 USE MOD_Mesh_Vars                 ,ONLY: SideToElem
-USE MOD_DSMC_Vars                 ,ONLY: AmbiPolarSFMapping, AmbipolElecVelo, DSMC
+USE MOD_DSMC_Vars                 ,ONLY: AmbiPolarSFMapping, DSMC, PartIntEn
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1403,6 +1413,7 @@ CASE('constant')
   END IF
   iPart = 0
   DO i = NbrOfParticle-PartIns+1,NbrOfParticle
+    iPart = iPart + 1
     PositionNbr = GetNextFreePosition(i)
     ! In case of side-normal velocities: calc n-vector at particle position, xi was saved in PartState(4:5)
     IF (SF%VeloIsNormal .AND. TriaSurfaceFlux) THEN
@@ -1424,9 +1435,9 @@ CASE('constant')
     ! Build complete velo-vector
     Vec3D(1:3) = vec_nIn(1:3) * SF%VeloIC
     IF(Mode.EQ.3) THEN    ! Ambipolar diffusion
-      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
-      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
-      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = Vec3D(1:3)
+      IF (ALLOCATED(PartIntEn(PositionNbr)%ElecVelo)) DEALLOCATE(PartIntEn(PositionNbr)%ElecVelo)
+      ALLOCATE(PartIntEn(PositionNbr)%ElecVelo(3))
+      PartIntEn(PositionNbr)%ElecVelo(1:3) = Vec3D(1:3)
     ELSE
       PartState(4:6,PositionNbr) = Vec3D(1:3)
     END IF
@@ -1452,7 +1463,9 @@ CASE('maxwell','maxwell_lpn')
     END IF !choose envelope based on flow direction
   END IF !low speed / high speed / rayleigh flow
 
+  iPart = 0
   DO i = NbrOfParticle-PartIns+1,NbrOfParticle
+    iPart = iPart + 1
     PositionNbr = GetNextFreePosition(i)
     !-- 0a.: In case of side-normal velocities: calc n-/t-vectors at particle position, xi was saved in PartState(4:5)
     IF (SF%VeloIsNormal .AND. TriaSurfaceFlux) THEN
@@ -1588,9 +1601,9 @@ CASE('maxwell','maxwell_lpn')
     Vec3D(1:3) = Vec3D(1:3) + vec_t1(1:3) * ( Velo_t1+Velo1*SQRT(BoltzmannConst*T/Species(iSpec)%MassIC) )
     Vec3D(1:3) = Vec3D(1:3) + vec_t2(1:3) * ( Velo_t2+Velo2*SQRT(BoltzmannConst*T/Species(iSpec)%MassIC) )
     IF(Mode.EQ.3) THEN    ! Ambipolar diffusion
-      IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
-      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
-      AmbipolElecVelo(PositionNbr)%ElecVelo(1:3) = Vec3D(1:3)
+      IF (ALLOCATED(PartIntEn(PositionNbr)%ElecVelo)) DEALLOCATE(PartIntEn(PositionNbr)%ElecVelo)
+      ALLOCATE(PartIntEn(PositionNbr)%ElecVelo(3))
+      PartIntEn(PositionNbr)%ElecVelo(1:3) = Vec3D(1:3)
     ELSE
       PartState(4:6,PositionNbr) = Vec3D(1:3)
     END IF

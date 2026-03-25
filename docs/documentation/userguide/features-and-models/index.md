@@ -22,6 +22,7 @@ Bhatnagar-Gross-Krook.md
 features-particle-solver.md
 radiation-transport.md
 raytracing-photoionization.md
+discrete-velocity-method.md
 ```
 
 The goal of PICLas is to enable to approximation of the complete Boltzmann equation:

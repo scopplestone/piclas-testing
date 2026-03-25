@@ -1,6 +1,6 @@
         CONTROL INFO 2.4.6
 ** GAMBIT NEUTRAL FILE
-/media/nizenkov/storage/boltzplatz/Projects/Zeiss/012-SMT-Dinger-P23006-MEMS-Raytracing/3-TestCases/meshes/2023-08-25-M0X-Debug-Cubit-3to1/export.neu
+export.neu
 PROGRAM:        Coreform_Cubit     VERSION:  2023.4
 
      NUMNP     NELEM     NGRPS    NBSETS     NDFCD     NDFVL

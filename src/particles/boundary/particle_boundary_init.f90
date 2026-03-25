@@ -249,14 +249,14 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis, nRotPeriodicBCs, TempGradDir
+INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis, nRotPeriodicBCs, TempGradDir, iInit, iSpec
 INTEGER               :: dummy_int
 REAL                  :: omegaTemp, RotFreq
 CHARACTER(32)         :: hilf,hilf2
 CHARACTER(200)        :: tmpString
 CHARACTER(LEN=64)     :: dsetname
-LOGICAL               :: StickingCoefficientExists,FoundPartBoundPhotonSEE,BoundaryUsesSEE,AnyBoundaryUsesSEE
-INTEGER               :: iInit,iSpec
+LOGICAL               :: StickingCoefficientExists
+LOGICAL               :: FoundPartBoundPhotonSEE,BoundaryUsesSEE,AnyBoundaryUsesSEE
 INTEGER               :: ALLOCSTAT
 !===================================================================================================================================
 ! Read in boundary parameters
@@ -732,7 +732,7 @@ DO iPBC=1,nPartBound
         CALL abort(__STAMP__,' Analyze-BCs cannot be used for internal reflection in general cases! ')
       END IF
     END IF
-    ! Check if names are equal: Use case insensitive string comparison
+    ! Check if BoundaryName(iBC) == PartBound%SourceBoundName(iPBC) names are equal: Use case insensitive string comparison
     IF (STRICMP(BoundaryName(iBC),PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
       PartBound%MapToFieldBC(iPBC) = iBC ! part BC to field BC

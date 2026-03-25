@@ -30,24 +30,8 @@ IMPLICIT NONE
 INTEGER              :: nNodeIDs
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE ReadMesh
-  MODULE PROCEDURE ReadMesh
-END INTERFACE
-
-INTERFACE Qsort1Int
-  MODULE PROCEDURE Qsort1Int
-END INTERFACE
-
-INTERFACE INVMAP
-  MODULE PROCEDURE INVMAP
-END INTERFACE
-
-INTERFACE FinalizeMeshReadin
-  MODULE PROCEDURE FinalizeMeshReadin
-END INTERFACE
-
 PUBLIC :: FinalizeMeshReadin
-PUBLIC::ReadMesh,Qsort1Int,INVMAP
+PUBLIC :: ReadMesh,Qsort1Int,INVMAP
 !===================================================================================================================================
 
 CONTAINS
@@ -61,7 +45,8 @@ SUBROUTINE ReadBCs()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY: BoundaryName,BoundaryType,nBCs,nUserBCs
-#if USE_FV && USE_HDG
+USE MOD_StringTools      ,ONLY: LowCase
+#if USE_FV
 USE MOD_Mesh_Vars_FV     ,ONLY: BoundaryType_FV
 #endif
 #if USE_HDG
@@ -81,9 +66,10 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 LOGICAL,ALLOCATABLE            :: UserBCFound(:)
 LOGICAL                        :: NameCheck,LengthCheck
-CHARACTER(LEN=255),ALLOCATABLE :: BCNames(:)
+CHARACTER(LEN=255), ALLOCATABLE:: BCNames(:)
+CHARACTER(LEN=255)             :: currBCName, currBoundaryName
 INTEGER, ALLOCATABLE           :: BCMapping(:),BCType(:,:)
-#if USE_FV && USE_HDG
+#if USE_FV
 INTEGER, ALLOCATABLE           :: BCType_FV(:,:)
 #endif
 INTEGER                        :: iBC,iUserBC,OriginalBC,NewBC
@@ -94,14 +80,18 @@ nUserBCs = CountOption('BoundaryName')
 IF(nUserBCs.GT.0)THEN
   ALLOCATE(BoundaryName(1:nUserBCs))
   ALLOCATE(BoundaryType(1:nUserBCs,2))
-#if USE_FV && USE_HDG
+#if USE_FV
   ALLOCATE(BoundaryType_FV(1:nUserBCs,2))
 #endif
   DO iBC=1,nUserBCs
     BoundaryName(iBC)   = GETSTR('BoundaryName')
-    BoundaryType(iBC,:) = GETINTARRAY('BoundaryType',2) !(/Type,State/)
-#if USE_FV && USE_HDG
+#if USE_FV
     BoundaryType_FV(iBC,:) = GETINTARRAY('BoundaryType-FV',2) !(/Type,State/)
+#endif
+#if USE_HDG || !(USE_FV)
+    BoundaryType(iBC,:) = GETINTARRAY('BoundaryType',2) !(/Type,State/)
+#else /*FV alone*/
+    BoundaryType(iBC,:) = BoundaryType_FV(iBC,:)
 #endif
   END DO
 END IF !nUserBCs>0
@@ -127,7 +117,9 @@ IF(nUserBCs.GT.0)THEN
   DO iBC=1,nBCs
     DO iUserBC=1,nUserBCs
       ! Check if BoundaryName(iUserBC) is a substring of BCNames(iBC)
-      NameCheck = INDEX(TRIM(BCNames(iBC)),TRIM(BoundaryName(iUserBC))).NE.0
+      CALL LowCase(BCNames(iBC)           ,currBCName)
+      CALL LowCase(BoundaryName(iUserBC)  ,currBoundaryName)
+      NameCheck = INDEX(TRIM(currBCName),TRIM(currBoundaryName)).NE.0
       ! Check if both strings have equal length
       LengthCheck = LEN(TRIM(BCNames(iBC))).EQ.LEN(TRIM(BoundaryName(iUserBC)))
       ! Check if both strings are equal (length has to be checked because index checks for substrings!)
@@ -150,7 +142,7 @@ CALL GetDataSize(File_ID,'BCType',nDims,HSize)
 IF((HSize(1).NE.4).OR.(HSize(2).NE.nBCs)) STOP 'Problem in readBC'
 DEALLOCATE(HSize)
 ALLOCATE(BCType(4,nBCs))
-#if USE_FV && USE_HDG
+#if USE_FV
 ALLOCATE(BCType_FV(2,nBCs))
 #endif
 offset=0
@@ -186,7 +178,7 @@ IF(nUserBCs .GT. 0)THEN
                                       ' was ', NewBC,BCType(3,iBC), ' is set to ',BoundaryType(BCMapping(iBC),1:2)
       BCType(1,iBC) = BoundaryType(BCMapping(iBC),BC_TYPE)
       BCType(3,iBC) = BoundaryType(BCMapping(iBC),BC_STATE)
-#if USE_FV && USE_HDG
+#if USE_FV
       LBWRITE(Unit_StdOut,'(A,A50,A,I4,I4,A,I4,I4)') ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC)), &
                                       ' was ', NewBC,BCType(3,iBC), ' is set for FV to ',BoundaryType_FV(BCMapping(iBC),1:2)
       BCType_FV(1,iBC) = BoundaryType_FV(BCMapping(iBC),BC_TYPE)
@@ -203,7 +195,7 @@ BoundaryName = BCNames
 BoundaryType(:,BC_TYPE)  = BCType(1,:)
 BoundaryType(:,BC_STATE) = BCType(3,:)
 BoundaryType(:,BC_ALPHA) = BCType(4,:)
-#if USE_FV && USE_HDG
+#if USE_FV
 IF(ALLOCATED(BoundaryType_FV)) DEALLOCATE(BoundaryType_FV)
 ALLOCATE(BoundaryType_FV(nBCs,2))
 BoundaryType_FV(:,BC_TYPE)  = BCType_FV(1,:)
@@ -233,7 +225,7 @@ SUBROUTINE ReadMesh(FileString,ReadNodes)
 USE MOD_Globals
 USE MOD_Globals_Vars         ,ONLY: ReadMeshWallTime
 USE MOD_IO_HDF5
-USE MOD_Mesh_Vars            ,ONLY: tElem,tSide
+USE MOD_Mesh_Vars            ,ONLY: tElem,tSide,MeshVersion
 USE MOD_Mesh_Vars            ,ONLY: NGeo
 USE MOD_Mesh_Vars            ,ONLY: NodeCoords
 USE MOD_Mesh_Vars            ,ONLY: offsetElem,nElems,nGlobalElems
@@ -314,7 +306,7 @@ REAL, ALLOCATABLE              :: GlobVarTimeStep(:)
 #endif
 REAL                           :: StartT,EndT
 INTEGER                        :: NGeoOld
-LOGICAL                        :: nFEMEdgesExists
+LOGICAL                        :: nFEMEdgesExists,PyHOPEVersionExists
 INTEGER                        :: ElemInfoSizeH5Loc
 !===================================================================================================================================
 IF(MESHInitIsDone) RETURN
@@ -331,6 +323,16 @@ IF (.NOT.PerformLoadBalance) THEN
 
   ! Get ElemInfo from Mesh file
   CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
+  ! Check PyHOPE versions in mesh.h5 file
+  MeshVersion%PyHOPEVersionMajor=-1
+  MeshVersion%PyHOPEVersionMinor=-1
+  MeshVersion%PyHOPEVersionPatch=-1
+  CALL DatasetExists(File_ID,'PyHOPEVersion',PyHOPEVersionExists,attrib=.TRUE.)
+  IF (PyHOPEVersionExists) THEN
+    CALL ReadAttribute(File_ID,'PyHOPEVersionMajor',1,IntScalar=MeshVersion%PyHOPEVersionMajor)
+    CALL ReadAttribute(File_ID,'PyHOPEVersionMinor',1,IntScalar=MeshVersion%PyHOPEVersionMinor)
+    CALL ReadAttribute(File_ID,'PyHOPEVersionPatch',1,IntScalar=MeshVersion%PyHOPEVersionPatch)
+  END IF ! PyHOPEVersionExists
   CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
   CALL ReadAttribute(File_ID,'nUniqueSides',1,IntScalar=nGlobalUniqueSidesFromMesh)
   CALL ReadAttribute(File_ID,'nSides',1,IntScalar=nNonUniqueGlobalSides)
@@ -602,10 +604,6 @@ DO iElem=FirstElemInd,LastElemInd
 #endif /*USE_HDG*/
 
     IF(ElemID.LT.0)THEN ! mortar Sides attached!
-#if USE_FV
-      CALL Abort(__STAMP__, &
-        "Mortars not implemented for finite volumes")
-#endif /*USE_FV*/
       aSide%MortarType=ABS(ElemID)
       SELECT CASE(aSide%MortarType)
       CASE(1)
@@ -1839,7 +1837,5 @@ SDEALLOCATE(recvcountNode)
 #endif /*USE_MPI*/
 
 END SUBROUTINE FinalizeMeshReadin
-
-
 
 END MODULE MOD_Mesh_ReadIn

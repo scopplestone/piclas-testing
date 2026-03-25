@@ -372,7 +372,7 @@ USE MOD_RayTracing_Vars         ,ONLY: UseRayTracing, Ray,RayElemEmission
 USE MOD_RayTracing_Vars         ,ONLY: U_N_Ray_loc,N_DG_Ray_loc,N_Inter_Ray
 USE MOD_RayTracing_Vars         ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF, PartMPF, PDM, PEM, PartSpecies
-USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, BGGas, Coll_pData, CollisMode, PartStateIntEn
+USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, BGGas, Coll_pData, CollisMode
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 ! Functions/Subroutines
 USE MOD_Eval_xyz                ,ONLY: TensorProductInterpolation
@@ -575,9 +575,6 @@ DO iVar = 1, 2
               END IF ! DoBoundaryParticleOutputRay
               ! Velocity (set it to zero, as it will be subtracted in the chemistry module)
               PartState(4:6,newPartID) = 0.
-              ! Internal energies (set it to zero)
-              PartStateIntEn(1:2,newPartID) = 0.
-              IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,newPartID) = 0.
               ! Insert the products and distribute the reaction energy (Requires: Pair indices, Coll_pData(iPair)%iPart_p1/2)
               IF(DoBoundaryParticleOutputRay) THEN
                 ! Store the electron particle information in PartStateBoundary.h5

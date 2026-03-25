@@ -42,7 +42,9 @@ workflow:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Load modules on new boltzplatz reggie
 before_script:
+  - source venv/bin/activate || true
   - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
+  - export MESHESDIR=True
   - ulimit -s unlimited
   - python3 -V || true
   - python  -V || true
@@ -87,11 +89,16 @@ before_script:
   - if [ "$((10#$day % 2))" == "0" ]; then
       echo "Even day number ($day). Loading OpenMPI";
       module purge || true;
-      module load  cmake/4.1.2  gcc/14.2.0  openmpi/5.0.8/gcc/14.2.0      hdf5/1.14.6/gcc/14.2.0/openmpi/5.0.8      hopr/master/gcc/14.2.0/openmpi/5.0.8/hdf5/1.14.6      petsc/3.22.5/gcc/14.2.0/openmpi/5.0.8 || true;
+      module load  cmake/4.1.2  gcc/14.2.0  openmpi/5.0.9/gcc/14.2.0      hdf5/1.14.6/gcc/14.2.0/openmpi/5.0.9      hopr/master/gcc/14.2.0/openmpi/5.0.9/hdf5/1.14.6      petsc/3.22.5/gcc/14.2.0/openmpi/5.0.9 || true;
     else
       echo "Odd day number ($day). Loading MPICH";
       module purge || true;
       module load  cmake/4.1.2  gcc/14.2.0  mpich/4.3.1/gcc/14.2.0        hdf5/1.14.6/gcc/14.2.0/mpich/4.3.1        hopr/master/gcc/14.2.0/mpich/4.3.1/hdf5/1.14.6        petsc/3.22.5/gcc/14.2.0/mpich/4.3.1 || true;
+    fi
+  - if [ -n "${DO_OPENMPI}" ]; then
+      echo "DO_OPENMPI activated. Loading OpenMPI.";
+      module purge || true;
+      module load  cmake/4.1.2  gcc/14.2.0  openmpi/5.0.9/gcc/14.2.0      hdf5/1.14.6/gcc/14.2.0/openmpi/5.0.9      hopr/master/gcc/14.2.0/openmpi/5.0.9/hdf5/1.14.6      petsc/3.22.5/gcc/14.2.0/openmpi/5.0.9 || true;
     fi
   - if [ -n "${DO_MPICH}" ]; then
       echo "DO_MPICH activated. Loading MPICH.";
@@ -103,12 +110,35 @@ before_script:
       module purge || true;
       module load  cmake/3.26.4  gcc/13.2.0  mpich-debug/4.1.2/gcc/13.2.0  hdf5/1.14.0/gcc/13.2.0/mpich-debug/4.1.2  hopr/master/gcc/13.2.0/mpich-debug/4.1.2/hdf5/1.14.0  petsc/3.21.6/gcc/13.2.0/mpich-debug/4.1.2;
     fi
+    # else
+    #   module load openblas/v0.3.31/gcc/14.2.0;
   - if [ -n "${DO_RUN_LOCAL}" ]; then
       source $(ls /opt/modules/*/init/bash | tail -n1);
       for LOCALMODULE in ${DO_RUN_LOCAL}; do module load ${LOCALMODULE}; done;
       module list;
     else
       module list || true ;
+    fi
+  # GCOVR_ARGS: - use --include-internal-functions to include all functions starting with '__' (basically every function in piclas)
+  #             - --gcov-ignore-parse-errors Skip lines with parse errors in GCOV files instead of exiting with an error
+  #             - --exclude-lines-by-pattern exclude all lines that start with the regex pattern. Called multiple times for no and one or more (^\s+) leading whitespaces since reggie execution expands wildcards
+  - if [ -n "${DO_CODE_COVERAGE}" ]; then
+      export CODE_COVERAGE=True;
+      if [ ! -d "Coverage" ]; then mkdir Coverage ; fi ;
+      export PICLAS_CODE_COVERAGE=ON ;
+      echo "PICLAS_CODE_COVERAGE=ON" ;
+      export GCOVR_ARGS='--include-internal-functions --gcov-ignore-parse-errors all --exclude-lines-by-pattern (?i)^\s+CALL\s+collectivestop --exclude-lines-by-pattern (?i)^CALL\s+collectivestop --exclude-lines-by-pattern (?i)^\s+CALL\s+ABORT --exclude-lines-by-pattern (?i)^CALL\s+ABORT';
+    fi
+  - |
+    if [ -n "${DO_REGGIE_COVERAGE}" ]; then
+      if [ ! -d "Coverage/reggie" ]; then mkdir Coverage/reggie ; fi ;
+      echo "DO_REGGIE_COVERAGE activated. Creating Coverage/reggie to store coverage report.";
+      COVERAGE_REGGIE_DIR="${PWD}/Coverage/reggie" ;
+      reggie() {
+        coverage run -a --data-file=${COVERAGE_REGGIE_DIR}/.coverage --source=reggie -m reggie.reggie "$@"
+      }
+      echo "Exporting reggie function call to 'coverage run -a --data-file=${COVERAGE_REGGIE_DIR}/.coverage --source=reggie -m reggie.reggie "$@"' to get coverage data."
+      export -f reggie
     fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -162,10 +192,19 @@ stages:
   <<: *default_build_param
   allow_failure: true
 
-.reggie_cache: &reggie_cache
-  key: "reggie"
-  paths: [reggie]
+.venv_cache: &venv_cache
+  key: "venv"
+  paths:
+    - venv
+    - reggie
+    - pyhope
   policy: pull
+
+.coverage_cache: &coverage_cache
+  # use CI_PIPELINE_ID to create a separate cache per pipeline to ensure that no old reports are still used
+  key: "${CI_PIPELINE_ID}-coverage"
+  paths: [Coverage]
+  policy: pull-push
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for the standard maxwell tests (utilizing "extends" to merge the other "artifacts" options with the specific path)
@@ -175,10 +214,11 @@ stages:
   artifacts:
     paths: [build]
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}"
       paths: [build]
       policy: pull
+    - *coverage_cache
 
 .defaults_checkin: &defaults_checkin
   <<: *defaults
@@ -204,10 +244,11 @@ stages:
   artifacts:
     paths: [build_maxwell_only]
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-MAX"
       paths: [build_maxwell_only]
       policy: pull
+    - *coverage_cache
   rules:
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
@@ -224,7 +265,7 @@ stages:
       - build_poisson_debug_RK3
       - build_poisson_debug_Leapfrog
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI"
       paths:
         - build_poisson_release_RK3
@@ -232,6 +273,7 @@ stages:
         - build_poisson_debug_RK3
         - build_poisson_debug_Leapfrog
       policy: pull
+    - *coverage_cache
 
 .defaults_poisson_checkin: &defaults_poisson_checkin
   <<: *defaults_poisson
@@ -258,11 +300,12 @@ stages:
     paths:
       - build_drift_diffusion
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DD"
       paths:
         - build_drift_diffusion
       policy: pull
+    - *coverage_cache
 
 .defaults_drift_diffusion_checkin: &defaults_drift_diffusion_checkin
   <<: *defaults_drift_diffusion
@@ -289,11 +332,12 @@ stages:
     paths:
       - build_DVM
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DVM"
       paths:
         - build_DVM
       policy: pull
+    - *coverage_cache
 
 .defaults_DVM_checkin: &defaults_DVM_checkin
   <<: *defaults_DVM
@@ -312,6 +356,38 @@ stages:
     - if: '$DO_WEEKLY'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Defaults for DVM plasma tests
+.defaults_DVM_plasma: &defaults_DVM_plasma
+  extends: .default_param
+  needs: [build_DVM_plasma]
+  artifacts:
+    paths:
+      - build_DVM_plasma
+  cache:
+    - *venv_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DVM_plasma"
+      paths:
+        - build_DVM_plasma
+      policy: pull
+    - *coverage_cache
+
+.defaults_DVM_plasma_checkin: &defaults_DVM_plasma_checkin
+  <<: *defaults_DVM_plasma
+  rules:
+    - if: '$DO_CHECKIN'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+
+.defaults_DVM_plasma_nightly: &defaults_DVM_plasma_nightly
+  <<: *defaults_DVM_plasma
+  rules:
+    - if: '$DO_NIGHTLY'
+
+.defaults_DVM_plasma_weekly: &defaults_DVM_plasma_weekly
+  <<: *defaults_DVM_plasma
+  rules:
+    - if: '$DO_WEEKLY'
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for poisson + PETSC tests
 .defaults_poisson_petsc: &defaults_poisson_petsc
   extends: .default_param
@@ -323,7 +399,7 @@ stages:
       - build_poisson_petsc_debug_RK3
       - build_poisson_petsc_debug_Leapfrog
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI-PETSC"
       paths:
         - build_poisson_petsc_release_RK3
@@ -331,6 +407,7 @@ stages:
         - build_poisson_petsc_debug_RK3
         - build_poisson_petsc_debug_Leapfrog
       policy: pull
+    - *coverage_cache
 
 .defaults_poisson_petsc_checkin: &defaults_poisson_petsc_checkin
   <<: *defaults_poisson_petsc
@@ -355,11 +432,12 @@ stages:
     paths:
       - build_petsc_lib
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-BUILD-PETSC"
       paths:
         - build_petsc_lib
       policy: pull
+    - *coverage_cache
   rules:
     - if: '$DO_WEEKLY'
 
@@ -375,7 +453,7 @@ stages:
       - build_DSMC_N1
       - build_radiation
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"
       paths:
         - build_DSMC_release
@@ -383,6 +461,7 @@ stages:
         - build_DSMC_N1
         - build_radiation
       policy: pull
+    - *coverage_cache
 
 .defaults_DSMC_checkin: &defaults_DSMC_checkin
   <<: *defaults_DSMC
@@ -401,20 +480,80 @@ stages:
     - if: '$DO_WEEKLY'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage ".pre": always executed at the start of each pipeline
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+
+cleanup:
+  tags: [withmodules-concurrent]
+  stage: .pre
+  script:
+    - if [ -d "Coverage" ]; then
+      rm -rf Coverage;
+      echo "Old coverage files deleted";
+      fi
+  rules:
+    - if: '$DO_CODE_COVERAGE'
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "build": Build on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 
+venv_create:
+  extends: .default_build_param
+  cache:
+    - key: "venv"
+      paths: [venv]
+      policy: pull-push
+  stage: build
+  script:
+    - deactivate || true
+    - rm -rf venv
+    - python3 -m venv venv
+    - source venv/bin/activate
+    - python3 -m ensurepip
+    - python3 -m pip install uv
+    - uv pip install --upgrade setuptools wheel
+    - uv pip install --upgrade pytest pytest-cov
+
+pyhope_download:
+  extends: .default_build_param
+  needs: [venv_create]
+  cache:
+    - key: "venv"
+      paths:
+        - venv
+        - pyhope
+        - reggie
+      policy: pull-push
+  stage: build
+  script:
+    - source venv/bin/activate
+    # PyHOPE needs NRG Gmsh, pre-install it
+    - uv pip install https://gitlab.iag.uni-stuttgart.de/libs/python-gmsh/-/raw/master/gmsh-4.14.0.post1-py3-none-linux_x86_64.whl
+    # Install PyHOPE
+    # - uv pip install --upgrade pyhope
+    - PYHOPEBRANCH=main ;  # default: main
+    - git clone --single-branch --branch ${PYHOPEBRANCH} git@github.com:hopr-framework/PyHOPE pyhope
+    - if [ -d "pyhope" ]; then cd pyhope ; uv pip install -e . --upgrade ; cd .. ; fi ;
+    - cd ..
+    - pyhope --version
+
 reggie_download:
   extends: .default_build_param
-  rules:
+  needs: [pyhope_download]
+  # rules:
     # Overwrite the rules from default_build_param to ensure that reggie is available when the appimages are tested
-    - when: on_success
+    # - when: on_success
   artifacts:
     paths: [reggie]
   cache:
-    key: "reggie"
-    paths: [reggie]
-    policy: push
+    - key: "venv"
+      paths:
+        - venv
+        - pyhope
+        - reggie
+      policy: pull-push
+    - *coverage_cache
   stage: build
   script:
     # Check if the "reggie" directory contains a ".git" directory
@@ -425,14 +564,16 @@ reggie_download:
     - if [ ! -d "reggie/.git" ]; then
         if [ -f "reggie/.day" ]; then mv reggie/.day .; fi ;
         if [ -d "reggie" ]; then rm -rf reggie ; fi ;
-        git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
-        if [ -d "reggie" ]; then cd reggie ; pip install -e . --break-system-packages ; cd .. ; fi ;
+        REGGIEBRANCH=master ;
+        git clone --single-branch --branch ${REGGIEBRANCH} git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
+        if [ -d "reggie" ]; source venv/bin/activate ; then cd reggie ; uv pip install -e . ; cd .. ; fi ;
         if [ -f ".day" ]; then mv .day reggie/. ; fi ;
       fi
     # Test reggie installation
     - reggie --help
     # Output reggie commit hash for checking if the correct reggie version is used
     - if [ -f "reggie/.git/refs/heads/master" ]; then cat reggie/.git/refs/heads/master ; fi
+  timeout: 5 minutes
 
 build:
   extends: .default_build_param
@@ -440,7 +581,7 @@ build:
   artifacts:
     paths: [build]
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}"
       paths: [build]
       policy: push
@@ -455,7 +596,7 @@ build_maxwell_only:
   artifacts:
     paths: [build_maxwell_only]
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-MAX"
       paths: [build_maxwell_only]
       policy: push
@@ -478,7 +619,7 @@ build_poisson:
       - build_poisson_debug_RK3
       - build_poisson_debug_Leapfrog
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI"
       paths:
         - build_poisson_release_RK3
@@ -526,7 +667,7 @@ build_poisson_petsc:
       - build_poisson_petsc_debug_RK3
       - build_poisson_petsc_debug_Leapfrog
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-POI-PETSC"
       paths:
         - build_poisson_petsc_release_RK3
@@ -563,7 +704,7 @@ build_DSMC:
       - build_DSMC_N1
       - build_radiation
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"
       paths:
         - build_DSMC_release
@@ -582,12 +723,12 @@ build_DSMC:
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
-    - if [ -n "${DO_WEEKLY}" ]; then
+    - if [ -n "${DO_WEEKLY}" ] ; then
         cd .. ;
         mkdir -p build_DSMC_N1 ; cd build_DSMC_N1 ;
         cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ; $GENERATOR -j $NCORES all ;
       fi
-    - if [ -n "${DO_WEEKLY}" ]; then
+    - if [ -n "${DO_WEEKLY}" ] ; then
         cd .. ;
         mkdir -p build_radiation ; cd build_radiation ;
         cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; $GENERATOR -j $NCORES all ;
@@ -599,7 +740,7 @@ build_drift_diffusion:
   artifacts:
     paths: [build_drift_diffusion]
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DD"
       paths: [build_drift_diffusion]
       policy: push
@@ -618,7 +759,7 @@ build_DVM:
   artifacts:
     paths: [build_DVM]
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DVM"
       paths: [build_DVM]
       policy: push
@@ -627,49 +768,64 @@ build_DVM:
     - mkdir -p build_DVM ; cd build_DVM
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=ED-DVM -DPICLAS_PARTICLES=OFF; $GENERATOR -j $NCORES all
 
-build_hopr:
-  extends: .default_build_param
-  artifacts:
-    paths: [hopr]
-  cache:
-    - *reggie_cache
-  stage: build_weekly
-  script:
-    - git clone https://github.com/hopr-framework/hopr.git hopr;
-    - cd hopr ; mkdir -p build ; cd build;
-    - echo `pwd`
-    - cmake .. -DLIBS_BUILD_HDF5=OFF
-    - echo $GENERATOR
-    - echo $NCORES
-    - $GENERATOR -j $NCORES all
-    - ls bin/hopr
-    #- $GENERATOR -j $NCORES all &> output.txt;
-    #- tail -n 20 output.txt;
-    #- rm output.txt;
-  rules:
-    - if: '$DO_WEEKLY'
+# build_hopr:
+#   extends: .default_build_param
+#   artifacts:
+#     paths: [hopr]
+#   cache:
+#     - *reggie_cache
+#   stage: build_weekly
+#   script:
+#     - git clone https://github.com/hopr-framework/hopr.git hopr;
+#     - cd hopr ; mkdir -p build ; cd build;
+#     - echo `pwd`
+#     - cmake .. -DLIBS_BUILD_HDF5=OFF
+#     - echo $GENERATOR
+#     - echo $NCORES
+#     - $GENERATOR -j $NCORES all
+#     - ls bin/hopr
+#     #- $GENERATOR -j $NCORES all &> output.txt;
+#     #- tail -n 20 output.txt;
+#     #- rm output.txt;
+#   rules:
+#     - if: '$DO_WEEKLY'
 
-build_hopr_in_piclas:
-  tags: [withmodules-concurrent]
+build_DVM_plasma:
+  extends: .default_build_param
   needs: [reggie_download]
+  artifacts:
+    paths: [build_DVM_plasma]
   cache:
-    <<: *reggie_cache
-  stage: build_weekly
+    - *venv_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DVM_plasma"
+      paths: [build_DVM_plasma]
+      policy: push
+  stage: build
   script:
-    - mkdir -p build_hopr_lib ; cd build_hopr_lib
-    - reggie ../regressioncheck/WEK_HOPR
-  rules:
-    #- if: '$DO_CORE_SPLIT'
-      #when: never
-    #- if: '$DO_NODE_SPLIT'
-      #when: never
-    - if: '$DO_WEEKLY'
+    - mkdir -p build_DVM_plasma ; cd build_DVM_plasma
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=PLOESMA -DPICLAS_PARTICLES=OFF -DLIBS_USE_PETSC=ON; $GENERATOR -j $NCORES all
+
+# build_hopr_in_piclas:
+#   tags: [withmodules-concurrent]
+#   needs: [reggie_download]
+#   cache:
+#     <<: *reggie_cache
+#   stage: build_weekly
+#   script:
+#     - mkdir -p build_hopr_lib ; cd build_hopr_lib
+#     - reggie ../regressioncheck/WEK_HOPR
+#   rules:
+#     #- if: '$DO_CORE_SPLIT'
+#       #when: never
+#     #- if: '$DO_NODE_SPLIT'
+#       #when: never
+#     - if: '$DO_WEEKLY'
 
 build_no_git:
   tags: [withmodules-concurrent]
   stage: build_weekly
   cache:
-    <<: *reggie_cache
+    <<: *venv_cache
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME without git"
     - git clone --depth=1 --branch=$CI_COMMIT_REF_NAME git@piclas.boltzplatz.eu:piclas/piclas.git piclas-no-git
@@ -684,7 +840,7 @@ build_outside_repository:
   tags: [withmodules-concurrent]
   stage: build_weekly
   cache:
-    <<: *reggie_cache
+    <<: *venv_cache
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME outside the piclas directory/repository"
     - REPOPATH=$(echo `pwd`)
@@ -700,7 +856,7 @@ build_no_git_libs:
   tags: [withmodules-concurrent]
   stage: build_weekly
   cache:
-    <<: *reggie_cache
+    <<: *venv_cache
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME without git but with external libs"
     - git clone --depth=1 --branch=$CI_COMMIT_REF_NAME git@piclas.boltzplatz.eu:piclas/piclas.git piclas-no-git-but-libs
@@ -722,7 +878,7 @@ build_petsc_in_piclas:
     paths:
       - build_petsc_lib
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-BUILD-PETSC"
       paths:
         - build_petsc_lib
@@ -740,7 +896,7 @@ run_build_petsc_in_piclas:
   <<: *defaults_poisson_build_petsc_lib
   stage: reggie_weekly
   script:
-    - cd build_petsc_lib ; reggie ../regressioncheck/NIG_poisson_PETSC -e ./bin/piclas
+    - cd build_petsc_lib ; reggie ../regressioncheck/WEK_poisson_PETSC -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
@@ -846,6 +1002,12 @@ CHE_poisson_periodic:
   script:
     - cd build ; reggie ../regressioncheck/CHE_poisson_periodic
 
+CHE_DVM_plasma:
+  <<: *defaults_DVM_plasma_checkin
+  stage: reggie_feature_checkin
+  script:
+    - cd build_DVM_plasma ; reggie ../regressioncheck/CHE_DVM_plasma -e ./bin/piclas
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -854,6 +1016,18 @@ NIG_Reservoir:
   stage: reggie_DSMC_nightly
   script:
     - cd build_DSMC_release/ ; reggie ../regressioncheck/NIG_Reservoir -e bin/piclas
+
+NIG_Reservoir_single_core:
+  <<: *defaults_DSMC_nightly
+  stage: reggie_DSMC_nightly
+  script:
+    - cd build_DSMC_release/ ; reggie ../regressioncheck/NIG_Reservoir_single_core -e bin/piclas
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_NIGHTLY'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run tracking examples on nightly
@@ -968,19 +1142,17 @@ NIG_convtest_t_poisson:
   script:
     - cd build ;  reggie ../regressioncheck/NIG_convtest_t_poisson
 
-# TODO: Re-name/structure NIG_convtest_poisson_Release to WEK_convtest_poisson_Release in branch feature.p.adaption
-NIG_convtest_poisson_Release:
+WEK_convtest_poisson_Release:
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build ;  reggie ../regressioncheck/NIG_convtest_poisson
+    - cd build ;  reggie ../regressioncheck/WEK_convtest_poisson
 
-# TODO: Re-name/structure NIG_convtest_poisson_Debug to WEK_convtest_poisson_Debug in branch feature.p.adaption
-NIG_convtest_poisson_Debug: # This uses the same reggie as /NIG_convtest_poisson but compile everything with CMAKE_BUILD_TYPE = Debug
+WEK_convtest_poisson_Debug: # This uses the same reggie as WEK_convtest_poisson but compile everything with CMAKE_BUILD_TYPE = Debug
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build ;  reggie -t Debug ../regressioncheck/NIG_convtest_poisson
+    - cd build ;  reggie -t Debug ../regressioncheck/WEK_convtest_poisson
 
 NIG_PIC_poisson_RK3:
   <<: *defaults_nightly
@@ -988,12 +1160,11 @@ NIG_PIC_poisson_RK3:
   script:
     - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_RK3/
 
-# TODO: Re-name/structure NIG_PIC_poisson_Boris-Leapfrog to WEK_PIC_poisson_Boris-Leapfrog in branch feature.p.adaption
-NIG_PIC_poisson_Boris-Leapfrog:
+WEK_PIC_poisson_Boris-Leapfrog:
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_Boris-Leapfrog/
+    - cd build ; reggie ../regressioncheck/WEK_PIC_poisson_Boris-Leapfrog/
 
 NIG_PIC_poisson_Leapfrog_Release:
   <<: *defaults_nightly
@@ -1026,12 +1197,11 @@ NIG_poisson:
   script:
     - cd build ; reggie ../regressioncheck/NIG_poisson/
 
-# TODO: Re-name/structure NIG_poisson_PETSC-Leapfrog to WEK_poisson_PETSC-Leapfrog in branch feature.p.adaption
-NIG_poisson_PETSC:
+WEK_poisson_PETSC:
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build ; reggie ../regressioncheck/NIG_poisson_PETSC/
+    - cd build ; reggie ../regressioncheck/WEK_poisson_PETSC/
 
 NIG_maxwell_RK4:
   <<: *defaults_nightly
@@ -1109,6 +1279,7 @@ WEK_PIC_poisson_Leapfrog:
   stage: reggie_weekly
   script:
     - cd build ; reggie ../regressioncheck/WEK_PIC_poisson_Leapfrog/
+  timeout: 15 minutes
 
 WEK_Photoionization_release_RK3:
   <<: *defaults_poisson_weekly
@@ -1271,6 +1442,12 @@ NIG_convtest_DVM:
   script:
     - cd build_DVM ; reggie ../regressioncheck/NIG_convtest_DVM
 
+NIG_DVM_plasma:
+  <<: *defaults_DVM_plasma_nightly
+  stage: reggie_nightly
+  script:
+    - cd build_DVM_plasma ; reggie ../regressioncheck/NIG_DVM_plasma
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly_build_all": Build and run
 #                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
@@ -1359,7 +1536,7 @@ WEK_Radiation:
     paths:
       - build_DSMC_release_WEK_DSMC_Radiation
   cache:
-    - *reggie_cache
+    - *venv_cache
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"
       paths: [build_radiation]
       policy: pull
@@ -1386,6 +1563,18 @@ WEK_Reservoir:
   script:
     - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_Reservoir -e bin/piclas
 
+WEK_Reservoir_single_core:
+  <<: *defaults_DSMC_weekly
+  stage: reggie_weekly
+  script:
+    - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_Reservoir_single_core -e bin/piclas
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_WEEKLY'
+
 WEK_FPFlow:
   <<: *defaults_weekly
   stage: reggie_weekly
@@ -1405,6 +1594,260 @@ WEK_DVM:
     - cd build_DVM ; reggie ../regressioncheck/WEK_DVM
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage ".post": Collect coverage data
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+code_coverage:
+  extends: .defaults
+  stage: .post
+  script:
+    - echo "Generating combined coverage report..."
+    # old coverage .json files are removed in the .pre stage (cleanup job), since it should only be done once
+    # (otherwise the new reports will be deleted in each job) and in the beginning
+    - if [ ! -d "Coverage/cobertura" ]; then mkdir Coverage/cobertura ; fi ;
+    # remove old html files, since file names can differ (where for xml format only one file is created and thus will be overwritten)
+    - if [ -d "Coverage/html" ]; then
+        rm -f Coverage/html/*.html || true ;
+        rm -f Coverage/html/*.css || true ;
+      else
+        mkdir Coverage/html ;
+      fi
+    # combine coverage reports of all builds and runs in xml file for displaying coverage in mr diff view
+    - FIND=$(cd Coverage; ls *.json)
+    - echo -e "Using files:\n$FIND\nfor gcovr execution"
+    - gcovr --root ${PWD}/src --add-tracefile "Coverage/*.json" --xml Coverage/cobertura/coverage.xml --print-summary --merge-mode-functions=merge-use-line-min
+    # also in html format to check whole codebase by hand (easier to read compared to xml)
+    - gcovr --root ${PWD}/src --add-tracefile "Coverage/*.json" --html-nested Coverage/html/coverage.html --merge-mode-functions=merge-use-line-min
+  # regex expression the retrieve coverage percentage
+  coverage: '/lines:\s+([0-9]+(?:\.[0-9]+)?)%/'
+  artifacts:
+    paths:
+      # html for visual output
+      - Coverage/html
+      # json files to check if all builds are read in for combined coverage report
+      - Coverage/*.json
+    expire_in: 1 month
+    when: on_success
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: Coverage/cobertura/*.xml
+  rules:
+    - if: '$DO_CODE_COVERAGE'
+
+reggie_coverage:
+  extends: .defaults
+  stage: .post
+  needs: [cleanup]
+  script:
+    - echo "Generating coverage report for reggie..."
+    - coverage html --data-file=${COVERAGE_REGGIE_DIR}/.coverage -d ${COVERAGE_REGGIE_DIR} ;
+  artifacts:
+    paths:
+      # reggie coverage files
+      - Coverage/reggie
+    expire_in: 1 week
+    when: on_success
+  rules:
+    - if: '$DO_REGGIE_COVERAGE'
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage ".post": Update release notes (if merging a branch into master.dev)
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+update_release_notes:
+  stage: .post
+  tags: [withmodules-concurrent]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'  # do not run, when MR is created
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'             # do not run, when the pipeline has been scheduled
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "web"'                  # do not run for manual pipelines from the web interface
+      when: never
+    - if: '$CI_COMMIT_BRANCH == "master.dev"'
+  script:
+    - |
+      set -e
+      API="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}"
+      TMPFILE="/tmp/release-notes-${CI_JOB_ID:-$$}"
+
+      echo "=== Automatic release notes ==="
+      echo "Commit: ${CI_COMMIT_SHA}"
+      echo "Branch: ${CI_COMMIT_BRANCH}"
+      echo "API:    ${API}"
+      echo ""
+
+      # Find the merge request belonging to the current commit sha (assuming the default message "See merge request" has not been adapted)
+      echo "--- Resolving merge request from commit message ---"
+      COMMIT_MSG=$(git log -1 --format=%B "$CI_COMMIT_SHA")
+      MR_IID=$(echo "$COMMIT_MSG" | grep -oP 'See merge request.*!\K[0-9]+' || true)
+
+      if [ -z "$MR_IID" ]; then
+        echo "No merge request reference found in commit message, skipping"
+        echo "Commit message: ${COMMIT_MSG}"
+        exit 0
+      fi
+
+      echo "Found MR !${MR_IID}"
+
+      # Fetch MR details
+      echo ""
+      echo "--- Fetching MR !${MR_IID} details ---"
+      curl -sf --header "PRIVATE-TOKEN: ${RELEASE_BOT_TOKEN}" \
+        "${API}/merge_requests/${MR_IID}" \
+        -o "${TMPFILE}-mr.json"
+
+      MR_TITLE=$(jq -r '.title' "${TMPFILE}-mr.json")
+      LABELS=$(jq -r '.labels[]' "${TMPFILE}-mr.json")
+      SHORT_SHA=$(echo "$CI_COMMIT_SHA" | cut -c1-8)
+
+      # Strip branch name prefix like "[feature.branch] " from title
+      MR_TITLE=$(echo "$MR_TITLE" | sed 's/^\[[^]]*\] *//')
+
+      echo "Title:  ${MR_TITLE}"
+      echo "SHA:    ${SHORT_SHA}"
+      echo "Labels: $(echo "$LABELS" | tr '\n' ', ' | sed 's/,$//')"
+
+      # Skip if explicitly excluded from release notes
+      if echo "$LABELS" | grep -qi "^no-release-notes$"; then
+        echo ""
+        echo "Skipping (no-release-notes label found)"
+        rm -f "${TMPFILE}-mr.json" "${TMPFILE}-rel.json"
+        exit 0
+      fi
+
+      # Determine category from labels
+      if echo "$LABELS" | grep -qi "^feature$"; then
+        CATEGORY="Features"
+      elif echo "$LABELS" | grep -qi "^improvement$"; then
+        CATEGORY="Improvements"
+      elif echo "$LABELS" | grep -qi "^bug$"; then
+        CATEGORY="Fixes"
+      else
+        CATEGORY="Documentation/Tools/Regression Testing"
+      fi
+      echo "Category: ${CATEGORY}"
+
+      # Find the open release MR (master.dev -> master)
+      echo ""
+      echo "--- Looking for open release MR (master.dev -> master) ---"
+      curl -sf --header "PRIVATE-TOKEN: ${RELEASE_BOT_TOKEN}" \
+        "${API}/merge_requests?state=opened&source_branch=master.dev&target_branch=master" \
+        -o "${TMPFILE}-rel.json"
+
+      REL_IID=$(jq -r '.[0].iid' "${TMPFILE}-rel.json")
+
+      # If no open release MR exists, create one
+      if [ "$REL_IID" = "null" ]; then
+        echo "No open release MR found, creating one..."
+
+        # Fetch the Release merge request template
+        echo "Fetching Release template..."
+        TEMPLATE=$(curl -sf --header "PRIVATE-TOKEN: ${RELEASE_BOT_TOKEN}" \
+          "${API}/repository/files/.gitlab%2Fmerge_request_templates%2FRelease.md/raw?ref=master.dev")
+
+        curl -sf --request POST \
+          --header "PRIVATE-TOKEN: ${RELEASE_BOT_TOKEN}" \
+          --header "Content-Type: application/json" \
+          --data "$(jq -n \
+            --arg desc "$TEMPLATE" \
+            '{
+              source_branch: "master.dev",
+              target_branch: "master",
+              title: "Release X.X.X",
+              description: $desc,
+              labels: "Release"
+            }')" \
+          "${API}/merge_requests" \
+          -o "${TMPFILE}-rel.json"
+
+        REL_IID=$(jq -r '.iid' "${TMPFILE}-rel.json")
+
+        if [ "$REL_IID" = "null" ]; then
+          echo "ERROR: Failed to create release MR"
+          jq . "${TMPFILE}-rel.json"
+          rm -f "${TMPFILE}-mr.json" "${TMPFILE}-rel.json"
+          exit 1
+        fi
+
+        echo "Created release MR !${REL_IID}"
+        DESC=$(jq -r '.description // ""' "${TMPFILE}-rel.json")
+      else
+        echo "Found release MR !${REL_IID}"
+        DESC=$(jq -r '.[0].description // ""' "${TMPFILE}-rel.json")
+      fi
+
+      # Avoid duplicates (check by commit hash)
+      if echo "$DESC" | grep -q "\[${SHORT_SHA}\]"; then
+        echo ""
+        echo "Entry with commit [${SHORT_SHA}] already exists, skipping"
+        rm -f "${TMPFILE}-mr.json" "${TMPFILE}-rel.json"
+        exit 0
+      fi
+
+      # Build entry safely using jq (handles all escaping)
+      ENTRY=$(jq -n -r --arg title "$MR_TITLE" --arg sha "$SHORT_SHA" '"* \($title) [\($sha)]"')
+
+      HEADING="### ${CATEGORY}"
+
+      echo ""
+      echo "--- Updating release MR !${REL_IID} ---"
+      echo "Heading: ${HEADING}"
+      echo "Entry:   ${ENTRY}"
+
+      # Insert entry under the correct heading, or create it
+      if echo "$DESC" | grep -q "^${HEADING}$"; then
+        echo "Found existing heading, inserting entry..."
+        export HEADING ENTRY
+        UPDATED=$(echo "$DESC" | awk '
+          BEGIN { heading=ENVIRON["HEADING"]; entry=ENVIRON["ENTRY"]; blanks=0 }
+          {
+            if ($0 == heading) {
+              found=1; print; next
+            }
+            if (found && !inserted) {
+              if (/^[[:space:]]*$/) {
+                blanks++
+                next
+              }
+              if (/^### /) {
+                print entry
+                for (i=0; i<blanks; i++) print ""
+                blanks=0
+                inserted=1
+              } else {
+                for (i=0; i<blanks; i++) print ""
+                blanks=0
+              }
+            }
+            print
+          }
+          END { if (found && !inserted) print entry }
+        ')
+      else
+        echo "Heading not found, appending new section..."
+        UPDATED=$(printf '%s\n\n%s\n%s' "$DESC" "$HEADING" "$ENTRY")
+      fi
+
+      # Update the release MR description
+      curl -sf --request PUT \
+        --header "PRIVATE-TOKEN: ${RELEASE_BOT_TOKEN}" \
+        --header "Content-Type: application/json" \
+        --data "$(jq -n --arg d "$UPDATED" '{description: $d}')" \
+        "${API}/merge_requests/${REL_IID}" > /dev/null
+
+      # Instead of updating, just show what would happen
+      # echo "DRY RUN - would add to !${REL_IID}:"
+      # echo "$ENTRY"
+      # echo ""
+      # echo "Full updated description:"
+      # echo "$UPDATED"
+
+      # Clean up
+      rm -f "${TMPFILE}-mr.json" "${TMPFILE}-rel.json"
+
+      echo ""
+      echo "Added to !${REL_IID} under ${CATEGORY}: ${ENTRY}"
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tutorials": Run tutorials via reggie to check their continued functionality
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 WEK_drift_diffusion:
@@ -1420,6 +1863,7 @@ documentation:
   extends: .default_build_param
   stage: build
   script:
+    - deactivate || true
     - cd docs/documentation
     - python3 -m pip install --exists-action=w --no-cache-dir -r requirements.txt --break-system-packages
     - python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
@@ -1439,8 +1883,7 @@ documentation:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 github:
   stage: deploy
-  tags:
-    - withmodules-concurrent
+  tags: [deploy]
   rules:
     - if: '$DO_DEPLOY'
   script:
@@ -1455,7 +1898,7 @@ github:
 # Stage "appimage": Push the CI_COMMIT_REF_NAME branch to github to invoke creating the AppImages
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 github_create_appimage:
-  tags: [withmodules-concurrent]
+  tags: [appimage]
   stage: appimage
   rules:
     - if: '$DO_CREATE_APPIMAGE'
@@ -1472,24 +1915,27 @@ github_create_appimage:
 # Stage "appimage": Download the AppImages from the piclas-testing repository and test them
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 github_test_appimage:
-  tags: [withmodules-concurrent]
-  needs: [reggie_download]
+  tags: [appimage]
   stage: appimage
   rules:
     - if: '$DO_TEST_APPIMAGE'
-  cache:
-    - *reggie_cache
   script:
-    - if [ -z "${DO_TEST_APPIMAGE}" ]; then exit; fi
+    - if [ -z "${DO_TEST_APPIMAGE}" ]; then echo "DO_TEST_APPIMAGE is empty but should contain the artifact name"; exit; else echo "Artifact ${DO_TEST_APPIMAGE}"; fi
     - if [ -z "${CI_COMMIT_REF_NAME}" ]; then echo "CI_COMMIT_REF_NAME is empty"; exit; else echo "Cloning ${CI_COMMIT_REF_NAME}"; fi
+    - if [ -d "reggie-appimage" ]; then rm -rf reggie-appimage ; fi ;
+    - git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie-appimage ;
+    - if [ -d "reggie-appimage" ]; then cd reggie-appimage ; pip install -e . --break-system-packages ; cd .. ; fi ;
     - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
     - module pu && module load gcc/14.2.0 openmpi/4.1.6/gcc/14.2.0
     - rm -rf piclas-testing || true ;
     - git clone -b ${CI_COMMIT_REF_NAME} --single-branch git@github.com-reggie2.0:scopplestone/piclas-testing.git piclas-testing
     - cd piclas-testing
     - source /var/lib/gitlab-runner/.bashrc
+    - echo "Downloading '${DO_TEST_APPIMAGE}' artifacts from piclas-testing via 'gh run download -n ${DO_TEST_APPIMAGE}'"
     - gh run download -n ${DO_TEST_APPIMAGE}
     - ls -l
     - module li
-    - ./piclasLeapfrogHDG --help | head -n 12
+    - echo "Checking ./piclasLeapfrogHDG executable output"
+    - ./piclasLeapfrogHDG --help | head -n 12 || true
+    - echo "Running ./tools/testAppImages.sh . regressioncheck"
     - ./tools/testAppImages.sh . regressioncheck

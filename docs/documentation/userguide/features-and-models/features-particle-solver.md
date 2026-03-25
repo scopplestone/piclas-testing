@@ -134,7 +134,8 @@ To enable two-dimensional simulations, the symmetry order has to be set
 
 Two-dimensional and axisymmetric simulations require a mesh in the $xy$-plane, where the $x$-axis is the rotational axis and $y$
 ranges from zero to a positive value. Additionally, the mesh shall be centered around zero in the $z$-direction with a single cell
-row, such as that $|z_{\mathrm{min}}|=|z_{\mathrm{max}}|$. It should be noted that when converting or creating the mesh using `HOPR`,
+row, such as that $|z_{\mathrm{min}}|=|z_{\mathrm{max}}|$. It should be noted that when converting or creating the mesh using
+`PyHOPE`,
 it is recommended to define the space filling curve by
 
     sfc_type = mortonZ    ! alternative: hilbertZ
