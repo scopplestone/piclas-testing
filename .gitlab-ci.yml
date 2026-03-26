@@ -1247,6 +1247,7 @@ NIG_PIC_Deposition:
 
 # 2023-10-28: Deactivate RK3 for photoionization for now in order to save time when running the reggies. This features is currently only used in combination with Leapfrog anyway.
 # 2024-01-17: Moved to weekly (reactivated 4 + move to weekly, move release_Leapfrog and debug_Leapfrog from nightly to weekly to reduce time further)
+# 2026-03-26: Deactivate RK3 for photoionization, except one remaining PETSc + Release
 
 # --- weekly
 WEK_PIC_poisson_Leapfrog_Debug: # This uses the same reggie as NIG_PIC_poisson_Leapfrog but compile everything with CMAKE_BUILD_TYPE = Debug
@@ -1281,32 +1282,32 @@ WEK_PIC_poisson_Leapfrog:
     - cd build ; reggie ../regressioncheck/WEK_PIC_poisson_Leapfrog/
   timeout: 15 minutes
 
-WEK_Photoionization_release_RK3:
-  <<: *defaults_poisson_weekly
-  stage: reggie_weekly
-  script:
-    - cd build_poisson_release_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
-  rules:
-    - if: '$DO_CORE_SPLIT'
-      when: never
-    - if: '$DO_NODE_SPLIT'
-      when: never
-    - if: '$DO_WEEKLY'
-
-WEK_Photoionization_debug_RK3:
-  <<: *defaults_poisson_weekly
-  stage: reggie_weekly
-  script:
-    - cd build_poisson_debug_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
-  rules:
-    - if: '$DO_CORE_SPLIT'
-      when: never
-    - if: '$DO_NODE_SPLIT'
-      when: never
-    - if: '$DO_WEEKLY'
+# WEK_Photoionization_release_RK3:
+#   <<: *defaults_poisson_weekly
+#   stage: reggie_weekly
+#   script:
+#     - cd build_poisson_release_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+#   rules:
+#     - if: '$DO_CORE_SPLIT'
+#       when: never
+#     - if: '$DO_NODE_SPLIT'
+#       when: never
+#     - if: '$DO_WEEKLY'
+#
+# WEK_Photoionization_debug_RK3:
+#   <<: *defaults_poisson_weekly
+#   stage: reggie_weekly
+#   script:
+#     - cd build_poisson_debug_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+#   rules:
+#     - if: '$DO_CORE_SPLIT'
+#       when: never
+#     - if: '$DO_NODE_SPLIT'
+#       when: never
+#     - if: '$DO_WEEKLY'
 
 WEK_Photoionization_petsc_release_RK3:
-  <<: *defaults_poisson_petsc_nightly
+  <<: *defaults_poisson_petsc_weekly
   stage: reggie_weekly
   script:
     - cd build_poisson_petsc_release_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
@@ -1317,17 +1318,17 @@ WEK_Photoionization_petsc_release_RK3:
       when: never
     - if: '$DO_WEEKLY'
 
-WEK_Photoionization_petsc_debug_RK3:
-  <<: *defaults_poisson_petsc_nightly
-  stage: reggie_weekly
-  script:
-    - cd build_poisson_petsc_debug_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
-  rules:
-    - if: '$DO_CORE_SPLIT'
-      when: never
-    - if: '$DO_NODE_SPLIT'
-      when: never
-    - if: '$DO_WEEKLY'
+# WEK_Photoionization_petsc_debug_RK3:
+#   <<: *defaults_poisson_petsc_weekly
+#   stage: reggie_weekly
+#   script:
+#     - cd build_poisson_petsc_debug_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+#   rules:
+#     - if: '$DO_CORE_SPLIT'
+#       when: never
+#     - if: '$DO_NODE_SPLIT'
+#       when: never
+#     - if: '$DO_WEEKLY'
 
 WEK_Photoionization_release_Leapfrog:
   <<: *defaults_poisson_weekly
