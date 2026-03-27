@@ -405,7 +405,7 @@ LOGICAL,INTENT(OUT)              :: ThroughSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                          :: CNElemID
-REAL                             :: xNode
+REAL                             :: xNode,xOtherNode
 !===================================================================================================================================
 
 CNElemID = GetCNElemID(Element)
@@ -413,10 +413,11 @@ CNElemID = GetCNElemID(Element)
 ThroughSide = .FALSE.
 ! Get the coordinates of the first node
 xNode = NodeCoords_Shared(1,ElemSideNodeID1D_Shared(iLocSide, CNElemID))
+xOtherNode = NodeCoords_Shared(1,ElemSideNodeID1D_Shared(MERGE(XI_MINUS,XI_PLUS,iLocSide==XI_PLUS), CNElemID))
 
 ! Check if the new position is on the "wrong" side of the node
-IF((iLocSide.EQ.XI_PLUS .AND.PartState(1,PartID).GT.xNode).OR. &
-   (iLocSide.EQ.XI_MINUS.AND.PartState(1,PartID).LT.xNode)) THEN
+IF(((xOtherNode.LT.xNode).AND.(PartState(1,PartID).GT.xNode)).OR. &
+   ((xOtherNode.GT.xNode).AND.(PartState(1,PartID).LT.xNode))) THEN
   ! Calculate intersection point
   TrackInfo%alpha = ABS(xNode - LastPartPos(1,PartID))
   ThroughSide = .TRUE.
