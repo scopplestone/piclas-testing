@@ -1856,6 +1856,12 @@ WEK_drift_diffusion:
   script:
     - cd build_drift_diffusion ; reggie ../regressioncheck/WEK_drift_diffusion_explicit-FV
 
+WEK_DSMC_tutorials:
+  <<: *defaults_DSMC_weekly
+  stage: reggie_tutorials
+  script:
+    - cd build_DSMC ; reggie ../regressioncheck/WEK_DSMC_tutorials
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "build": Compile the userguide and developer guide
 # ---------------------------------------------------------------------------V
