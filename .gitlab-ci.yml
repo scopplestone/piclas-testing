@@ -16,24 +16,46 @@
 #      - when: never
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Use pipeline name to indicate whether default shared memory, node split or core split is used
+# Use pipeline name to indicate whether default shared memory, node split or core split is used, and whether it is a checkin, nightly or weekly pipeline
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 workflow:
   name: $PIPELINE_NAME
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: never
+
+    # --- Nightly ---
+    - if: '$DO_NIGHTLY && $DO_NODE_SPLIT'
+      variables:
+        PIPELINE_NAME: '[Nightly] 🔵 Node Splitting ${CI_COMMIT_REF_NAME}'
+    - if: '$DO_NIGHTLY && $DO_CORE_SPLIT'
+      variables:
+        PIPELINE_NAME: '[Nightly] 🟠 Core Splitting ${CI_COMMIT_REF_NAME}'
+    - if: '$DO_NIGHTLY'
+      variables:
+        PIPELINE_NAME: '[Nightly] 🟢 ${CI_COMMIT_REF_NAME}'
+
+    # --- Weekly ---
+    - if: '$DO_WEEKLY && $DO_NODE_SPLIT'
+      variables:
+        PIPELINE_NAME: '[Weekly] 🔵 Node Splitting ${CI_COMMIT_REF_NAME}'
+    - if: '$DO_WEEKLY && $DO_CORE_SPLIT'
+      variables:
+        PIPELINE_NAME: '[Weekly] 🟠 Core Splitting ${CI_COMMIT_REF_NAME}'
+    - if: '$DO_WEEKLY'
+      variables:
+        PIPELINE_NAME: '[Weekly] 🟢 ${CI_COMMIT_REF_NAME}'
+
+    # --- Checkin (DO_CHECKIN, push, or manual) ---
     - if: '$DO_NODE_SPLIT'
       variables:
-        PIPELINE_NAME: '🔵 Node Splitting ${CI_COMMIT_REF_NAME}'
-
+        PIPELINE_NAME: '[Checkin] 🔵 Node Splitting ${CI_COMMIT_REF_NAME}'
     - if: '$DO_CORE_SPLIT'
       variables:
-        PIPELINE_NAME: '🟠 Core Splitting ${CI_COMMIT_REF_NAME}'
-
+        PIPELINE_NAME: '[Checkin] 🟠 Core Splitting ${CI_COMMIT_REF_NAME}'
     - if: '$DO_CORE_SPLIT == null && $DO_NODE_SPLIT == null'
       variables:
-        PIPELINE_NAME: '🟢 ${CI_COMMIT_REF_NAME}'
+        PIPELINE_NAME: '[Checkin] 🟢 ${CI_COMMIT_REF_NAME}'
 
     - when: never
 
