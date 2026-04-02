@@ -161,9 +161,10 @@ CALL prms%CreateLogicalOption(   'Particles-DSMC-averagedCollisionParameters'  &
                                             ' T: Part-Species[$]-omega,-Tref,-dref,-alphaVSS\n'//&
                                             '    species-specific parameters(T)\n    can be found in tables e.g. in\n'//&
                                             '    VHS: bird1994 (table A1 and A2)\n    VSS: bird1994 (table A1 and A3)\n'//&
-                                            '         weaver2015\n         (https://doi.org/10.1063/1.4921245)\n'//&
+                                            '         Pfeiffer2022\n         (https://doi.org/10.1063/5.0118040)\n'//&
                                             ' F: Part-Collision[$]-omega,-Tref,-dref,-alphaVSS\n'//&
                                             '    collision-specific parameters(F)\n    can be found in tables e.g. in\n'//&
+                                            '    Pfeiffer2022\n                      (https://doi.org/10.1063/5.0118040)\n'//&
                                             '    VHS/VSS: krishnan2015\n             (https://doi.org/10.2514/6.2015-3373)\n'//&
                                             '    VHS/VSS: krishnan2016\n             (https://doi.org/10.1063/1.4939719)', 'T')
 CALL prms%CreateIntArrayOption( 'Part-Collision[$]-partnerSpecies'  &
@@ -670,7 +671,6 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
         END IF
       END DO
     END DO
-    DEALLOCATE(CollInfAv)
   END IF
 
   ! allocate and initialize collision parameter arrays
