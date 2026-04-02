@@ -623,32 +623,20 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
       CollInf%collidingSpecies(iColl,:) = GETINTARRAY('Part-Collision'//TRIM(hilf)//'-partnerSpecies',2,'0,0')
     END DO ! iColl = CollInf%NumCase
   END IF ! averagedCollisionParameters
-  CollInfAv = 0 ! Count the number of defined collision parameter
-  DO iColl = 1, CollInf%NumCase ! check if any collidingSpecies pair is set multiple times
+  CollInfAv = 0
+  DO iColl = 1, CollInf%NumCase
     WRITE(UNIT=hilf,FMT='(I0)') iColl
+    ! Count the number of defined collision-specific cases
     IF ((CollInf%collidingSpecies(iColl,1).NE.0).AND.(CollInf%collidingSpecies(iColl,2).NE.0)) CollInfAv = CollInfAv + 1
     DO pColl = 1,2 ! collision partner
       WRITE (UNIT = hilf2,FMT = '(I0)') pColl
-          ! CALL Abort(__STAMP__,'ERROR: Partner species '//TRIM(hilf2)//' for Collision'//TRIM(hilf)//' not defined. '// &
-          !           'Part-Collision'//TRIM(hilf)//'-partnerSpecies required ')
-      ! END IF ! collidingSpecies .EQ. 0
       IF (CollInf%collidingSpecies(iColl,pColl).GT.nSpecies) THEN
         CALL Abort(__STAMP__,'ERROR: Partner species '//TRIM(hilf2)//' for Collision'//TRIM(hilf)//' .GT. nSpecies')
       END IF
     END DO ! pColl = 2
-    DO jColl=1, CollInf%NumCase
-      WRITE(UNIT=hilf2,FMT='(I0)') jColl
-      IF ((CollInf%collidingSpecies(iColl,1) .EQ. CollInf%collidingSpecies(jColl,2))  .AND. &
-          (CollInf%collidingSpecies(iColl,2) .EQ. CollInf%collidingSpecies(jColl,1))) THEN
-        IF (iColl.NE.jColl) THEN
-            CALL Abort(&
-            __STAMP__&
-            ,'ERROR: Partner species for Collision'//TRIM(hilf)//' .EQ. Collision'//TRIM(hilf2))
-        END IF ! iColl .EQ. jColl
-      END IF ! check for redundant collision partner combination
-    END DO !jColl = nColl
   END DO ! iColl = nColl
 
+  ! Define collision-specific pairs and use species-averaged values for the others
   IF(.NOT.CollInf%averagedCollisionParameters) THEN
     ALLOCATE(CollInfUseAv(CollInf%NumCase))
     CollInfUseAv = .FALSE.
@@ -667,11 +655,25 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
           CollInfUseAv(CollInfAv) = .TRUE.
           CollInf%collidingSpecies(CollInfAv,1) = iSpec
           CollInf%collidingSpecies(CollInfAv,2) = jSpec
-          LBWRITE(*,*) 'Collision-specific parameter for ', iSpec, jSpec, ' not defined. Use of average values.'
+          WRITE(UNIT=hilf,FMT='(I0)') iSpec
+          WRITE(UNIT=hilf2,FMT='(I0)') jSpec
+          LBWRITE(*,*) '| Collision-specific parameter for pair '//TRIM(hilf)//'-'//TRIM(hilf2)//' not defined. Use of average values.'
         END IF
       END DO
     END DO
   END IF
+
+  ! check if any collidingSpecies pair is set multiple times
+  DO iColl = 1, CollInf%NumCase
+    IF(ANY(CollInf%collidingSpecies(iColl,:).EQ.0)) CALL Abort(__STAMP__,'ERROR: Collision-specific array not fully defined!')
+    DO jColl = 1, CollInf%NumCase
+      WRITE(UNIT=hilf2,FMT='(I0)') jColl
+      IF ((CollInf%collidingSpecies(iColl,1) .EQ. CollInf%collidingSpecies(jColl,2))  .AND. &
+          (CollInf%collidingSpecies(iColl,2) .EQ. CollInf%collidingSpecies(jColl,1))) THEN
+        IF (iColl.NE.jColl) CALL Abort(__STAMP__,'ERROR: Partner species for Collision'//TRIM(hilf)//' .EQ. Collision'//TRIM(hilf2))
+      END IF ! check for redundant collision partner combination
+    END DO !jColl = nColl
+  END DO ! iColl = nColl
 
   ! allocate and initialize collision parameter arrays
   ALLOCATE(CollInf%Tref(nSpecies,nSpecies))
@@ -709,16 +711,14 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
       CollInf%alphaVSS  (jSpec,iSpec) = CollInf%alphaVSS  (iSpec,jSpec)
     END IF ! filled lower triangular matrix
     IF(CollInf%dref(iSpec,jSpec) * CollInf%Tref(iSpec,jSpec) * CollInf%alphaVSS(iSpec,jSpec) .EQ. 0) THEN
-      CALL Abort(__STAMP__,&
-        'ERROR: Check collision parameters! (Part-Collision'//TRIM(hilf)//'-Tref * dref * alphaVSS) .EQ. 0 - but must not be 0)')
+      CALL Abort(__STAMP__,'ERROR: Check collision parameters! (Part-Collision'//TRIM(hilf)//'-Tref * dref * alphaVSS) .EQ. 0 - but must not be 0)')
     END IF ! check if collision parameters are set
     ! omega is defined between 0 (= hard sphere) and 0.5 (= Maxwell molecule), CAUTION: omega_PICLas = omega_Bird1994 - 0.5
     IF ((CollInf%omega(iSpec,jSpec).LT.0.0) .OR. (CollInf%omega(iSpec,jSpec).GT.0.5)) THEN
       CALL Abort(__STAMP__,'ERROR: Check set parameter Part-Collision'//TRIM(hilf)//'-omega, which must be between 0 and 0.5 (CAUTION: omega_PICLas = omega_Bird1994 - 0.5)!')
     END IF
     IF ((CollInf%alphaVSS(iSpec,jSpec).LT.1) .OR. (CollInf%alphaVSS(iSpec,jSpec).GT.2)) THEN
-      CALL Abort(__STAMP__,&
-        'ERROR: Check set parameter Part-Collision'//TRIM(hilf)//'-alphaVSS must not be lower 1 or greater 2')
+      CALL Abort(__STAMP__,'ERROR: Check set parameter Part-Collision'//TRIM(hilf)//'-alphaVSS must not be lower 1 or greater 2')
     END IF ! alphaVSS parameter check
   END DO ! iColl=nColl
 
