@@ -2123,7 +2123,6 @@ SDEALLOCATE(BGGas%NumberDensity)
 SDEALLOCATE(BGGas%DistributionSpeciesIndex)
 SDEALLOCATE(BGGas%Distribution)
 SDEALLOCATE(BGGas%DistributionNumDens)
-SDEALLOCATE(BGGas%Region)
 SDEALLOCATE(BGGas%RegionElemType)
 #ifdef drift_diffusion
 SDEALLOCATE(BGGas%ReducedTownsendCoefficient)
