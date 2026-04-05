@@ -145,9 +145,12 @@ IF(PerformRayTracing)THEN
   RayForceAbsorption = GETLOGICAL('RayTracing-ForceAbsorption')
   Ray%VolRefineMode  = GETINT('RayTracing-VolRefineMode')
 #if ! (CORE_SPLIT==0)
-  ! Sanity check: ElemVolume_Shared is only built for nComputeNodeElems and not nComputeNodeTotalElems. Maybe more containers are
-  ! similarly not fully built when running multi-node
-  CALL CollectiveStop(__STAMP__,'Ray tracing implemented for node-level splitting; all global elements must be on the compute-node')
+  ! Check if more than one process is involved
+  IF (nProcessors.GT.1) THEN
+    ! Sanity check: ElemVolume_Shared is only built for nComputeNodeElems and not nComputeNodeTotalElems. Maybe more containers are
+    ! similarly not fully built when running multi-node
+    CALL CollectiveStop(__STAMP__,'Ray tracing implemented for node-level splitting; all global elements must be on the compute-node')
+  END IF ! nProcessors.GT.1
 #endif /*! (CORE_SPLIT==0)*/
 END IF ! PerformRayTracing
 
