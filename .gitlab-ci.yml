@@ -71,14 +71,14 @@ before_script:
   - python3 -V || true
   - python  -V || true
   - if [ -n "${DO_CORE_SPLIT}" ]; then
-      echo " PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE. Splitting shared memory domains on processor-level!";
+      echo " PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE. Splitting shared memory domains on processor level (\"core splitting\")";
       export PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE;
     else
       if [ -n "${DO_NODE_SPLIT}" ]; then
-        echo " PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE. Splitting shared memory domains on sub-node-level with 2 cores per node!";
+        echo " PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE. Splitting shared memory domains on sub-node level with 2 cores per node (\"node splitting\")!";
         export PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE;
       else
-        echo "Splitting shared memory domains on node-level (default)!";
+        echo "PICLAS_SHARED_MEMORY=MPI_COMM_TYPE_SHARED. Splitting shared memory domains on physical node level (default)!";
         echo "Set variable [DO_CORE_SPLIT=T] to force core-level OR [DO_NODE_SPLIT=T] to force sub-node-level shared memory splitting for all regression tests.";
       fi
     fi
