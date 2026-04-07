@@ -393,9 +393,9 @@ REAL    :: SubSideAreaEquiN1(0:1,0:1)
 !===================================================================================================================================
 LBWRITE(UNIT_stdOut,'(A,I0,A)',ADVANCE='NO') ' | Initializing node mappings for 2D surface deposition...'
 GETTIME(StartT)
-! TODO: Can the mappings that are created here be stored in .h5 for restart purposes and when running piclas2vtk to save time?
+! OPTIMIZE: Can the mappings that are created here be stored in .h5 for restart purposes and when running piclas2vtk to save time?
 ! Sanity check: This routine requires FEM connectivity
-IF(.NOT.readFEMconnectivity) CALL abort(__STAMP__,'Error in surface deposition init: readFEMconnectivity=T is required')
+IF(.NOT.readFEMconnectivity) CALL CollectiveStop(__STAMP__,'Error in surface deposition init: readFEMconnectivity=T is required')
 
 #if USE_LOADBALANCE
 ! Set flag when performinggg load balancing: The MPIRoot keeps all arrays and does not deallocate them as it has the global mappings
@@ -415,12 +415,12 @@ IF (InitializeSurfNodeArrays) THEN
   IsDepoSurfNode = .FALSE.
 
   ! Mapping from NonuniqueGlobalNodeID to FEMVertexID
-  ! TODO: Make this array SHM
+  ! OPTIMIZE: Make this array SHM
   ALLOCATE(NonUniqueGlobalNodeIDToFEMVertexID(1:nNonUniqueGlobalNodes))
   NonUniqueGlobalNodeIDToFEMVertexID = 0
 
   ! For counting the number of visualisation sides
-  ! TODO: Make these arrays SHM
+  ! OPTIMIZE: Make these arrays SHM
   nDepoSurfSides = 0
   ALLOCATE(IsDepoSurfSide(1:nNonUniqueGlobalSides))
   IsDepoSurfSide = .FALSE.
@@ -504,7 +504,6 @@ DO iCNELemID = FirstCNElemID, LastCNElemID
     FirstVertexConnectInd = VertexInfo_Shared(VERTEX_FIRSTCONNECTIND,iVertexInd)+1
     LastVertexConnectInd  = VertexInfo_Shared(VERTEX_LASTCONNECTIND,iVertexInd)
     ! Check nodes without connections
-    ! TODO: Check if this IF statement is required or if the local sides should always be checked?
     IF (FirstVertexConnectInd.GT.LastVertexConnectInd) THEN ! Vertex has no neighbours (solo vertex)
       ! Check if any of the three connected sides is a deposition side
       ! Set sides depending on the element type: Only implemented for Hexahedral elements
@@ -520,9 +519,9 @@ DO iCNELemID = FirstCNElemID, LastCNElemID
         IF(BCIndex.LE.0) CYCLE iSide ! Skip inner sides
         ! Get boundary condition type
         BCType = BoundaryType(BCIndex,BC_TYPE)
-        ! TODO:Implement inner BCs for surface charge deposition
+        ! FEATURE: Implement inner BCs for surface charge deposition
         ! IF(BCType.EQ.100) CALL abort(__STAMP__,'InitDepoSurfNodes(): Inner BCs not implemented for surface charge deposition')
-        ! TODO:define a list of all BCType numbers that allow surface deposition
+        ! FEATURE: Define a list of all BCType numbers that allow surface deposition
         IF(BCType.NE.30) CYCLE iSide ! Skip non-DCBC sides
         ! Depo node/side found
         IsDepoSurfNode(FEMVertexID) = .TRUE.
@@ -546,9 +545,9 @@ DO iCNELemID = FirstCNElemID, LastCNElemID
           IF(BCIndex.LE.0) CYCLE iNbSide ! Skip inner sides
           ! Get boundary condition type
           BCType = BoundaryType(BCIndex,BC_TYPE)
-          ! TODO:Implement inner BCs for surface charge deposition
+          ! FEATURE: Implement inner BCs for surface charge deposition
           ! IF(BCType.EQ.100) CALL abort(__STAMP__,'InitDepoSurfNodes(): Inner BCs not implemented for surface charge deposition')
-          ! TODO:define a list of all BCType numbers that allow surface deposition
+          ! FEATURE: define a list of all BCType numbers that allow surface deposition
           IF(BCType.NE.30) CYCLE iNbSide ! Skip non-DCBC sides
           ! Depo node/side found
           IsDepoSurfNode(FEMVertexID) = .TRUE.
@@ -559,7 +558,7 @@ DO iCNELemID = FirstCNElemID, LastCNElemID
   END DO ! iVertexInd = iFirstVertexInd,LastVertexInd
 END DO !  iCNELemID = FirstCNElemID, LastCNElemID
 #if USE_MPI
-! TODO: Note that VERTEX_NONUNIQUENODEID is not filled for elements that are not on the compute node. Only the CN with MPIRoot has
+! NOTE: VERTEX_NONUNIQUENODEID is not filled for elements that are not on the compute node. Only the CN with MPIRoot has
 ! all info, because the MPIRoot processes loops over all global elements
 CALL BARRIER_AND_SYNC(VertexInfo_Shared_Win,MPI_COMM_SHARED)
 
@@ -641,7 +640,7 @@ END IF ! InitializeSurfNodeArrays
 ! Build Vandermonde mapping from NodeType to NodeTypeVISU (equidistant with N=1)
 CALL BuildSurfVdm(Nmax)
 
-! TODO: Add contribution where inner BCs are used in combination with surface charging
+! FEATURE: [Surface Charge] Add contribution where inner BCs are used in combination with surface charging
 ! Loop over all boundary condition sides
 DO SideID=1,nBCSides
   ! Get BC type
@@ -834,8 +833,6 @@ CALL ChangeBasis2D(3, 1, 1, Vdm_N_EQ(NSideN1)%Vdm, tmp2(1:3,0:NSideN1,0:NSideN1)
 ! Note that the loop runs in the p-q-oriented system
 DO q=0,1; DO p=0,1
   ! Get local node index by checking the distance of the four cornder nodes
-  ! TODO: on inner BC "2*q + p + 1" might not work because the side is not always oriented in the master ordering
-  ! iNode = 2*q + p + 1
   CALL GetClosestNode(NonUniqueGlobalSideID,Face_xGPEquiN1(1:3,p,q),iNode)
 ! IPWRITE(*,*) 'NonUniqueGlobalSideID,p,q,iNode:', NonUniqueGlobalSideID,p,q,iNode
 ! IPWRITE(*,*) 'Face_xGPEquiN1(1:3,p,q)                             :', Face_xGPEquiN1(1:3,p,q)
@@ -895,9 +892,7 @@ NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,SideID) ! Get global side in
 ! Note that the loop runs in the p-q-oriented system
 DO q=0,1; DO p=0,1
   ! Get local node index by checking the distance of the four cornder nodes
-  ! TODO: on inner BC this might not work because the side is not always oriented in the master ordering
-  ! iNode = 2*q + p + 1
-  ! Set mapping
+  ! Set mapping p,q -> iNode
   iNode = pq2iNode(p,q,SideID)
   ! IPWRITE(*,*) 'p,q,iNode,2*q + p + 1:', p,q,iNode,2*q + p + 1
   ! Mapping from non-unique global side index to non-unique global node index
@@ -914,18 +909,11 @@ DO q=0,1; DO p=0,1
   iDepoSurfNodeID = FEMVertexID2DepoSurfNodeID(FEMVertexID)
   ! Add contribution to the FEM vertex (note that double periodicity collapses all four corner nodes into a single vertex index)
   !SurfNodeArea(iDepoSurfNodeID) = SurfNodeArea(iDepoSurfNodeID) + SubSideAreaEquiN1(p,q)
-  ! TODO: on inner BC this might not work because the side is not always oriented in the master ordering
-  ! iNode = 2*q + p + 1
+  ! Note that on inner BC this might not work because the side is not always oriented in the master ordering: iNode = 2*q + p + 1
   NodIndx(2*q + p + 1) = iDepoSurfNodeID
-  ! NodIndx(iNode) = iDepoSurfNodeID
-  !IPWRITE(*,*) 'p,q,2*q + p + 1,iDepoSurfNodeID:', p,q,2*q + p + 1,iDepoSurfNodeID
-  ! IPWRITE(*,*) 'FEMVertexID,iDepoSurfNodeID,NonUniqueNodeID,SurfNodeArea(iDepoSurfNodeID):',&
-  !               FEMVertexID,iDepoSurfNodeID,NonUniqueNodeID,SurfNodeArea(iDepoSurfNodeID)
 END DO; END DO ! q=0,1; DO p=0,1
 
-! TODO: on inner BC this might not work because the side is not always oriented in the master ordering
-!IPWRITE(*,*) 'iDepoSurfNodeID,SurfNodeArea(iDepoSurfNodeID):', iDepoSurfNodeID,SurfNodeArea(iDepoSurfNodeID)
-!SurfNodeArea(iDepoSurfNodeID) = 0.0
+! Note that on inner BC this might not work because the side is not always oriented in the master ordering
 Nloc = N_SurfMesh(SideID)%NSide
 DO j=0,Nloc;DO k=0,Nloc
   ASSOCIATE(xGP => N_Inter(Nloc)%xGP, wGP => N_Inter(Nloc)%wGP)
@@ -1335,7 +1323,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT variable declaration
 LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength) ! Marked particles for deposition
-INTEGER,INTENT(IN),OPTIONAL   :: stage_opt ! TODO: definition of this variable
+INTEGER,INTENT(IN),OPTIONAL   :: stage_opt ! Input: Runge-Kutta stage info
 LOGICAL,INTENT(IN),OPTIONAL   :: skipVerifyCharge_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT variable declaration
