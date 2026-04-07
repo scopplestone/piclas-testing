@@ -119,7 +119,7 @@ For this specific tutorial, make sure to set the correct compile flags
 
 which are forwarded to cmake by running the following command from inside the *build_poisson_Leapfrog* directory
 
-    cmake ../ -DPICLAS_READIN_CONSTANTS=ON -DLIBS_USE_PETSC=0N -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog
+    cmake ../ -DPICLAS_READIN_CONSTANTS=ON -DLIBS_USE_PETSC=ON -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog
 
 to configure the build process and run
 
@@ -395,7 +395,7 @@ This help module can also output the complete set of parameters via
 
     piclas --help
 
-or a subset of them by supplying a section via 
+or a subset of them by supplying a section via
 
     piclas --help "HDG"
 
