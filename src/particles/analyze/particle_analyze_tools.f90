@@ -757,8 +757,9 @@ IF (nSpecAnalyze.GT.1) THEN
           IF(isDielectricElem_Shared(CNElemID)) CYCLE
         END IF ! DielectricNoParticles
       ENDIF
-#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509) /*(Boris-)Leapfrog*/
       IF(velocityOutputAtTime) THEN
+        ! Use half-step updated velocity to avoid staggered output
         partV2 = DOTPRODUCT(velocityAtTime(1:3,i))
       ELSE
 #endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
@@ -818,8 +819,9 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
           IF(isDielectricElem_Shared(CNElemID)) CYCLE
         END IF ! DielectricNoParticles
       ENDIF
-#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509) /*(Boris-)Leapfrog*/
       IF(velocityOutputAtTime) THEN
+        ! Use half-step updated velocity to avoid staggered output
         partV2 = DOTPRODUCT(velocityAtTime(1:3,i))
       ELSE
 #endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
@@ -916,8 +918,9 @@ IF (nSpecAnalyze.GT.1) THEN
           IF(isDielectricElem_Shared(CNElemID)) CYCLE
         END IF ! DielectricNoParticles
       ENDIF
-#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509) /*(Boris-)Leapfrog*/
       IF(velocityOutputAtTime) THEN
+        ! Use half-step updated velocity to avoid staggered output
         partV2 = DOTPRODUCT(velocityAtTime(1:3,i))
       ELSE
 #endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
@@ -970,8 +973,9 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
           IF(isDielectricElem_Shared(CNElemID)) CYCLE
         END IF ! DielectricNoParticles
       ENDIF
-#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509) /*(Boris-)Leapfrog*/
       IF(velocityOutputAtTime) THEN
+        ! Use half-step updated velocity to avoid staggered output
         partV2 = DOTPRODUCT(velocityAtTime(1:3,i))
       ELSE
 #endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
