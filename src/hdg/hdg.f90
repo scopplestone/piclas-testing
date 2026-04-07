@@ -391,7 +391,6 @@ DO SideID=1,nBCSides
   CASE(20) ! Conductor: Floating Boundary Condition (FPC)
     nConductorBCsides=nConductorBCsides+1
   CASE(30) ! Distributed Capacitance
-    ! TODO DC
     nDistriCapBCsides=nDistriCapBCsides+1
   CASE DEFAULT ! unknown BCType
     CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
@@ -453,7 +452,6 @@ DO SideID=1,nBCSides
     ConductorBC(nConductorBCsides)=SideID
     MaskedSide(SideID)=2
   CASE(30) ! Distributed Capacitance
-    ! TODO DC
     nDistriCapBCsides=nDistriCapBCsides+1
     DistriCapBC(nDistriCapBCsides)=SideID
   CASE DEFAULT ! unknown BCType
@@ -1255,7 +1253,6 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   ASSOCIATE( firstSide => ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1) + 1       ,&
              lastSide  => ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElem    + nElems) )
     ALLOCATE(lambdaLB(PP_nVar,nGP_face(NMax)+1,firstSide:lastSide)) ! +1 comes from the NSideMin info that is sent additionally
-    ! TODO NSideMin - What?
     lambdaLB=0.
   END ASSOCIATE
   IF(nProcessors.GT.1) CALL GetMasteriLocSides() ! Builds iLocSides, which is required in LambdaSideToMaster()
