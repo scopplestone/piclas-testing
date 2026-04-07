@@ -320,7 +320,7 @@ END DO
 #if USE_MPI
 IF(Do2DSurfaceCharge) CALL ExchangeSurfNodeSourceMPI()
 #endif /*USE_MPI*/
-! TODO: DistriCapBC only includes nBCSides and not the inner BCs
+! NOTE: DistriCapBC only includes nBCSides and not the inner BCs
 IF(nDistriCapBCsides.GT.0) ALLOCATE(SurfNodeSourceEquiN1(1:1,0:1,0:1),SurfNodeSourceNodeTypeNloc(1:1,0:Nmax,0:Nmax))
 ! Loop over all local BC sides, where the DCBC model is active
 DO BCsideID=1,nDistriCapBCsides
@@ -331,11 +331,9 @@ DO BCsideID=1,nDistriCapBCsides
   NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,SideID) ! Get global side index
 
   ! Map surface charge from vertices to SideID surface with N=1
-  ! TODO: on inner BC this might not work because the side is not always oriented in the master ordering
+  ! NOTE: ight not work because the side is not always oriented in the master ordering
   DO q=0,1; DO p=0,1
     ! Get local node index
-    ! TODO: this might be wrong
-    ! iNode = 2*q + p + 1
     ! Use mapping p,q -> iNode
     iNode = pq2iNode(p,q,SideID)
     ! IPWRITE(*,*) 'p,q,iNode,2*q + p + 1:', p,q,iNode,2*q + p + 1
@@ -491,7 +489,7 @@ END IF
 
 ! Reset the RHS of the first DOF if ZeroPotential must be set
 IF(mpiRoot.AND.ZeroPotentialDOF.GE.0) THEN
-  ! Note that sice PETSc 3.24, VecSetValue checks the data type of the arguments. The value 0 is not allowed, but 0.0 is correct
+  ! NOTE: sice PETSc 3.24, VecSetValue checks the data type of the arguments. The value 0 is not allowed, but 0.0 is correct
   PetscCallA(VecSetValue(PETScRHS,ZeroPotentialDOF,0.0,INSERT_VALUES,ierr))
 END IF
 
@@ -553,7 +551,7 @@ END IF ! reason.LT.0 (i.e. not converged)
 
 ! Only the MPIRoot determines the computation time required for PETSc.
 IF(MPIroot) THEN
-  ! Note that this measurement includes the time spent in the MPI routines of PETSc, which is not included in time measurements of
+  ! NOTE: this measurement includes the time spent in the MPI routines of PETSc, which is not included in time measurements of
   ! piclas modules to distinguish between calculation time and MPI time. Only calculation time is relevant for load balancing, but
   ! PETSc does its own balancing method so this information here is just for comparison with the time required for the particles.
   PETScFieldTime = TimeEndPiclas-TimeStartPiclas
