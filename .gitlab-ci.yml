@@ -582,13 +582,16 @@ reggie_download:
     # Check if the .day file exists under "reggie/.day" and move it here if that is the case
     # Check if the "reggie" directory exists and remove it before cloning it again
     # Clone the "reggie2.0" repository into the "reggie" directory
-    # "--break-system-packages" is only required on newer systems but not on Ubuntu 20
     - if [ ! -d "reggie/.git" ]; then
         if [ -f "reggie/.day" ]; then mv reggie/.day .; fi ;
         if [ -d "reggie" ]; then rm -rf reggie ; fi ;
         REGGIEBRANCH=master ;
+        REGGIEBRANCH=improvement.rfactor.performcheck ;
         git clone --single-branch --branch ${REGGIEBRANCH} git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
-        if [ -d "reggie" ]; source venv/bin/activate ; then cd reggie ; uv pip install -e . ; cd .. ; fi ;
+        if [ ! -d "reggie" ]; then echo "Error. reggie directory not cloned. Exit." ; exit 1 ; fi ;
+        source venv/bin/activate ;
+        cd reggie ;
+        uv pip install -e . ; cd .. ;
         if [ -f ".day" ]; then mv .day reggie/. ; fi ;
       fi
     # Test reggie installation
