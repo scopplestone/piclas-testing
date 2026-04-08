@@ -361,11 +361,11 @@ END SUBROUTINE ParticleThroughSideCheck2D
 
 SUBROUTINE ParticleThroughSideCheck1D(PartID,iLocSide,Element,ThroughSide)
 !===================================================================================================================================
-!> Routine to check whether a particle crossed the given 1D  side. It simply checks whether lastpartpos - xnode and partpos-xnode
-!> have different signs. Then the side was crossed.
+!> Routine to check whether a particle crossed the given 1D side assuming that the particle is starting in the given Element.
+!> If the new position is not on the correct side of the node, then the particle went thorugh the side.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars             ,ONLY: lastPartPos,PartState
+USE MOD_Particle_Vars             ,ONLY: LastPartPos, PartState
 USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared, ElemSideNodeID1D_Shared
 USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
@@ -381,8 +381,8 @@ INTEGER,INTENT(IN)               :: Element
 LOGICAL,INTENT(OUT)              :: ThroughSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: CNElemID, DiffSign(2)
-REAL                             :: xNode
+INTEGER                          :: CNElemID
+REAL                             :: xNode,xOtherNode
 !===================================================================================================================================
 
 CNElemID = GetCNElemID(Element)
@@ -390,12 +390,11 @@ CNElemID = GetCNElemID(Element)
 ThroughSide = .FALSE.
 ! Get the coordinates of the first node
 xNode = NodeCoords_Shared(1,ElemSideNodeID1D_Shared(iLocSide, CNElemID))
+xOtherNode = NodeCoords_Shared(1,ElemSideNodeID1D_Shared(MERGE(XI_MINUS,XI_PLUS,iLocSide==XI_PLUS), CNElemID))
 
-DiffSign(1) = NINT(SIGN(1.,LastPartPos(1,PartID) - xNode))
-DiffSign(2) = NINT(SIGN(1.,PartState(1,PartID) - xNode))
-
-! Check if intersection point is within line segments
-IF (DiffSign(1).NE.DiffSign(2)) THEN
+! Check if the new position is on the "wrong" side of the node
+IF(((xOtherNode.LT.xNode).AND.(PartState(1,PartID).GT.xNode)).OR. &
+   ((xOtherNode.GT.xNode).AND.(PartState(1,PartID).LT.xNode))) THEN
   ! Calculate intersection point
   TrackInfo%alpha = ABS(xNode - LastPartPos(1,PartID))
   ThroughSide = .TRUE.

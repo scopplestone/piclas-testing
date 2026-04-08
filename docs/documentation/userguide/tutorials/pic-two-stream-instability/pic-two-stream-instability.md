@@ -140,7 +140,7 @@ For this specific tutorial, make sure to set the correct compile flags
 
 using the ccmake (gui for cmake) or simply run the following command from inside the *build* directory
 
-    cmake ../ -DLIBS_USE_PETSC=0N -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog
+    cmake ../ -DLIBS_USE_PETSC=ON -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog
 
 to configure the build process and run
 
