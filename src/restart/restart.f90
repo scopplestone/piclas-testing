@@ -76,7 +76,8 @@ CALL prms%CreateLogicalOption('Particles-MacroscopicRestart', &
                               'cell local species-specific number density, temperature and velocity from a DSMCState file.', &
                               '.FALSE.')
 CALL prms%CreateStringOption( 'Particles-MacroscopicRestart-Filename', &
-                              'File name of the DSMCState to be utilized as the input for the particle insertion.')
+                              'File name of the DSMCState to be utilized as the input for the particle insertion, background gas '//&
+                              'distribution or input for local time stepping (VariableTimeStep).')
 CALL prms%CreateLogicalOption('FlushInitialState',&
                               'Check whether (during restart) the statefile from which the restart is performed should be deleted.'&
                             , '.FALSE.')
