@@ -329,6 +329,13 @@ END SUBROUTINE StoreBoundaryParticleProperties
 
 !===================================================================================================================================
 !> Determines the minimum and maximum radial distance from a side's bounding box to a given origin on a surface.
+!>
+!>    corner 4 (min,max) -------- corner 3 (max,max)
+!>           |                           |
+!>           |                           |
+!>           |                           |
+!>    corner 1 (min,min) -------- corner 2 (max,min)
+!>
 !===================================================================================================================================
 SUBROUTINE GetRadialDistance2D(GlobalSideID,dir,origin,rmin,rmax)
 ! MODULES
@@ -348,9 +355,10 @@ REAL, INTENT(IN)              :: origin(2)
 REAL, INTENT(OUT)             :: rmin,rmax
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iNode
-REAL                          :: BoundingBox(1:3,1:8), point(2), vec(2)
-REAL                          :: Vector1(3),Vector2(3),Vector3(3),xyzNod(3),corner(3),VecBoundingBox(3),radiusCorner(2,4)
+INTEGER                       :: iNode, iNext
+REAL                          :: BoundingBox(1:3,1:8)
+REAL                          :: corners(2,4)               !> Bounding box corners in origin-shifted 2D
+REAL                          :: point(2), vec(2), dist
 LOGICAL                       :: r0inside
 !===================================================================================================================================
 ! Get bounding box
@@ -364,77 +372,61 @@ IF(Symmetry%Axisymmetric) THEN
   rmin = BoundingBox(2,1)
   rmax = BoundingBox(2,3)
 ELSE
-  r0inside=.FALSE.
-  Vector1(:)=0.
-  Vector2(:)=0.
-  Vector3(:)=0.
-  xyzNod(1)=MINVAL(BoundingBox(1,:))
-  xyzNod(2)=MINVAL(BoundingBox(2,:))
-  xyzNod(3)=MINVAL(BoundingBox(3,:))
-  VecBoundingBox(1) = MAXVAL(BoundingBox(1,:)) -MINVAL(BoundingBox(1,:))
-  VecBoundingBox(2) = MAXVAL(BoundingBox(2,:)) -MINVAL(BoundingBox(2,:))
-  VecBoundingBox(3) = MAXVAL(BoundingBox(3,:)) -MINVAL(BoundingBox(3,:))
-  Vector1(dir(2)) = VecBoundingBox(dir(2))
-  Vector2(dir(2)) = VecBoundingBox(dir(2))
-  Vector2(dir(3)) = VecBoundingBox(dir(3))
-  Vector3(dir(3)) = VecBoundingBox(dir(3))
-  !-- determine rmax: maximum distance to the origin, which will always be at the corners
-  DO iNode=1,4
-    SELECT CASE(iNode)
-    CASE(1)
-      corner = xyzNod
-    CASE(2)
-      corner = xyzNod + Vector1
-    CASE(3)
-      corner = xyzNod + Vector2
-    CASE(4)
-      corner = xyzNod + Vector3
-    END SELECT
-    corner(dir(2)) = corner(dir(2)) - origin(1)
-    corner(dir(3)) = corner(dir(3)) - origin(2)
-    radiusCorner(1,iNode)=SQRT(corner(dir(2))**2+corner(dir(3))**2)
-  END DO !iNode
-  rmax=MAXVAL(radiusCorner(1,1:4))
-  !-- determine rmin: minimum distance to the origin, considering the distance to the edges, which might be minimal between corners
-  DO iNode=1,4
-    SELECT CASE(iNode)
-    CASE(1)
-      point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
-      vec=(/Vector1(dir(2)),Vector1(dir(3))/)
-    CASE(2)
-      point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
-      vec=(/Vector3(dir(2)),Vector3(dir(3))/)
-    CASE(3)
-      point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
-      vec=(/-Vector1(dir(2)),-Vector1(dir(3))/)
-    CASE(4)
-      point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
-      vec=(/-Vector3(dir(2)),-Vector3(dir(3))/)
-    END SELECT
-    ! determine the closest point on the edge to the origin
-    vec=point + MIN(MAX(-DOT_PRODUCT(point,vec)/DOT_PRODUCT(vec,vec),0.),1.)*vec
-    radiusCorner(2,iNode)=SQRT(DOT_PRODUCT(vec,vec)) !rmin
-  END DO !iNode
-  !-- determine if the origin is inside of bounding box
-  IF ((origin(1) .GE. MINVAL(BoundingBox(dir(2),:))) .AND. &
-      (origin(1) .LE. MAXVAL(BoundingBox(dir(2),:))) .AND. &
-      (origin(2) .GE. MINVAL(BoundingBox(dir(3),:))) .AND. &
-      (origin(2) .LE. MAXVAL(BoundingBox(dir(3),:))) ) THEN
-      r0inside = .TRUE.
+  ! Extract 4 bounding box corners in origin-shifted 2D surface coordinates
+  ! Corner ordering: 1 (min,min), 2 (max,min), 3 (max,max), 4 (min,max)
+  corners(1,1) = MINVAL(BoundingBox(dir(2),:)) - origin(1)
+  corners(2,1) = MINVAL(BoundingBox(dir(3),:)) - origin(2)
+  corners(1,2) = MAXVAL(BoundingBox(dir(2),:)) - origin(1)
+  corners(2,2) = corners(2,1)
+  corners(1,3) = corners(1,2)
+  corners(2,3) = MAXVAL(BoundingBox(dir(3),:)) - origin(2)
+  corners(1,4) = corners(1,1)
+  corners(2,4) = corners(2,3)
+
+  !-- rmax: maximum distance to the origin, which will always be at the corners
+  rmax = 0.
+  DO iNode = 1, 4
+    dist = VECNORM2D(corners(:,iNode))
+    IF (dist .GT. rmax) rmax = dist
+  END DO
+
+  !-- rmin: minimum distance to the origin, considering the distance to the edges, which might be minimal between corners
+  rmin = HUGE(1.)
+  DO iNode = 1, 4
+    ! MOD(iNode,4)+1 connects 1 -> 2 (bottom), 2 -> 3 (right), 3 -> 4 (top), 4 -> 1 (left)
+    iNext = MOD(iNode, 4) + 1
+    point = corners(:, iNode)
+    vec   = corners(:, iNext) - corners(:, iNode)
+    ! Determine the closest point on the edge to the origin
+    vec  = point + MIN(MAX(-DOT_PRODUCT(point, vec) / DOT_PRODUCT(vec, vec), 0.), 1.) * vec
+    dist = VECNORM2D(vec)
+    IF (dist .LT. rmin) rmin = dist
+  END DO
+
+  !-- Determine if the origin is inside of bounding box
+  r0inside = .FALSE.
+  IF ( (0. .GE. corners(1,1)) .AND. (0. .LE. corners(1,2)) .AND. (0. .GE. corners(2,1)) .AND. (0. .LE. corners(2,3)) ) THEN
+    r0inside = .TRUE.
   END IF
-  !-- set rmin to zero to force the side to be classified as partially "inside", otherwise determine the smallest distance
-  IF (r0inside) THEN
-    rmin = 0.
-  ELSE
-    rmin=MINVAL(radiusCorner(2,1:4))
-  END IF
+
+  !-- Set rmin to zero to force the side to be classified as partially "inside", otherwise keep the smallest distance
+  IF (r0inside) rmin = 0.
 END IF
 
 END SUBROUTINE GetRadialDistance2D
 
 
 !===================================================================================================================================
-!> Determine the minimum and maximum distance to the user-defined racetrack
+!> Determines the minimum and maximum distance from a side's bounding box to a stadium (race track) shape.
+!>
+!>    corner 4 (min,max) -------- corner 3 (max,max)
+!>           |                           |
+!>           |                           |
+!>           |                           |
+!>    corner 1 (min,min) -------- corner 2 (max,min)
+!>
+!> The stadium is defined by a central line segment (origin +/- halfLength*dirVec) with a sweep radius.
+!> The distances rmin/rmax are the closest/farthest distances from the bounding box to the central segment.
 !===================================================================================================================================
 SUBROUTINE GetRacetrackDistance2D(GlobalSideID, dir, origin, dirVec, halfLength, rmin, rmax)
 ! MODULES
@@ -448,23 +440,19 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: GlobalSideID, dir(3)
-REAL, INTENT(IN)              :: origin(2)        !< Center of the racetrack/stadium in surface plane coordinates
-REAL, INTENT(IN)              :: dirVec(2)        !< Normalized direction vector of the straight section
-REAL, INTENT(IN)              :: halfLength       !< Half-length of the straight section (> 0)
+REAL, INTENT(IN)              :: origin(2)                  !< Center of the racetrack/stadium in surface plane coordinates
+REAL, INTENT(IN)              :: dirVec(2)                  !< Normalized direction vector of the straight section
+REAL, INTENT(IN)              :: halfLength                 !< Half-length of the straight section (> 0)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)             :: rmin,rmax
+REAL, INTENT(OUT)             :: rmin, rmax
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iNode
+INTEGER                       :: iNode, iNext
 REAL                          :: BoundingBox(1:3,1:8)
-REAL                          :: Vector1(3), Vector2(3), Vector3(3), xyzNod(3), corner(2), VecBoundingBox(3)
-REAL                          :: point(2), vec(2), edgeA(2), edgeB(2)
-REAL                          :: segA(2), segB(2)     ! Central segment endpoints (origin-shifted)
-REAL                          :: radiusCorner(2,4)
-REAL                          :: d1, d2, d3, d4
-REAL                          :: bbMin2D(2), bbMax2D(2)
-REAL                          :: boxCorners(2,4), boxEdgeA(2), boxEdgeB(2)
+REAL                          :: corners(2,4)               !< Bounding box corners in origin-shifted 2D
+REAL                          :: segA(2), segB(2)           !< Central segment endpoints in origin-shifted 2D
+REAL                          :: d1, d2, d3, d4, edgeDist
 LOGICAL                       :: segInside
 !===================================================================================================================================
 ! Get bounding box
@@ -478,117 +466,67 @@ END IF
 segA = -halfLength * dirVec
 segB =  halfLength * dirVec
 
-! Bounding box extents in 3D
-xyzNod(1) = MINVAL(BoundingBox(1,:))
-xyzNod(2) = MINVAL(BoundingBox(2,:))
-xyzNod(3) = MINVAL(BoundingBox(3,:))
-VecBoundingBox(1) = MAXVAL(BoundingBox(1,:)) - MINVAL(BoundingBox(1,:))
-VecBoundingBox(2) = MAXVAL(BoundingBox(2,:)) - MINVAL(BoundingBox(2,:))
-VecBoundingBox(3) = MAXVAL(BoundingBox(3,:)) - MINVAL(BoundingBox(3,:))
+! Extract 4 bounding box corners in origin-shifted 2D surface coordinates
+! Corner ordering: 1 (min,min), 2 (max,min), 3 (max,max), 4 (min,max)
+corners(1,1) = MINVAL(BoundingBox(dir(2),:)) - origin(1)
+corners(2,1) = MINVAL(BoundingBox(dir(3),:)) - origin(2)
+corners(1,2) = MAXVAL(BoundingBox(dir(2),:)) - origin(1)
+corners(2,2) = corners(2,1)
+corners(1,3) = corners(1,2)
+corners(2,3) = MAXVAL(BoundingBox(dir(3),:)) - origin(2)
+corners(1,4) = corners(1,1)
+corners(2,4) = corners(2,3)
 
-Vector1(:) = 0.
-Vector2(:) = 0.
-Vector3(:) = 0.
-Vector1(dir(2)) = VecBoundingBox(dir(2))
-Vector2(dir(2)) = VecBoundingBox(dir(2))
-Vector2(dir(3)) = VecBoundingBox(dir(3))
-Vector3(dir(3)) = VecBoundingBox(dir(3))
-
-!-- rmax: maximum distance from any bounding box corner to the central segment
+!-- rmax: maximum distance from any corner to the central segment
+rmax = 0.
 DO iNode = 1, 4
-  SELECT CASE(iNode)
-  CASE(1)
-    corner(1) = xyzNod(dir(2)) - origin(1)
-    corner(2) = xyzNod(dir(3)) - origin(2)
-  CASE(2)
-    corner(1) = xyzNod(dir(2)) + Vector1(dir(2)) - origin(1)
-    corner(2) = xyzNod(dir(3)) + Vector1(dir(3)) - origin(2)
-  CASE(3)
-    corner(1) = xyzNod(dir(2)) + Vector2(dir(2)) - origin(1)
-    corner(2) = xyzNod(dir(3)) + Vector2(dir(3)) - origin(2)
-  CASE(4)
-    corner(1) = xyzNod(dir(2)) + Vector3(dir(2)) - origin(1)
-    corner(2) = xyzNod(dir(3)) + Vector3(dir(3)) - origin(2)
-  END SELECT
-  radiusCorner(1, iNode) = PointToSegmentDist2D(corner, segA, segB)
+  d1 = PointToSegmentDist2D(corners(:,iNode), segA, segB)
+  IF (d1 .GT. rmax) rmax = d1
 END DO
-rmax = MAXVAL(radiusCorner(1, 1:4))
 
 !-- rmin: minimum distance from any bounding box edge to the central segment
 !   For non-intersecting segments, the minimum distance is attained at an endpoint.
 !   We check 4 candidate distances per edge: 2 edge endpoints to central segment,
 !   and 2 central segment endpoints to the edge.
+rmin = HUGE(1.)
 DO iNode = 1, 4
-  SELECT CASE(iNode)
-  CASE(1)
-    point = (/xyzNod(dir(2)), xyzNod(dir(3))/) - origin
-    vec   = (/Vector1(dir(2)), Vector1(dir(3))/)
-  CASE(2)
-    point = (/xyzNod(dir(2)), xyzNod(dir(3))/) - origin
-    vec   = (/Vector3(dir(2)), Vector3(dir(3))/)
-  CASE(3)
-    point = (/xyzNod(dir(2)), xyzNod(dir(3))/) + (/Vector2(dir(2)), Vector2(dir(3))/) - origin
-    vec   = (/-Vector1(dir(2)), -Vector1(dir(3))/)
-  CASE(4)
-    point = (/xyzNod(dir(2)), xyzNod(dir(3))/) + (/Vector2(dir(2)), Vector2(dir(3))/) - origin
-    vec   = (/-Vector3(dir(2)), -Vector3(dir(3))/)
-  END SELECT
-
-  edgeA = point
-  edgeB = point + vec
-
-  ! 4 candidate distances: edge endpoints to central segment, central endpoints to edge
-  d1 = PointToSegmentDist2D(edgeA, segA, segB)
-  d2 = PointToSegmentDist2D(edgeB, segA, segB)
-  d3 = PointToSegmentDist2D(segA,  edgeA, edgeB)
-  d4 = PointToSegmentDist2D(segB,  edgeA, edgeB)
-
-  radiusCorner(2, iNode) = MIN(d1, d2, d3, d4)
+  ! MOD(iNode,4)+1 connects 1 -> 2 (bottom), 2 -> 3 (right), 3 -> 4 (top), 4 -> 1 (left)
+  iNext = MOD(iNode, 4) + 1
+  d1 = PointToSegmentDist2D(corners(:,iNode),  segA, segB)
+  d2 = PointToSegmentDist2D(corners(:,iNext),  segA, segB)
+  d3 = PointToSegmentDist2D(segA, corners(:,iNode), corners(:,iNext))
+  d4 = PointToSegmentDist2D(segB, corners(:,iNode), corners(:,iNext))
+  edgeDist = MIN(d1, d2, d3, d4)
+  IF (edgeDist .LT. rmin) rmin = edgeDist
 END DO
 
 !-- Check if any part of the central segment lies inside the bounding box
 segInside = .FALSE.
 
-! Bounding box bounds in origin-shifted 2D surface coordinates
-bbMin2D(1) = MINVAL(BoundingBox(dir(2),:)) - origin(1)
-bbMin2D(2) = MINVAL(BoundingBox(dir(3),:)) - origin(2)
-bbMax2D(1) = MAXVAL(BoundingBox(dir(2),:)) - origin(1)
-bbMax2D(2) = MAXVAL(BoundingBox(dir(3),:)) - origin(2)
-
 ! Check if either central segment endpoint is inside the bounding box
-IF ( (segA(1) .GE. bbMin2D(1)) .AND. (segA(1) .LE. bbMax2D(1)) .AND. &
-     (segA(2) .GE. bbMin2D(2)) .AND. (segA(2) .LE. bbMax2D(2)) ) THEN
+IF ( (segA(1) .GE. corners(1,1)) .AND. (segA(1) .LE. corners(1,2)) .AND. &
+     (segA(2) .GE. corners(2,1)) .AND. (segA(2) .LE. corners(2,3)) ) THEN
   segInside = .TRUE.
 END IF
-IF ( (segB(1) .GE. bbMin2D(1)) .AND. (segB(1) .LE. bbMax2D(1)) .AND. &
-     (segB(2) .GE. bbMin2D(2)) .AND. (segB(2) .LE. bbMax2D(2)) ) THEN
-  segInside = .TRUE.
+IF (.NOT. segInside) THEN
+  IF ( (segB(1) .GE. corners(1,1)) .AND. (segB(1) .LE. corners(1,2)) .AND. &
+       (segB(2) .GE. corners(2,1)) .AND. (segB(2) .LE. corners(2,3)) ) THEN
+    segInside = .TRUE.
+  END IF
 END IF
 
 ! Check if the central segment intersects any bounding box edge
 IF (.NOT. segInside) THEN
-  ! Define the 4 corners of the bounding box in origin-shifted 2D
-  boxCorners(:,1) = bbMin2D
-  boxCorners(:,2) = (/bbMax2D(1), bbMin2D(2)/)
-  boxCorners(:,3) = bbMax2D
-  boxCorners(:,4) = (/bbMin2D(1), bbMax2D(2)/)
-
-  ! Test intersection with each of the 4 bounding box edges
   DO iNode = 1, 4
-    boxEdgeA = boxCorners(:, iNode)
-    boxEdgeB = boxCorners(:, MOD(iNode, 4) + 1)
-    IF (SegmentsIntersect2D(segA, segB, boxEdgeA, boxEdgeB)) THEN
+    iNext = MOD(iNode, 4) + 1
+    IF (SegmentsIntersect2D(segA, segB, corners(:,iNode), corners(:,iNext))) THEN
       segInside = .TRUE.
       EXIT
     END IF
   END DO
 END IF
 
-IF (segInside) THEN
-  rmin = 0.
-ELSE
-  rmin = MINVAL(radiusCorner(2, 1:4))
-END IF
+IF (segInside) rmin = 0.
 
 END SUBROUTINE GetRacetrackDistance2D
 
