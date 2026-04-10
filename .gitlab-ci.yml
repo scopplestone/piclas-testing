@@ -45,6 +45,7 @@ before_script:
   - source venv/bin/activate || true
   - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
   - export MESHESDIR=True
+  - export REGGIE_GITLAB_CI=1
   - ulimit -s unlimited
   - python3 -V || true
   - python  -V || true
@@ -1017,6 +1018,18 @@ NIG_Reservoir:
   script:
     - cd build_DSMC_release/ ; reggie ../regressioncheck/NIG_Reservoir -e bin/piclas
 
+NIG_Reservoir_single_core:
+  <<: *defaults_DSMC_nightly
+  stage: reggie_DSMC_nightly
+  script:
+    - cd build_DSMC_release/ ; reggie ../regressioncheck/NIG_Reservoir_single_core -e bin/piclas
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_NIGHTLY'
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run tracking examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1551,6 +1564,18 @@ WEK_Reservoir:
   script:
     - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_Reservoir -e bin/piclas
 
+WEK_Reservoir_single_core:
+  <<: *defaults_DSMC_weekly
+  stage: reggie_weekly
+  script:
+    - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_Reservoir_single_core -e bin/piclas
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_WEEKLY'
+
 WEK_FPFlow:
   <<: *defaults_weekly
   stage: reggie_weekly
@@ -1601,6 +1626,8 @@ code_coverage:
       - Coverage/html
       # json files to check if all builds are read in for combined coverage report
       - Coverage/*.json
+      # xml file (for debugging in gitlab merge diff view)
+      - Coverage/cobertura/*.xml
     expire_in: 1 month
     when: on_success
     reports:
