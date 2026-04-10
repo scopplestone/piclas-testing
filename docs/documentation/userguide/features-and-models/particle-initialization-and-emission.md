@@ -442,9 +442,9 @@ The magnitude of the electric field strength $|\mathbf{E}|$ is calculated with t
 
 The provided temperature for the surface flux of the species determines the energy of emitted particles. While the thermionic emission can be enabled for PIC as well as DSMC simulations, the addition of the Schottky effect requires a field solver. An overview of the limitations of this modelling regarding the applied field strength, wall temperature and/or material is given by Ref. {cite}`Coulombe1997` and Ref. {cite}`Wu2022`. An example can be found in the regression test `regressioncheck/CHE_poisson/SurfFlux_ThermionicEmission_Schottky`.
 
-### Circular Inflow
+### Circular/Racetrack Inflow
 
-The emission of particles from a surface flux can be limited to the area within a circle, ring or circle cut-out. The respective boundary has to
+The emission of particles from a surface flux can be limited to the area within a circle, ring, circle cut-out or racetrack / stadium. The respective boundary has to
 coincide or be parallel to the xy-, xz, or yz-planes. This allows to define inflow boundaries without specifically meshing the
 geometrical feature, e.g. small orifices. The feature can be enabled per species and surface flux
 
@@ -469,7 +469,13 @@ The absolute coordinates are defined as follows for the respective normal direct
 |      y (=2)      |    (z,x)    |
 |      z (=3)      |    (x,y)    |
 
-Multiple circular inflows can be defined on a single boundary through multiple surface fluxes, e.g. to enable the simulation of multiple inlets on a chamber wall. Circular inflows are also supported with axisymmetric simulations, under the assumptions that the chosen surface is in the yz-plane (and thus has a normal direction in x) and the minimal and maximum radii are in the positive y-direction. Examples are given as part of the regression tests in `regressioncheck/CHE_DSMC/SurfFlux_Tria_CircularInflow_Circle`, `SurfFlux_Tria_CircularInflow_CircleCutout` and `SurfFlux_Tria_CircularInflow_Ring`.
+To define a racetrack / stadium shaped inflow additionally the total length $L = 2*R + l$ has to be given, where $l$ is the distance
+between the circle segments, and the orientation of the racetrack, where the line segment is parallel to given direction:
+
+    Part-Species1-Surfaceflux1-RacetrackLength=0.001
+    Part-Species1-Surfaceflux1-RacetrackDir=(/1.0,1.0/)
+
+Multiple circular / racetrack inflows can be defined on a single boundary through multiple surface fluxes, e.g. to enable the simulation of multiple inlets / sputtering targets on a chamber wall. Circular inflows are also supported with axisymmetric simulations, under the assumptions that the chosen surface is in the yz-plane (and thus has a normal direction in x) and the minimal and maximum radii are in the positive y-direction. Examples are given as part of the regression tests in `regressioncheck/CHE_DSMC/SurfFlux_Tria_CircularInflow_Circle`, `SurfFlux_Tria_CircularInflow_CircleCutout`, `SurfFlux_Tria_CircularInflow_Ring`, and `SurfFlux_RacetrackInflow`.
 
 (sec:particle-emission-adaptive)=
 ### Adaptive/Subsonic Boundaries
@@ -514,7 +520,7 @@ the first approach with the relaxation factor.
     AdaptiveBC-SamplingIteration      = 100
     AdaptiveBC-TruncateRunningAverage = T       ! DEFAULT: F
 
-The adaptive particle emission can be combined with the circular inflow feature. In this context when the area of the actual
+The adaptive particle emission can be combined with the circular inflow feature (but not the racetrack yet). In this context when the area of the actual
 emission circle/ring is very small, it is preferable to utilize the `Type=4` constant mass flow condition. `Type=3` assumes an
 open boundary and accounts for particles leaving the domain through that boundary already when determining the number of particles
 to be inserted. As a result, this method tends to over predict the given mass flow, when the emission area is very small and large
