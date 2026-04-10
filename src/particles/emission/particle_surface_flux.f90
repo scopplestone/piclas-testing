@@ -576,7 +576,7 @@ SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide))
 CASE(0) !- RejectType=0 : complete side is inside valid bounds
   InSideCircularInflow=.TRUE.
 CASE(1) !- RejectType=1 : complete side is outside of valid bounds
-  CALL abort(__STAMP__,'side outside of valid bounds was considered although nVFR=0...?!')
+  CALL abort(__STAMP__,'ERROR in InSideCircularInflow: Side should have been skipped before this call!')
 CASE(2) !- RejectType=2 : side is partly inside valid bounds
   point(1)=Particle_pos(Species(iSpec)%Surfaceflux(iSF)%dir(2))-origin(1)
   point(2)=Particle_pos(Species(iSpec)%Surfaceflux(iSF)%dir(3))-origin(2)
@@ -587,7 +587,7 @@ CASE(2) !- RejectType=2 : side is partly inside valid bounds
     InSideCircularInflow=.FALSE.
   END IF
 CASE DEFAULT
-  CALL abort(__STAMP__,'wrong SurfFluxSideRejectType!')
+  CALL abort(__STAMP__,'ERROR in InSideCircularInflow: Unknown SurfFluxSideRejectType!')
 END SELECT !SurfFluxSideRejectType
 
 END FUNCTION InSideCircularInflow
@@ -623,7 +623,7 @@ CASE(0) ! Complete side is inside valid bounds
   InSideRaceTrackInflow = .TRUE.
 
 CASE(1) ! Complete side is outside of valid bounds
-  CALL abort(__STAMP__,'side outside of valid bounds was considered although nVFR=0...?!')
+  CALL abort(__STAMP__,'ERROR in InSideRaceTrackInflow: Side should have been skipped before this call!')
 
 CASE(2) ! Side is partly inside valid bounds
   origin     = Species(iSpec)%Surfaceflux(iSF)%origin
@@ -646,7 +646,7 @@ CASE(2) ! Side is partly inside valid bounds
   END IF
 
 CASE DEFAULT
-  CALL abort(__STAMP__,'wrong SurfFluxSideRejectType!')
+  CALL abort(__STAMP__,'ERROR in InSideRaceTrackInflow: Unknown SurfFluxSideRejectType!')
 END SELECT
 
 END FUNCTION InSideRaceTrackInflow

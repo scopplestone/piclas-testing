@@ -399,10 +399,10 @@ END IF
 END SUBROUTINE InitializeParticleSurfaceflux
 
 
+!===================================================================================================================================
+!> Read-in and initialize variables for the surface flux and additional features (circular inflow, adaptive, etc.)
+!===================================================================================================================================
 SUBROUTINE ReadInAndPrepareSurfaceFlux(MaxSurfacefluxBCs, nDataBC)
-!===================================================================================================================================
-! Initialize the variables first
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
@@ -440,9 +440,7 @@ DO iSpec=1,nSpecies
   IF (Species(iSpec)%nSurfacefluxBCs.EQ.0) CYCLE
   ! Sanity check: Background species cannot have a surface flux emission
   IF (useDSMC.AND.(BGGas%NumberOfSpecies.GT.0)) THEN
-    IF (BGGas%BackgroundSpecies(iSpec)) THEN
-      CALL abort(__STAMP__,'ERROR: Surface flux is not implemented for background gas species!')
-    END IF
+    IF (BGGas%BackgroundSpecies(iSpec)) CALL CollectiveStop(__STAMP__,'ERROR: Surface flux is not implemented for background gas species!')
   END IF
   ! Determine the maximum number of surface flux BCs for all species
   MaxSurfacefluxBCs=MAX(MaxSurfacefluxBCs,Species(iSpec)%nSurfacefluxBCs)
@@ -457,7 +455,7 @@ DO iSpec=1,nSpecies
     ASSOCIATE(SF => Species(iSpec)%Surfaceflux(iSF))
     SF%BC = GETINT('Part-Species'//TRIM(hilf2)//'-BC')
     ! Sanity check: BC index must be within the number of defined particle boundary conditions
-    IF (SF%BC.LT.1 .OR. SF%BC.GT.nPartBound) CALL abort(__STAMP__, 'SurfacefluxBCs must be between 1 and nPartBound!')
+    IF (SF%BC.LT.1 .OR. SF%BC.GT.nPartBound) CALL CollectiveStop(__STAMP__, 'SurfacefluxBCs must be between 1 and nPartBound!')
     ! Default surface flux type (constant particle number per side)
     SF%Type = 0
     SF%AdaptiveType = 0
@@ -483,7 +481,7 @@ DO iSpec=1,nSpecies
     SELECT CASE(TRIM(SF%velocityDistribution))
     CASE('constant','maxwell','maxwell_lpn','cosine','cosine2')
     CASE DEFAULT
-      CALL abort(__STAMP__,'Selected velocity distribution not implemented for surface flux!')
+      CALL CollectiveStop(__STAMP__,'Selected velocity distribution not implemented for surface flux!')
     END SELECT
     SF%VeloIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-VeloIC')
     SF%VeloIsNormal          = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-VeloIsNormal')
@@ -505,7 +503,7 @@ DO iSpec=1,nSpecies
           SF%dir(2)=1
           SF%dir(3)=2
         ELSE
-          CALL abort(__STAMP__,'ERROR in Surface Flux: axialDir for circular inflow must be between 1 and 3!')
+          CALL CollectiveStop(__STAMP__,'ERROR in Surface Flux: axialDir for circular inflow must be between 1 and 3!')
         END IF
         SF%origin   = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-origin',2)
         WRITE(UNIT=hilf3,FMT='(E16.8)') HUGE(SF%rmax)
@@ -520,12 +518,12 @@ DO iSpec=1,nSpecies
           SF%totalAreaSF = -Pi*SF%rmin*SF%rmin
         ELSE
           ! Neither rmin nor rmax have been defined
-          CALL abort(__STAMP__,'ERROR in Surface Flux with CircularInflow: A maximum (=rmax) and/or a minimum radius(=rmin) have to be defined!')
+          CALL CollectiveStop(__STAMP__,'ERROR in Surface Flux with CircularInflow: A maximum (=rmax) and/or a minimum radius(=rmin) have to be defined!')
         END IF
         ! Stadium / race track definition
         SF%racetrackLength     = GETREAL('Part-Species'//TRIM(hilf2)//'-RacetrackLength')
         IF(SF%racetrackLength.GT.0.) THEN
-          IF(Symmetry%Axisymmetric) CALL abort(__STAMP__,'ERROR in Surface Flux: Racetrack / stadium inflow is not available for axisymmetric simulations!')
+          IF(Symmetry%Axisymmetric) CALL CollectiveStop(__STAMP__,'ERROR in Surface Flux: Racetrack / stadium inflow is not available for axisymmetric simulations!')
           SF%racetrackDir   = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-RacetrackDir',2)
           !--- normalize racetrackDir
           IF (.NOT. ALL(SF%racetrackDir(:).EQ.0.)) SF%racetrackDir = SF%racetrackDir / VECNORM2D(SF%racetrackDir)
@@ -536,7 +534,7 @@ DO iSpec=1,nSpecies
             ! Add the area of the inner segment
             SF%totalAreaSF = SF%totalAreaSF + 4.*SF%racetrackLength * (SF%rmax-SF%rmin)
           ELSE
-            CALL abort(__STAMP__,'ERROR in Surface Flux with Stadium Inflow: A maximum (=rmax) has to be defined!')
+            CALL CollectiveStop(__STAMP__,'ERROR in Surface Flux with Stadium Inflow: A maximum (=rmax) has to be defined!')
           END IF
         END IF
       END IF
@@ -552,29 +550,19 @@ DO iSpec=1,nSpecies
     SF%SampledMassflow       = 0.
     ! === Sanity checks & compatibility
     IF(SF%PartDensity.GT.0.) THEN
-      IF(SF%EmissionCurrent.GT.0..OR.SF%Massflow.GT.0.) THEN
-        CALL abort(__STAMP__,'ERROR in Surface Flux: PartDensity and EmissionCurrent/Massflow cannot be both above 0!')
-      END IF
+      IF(SF%EmissionCurrent.GT.0..OR.SF%Massflow.GT.0.) CALL CollectiveStop(__STAMP__,'ERROR in Surface Flux: PartDensity and EmissionCurrent/Massflow cannot be both above 0!')
     END IF
     IF(SF%EmissionCurrent.GT.0.) THEN
       SF%UseEmissionCurrent = .TRUE.
-      IF(SF%Massflow.GT.0.) THEN
-        CALL abort(__STAMP__,'ERROR in Surface Flux: Mass flow and emission current cannot be defined at the same time!')
-      END IF
-      IF(Species(iSpec)%ChargeIC.EQ.0.) THEN
-        CALL abort(__STAMP__,'ERROR in Surface Flux: Using the emission current is only possible for charged species!')
-      END IF
-      IF(TRIM(SF%velocityDistribution).EQ.'constant') THEN
-        CALL abort(__STAMP__,'ERROR in Surface Flux: Constant velocity distribution is not supported for the emission current!')
-      END IF
+      IF(SF%Massflow.GT.0.) CALL CollectiveStop(__STAMP__,'ERROR in Surface Flux: Mass flow and emission current cannot be defined at the same time!')
+      IF(Species(iSpec)%ChargeIC.EQ.0.) CALL CollectiveStop(__STAMP__,'ERROR in Surface Flux: Using the emission current is only possible for charged species!')
+      IF(TRIM(SF%velocityDistribution).EQ.'constant') CALL CollectiveStop(__STAMP__,'ERROR in Surface Flux: Constant velocity distribution is not supported for the emission current!')
     ELSE
       SF%UseEmissionCurrent = .FALSE.
     END IF
     IF(SF%Massflow.GT.0.) THEN
       SF%UseMassflow = .TRUE.
-      IF(TRIM(SF%velocityDistribution).EQ.'constant') THEN
-        CALL abort(__STAMP__,'ERROR in Surface Flux: Constant velocity distribution is not supported for the mass flow!')
-      END IF
+      IF(TRIM(SF%velocityDistribution).EQ.'constant') CALL CollectiveStop(__STAMP__,'ERROR in Surface Flux: Constant velocity distribution is not supported for the mass flow!')
     ELSE
       SF%UseMassflow = .FALSE.
     END IF
@@ -613,17 +601,14 @@ DO iSpec=1,nSpecies
     ! === ADAPTIVE BC ==============================================================================================================
     SF%Adaptive         = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-Adaptive')
     IF(SF%Adaptive) THEN
-      IF(Species(iSpec)%InterID.EQ.100) THEN
-        CALL abort(__STAMP__,'ERROR in Surface Flux: Adaptive BC can not be defined for granular species!')
+      IF(Species(iSpec)%InterID.EQ.100) CALL CollectiveStop(__STAMP__,'ERROR in Surface Flux: Adaptive BC can not be defined for granular species!')
+      IF(SF%CircularInflow) THEN
+        IF(SF%racetrackLength.GT.0.) CALL CollectiveStop(__STAMP__,'ERROR in Surface Flux: Racetrack / stadium inflow is not available for Adaptive!')
       END IF
       UseAdaptiveBC  = .TRUE.
       SF%Type = 1
-      IF(TrackingMethod.EQ.REFMAPPING) THEN
-        CALL abort(__STAMP__,'ERROR: Adaptive surface flux boundary conditions are not implemented with RefMapping!')
-      END IF
-      IF(UseVarTimeStep.AND..NOT.VarTimeStep%UseDistribution) THEN
-        CALL abort(__STAMP__,'ERROR: Adaptive surface flux boundary conditions are not implemented with variable time step!')
-      END IF
+      IF(TrackingMethod.EQ.REFMAPPING) CALL CollectiveStop(__STAMP__,'ERROR: Adaptive surface flux boundary conditions are not implemented with RefMapping!')
+      IF(UseVarTimeStep.AND..NOT.VarTimeStep%UseDistribution) CALL CollectiveStop(__STAMP__,'ERROR: Adaptive surface flux boundary conditions are not implemented with variable time step!')
       SF%AdaptiveType         = GETINT('Part-Species'//TRIM(hilf2)//'-Adaptive-Type')
       SELECT CASE(SF%AdaptiveType)
       ! Farbar2014 - Case 1: Inlet Type 1, constant pressure and temperature
@@ -635,24 +620,15 @@ DO iSpec=1,nSpecies
         SF%PartDensity       = SF%AdaptivePressure / (BoltzmannConst * SF%MWTemperatureIC)
       CASE(3,4)
         SF%AdaptiveMassflow  = GETREAL('Part-Species'//TRIM(hilf2)//'-Adaptive-Massflow')
-        IF(ALMOSTEQUAL(SF%AdaptiveMassflow,0.).AND.SF%AdaptiveMassflow.NE.0.) THEN
-          CALL abort(__STAMP__,'ERROR in adaptive inlet: given mass flow is within machine tolerance!')
-        END IF
-        IF(SF%VeloIC.LE.0.0) THEN
-          CALL abort(__STAMP__,'ERROR in adaptive inlet: positive initial guess of velocity for Type 3/Type 4 condition required!')
-        END IF
+        IF(ALMOSTEQUAL(SF%AdaptiveMassflow,0.).AND.SF%AdaptiveMassflow.NE.0.) CALL CollectiveStop(__STAMP__,'ERROR in adaptive inlet: given mass flow is within machine tolerance!')
+        IF(SF%VeloIC.LE.0.0) CALL CollectiveStop(__STAMP__,'ERROR in adaptive inlet: positive initial guess of velocity for Type 3/Type 4 condition required!')
       END SELECT
       ! Sanity check: regular surface flux must be on an open BC
       IF (PartBound%TargetBoundCond(SF%BC).EQ.PartBound%ReflectiveBC) THEN
-        IF(.NOT.SF%CircularInflow.AND.(SF%AdaptiveType.NE.4)) THEN
-          CALL abort(__STAMP__&
-            ,'ERROR in adaptive surface flux: using a reflective BC without circularInflow is only allowed for Type 4!')
-        END IF
+        IF(.NOT.SF%CircularInflow.AND.(SF%AdaptiveType.NE.4)) CALL CollectiveStop(__STAMP__,'ERROR in adaptive surface flux: using a reflective BC without circularInflow is only allowed for Type 4!')
       END IF
       ! Cosine distribution not tested with adaptive
-      IF(TRIM(SF%velocityDistribution).EQ.'cosine'.OR.TRIM(SF%velocityDistribution).EQ.'cosine2') THEN
-        CALL abort(__STAMP__,'ERROR in Surface Flux: Cosine velocity distribution is not tested with adaptive surface flux!')
-      END IF
+      IF(TRIM(SF%velocityDistribution).EQ.'cosine'.OR.TRIM(SF%velocityDistribution).EQ.'cosine2') CALL CollectiveStop(__STAMP__,'ERROR in Surface Flux: Cosine velocity distribution is not tested with adaptive surface flux!')
     END IF
     ! === THERMIONIC EMISSION ======================================================================================================
     SF%ThermionicEmission = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-ThermionicEmission')
