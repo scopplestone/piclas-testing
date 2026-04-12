@@ -493,7 +493,7 @@ USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, CalcVelocity_ta
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_gyrotroncircle
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
-USE MOD_part_tools              ,ONLY: BuildTransGaussNums, InRotRefFrameCheck, GetNextFreePosition, BuildTransGaussNums2
+USE MOD_part_tools              ,ONLY: BuildTransGaussNums, InRotRefFrameCheck, GetNextFreePosition, BuildQuietGaussNums
 USE MOD_Particle_Vars           ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 #if USE_HDG
@@ -587,9 +587,20 @@ CASE('maxwell')
        PartState(4:6,PositionNbr) = VeloIC *VeloVecIC(1:3) + iRanPart(1:3,iPart)*maxwellfac
     END IF
   END DO
-CASE('maxwell_distribution_1D')
+CASE('maxwell_1D')
   ALLOCATE(iRanPart(3, NbrOfParticle))
-  CALL BuildTransGaussNums2(NbrOfParticle, iRanPart(1,:))
+  CALL BuildTransGaussNums(NbrOfParticle, iRanPart)
+  maxwellfac = SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(FractNbr)%MassIC)
+  DO iPart = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+    IF (PositionNbr.GT.0) THEN
+       PartState(4:6,PositionNbr) = VeloIC *VeloVecIC(1:3)
+       PartState(4,PositionNbr) = PartState(4,PositionNbr) + iRanPart(1,iPart)*maxwellfac
+    END IF
+  END DO
+CASE('maxwell_1D_quiet')
+  ALLOCATE(iRanPart(3, NbrOfParticle))
+  CALL BuildQuietGaussNums(NbrOfParticle, iRanPart(1,:))
   maxwellfac = SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(FractNbr)%MassIC)
   DO iPart = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)

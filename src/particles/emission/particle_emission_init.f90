@@ -995,7 +995,6 @@ USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDim,EmissionDistributi
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDelta,EmissionDistributionDim
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMin
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMax,EmissionDistributionNum
-USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionRadInd,EmissionDistributionAxisDir
 USE MOD_HDF5_Input_Field       ,ONLY: ReadExternalFieldFromHDF5
 USE MOD_Particle_Vars          ,ONLY: Species,nSpecies
 #if USE_LOADBALANCE
@@ -1029,8 +1028,8 @@ IF(TRIM(EmissionDistributionFileName(lenstr-lenmin+2:lenstr)).EQ.'.h5')THEN
       IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution')THEN
         CALL ReadExternalFieldFromHDF5(TRIM(Species(iSpec)%Init(iInit)%EmissionDistributionName)                                ,&
                                             Species(iSpec)%Init(iInit)%EmissionDistribution        , EmissionDistributionDelta  ,&
-            EmissionDistributionFileName , EmissionDistributionDim , EmissionDistributionAxisSym   , EmissionDistributionRadInd ,&
-            EmissionDistributionAxisDir  , EmissionDistributionMin , EmissionDistributionMax       , EmissionDistributionNum     )
+            EmissionDistributionFileName , EmissionDistributionDim , EmissionDistributionAxisSym   , &
+            EmissionDistributionMin , EmissionDistributionMax       , EmissionDistributionNum     )
         IF(.NOT.ALLOCATED(Species(iSpec)%Init(iInit)%EmissionDistribution)) CALL abort(__STAMP__,&
             "Failed to load data from: "//TRIM(EmissionDistributionFileName))
       END IF ! TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution'

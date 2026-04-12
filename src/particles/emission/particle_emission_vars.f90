@@ -131,8 +131,6 @@ CHARACTER(255)       :: EmissionDistributionFileName  !< File name form which th
 INTEGER              :: EmissionDistributionN         !< Polynomial degree for particle emission in each element
 INTEGER              :: EmissionDistributionDim       !< Spatial dimension of variable external field data: 1D, 2D or 3D
 LOGICAL              :: EmissionDistributionAxisSym   !< True if the data is axis symmetric, e.g., B(r,z)
-INTEGER              :: EmissionDistributionRadInd    !< Index of radial r-coordinate when using 2D data and axis symmetric
-INTEGER              :: EmissionDistributionAxisDir   !< Direction that is used for the axial symmetric direction (1,2 or 3)
 INTEGER              :: EmissionDistributionNum(1:3)  !< Number of points in x, y and z-direction
 REAL                 :: EmissionDistributionMin(1:3)  !< Minimum values in x,y,z
 REAL                 :: EmissionDistributionMax(1:3)  !< Maximum values in x,y,z

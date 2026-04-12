@@ -724,7 +724,10 @@ USE MOD_part_tools            ,ONLY: GetParticleWeight
 #if !(USE_HDG) && !(USE_FV)
 USE MOD_PML_Vars              ,ONLY: DoPML,isPMLElem
 #endif /*USE_HDG*/
-USE MOD_Dielectric_Vars       ,ONLY: DoDielectric,isDielectricElem_Shared,DielectricNoParticles
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem_Shared,DielectricNoParticles
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -754,7 +757,16 @@ IF (nSpecAnalyze.GT.1) THEN
           IF(isDielectricElem_Shared(CNElemID)) CYCLE
         END IF ! DielectricNoParticles
       ENDIF
-      partV2 = DOTPRODUCT(PartState(4:6,i))
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509) /*(Boris-)Leapfrog*/
+      IF(velocityOutputAtTime) THEN
+        ! Use half-step updated velocity to avoid staggered output
+        partV2 = DOTPRODUCT(velocityAtTime(1:3,i))
+      ELSE
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
+        partV2 = DOTPRODUCT(PartState(4:6,i))
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+      END IF
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
       IF ( partV2 .LT. RelativisticLimit) THEN  ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 * Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF) THEN
@@ -807,7 +819,16 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
           IF(isDielectricElem_Shared(CNElemID)) CYCLE
         END IF ! DielectricNoParticles
       ENDIF
-      partV2 = DOTPRODUCT(PartState(4:6,i))
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509) /*(Boris-)Leapfrog*/
+      IF(velocityOutputAtTime) THEN
+        ! Use half-step updated velocity to avoid staggered output
+        partV2 = DOTPRODUCT(velocityAtTime(1:3,i))
+      ELSE
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
+        partV2 = DOTPRODUCT(PartState(4:6,i))
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+      END IF
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
       IF ( partV2 .LT. RelativisticLimit) THEN  ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 *  Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF) THEN
@@ -861,6 +882,9 @@ USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_PML_Vars              ,ONLY: DoPML,isPMLElem
 #endif /*USE_HDG*/
 USE MOD_Dielectric_Vars       ,ONLY: DoDielectric,isDielectricElem_Shared,DielectricNoParticles
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+USE MOD_Particle_Vars         ,ONLY: velocityAtTime, velocityOutputAtTime
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -894,7 +918,16 @@ IF (nSpecAnalyze.GT.1) THEN
           IF(isDielectricElem_Shared(CNElemID)) CYCLE
         END IF ! DielectricNoParticles
       ENDIF
-      partV2 = DOTPRODUCT(PartState(4:6,i))
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509) /*(Boris-)Leapfrog*/
+      IF(velocityOutputAtTime) THEN
+        ! Use half-step updated velocity to avoid staggered output
+        partV2 = DOTPRODUCT(velocityAtTime(1:3,i))
+      ELSE
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
+        partV2 = DOTPRODUCT(PartState(4:6,i))
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+      END IF
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
       IF ( partV2 .LT. RelativisticLimit) THEN  ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 * Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF) THEN
@@ -940,7 +973,16 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
           IF(isDielectricElem_Shared(CNElemID)) CYCLE
         END IF ! DielectricNoParticles
       ENDIF
-      partV2 = DOTPRODUCT(PartState(4:6,i))
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509) /*(Boris-)Leapfrog*/
+      IF(velocityOutputAtTime) THEN
+        ! Use half-step updated velocity to avoid staggered output
+        partV2 = DOTPRODUCT(velocityAtTime(1:3,i))
+      ELSE
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
+        partV2 = DOTPRODUCT(PartState(4:6,i))
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+      END IF
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
       IF ( partV2 .LT. RelativisticLimit) THEN ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 *  Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF) THEN
