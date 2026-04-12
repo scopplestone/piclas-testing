@@ -169,7 +169,7 @@ IF(nUserBCs .GT. 0)THEN
       ! periodic to non-periodic
       IF((NewBC.EQ.1).AND.(OriginalBC.NE.1))THEN
         ChangedPeriodicBC=.TRUE.
-        ! Currently, remapping periodic to non-periodic BCs is not allowed. TODO: implement nGlobalUniqueSides determination.
+        ! Currently, remapping periodic to non-periodic BCs is not allowed. FEATURE: implement nGlobalUniqueSides determination.
         CALL abort(__STAMP__,'Remapping periodic to non-periodic BCs is currently not possible for HDG (changes nGlobalUniqueSides)')
       END IF
 #endif /*USE_HDG*/
@@ -698,7 +698,6 @@ DO iElem=FirstElemInd,LastElemInd
       ! check if neighbor on local proc or MPI connection
       IF(elemID.NE.0)THEN !connection
         IF((elemID.LE.LastElemInd).AND.(elemID.GE.FirstElemInd))THEN !local
-          !TODO: Check if this is still ok
           DO nbLocSide=1,6
             bSide=>Elems(elemID)%ep%Side(nbLocSide)%sp
             ! LOOP over mortars, if no mortar, then LOOP is executed once
@@ -773,7 +772,7 @@ IF(readFEMconnectivity)THEN
     offsetEdgeConnectID   => INT(offsetEdgeConnectID,IK)  )
 #if defined(PARTICLES) && USE_LOADBALANCE
     IF (PerformLoadBalance) THEN
-      ! TODO:this does not work when using multi-node because the array is only filled for elements on the compute node
+      ! INFO:this does not work when using multi-node because the array is only filled for elements on the compute node
       ! EdgeConnectInfo(1:EdgeConnectInfoSize,:) = EdgeConnectInfo_Shared(1:EdgeConnectInfoSize,offsetEdgeConnectID+1:offsetEdgeConnectID+nEdgeConnectIDs)
     ELSE
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
@@ -1316,7 +1315,7 @@ CALL MPI_WIN_LOCK_ALL(0,VertexInfo_Shared_Win,IERROR)
 IF (myComputeNodeRank.EQ.0) VertexInfo_Shared = -1
 CALL BARRIER_AND_SYNC(VertexInfo_Shared_Win,MPI_COMM_SHARED)
 VertexInfo_Shared(1:VERTEXINFOSIZE_H5,offsetVertexID+1:offsetVertexID+nVertexIDs) = VertexInfoGlobal(:,:) ! VertexInfo(:,:) only contains process-local elements
-! TODO: Note that VERTEX_NONUNIQUENODEID is not filled for elements that are not on the compute node. Only the CN with MPIRoot has
+! INFO: Note that VERTEX_NONUNIQUENODEID is not filled for elements that are not on the compute node. Only the CN with MPIRoot has
 ! all info, because the MPIRoot processes loops over all global elements
 VertexInfo_Shared(  VERTEXINFOSIZE   ,offsetVertexID+1:offsetVertexID+nVertexIDs) = 0 ! For storing VERTEX_NONUNIQUENODEID
 CALL BARRIER_AND_SYNC(VertexInfo_Shared_Win,MPI_COMM_SHARED)

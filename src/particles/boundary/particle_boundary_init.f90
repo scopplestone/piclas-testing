@@ -627,8 +627,8 @@ DO iPartBound=1,nPartBound
       IF(PartBound%PermittivityVDL(iPartBound).GT.0.0) CALL CollectiveStop(__STAMP__,&
         'Part-Boundary'//TRIM(hilf)//'-UseSurfaceCharge = T cannot be combined with Part-Boundary'//TRIM(hilf)//'-PermittivityVDL')
 #if USE_HDG
-      ! TODO: What should be done with DoDirichletDeposition=T/F (can both options be used or must it be either T or F?)
-      ! IF(DoDirichletDeposition) CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires PIC-DoDirichletDeposition=F')
+      ! NOTE: What should be done with DoDirichletDeposition=T/F (can both options be used or must it be either T or F?)
+      IF(.NOT.DoDirichletDeposition) CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires PIC-DoDirichletDeposition=T')
 #endif /*USE_HDG*/
       ! UseSurfaceCharge settings
       Do2DSurfaceCharge              = .TRUE. ! Global setting indicating that 2d surface charging is active

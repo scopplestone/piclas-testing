@@ -379,7 +379,7 @@ CALL BARRIER_AND_SYNC(PhotonSampWallHDF5_Shared_Win,MPI_COMM_SHARED)
 ALLOCATE(PhotonSampWall_loc(1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNodeSurfSides))
 PhotonSampWall_loc = -1.0
 OutputCounter = 0
-! Loop through large loop (TODO: can this be made cheaper?)
+! Loop through large loop (OPTIMIZE: can this be made cheaper?)
 DO iSurfSideHDF5 = 1, nSurfSidesHDF5
 #if USE_MPI
   GlobalSideID = INT(PhotonSampWallHDF5(3,1,1,iSurfSideHDF5))

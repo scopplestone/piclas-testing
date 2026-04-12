@@ -438,7 +438,7 @@ IF(nProcessors.LE.1) RETURN
 
 ! Nullify container to flag each process if it will receive charge
 CommunicateWithRank = .FALSE.
-! TODO: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
+! OPTIMIZE: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
 ! Step 1 of 2: Force every process to establish a communication with MPIRoot
 IF(myrank.NE.0) CommunicateWithRank(0) = .TRUE.
 
@@ -523,8 +523,8 @@ DO iCNElem = 1,nComputeNodeTotalElems
     ! Skip vertices without deposition
     IF(.NOT.IsDepoSurfNode(FEMVertexID)) CYCLE iVertexIndLoop2 ! go to next vertex
     ! Skip vertices that have already been processes
-    ! TODO: Check if this is required or if this is wrong because some vertices are then not considered and subsequently
-    ! connections are not established (might lead to deadlock in MPI_Wait or wrong surface charge)
+    ! NOTE: The question is still open, if this is required or if this is wrong because some vertices are then not considered and
+    ! subsequently connections are not established (might lead to deadlock in MPI_Wait or wrong surface charge)
     IF(FEMVertexIDisDone(FEMVertexID)) CYCLE iVertexIndLoop2 ! go to next vertex
     ! Flag the FEM vertex
     FEMVertexIDisDone(FEMVertexID) = .TRUE.
@@ -577,7 +577,7 @@ DO iCNElem = 1,nComputeNodeTotalElems
       END IF ! GlobalNbElemID.NE.myrank
     END DO iVertexConnectLoop2 ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
     ! ========================================================================================================
-    ! TODO: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
+    ! OPTIMIZE: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
     ! Step 2 of 2: Force every process to send this FEMVertexID to MPIRoot
     ! Remove this link in the furute and replace with a gathered I/O or something different
     GlobalNBElemRank = 0 ! Create artificial link to MPIRoot
@@ -728,7 +728,7 @@ END DO
 ALLOCATE(SurfSendRequest(1:nSurfNodeSendExchangeProcs))
 ! Loop over each communication partner
 DO iProc = 1, nSurfNodeSendExchangeProcs
-  ! TODO: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
+  ! OPTIMIZE: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
   ! Skip MPIRoot, which can happen as it is forced as communication partner even though no nodes for this process are found
   IF(SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes.EQ.0) CYCLE
   ! Allocate containers for sending the FEM vertex IDs and surface charge
@@ -775,7 +775,7 @@ END DO
 
 ! Finish send
 DO iProc = 1, nSurfNodeSendExchangeProcs
-  ! TODO: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
+  ! OPTIMIZE: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
   ! Skip MPIRoot, which can happen as it is forced as communication partner even though no nodes for this process are found
   IF(SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes.EQ.0) CYCLE
   CALL MPI_WAIT(SurfSendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
@@ -788,7 +788,7 @@ DO iProc = 1, nSurfNodeRecvExchangeProcs
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error in InitDepoSurfNodesMPI, IERROR=', IERROR)
 END DO
 
-! TODO:Check if the received FEMVertexIDs are actually on the receiving process
+! OPTIMIZE:Check if the received FEMVertexIDs are actually on the receiving process
 ! Skip MPIRoot, as this process receves all nodes from the other processes for .h5 output
 IF(myrank.NE.0) DEALLOCATE(IsDepoSurfNode)
 END SUBROUTINE InitDepoSurfNodesMPI
@@ -1105,7 +1105,7 @@ END IF ! MPIRoot
 DO iProc = 1, nSurfNodeSendExchangeProcs
   ! Skip non-MPIRoot processes
   IF(SurfNodeSendDepoRankToGlobalRank(iProc).NE.0) CYCLE
-  ! TODO: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
+  ! OPTIMIZE: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
   ! Skip MPIRoot, which can happen as it is forced as communication partner even though no nodes for this process are found
   ! This concerns processes, which do not contribute to the surface charge deposition
   IF(SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes.EQ.0) CYCLE
@@ -1137,7 +1137,7 @@ CALL SYSTEM_CLOCK(count=CounterStart)
 DO iProc = 1, nSurfNodeSendExchangeProcs
   ! Skip non-MPIRoot processes
   IF(SurfNodeSendDepoRankToGlobalRank(iProc).NE.0) CYCLE
-  ! TODO: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
+  ! OPTIMIZE: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
   ! Skip MPIRoot, which can happen as it is forced as communication partner even though no nodes for this process are found
   ! This concerns processes, which do not contribute to the surface charge deposition
   IF(SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes.EQ.0) CYCLE
@@ -1222,7 +1222,7 @@ DO iProc = 1, nSurfNodeRecvExchangeProcs
 END DO
 
 DO iProc = 1, nSurfNodeSendExchangeProcs
-  ! TODO: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
+  ! OPTIMIZE: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
   ! Skip MPIRoot, which can happen as it is forced as communication partner even though no nodes for this process are found
   IF(SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes.EQ.0) CYCLE
   ! Send message (non-blocking)
@@ -1250,7 +1250,7 @@ END DO
 CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 DO iProc = 1, nSurfNodeSendExchangeProcs
-  ! TODO: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
+  ! OPTIMIZE: All processes communicate with MPIRoot (rank 0) for output to .h5, which is solely done by MPIRoot
   ! Skip MPIRoot, which can happen as it is forced as communication partner even though no nodes for this process are found
   IF(SurfNodeMappingSend(iProc)%nSendUniqueSurfNodes.EQ.0) CYCLE
   CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
@@ -1326,7 +1326,7 @@ INTEGER(KIND=8)                :: CounterStart,CounterEnd
 REAL(KIND=8)                   :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
-! TODO: check if the SurfNodeSource is sent to processes, which do not have any fem vertices for surface deposition and skip them
+! OPTIMIZE: check if the SurfNodeSource is sent to processes, which do not have any fem vertices for surface deposition and skip them
 ! 1) Receive surface charge density
 ! Skip MPIRoot because this process only sends
 IF (.NOT.MPIRoot) THEN
@@ -1460,10 +1460,7 @@ INTEGER(KIND=8)                :: CounterStart,CounterEnd
 REAL(KIND=8)                   :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
-! TODO: check if the SurfNodeArea is sent to processes, which do not have any fem vertices for surface deposition and skip them
-! print*,""
-! CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-! IPWRITE(*,*) 'CALLLLLLLLINNNNNNNNGGGGGGGGGGGG ReverseExchangeSurfNodeArea()'
+! OPTIMIZE: check if the SurfNodeArea is sent to processes, which do not have any fem vertices for surface deposition and skip them
 ! 1) Receive surface charge density
 ! Skip MPIRoot because this process only sends
 IF (.NOT.MPIRoot) THEN

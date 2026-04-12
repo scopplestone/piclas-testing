@@ -1123,7 +1123,7 @@ ASSOCIATE (&
       ! Check whether old (nDims=5) or new p-adaption data shape (nDim=2) is used
       IF(nDims.EQ.2) THEN
         IF(offsetElem.NE.0) CALL abort(__STAMP__,'offsetElem must be zero for the following to work (it should also be offsetDOF)')
-        ! TODO: Implement offsetDOF
+        ! OPTIMIZE: Implement offsetDOF as variable name to prevent confusion
         CALL ReadArray(TRIM(DGSolutionDataset),2,(/nVar_Solution,nDOF/),offsetElem,2, RealArray=U_N_2D(1:nVar_Solution,1:nDOF))
         ! Read nVar_Solution+1:nVar_Source
         IF(DGSourceExists) &
@@ -1153,7 +1153,7 @@ ASSOCIATE (&
       ! Check whether old (nDims=5) or new p-adaption data shape (nDim=3, 2 + 1 for nFields) is used
       IF(nDims.EQ.3) THEN
         IF(offsetElem.NE.0) CALL abort(__STAMP__,'offsetElem must be zero for the following to work (it should also be offsetDOF)')
-        ! TODO: Implement offsetDOF
+        ! OPTIMIZE: Implement offsetDOF as variable name to prevent confusion
         CALL ReadArray(TRIM(DGSolutionDataset),3,(/nVar_Solution,nDOF,nFields/),offsetElem,2,&
                       RealArray=U_N_3D(1:nVar_Solution,1:nDOF,1:nFields))
       ELSEIF(nDims.EQ.6) THEN
@@ -1587,7 +1587,7 @@ IF (nVarAdd.GT.0) THEN
       WRITE(File_Num, "(I3.3)") iArgs
       FileString=TRIM(TRIM(ProjectName)//'_RadVisu_'//TRIM(File_Num))//'.vtu'
   END SELECT
-  ! TODO: This is probably borked for NGeo>1 because then NodeCoords are not the corner nodes
+  ! INFO: This is probably borked for NGeo>1 because then NodeCoords are not the corner nodes
   ! For the case of high-order output, utilize the CreateConnectivity routine analogous to the ConvertSurfaceData
   CALL WriteDataToVTK_PICLas(3,8,FileString,nVarAdd,VarNamesAdd(1:nVarAdd),nUniqueNodes,NodeCoords_Connect(1:3,1:nUniqueNodes),nElems,&
                               ElemData(1:nVarAdd,1:nElems),ElemUniqueNodeID(1:8,1:nElems))
@@ -1811,7 +1811,7 @@ DEALLOCATE(HSize)
 ! nDepoSurfNodes = INT(HSize(1),2)
 CALL GetVarnames('VarNamesSurfNodeSource',VarNamesSurf_HDF52,VarNamesSurfNodeSourceExists,nVarSurf)
 IF(.NOT.VarNamesSurfNodeSourceExists) CALL abort(__STAMP__,' VarNamesSurfNodeSource not found in .h5 file')
-IF(nVarSurf.GT.1) nVarSurf = 1 ! TODO: Remove this when conversion of all properties is implemented
+IF(nVarSurf.GT.1) nVarSurf = 1 ! FEATURE: Remove this when conversion of all properties is implemented
 ALLOCATE(VarNamesSurf_HDF5(nVarSurf))
 VarNamesSurf_HDF5 = VarNamesSurf_HDF52(1)
 ! Read the surface charge data on the FEM vertices
@@ -1850,7 +1850,7 @@ NodeCoords_visu = 0.
 ! NodeSwitch=(/1,3,4,2/)
 
 ! WriteDataToVTK: switch the last two node IDs
-! TODO: use pq2iNode here?
+! INFO: use pq2iNode here or does this work?
 NodeSwitch=(/1,2,4,3/)
 
 ALLOCATE(ConnectInfo(1:data_size,1:nDepoSurfSides))

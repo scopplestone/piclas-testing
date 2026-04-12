@@ -201,7 +201,7 @@ IF(PerformRayTracing)THEN
 END IF ! PerformRayTracing
 
 ! ATTENTION: Rectangle only and uses GEO min/max in x- and y-direction!
-! TODO: Ray emission area from chosen boundary surface?
+! FEATURE: Ray emission area from chosen boundary surface?
 Ray%Area = (GEO%xmaxglob-GEO%xminglob) * (GEO%ymaxglob-GEO%yminglob)
 ! Normal vector of the ray emission area
 SurfaceNormal = (/ 0., 0., 1. /)
@@ -475,68 +475,6 @@ CALL BuildNInterAndVandermonde()
 END SUBROUTINE InitHighOrderRaySampling
 
 
-!!==================================================================================================================================
-!!> This routine takes the equidistant node coordinates of the mesh (on NGeo+1 points) and uses them to build the coordinates
-!!> of solution/interpolation points of type NodeType on polynomial degree Nloc (Nloc+1 points per direction).
-!!> Output: Elem_xGP(:,:,:,:) for each element with variably N
-!!==================================================================================================================================
-!SUBROUTINE BuildElem_xGP_RayTrace(NodeCoords)
-!! MODULES
-!USE MOD_Globals
-!USE MOD_PreProc
-!USE MOD_Mesh_Vars          ,ONLY: NGeo,nGlobalElems
-!USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL,NodeTypeVISU,NodeType
-!USE MOD_RayTracing_Vars    ,ONLY: Ray,N_VolMesh_Ray,N_DG_Ray
-!USE MOD_Interpolation      ,ONLY: GetVandermonde,GetNodesAndWeights
-!USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D_XYZ, ChangeBasis3D
-!USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
-!!----------------------------------------------------------------------------------------------------------------------------------
-!IMPLICIT NONE
-!!----------------------------------------------------------------------------------------------------------------------------------
-!! INPUT/OUTPUT VARIABLES
-!REAL,INTENT(IN)               :: NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nGlobalElems)         !< Equidistant mesh coordinates
-!!----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
-!INTEGER                       :: iGlobalElem,Nloc
-!
-!TYPE VdmType
-!  REAL, ALLOCATABLE           :: Vdm_EQNGeo_CLNloc(:,:)
-!  REAL, ALLOCATABLE           :: Vdm_CLNloc_Nloc  (:,:)
-!END TYPE VdmType
-!
-!TYPE(VdmType), DIMENSION(:), ALLOCATABLE :: Vdm
-!
-!!==================================================================================================================================
-!
-!! Build Vdm for every degree
-!ALLOCATE(Vdm(Ray%Nmin:Ray%Nmax))
-!DO Nloc = Ray%Nmin, Ray%Nmax
-!  ALLOCATE(Vdm(Nloc)%Vdm_EQNGeo_CLNloc(0:Nloc,0:NGeo))
-!  ALLOCATE(Vdm(Nloc)%Vdm_CLNloc_Nloc(0:Nloc,0:Nloc))
-!  CALL GetVandermonde(NGeo, NodeTypeVISU, NLoc, NodeTypeCL, Vdm(Nloc)%Vdm_EQNGeo_CLNloc,  modal=.FALSE.)
-!  CALL GetVandermonde(Nloc, NodeTypeCL  , Nloc, NodeType  , Vdm(Nloc)%Vdm_CLNloc_Nloc,     modal=.FALSE.)
-!
-!  ! NOTE: Transform intermediately to CL points, to be consistent with metrics being built with CL
-!  !       Important for curved meshes if NGeo<N, no effect for N>=NGeo
-!
-!  !1.a) Transform from EQUI_NGeo to solution points on Nloc
-!  Vdm(Nloc)%Vdm_EQNGeo_CLNloc=MATMUL(Vdm(Nloc)%Vdm_CLNloc_Nloc, Vdm(Nloc)%Vdm_EQNGeo_CLNloc)
-!END DO ! Nloc = Ray%Nmin, Ray%Nmax
-!
-!! Set Elem_xGP for each element
-!DO iGlobalElem=1,nGlobalElems
-!  Nloc = N_DG_Ray(iGlobalElem)
-!
-!  ! TODO: Currently each process has all global xGP (maybe put unrolled into a shared array)
-!  ALLOCATE(N_VolMesh_Ray(iGlobalElem)%Elem_xGP(3,0:Nloc,0:Nloc,0:Nloc))
-!  CALL ChangeBasis3D(3,NGeo,Nloc,Vdm(Nloc)%Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iGlobalElem),&
-!                     N_VolMesh_Ray(iGlobalElem)%Elem_xGP(:,:,:,:))
-!
-!END DO
-!
-!END SUBROUTINE BuildElem_xGP_RayTrace
-
-
 !===================================================================================================================================
 !> Builds the interpolation basis N_Inter_Ray and the Vandermonde matrices PREF_VDM_Ray used for high-order volume sampling for the
 !> ray tracing model
@@ -660,7 +598,7 @@ ELSE
   SDEALLOCATE(N_DG_Ray_loc) ! ray tracing + plasma simulation
   SDEALLOCATE(N_Inter_Ray)  ! ray tracing + plasma simulation
 
-  ! TODO: see above: deallocate these arrays after simulation end because otherwise these fields will be corrupt in the state file
+  ! INFO: see above: deallocate these arrays after simulation end because otherwise these fields will be corrupt in the state file
   ! and that can cause confusion
   SDEALLOCATE(RayElemPassedEnergyLoc1st)
   SDEALLOCATE(RayElemPassedEnergyLoc2nd)

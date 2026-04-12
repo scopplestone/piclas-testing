@@ -461,11 +461,11 @@ DO iVar = 1, 2
       DO l=0,NRayLoc
         DO k=0,NRayLoc
           E_Intensity = U_N_Ray_loc(iElem)%U(iVar,k,l,m) * TimeScalingFactor
-          ! Number of photons (TODO: spectrum)
+          ! Number of photons (spectrum not implemented)
           NbrOfPhotons = E_Intensity / (PhotonEnergy * c * dt)
           DO iReac = 1, ChemReac%NumOfReact
             SpecID = ChemReac%Reactants(iReac,1)
-            ! TODO: Background gas density distribution
+            ! FEATURE: Background gas density distribution
             BGGSpecID = BGGas%MapSpecToBGSpec(SpecID)
             density = BGGas%NumberDensity(BGGSpecID)
             ! Determine the number of particles to insert
@@ -597,50 +597,5 @@ END DO              ! iVar = 1, 2
 
 END SUBROUTINE PhotoIonization_RayTracing_Volume
 
-
-! SUBROUTINE CalcPhotoIonizationNumber(iReac,iElem,NbrOfPhotons,NbrOfReactions)
-! !===================================================================================================================================
-! !>
-! !===================================================================================================================================
-! ! MODULES
-! USE MOD_Globals
-! USE MOD_Globals_Vars  ,ONLY: c
-! USE MOD_Particle_Vars ,ONLY: Species
-! USE MOD_DSMC_Vars     ,ONLY: BGGas,ChemReac
-! USE MOD_TimeDisc_Vars ,ONLY: dt
-! ! IMPLICIT VARIABLE HANDLING
-! IMPLICIT NONE
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! INPUT VARIABLES
-! INTEGER, INTENT(IN)           :: i
-! REAL, INTENT(IN)              :: NbrOfPhotons
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! OUTPUT VARIABLES
-! REAL, INTENT(OUT)             :: NbrOfReactions
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! LOCAL VARIABLES
-! INTEGER                       :: iReac,SpecID
-! REAL                          :: density
-! !===================================================================================================================================
-
-! SpecID = ChemReac%Reactants(iReac,1)
-
-! ! TODO: Background gas density distribution
-! density = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(SpecID))
-! ! TODO: Variable particle weight
-! ! TODO: Variable particle time step
-
-! SELECT CASE(TRIM(ChemReac%ReactModel(iReac)))
-! CASE('phIon')
-!   ! Collision number: Z = n_gas * n_ph * sigma_reac * v (in the case of photons its speed of light)
-!   ! Number of reactions: N = Z * dt * V (number of photons cancels out the volume)
-!   NbrOfReactions = density * NbrOfPhotons * ChemReac%CrossSection(iReac) * c * dt / Species(SpecID)%MacroParticleFactor
-! CASE('phIonXSec')
-!   ! TODO:
-! CASE DEFAULT
-!   CYCLE
-! END SELECT
-
-! END SUBROUTINE CalcPhotoIonizationNumber
 
 END MODULE MOD_Particle_Photoionization
