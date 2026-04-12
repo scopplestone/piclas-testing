@@ -532,7 +532,10 @@ venv_create:
     - deactivate || true
     - rm -rf venv
     - python3 -m venv venv
+    - pwd
+    - pip --version
     - source venv/bin/activate
+    - pip --version
     - python3 -m ensurepip
     - python3 -m pip install uv
     - uv pip install --upgrade setuptools wheel
@@ -550,7 +553,10 @@ pyhope_download:
       policy: pull-push
   stage: build
   script:
+    - pwd
+    - pip --version
     - source venv/bin/activate
+    - pip --version
     # PyHOPE needs NRG Gmsh, pre-install it
     - uv pip install https://gitlab.iag.uni-stuttgart.de/libs/python-gmsh/-/raw/master/gmsh-4.14.0.post1-py3-none-linux_x86_64.whl
     # Install PyHOPE
@@ -590,7 +596,10 @@ reggie_download:
         REGGIEBRANCH=improvement.rfactor.performcheck ;
         git clone --single-branch --branch ${REGGIEBRANCH} git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
         if [ ! -d "reggie" ]; then echo "Error. reggie directory not cloned. Exit." ; exit 1 ; fi ;
+        pwd ;
+        pip --version ;
         source venv/bin/activate ;
+        pip --version ;
         cd reggie ;
         uv pip install -e . ; cd .. ;
         if [ -f ".day" ]; then mv .day reggie/. ; fi ;
