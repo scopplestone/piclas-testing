@@ -1861,7 +1861,13 @@ WEK_DSMC_tutorials:
   <<: *defaults_DSMC_weekly
   stage: reggie_tutorials
   script:
-    - cd build_DSMC ; reggie ../regressioncheck/WEK_DSMC_tutorials
+    - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_DSMC_tutorials -e bin/piclas
+
+WEK_PIC_poisson_tutorials:
+  <<: *defaults_poisson_petsc_weekly
+  stage: reggie_tutorials
+  script:
+    - cd build_poisson_petsc_release_Leapfrog ; reggie ../regressioncheck/WEK_PIC_poisson_tutorials -e bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "build": Compile the userguide and developer guide
