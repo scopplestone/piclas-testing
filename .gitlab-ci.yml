@@ -42,8 +42,11 @@ workflow:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Load modules on new boltzplatz reggie
 before_script:
+  # - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
+  - pip --version || true
   - source venv/bin/activate || true
-  - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
+  - pip --version || true
+  - which reggie || true
   - export MESHESDIR=True
   - export REGGIE_GITLAB_CI=1
   - ulimit -s unlimited
