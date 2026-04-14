@@ -872,6 +872,8 @@ CASE(800,801,900,901,1000,1100) ! Dielectric slab on electrode (left) with plasm
       END ASSOCIATE
     END ASSOCIATE
   END ASSOCIATE
+CASE(9000)
+  resu = 1.
 CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified!', IntInfoOpt=ExactFunction)
 END SELECT ! ExactFunction
