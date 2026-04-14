@@ -68,7 +68,5 @@ REAL,ALLOCATABLE :: LinPhiNormal(:,:)
 REAL,ALLOCATABLE :: LinPhiHeight(:)
 REAL,ALLOCATABLE :: LinPhi(:)
 
-REAL :: BGChargeDensity ! Background charge density [C/m^3] added to the right-hand side of the Poisson equation
-
 !===================================================================================================================================
 END MODULE MOD_Equation_Vars
