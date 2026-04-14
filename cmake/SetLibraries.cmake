@@ -135,11 +135,7 @@ ENDIF()
 
 IF (NOT LIBS_BUILD_HDF5)
   # ParaView requires the HL libs but we cannot change the search later
-  IF(POSTI_VISU_PARAVIEW)
-    SET(HDF5_COMPONENTS C Fortran HL)
-  ELSE()
-    SET(HDF5_COMPONENTS C Fortran)
-  ENDIF()
+  SET(HDF5_COMPONENTS C Fortran)
   FIND_PACKAGE(HDF5 QUIET COMPONENTS ${HDF5_COMPONENTS})
 
   # Could not find the static version, look for the shared library
