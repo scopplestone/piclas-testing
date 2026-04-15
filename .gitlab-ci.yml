@@ -596,7 +596,6 @@ reggie_download:
         if [ -f "reggie/.day" ]; then mv reggie/.day .; fi ;
         if [ -d "reggie" ]; then rm -rf reggie ; fi ;
         REGGIEBRANCH=master ;
-        REGGIEBRANCH=improvement.rfactor.performcheck ;
         git clone --single-branch --branch ${REGGIEBRANCH} git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
         if [ ! -d "reggie" ]; then echo "Error. reggie directory not cloned. Exit." ; exit 1 ; fi ;
         pwd ;
