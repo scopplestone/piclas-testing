@@ -7,7 +7,7 @@ database_input = "Example.txt"
 # Output database
 database_output = "Example.h5"
 # Species list to be included in the output database
-species_list = ["Ar"]
+species_list = ["Xe","Ar"]
 # Reference of the utilized database
 reference = "Biagi-v7.1 database, www.lxcat.net, retrieved on April 04, 2022. LXCat is an open-access website with databases contributed by members of the scientific community."
 
@@ -178,5 +178,6 @@ for current_species in species_list:
         ## Save the additional information
         dataset.attrs['Info'] = str(cross_section.info)
         dataset.attrs['Threshold [eV]'] = cross_section.threshold
+        print('Found IONIZATION cross-section.')
 
 hdf.close()
