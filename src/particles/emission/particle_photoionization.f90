@@ -136,7 +136,7 @@ USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_part_operations         ,ONLY: CreateParticle
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides, SurfSide2GlobalSide
 #ifdef LSERK
-USE MOD_Timedisc_Vars           ,ONLY: iStage, RK_c, nRKStages
+USE MOD_Timedisc_Vars           ,ONLY: RK_c, nRKStages
 #endif
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_loc,PhotonSurfSideArea
 #if USE_HDG
@@ -382,7 +382,7 @@ USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
 USE MOD_part_tools              ,ONLY: CalcVelocity_maxwell_particle
 #if defined(LSERK)
-USE MOD_TimeDisc_Vars           ,ONLY: iStage,nRKStages,RK_c
+USE MOD_TimeDisc_Vars           ,ONLY: nRKStages,RK_c
 #endif /*defined(LSERK)*/
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputRay

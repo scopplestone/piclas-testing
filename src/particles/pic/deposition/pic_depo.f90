@@ -656,7 +656,7 @@ DO SideID=1,nBCSides
   CASE(30) ! Distributed Capacitance
     ! Sum up all contributions of surface area to the FEM vertices of each side
     CALL Buildpq2iNode(SideID,SubSideAreaEquiN1)
-    IF(.NOT.DoRestart) CALL CalculateSurfNodeArea(SideID,SubSideAreaEquiN1)
+    IF(.NOT.DoRestart) CALL CalculateSurfNodeArea(SideID)
 #else
   CASE DEFAULT ! unknown BCType
     CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
@@ -740,16 +740,17 @@ END SUBROUTINE BuildSurfVdm
 !===================================================================================================================================
 SUBROUTINE Buildpq2iNode(SideID,SubSideAreaEquiN1)
 ! MODULES
+#if USE_MPI
+USE MOD_Globals            ,ONLY: myrank
+#endif /*USE_MPI*/
 USE MOD_Preproc
-USE MOD_Globals            ,ONLY: UNIT_stdOut,abort,VECNORM3D,myrank
+USE MOD_Globals            ,ONLY: UNIT_stdOut,abort,VECNORM3D
 USE MOD_PICDepo_Vars       ,ONLY: IsDepoSurfSide,Vdm_N_EQ,pq2iNode
 USE MOD_Interpolation_Vars ,ONLY: N_Inter,Nmax
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: SideToNonUniqueGlobalSide
 USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
-USE MOD_Particle_Surfaces_Vars,  ONLY:BezierControlPoints3D
-USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -865,7 +866,7 @@ END SUBROUTINE Buildpq2iNode
 !===================================================================================================================================
 !> Determine the surface area associated with a FEM vertex
 !===================================================================================================================================
-SUBROUTINE CalculateSurfNodeArea(SideID,SubSideAreaEquiN1)
+SUBROUTINE CalculateSurfNodeArea(SideID)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
@@ -874,13 +875,12 @@ USE MOD_PICDepo_Vars       ,ONLY: FEMVertexID2DepoSurfNodeID,IsDepoSurfSide,Surf
 USE MOD_Mesh_Vars          ,ONLY: SideToNonUniqueGlobalSide
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID,NonUniqueGlobalNodeIDToFEMVertexID
-USE MOD_Interpolation_Vars ,ONLY: N_Inter,Nmax
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)  :: SideID   !< Local side index
-REAL,INTENT(IN)     :: SubSideAreaEquiN1(0:1,0:1)   !< Side areas
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: iNode,FEMVertexID,iDepoSurfNodeID,p,q,NonUniqueGlobalSideID,NonUniqueNodeID
@@ -933,7 +933,6 @@ END SUBROUTINE CalculateSurfNodeArea
 !===================================================================================================================================
 SUBROUTINE GetClosestNode(NonUniqueGlobalSideID,x,NodeIndex)
 ! MODULES
-USE MOD_Globals            ,ONLY: myrank
 USE MOD_Preproc
 USE MOD_Globals            ,ONLY: UNIT_stdOut,abort,VECNORM3D
 USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID

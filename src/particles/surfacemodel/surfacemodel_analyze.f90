@@ -770,8 +770,11 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: iGroup, counter
+INTEGER            :: iGroup
+#if USE_MPI
+INTEGER            :: counter
 REAL,ALLOCATABLE   :: SendBuff(:)
+#endif /*USE_MPI*/
 REAL               :: TimeSample, TimeSampleTemp
 !===================================================================================================================================
 
@@ -1359,8 +1362,10 @@ INTEGER,ALLOCATABLE :: MinBound(:), MaxBound(:)
 INTEGER,ALLOCATABLE :: GroupIDToBCID(:)
 INTEGER             :: firstSide, lastSide, RotAxisDir, ElemID, CNElemID
 INTEGER             :: iSide, LocSideID, iGroup, SideID, iPartBound, q, p
+#if USE_MPI
 INTEGER             :: counter
 REAL,ALLOCATABLE    :: SendBuff(:)
+#endif /*USE_MPI*/
 !===================================================================================================================================
 ALLOCATE(GroupOutput(4,SurfaceGroup%nGroups))
 GroupOutput = 0.0

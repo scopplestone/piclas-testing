@@ -98,9 +98,10 @@ INTEGER                            :: iPolyatMole,iPart,CounterElec,CounterAmbi,
 LOGICAL                            :: InElementCheck
 REAL                               :: xi(3)
 REAL                               :: det(6,2)
-INTEGER                            :: NbrOfMissingParticles,iMissingParticle
+INTEGER                            :: NbrOfMissingParticles
 ! MPI
 #if USE_MPI
+INTEGER                            :: iMissingParticle
 INTEGER,ALLOCATABLE                :: IndexOfFoundParticles(:),CompleteIndexOfFoundParticles(:)
 INTEGER                            :: CompleteNbrOfLost,CompleteNbrOfFound,CompleteNbrOfDuplicate
 REAL, ALLOCATABLE                  :: RecBuff(:,:)
@@ -885,8 +886,8 @@ USE MOD_io_hdf5
 USE MOD_Restart_Vars              ,ONLY: RestartFile
 USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, nGlobalSurfSides
 USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp, GlobalSide2SurfSide
-USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #if USE_MPI
+USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars           ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED
 USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp_Shared_Win

@@ -257,7 +257,7 @@ USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: nDeposPerElem,nSurfacePartsPerElem,nTracksPerElem,nPartsPerBCElem,nSurfacefluxPerElem
 ! Restart without HDF5
-USE MOD_Particle_Mesh_Vars   ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared,EdgeInfo_Shared,EdgeConnectInfo_Shared,VertexInfo_Shared,VertexConnectInfo_Shared
+USE MOD_Particle_Mesh_Vars   ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared,EdgeInfo_Shared,VertexInfo_Shared,VertexConnectInfo_Shared
 #endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE

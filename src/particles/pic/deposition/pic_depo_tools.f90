@@ -55,26 +55,19 @@ CONTAINS
 SUBROUTINE DepositParticleOnSurface(Charge,PartPos,GlobalElemID,NonUniqueGlobalSideID,PartID,xi)
 ! MODULES
 USE MOD_Globals
-! USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
-USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
-! USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 #if USE_LOADBALANCE
-USE MOD_Mesh_Vars          ,ONLY: offsetElem
-USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
-! USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared
 #if USE_MPI
-USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSourceMPI
+USE MOD_PICDepo_Vars           ,ONLY: SurfNodeSourceMPI
 #else
-USE MOD_PICDepo_Vars       ,ONLY: SurfNodeSource
+USE MOD_PICDepo_Vars           ,ONLY: SurfNodeSource
 #endif /*USE_MPI*/
-USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID
-USE MOD_Mesh_Vars          ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
-! USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID_Shared
-USE MOD_PICDepo_Vars       ,ONLY: FEMVertexID2DepoSurfNodeID!,SurfNodeSymmetryFactor
-
-USE MOD_Particle_Mesh_Vars ,ONLY:SideInfo_Shared, ElemSideNodeID_Shared, NodeInfo_Shared
-USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
+USE MOD_Mesh_Vars              ,ONLY: NonUniqueGlobalNodeIDToFEMVertexID
+USE MOD_Mesh_Vars              ,ONLY: NonUniqueGlobalSideIDToNonUniqueGlobalNodeID
+USE MOD_PICDepo_Vars           ,ONLY: FEMVertexID2DepoSurfNodeID
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Intersection  ,ONLY: ComputeBiLinearIntersection
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackInfo
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -89,22 +82,14 @@ REAL,INTENT(IN),OPTIONAL         :: xi(1:2)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if USE_LOADBALANCE
-REAL                             :: tLBStart
+REAL            :: tLBStart
 #endif /*USE_LOADBALANCE*/
-INTEGER                          :: iNode
-REAL                             :: norm,PartDistDepo(4),DistSum
-INTEGER                          :: NonUniqueNodeID,FEMVertexID,iDepoSurfNodeID
-
-INTEGER                           :: localSideID, NonUniqueNodeIDtmp, CNElemID, NodeID(4), globnodetmp
-REAL                              :: normalnorm(3), evec1(3), evec2(3), Nodepointspro(1:2,4), PartPos2D(2)
-
-
-REAL                          :: P(2,4), F(2), dF_inv(2,2), s(2)
-REAL, PARAMETER               :: EPS=1E-10
-REAL                          :: T_inv(2,2), DP(2), T(2,2), xi_Out(2), alpha1, alpha2, DepoWeights(1:4)
-INTEGER :: i,j,k
-real :: xi2,eta2,lengthPartTrajectory,RandVal
-logical :: isHit
+INTEGER         :: iNode
+INTEGER         :: NonUniqueNodeID,FEMVertexID,iDepoSurfNodeID
+REAL, PARAMETER :: EPS=1E-10
+REAL            :: alpha1, alpha2, DepoWeights(1:4)
+REAL            :: xi2,eta2,lengthPartTrajectory
+LOGICAL         :: isHit
 !===================================================================================================================================
 ! Skip neutral and reflected particles. Deposit only particles that are deleted on the surface or change their charge on contact
 ! (e.g. neutralization)

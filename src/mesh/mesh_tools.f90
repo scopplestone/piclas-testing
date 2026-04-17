@@ -544,10 +544,10 @@ SUBROUTINE BuildSideToNonUniqueGlobalSide()
 ! MODULES
 #if USE_MPI && USE_DEBUG
 USE MOD_Globals   ,ONLY: myrank,UNIT_StdOut,MPI_COMM_PICLAS
-#endif /*USE_MPI && USE_DEBUG*/
-USE MOD_Globals   ,ONLY: iError
-USE MOD_Mesh_Vars ,ONLY: MortarType,ElemInfo,SideToNonUniqueGlobalSide,nSides,nElems,ElemToSide,offsetElem,MortarInfo
 USE MOD_Mesh_Vars ,ONLY: GlobalUniqueSideID
+USE MOD_Globals   ,ONLY: iError
+#endif /*USE_MPI && USE_DEBUG*/
+USE MOD_Mesh_Vars ,ONLY: MortarType,ElemInfo,SideToNonUniqueGlobalSide,nSides,nElems,ElemToSide,offsetElem,MortarInfo
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES

@@ -357,9 +357,8 @@ USE MOD_Equation_Vars_FV       ,ONLY: StrVarNames_FV
 #else
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
 #endif
-USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,nVarPartStateBoundary,PartStateBoundaryMemory
+USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,nVarPartStateBoundary!,PartStateBoundaryMemory
 USE MOD_TimeDisc_Vars          ,ONLY: iter
-USE MOD_Particle_Vars          ,ONLY: PDM
 USE MOD_Particle_Boundary_Init ,ONLY: InitPartStateBoundary
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -378,7 +377,6 @@ INTEGER(KIND=IK)               :: globnPart(6)
 CHARACTER(LEN=255)             :: FileName,PreviousFileName
 REAL                           :: PreviousTime_loc
 REAL                           :: StartT,EndT
-INTEGER                        :: ALLOCSTAT
 !===================================================================================================================================
 ! Do not write to file on restart or fresh computation
 IF(iter.EQ.0) RETURN
@@ -1233,7 +1231,7 @@ DO iDelay=0,tempDelay
           PartData(2+iPos,iPart) = ClonedParticles(pcount,iDelay)%PartIntEn%ERot(1)
         ELSE
           PartData(1+iPos,iPart) = 0.0
-          PartData(2+iPos,iPart) = 0.0 
+          PartData(2+iPos,iPart) = 0.0
         END IF
         iPos = iPos + 2
         ! Electronic energy modelling

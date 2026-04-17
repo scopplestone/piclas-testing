@@ -1542,11 +1542,7 @@ SUBROUTINE WarningMemusage(Mode,Threshold)
 ! MODULES
 USE MOD_Globals_Vars    ,ONLY: memory
 #if USE_MPI
-USE MOD_MPI_Shared_Vars ,ONLY: myComputeNodeRank,myLeaderGroupRank
-USE MOD_MPI_Shared_Vars ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_SHARED
-#if defined(MEASURE_MPI_WAIT)
-USE MOD_MPI_Vars        ,ONLY: MPIW8TimeMM,MPIW8CountMM
-#endif /*defined(MEASURE_MPI_WAIT)*/
+USE MOD_MPI_Shared_Vars ,ONLY: myComputeNodeRank
 #endif /*USE_MPI*/
 !USE MOD_StringTools     ,ONLY: set_formatting,clear_formatting
 IMPLICIT NONE
@@ -1558,11 +1554,7 @@ REAL,INTENT(IN)     :: Threshold                !< Threshold for the display of 
 ! LOCAL VARIABLES
 CHARACTER(32)  :: hilf,hilf2,hilf3,hilf4
 CHARACTER(100) :: MemInfo
-REAL                       :: MemUsagePercent
-#if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)               :: CounterStart,CounterEnd
-REAL(KIND=8)                  :: Rate
-#endif /*defined(MEASURE_MPI_WAIT)*/
+REAL           :: MemUsagePercent
 !===================================================================================================================================
 IF((Mode.NE.0.).AND.(Mode.NE.1)) CALL abort(__STAMP__,'ERROR in WarningMemusage: Mode must be 0 or 1')
 IF((Threshold.GT.100.0).OR.(Threshold.LE.0.0)) CALL abort(__STAMP__,'ERROR in WarningMemusage: Threshold must be in the range 0 < X <= 100')
@@ -1631,6 +1623,8 @@ INTEGER,INTENT(IN) :: Mode   !< Select which memory is to be displayed, Total = 
 #if USE_MPI
 REAL :: ProcMemoryUsed !< Used memory on a single proc
 REAL :: NodeMemoryUsed !< Sum of used memory across one compute node
+#else
+INTEGER :: dummy
 #endif /*USE_MPI*/
 #if defined(MEASURE_MPI_WAIT)
 INTEGER(KIND=8) :: CounterStart,CounterEnd
@@ -1670,6 +1664,10 @@ CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
 MPIW8TimeMM  = MPIW8TimeMM + REAL(CounterEnd-CounterStart,8)/Rate
 MPIW8CountMM = MPIW8CountMM + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
+#else
+RETURN
+! Suppress dummy argument
+dummy = Mode
 #endif /*USE_MPI*/
 
 END SUBROUTINE CollectMemUsage

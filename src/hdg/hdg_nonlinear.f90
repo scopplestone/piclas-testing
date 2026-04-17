@@ -474,7 +474,6 @@ END SUBROUTINE HDGNewton
 !SUBROUTINE CheckNonLinRes(RHS,lambda,converged,Norm_R2)
 SUBROUTINE CheckNonLinRes(converged,Norm_R2)
 ! MODULES
-USE MOD_Globals   ,ONLY: iError
 USE MOD_Preproc
 USE MOD_HDG_Vars  ,ONLY: nGP_face
 USE MOD_HDG_Vars  ,ONLY: EpsNonLinear
