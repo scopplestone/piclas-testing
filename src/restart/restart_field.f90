@@ -42,7 +42,6 @@ USE MOD_Globals
 USE MOD_PreProc
 #if USE_FV
 USE MOD_FV_Vars                ,ONLY: U_FV
-USE MOD_Restart_Vars           ,ONLY: N_Restart_FV
 #endif /*USE_FV*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
@@ -116,6 +115,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSen
 #endif /*#if (defined(PARTICLES) && (USE_HDG)) || !(USE_HDG) || USE_FV*/
 #endif /*USE_LOADBALANCE*/
 #ifdef discrete_velocity /*DVM*/
+USE MOD_Restart_Vars           ,ONLY: N_Restart_FV
 USE MOD_DistFunc               ,ONLY: GradDistribution
 USE MOD_Equation_Vars_FV       ,ONLY: DVMSpecData, DVMnSpecies, DVMnMacro, DVMnSpecTot
 #endif /*DVM*/
@@ -133,10 +133,8 @@ INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp
 LOGICAL                            :: DG_SolutionExists
 #ifdef discrete_velocity
 REAL                               :: Udvm(DVMnMacro)
-#endif /*discrete_velocity*/
-#if (USE_FV)
 REAL,ALLOCATABLE                   :: Ureco_FV(:,:,:,:,:)
-#endif /*USE_FV*/
+#endif /*discrete_velocity*/
 #if USE_HDG
 LOGICAL                            :: DG_SolutionLambdaExists,DG_SolutionPhiFExists
 INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID,NSideMin,iVar
