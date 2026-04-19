@@ -72,6 +72,8 @@ TYPE tSurfaceFlux
   REAL                                   :: origin(2)                        ! origin in orth. coordinates of polar system
   REAL                                   :: rmax                             ! max radius of to-be inserted particles
   REAL                                   :: rmin                             ! min radius of to-be inserted particles
+  REAL                                   :: racetrackLength                  ! length between half circles for stadium / racetrack definition
+  REAL                                   :: racetrackDir(2)                  ! 2D vector to determine orientation of stadium
   INTEGER, ALLOCATABLE                   :: SurfFluxSideRejectType(:)        ! Type if parts in side can be rejected (1:SideNumber)
   LOGICAL                                :: Adaptive                         ! Is the surface flux an adaptive boundary?
   INTEGER                                :: AdaptiveType                     ! Chose the adaptive type, description in DefineParams
