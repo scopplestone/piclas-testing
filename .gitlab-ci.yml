@@ -728,7 +728,7 @@ build_poisson_petsc:
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_petsc_debug_Leapfrog ; cd build_poisson_petsc_debug_Leapfrog
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all
     - cd ..
 
 build_DSMC:
@@ -1895,6 +1895,18 @@ WEK_drift_diffusion:
   stage: reggie_tutorials
   script:
     - cd build_drift_diffusion ; reggie ../regressioncheck/WEK_drift_diffusion_explicit-FV
+
+WEK_DSMC_tutorials:
+  <<: *defaults_DSMC_weekly
+  stage: reggie_tutorials
+  script:
+    - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_DSMC_tutorials -e bin/piclas
+
+WEK_PIC_poisson_tutorials:
+  <<: *defaults_poisson_petsc_weekly
+  stage: reggie_tutorials
+  script:
+    - cd build_poisson_petsc_debug_Leapfrog ; reggie ../regressioncheck/WEK_PIC_poisson_tutorials -e bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "build": Compile the userguide and developer guide
