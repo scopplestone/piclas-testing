@@ -358,11 +358,18 @@ USE MOD_Equation_Vars_FV       ,ONLY: DVMMethod, DVMnSpecies, DVMSpecData, DVMCo
 USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution, TargetDistribution, MoleculeRelaxEnergy
 USE MOD_Mesh_Vars_FV           ,ONLY: Elem_xGP_FV
 #else
-USE MOD_DG_Vars           ,ONLY: U_N,N_DG_Mapping
-USE MOD_RecordPoints_Vars ,ONLY: L_xi_RP,L_eta_RP,L_zeta_RP
+USE MOD_DG_Vars           ,ONLY: N_DG_Mapping
+USE MOD_RecordPoints_Vars ,ONLY: L_eta_RP,L_zeta_RP
 USE MOD_Mesh_Vars         ,ONLY: offSetElem
+#if ( USE_HDG && (PP_nVar==1) && !(USE_FV) ) || !(USE_HDG)
+USE MOD_DG_Vars           ,ONLY: U_N
+USE MOD_RecordPoints_Vars ,ONLY: L_xi_RP
+#endif /*USE_HDG*/
 #endif /*DVM*/
 USE MOD_RecordPoints_Vars ,ONLY: RP_ElemID,nRP
+
+
+
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
