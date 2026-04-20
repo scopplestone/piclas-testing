@@ -38,6 +38,10 @@ if [[ -f "$filepath" ]]; then
   # nocross_patterns=$(grep -i "^nocrosscombination:" "$filepath" | sed 's/^nocrosscombination://i')
 
   should_exclude() {
+    # Prevent an empty exclude_patterns string from triggering accidental exclusions
+    if [[ -z "$exclude_patterns" ]]; then
+      return 1
+    fi
     # read in combination
     local combo="$1"
     while IFS=',' read -ra conditions; do
