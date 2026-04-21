@@ -10,6 +10,9 @@
   * [ ] Check with specific compiler settings for the feature branch via `./tools/test_max_warnings.sh`. Number of found warnings:
   * [ ] Run [pipeline](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines/new) for the feature branch and supply the variables `DO_CHECKIN=T` and `CHECK_WARNINGS=T` for automatic compiler warning tests for other compiler flag combinations
 * [ ] Check file size via *./tools/test_max_file_size.sh*. Write the name and file size of the largest here: _________
+* [ ] Check that all reggies under `regressioncheck` are compatible with `pyhope` by running the script `convertHoprToPyHopeIni.sh`
+   within the `regressioncheck` directory `cd regressioncheck && ../tools/convertHoprToPyHopeIni.sh` and adding the files changed by
+   the script to the MR
 * [ ] Check if newly introduced `CALL abort(...)` statements can be replaced with `CALL CollectiveStop(...)`, which can mostly be achieved during initialisation.
   For details on using this function, see the [Developer Guide: CollectiveStop](https://piclas.readthedocs.io/en/latest/developerguide/bestpractices.html#collectivestop) section.
 * Descriptions for new/changed routines
