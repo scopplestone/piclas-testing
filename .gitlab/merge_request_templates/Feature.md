@@ -20,9 +20,15 @@
 The new feature must be tested with at least one new or old [regression test(s)](https://github.com/piclas-framework/piclas/tree/master/regressioncheck):
 
 * [ ] Add small test setup if the new feature is not covered by any old regression tests
-* [ ] Add entry in [REGGIE.md table](https://github.com/piclas-framework/piclas/blob/master/REGGIE.md) by running the reggie table script within the corresponding reggie folder where the builds.ini file is via `./../../tools/reggietable.sh` and adjusting the output
+* [ ] Add entry in [REGGIE.md table](https://github.com/piclas-framework/piclas/blob/master/REGGIE.md) by running the reggie table script within the corresponding reggie folder where the builds.ini file is via `cd ~/piclas/regressioncheck/MY_REGGIE_EXAMPLE && ./../../tools/reggietable.sh` and adjusting the output
 * Check correct memory allocation and deallocation for the reggie test case
-  * [ ] Check automatic restart functionality of reggie example via load balancing
+  * [ ] Implement automatic restart functionality check within the reggie example via load balancing. Add a suitable [load balancing
+  block](https://github.com/piclas-framework/piclas/blob/master/regressioncheck/NIG_PIC_poisson_Leapfrog/MCC_EBeam_SpeciesSpecificTimestep/parameter.ini) in the `parameter.ini` file.
+  * [ ] Implement restart functionality check within the reggie example via
+    [parameter-pre.ini](https://github.com/piclas-framework/piclas/blob/master/regressioncheck/CHE_drift_diffusion_explicit-FV/periodic_box_free-stream/parameter-pre.ini) file, which in executed in
+    [externals.ini](https://github.com/piclas-framework/piclas/blob/master/regressioncheck/CHE_drift_diffusion_explicit-FV/periodic_box_free-stream/externals.ini) 
+    and creates a restart state file that is used in [command_line.ini](https://github.com/piclas-framework/piclas/blob/master/regressioncheck/CHE_drift_diffusion_explicit-FV/periodic_box_free-stream/command_line.ini),
+    see [example](https://github.com/piclas-framework/piclas/blob/master/regressioncheck/CHE_drift_diffusion_explicit-FV/periodic_box_free-stream/).
   * [ ] Compile PICLas with Sanitizer and `MPI=OFF` as well as `MPI=ON` and run with one process to find possible memory leaks.
         When using MPICH, the test should also be performed with multiple processes. Leaks can be identified using
         [this approach](https://piclas.readthedocs.io/en/latest/developerguide/troubleshooting.html#possible-memory-leak-detection-when-using-mpich).
