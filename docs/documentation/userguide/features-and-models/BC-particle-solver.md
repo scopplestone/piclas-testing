@@ -530,19 +530,18 @@ With `Surface-Diffusion = true` an instantaneous diffusion over all catalytic bo
 
 All information about a catalytic reaction can be retrieved from the species database. Here the catalytic reaction parameters are stored in containers and accessed via the reaction name, e.g. `Adsorption_CO_Pt`.
 
-## Deposition of Charges on Dielectric Surfaces
-
+## Deposition of Charges on resolved Dielectric Surfaces
+This deposition of charges is designed for thick layers of dielectric materials, which are resolved by mesh
+elements can directly be modelled as described in Section {ref}`sec:dielectric-materials`.
 Charged particles can be absorbed (or reflected and leave their charge behind) at dielectric surfaces
 when using the deposition method `cell_volweight_mean`. The boundary can be used by specifying
 
-    ```
     Part-Boundary1-Condition         = reflective
     Part-Boundary1-Dielectric        = T
     Part-Boundary1-NbrOfSpeciesSwaps = 3
     Part-Boundary1-SpeciesSwaps1     = (/1,0/) ! e-
     Part-Boundary1-SpeciesSwaps2     = (/2,2/) ! Ar
     Part-Boundary1-SpeciesSwaps3     = (/3,2/) ! Ar+
-    ```
 
 which sets the boundary dielectric and the given species swap parameters effectively remove
 electrons ($e^{-}$) on impact, reflect $Ar$ atoms and neutralize $Ar^{+}$ ions by swapping these to $Ar$ atoms.
@@ -555,3 +554,17 @@ The boundary must also be specified as an *inner* boundary via
     BoundaryType                     = (/100,0/)
 
 or directly in the *hopr.ini* file that is used for creating the mesh.
+
+(sec:distributed-capacitance-boundary-condition-for-particles)=
+## Deposition of charges on distributed capacitance boundary condition (DCBC) surfaces
+Charged particles impacting on distributed capacitance boundary condition (DCBC) surfaces are deposited on the surface element face
+via linear weighting, which calculates the surface charge density $\sigma$ in the equation given in
+{ref}`sec:distributed-capacitance-boundary-condition` and requires the following parameter settings
+
+    Part-Boundary1-Condition        = reflective ! Surface charging requires the boundary condition "reflective"
+    Part-Boundary1-UseSurfaceCharge = T          ! Activate surface charging
+    Part-Boundary1-DC-BiasVoltage   = 1000.0     ! Electric potential "Phi_0" of the dielectric layer
+    Part-Boundary1-DC-Permittivity  = 10.0       ! Relative permittivity "eps_r" of the dielectric layer
+    Part-Boundary1-DC-Thickness     = 2.0e-3     ! Thickness "d" of the dielectric layer
+
+and the last three parameters listed here are described in Section {ref}`sec:distributed-capacitance-boundary-condition`.
