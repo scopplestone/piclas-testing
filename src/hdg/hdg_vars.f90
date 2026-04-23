@@ -71,13 +71,15 @@ REAL,ALLOCATABLE    :: Tau(:)                 !< Stabilization parameter, per el
 REAL,ALLOCATABLE    :: lambdaLB(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
 INTEGER,ALLOCATABLE :: iLocSides(:,:)         !< iLocSides, ((PP_N+1)^2,nSides) - used for I/O and ALLGATHERV of lambda
 REAL,ALLOCATABLE    :: qn_face_MagStat(:,:,:) !< for Neumann BC
-INTEGER             :: nDirichletBCsides
+INTEGER             :: nDirichletBCSides
 INTEGER             :: nNeumannBCsides
 INTEGER             :: nConductorBCsides      !< Number of processor-local sides that are conductors (FPC) in [1:nBCSides]
+INTEGER             :: nDistriCapBCsides      !< Number of processor-local sides that are distributed capacitance (DC) in [1:nBCSides]
 INTEGER             :: ZeroPotentialSide      !< (local) SideID of the side where the potential of one DOF is set to zero
 INTEGER,ALLOCATABLE :: ConductorBC(:)
 INTEGER,ALLOCATABLE :: DirichletBC(:)
 INTEGER,ALLOCATABLE :: NeumannBC(:)
+INTEGER,ALLOCATABLE :: DistriCapBC(:)
 LOGICAL             :: HDGnonlinear           !< Use non-linear sources for HDG? (e.g. Boltzmann electrons)
 LOGICAL             :: NewtonExactSourceDeriv
 LOGICAL             :: NewtonAdaptStartValue
@@ -257,7 +259,6 @@ END TYPE
 TYPE(tBV)   :: BiasVoltage
 #endif /*defined(PARTICLES)*/
 !===================================================================================================================================
-
 
 #endif /*USE_HDG*/
 END MODULE MOD_HDG_Vars

@@ -16,24 +16,46 @@
 #      - when: never
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Use pipeline name to indicate whether default shared memory, node split or core split is used
+# Use pipeline name to indicate whether default shared memory, node split or core split is used, and whether it is a checkin, nightly or weekly pipeline
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 workflow:
   name: $PIPELINE_NAME
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: never
+
+    # --- Nightly ---
+    - if: '$DO_NIGHTLY && $DO_NODE_SPLIT'
+      variables:
+        PIPELINE_NAME: '[Nightly] 🔵 Node Splitting ${CI_COMMIT_REF_NAME}'
+    - if: '$DO_NIGHTLY && $DO_CORE_SPLIT'
+      variables:
+        PIPELINE_NAME: '[Nightly] 🟠 Core Splitting ${CI_COMMIT_REF_NAME}'
+    - if: '$DO_NIGHTLY'
+      variables:
+        PIPELINE_NAME: '[Nightly] 🟢 ${CI_COMMIT_REF_NAME}'
+
+    # --- Weekly ---
+    - if: '$DO_WEEKLY && $DO_NODE_SPLIT'
+      variables:
+        PIPELINE_NAME: '[Weekly] 🔵 Node Splitting ${CI_COMMIT_REF_NAME}'
+    - if: '$DO_WEEKLY && $DO_CORE_SPLIT'
+      variables:
+        PIPELINE_NAME: '[Weekly] 🟠 Core Splitting ${CI_COMMIT_REF_NAME}'
+    - if: '$DO_WEEKLY'
+      variables:
+        PIPELINE_NAME: '[Weekly] 🟢 ${CI_COMMIT_REF_NAME}'
+
+    # --- Checkin (DO_CHECKIN, push, or manual) ---
     - if: '$DO_NODE_SPLIT'
       variables:
-        PIPELINE_NAME: '🔵 Node Splitting ${CI_COMMIT_REF_NAME}'
-
+        PIPELINE_NAME: '[Checkin] 🔵 Node Splitting ${CI_COMMIT_REF_NAME}'
     - if: '$DO_CORE_SPLIT'
       variables:
-        PIPELINE_NAME: '🟠 Core Splitting ${CI_COMMIT_REF_NAME}'
-
+        PIPELINE_NAME: '[Checkin] 🟠 Core Splitting ${CI_COMMIT_REF_NAME}'
     - if: '$DO_CORE_SPLIT == null && $DO_NODE_SPLIT == null'
       variables:
-        PIPELINE_NAME: '🟢 ${CI_COMMIT_REF_NAME}'
+        PIPELINE_NAME: '[Checkin] 🟢 ${CI_COMMIT_REF_NAME}'
 
     - when: never
 
@@ -53,14 +75,14 @@ before_script:
   - python3 -V || true
   - python  -V || true
   - if [ -n "${DO_CORE_SPLIT}" ]; then
-      echo " PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE. Splitting shared memory domains on processor-level!";
+      echo " PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE. Splitting shared memory domains on processor level (\"core splitting\")";
       export PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE;
     else
       if [ -n "${DO_NODE_SPLIT}" ]; then
-        echo " PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE. Splitting shared memory domains on sub-node-level with 2 cores per node!";
+        echo " PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE. Splitting shared memory domains on sub-node level with 2 cores per node (\"node splitting\")!";
         export PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE;
       else
-        echo "Splitting shared memory domains on node-level (default)!";
+        echo "PICLAS_SHARED_MEMORY=MPI_COMM_TYPE_SHARED. Splitting shared memory domains on physical node level (default)!";
         echo "Set variable [DO_CORE_SPLIT=T] to force core-level OR [DO_NODE_SPLIT=T] to force sub-node-level shared memory splitting for all regression tests.";
       fi
     fi
@@ -513,7 +535,10 @@ venv_create:
     - deactivate || true
     - rm -rf venv
     - python3 -m venv venv
+    - pwd
+    - pip --version
     - source venv/bin/activate
+    - pip --version
     - python3 -m ensurepip
     - python3 -m pip install uv
     - uv pip install --upgrade setuptools wheel
@@ -531,7 +556,10 @@ pyhope_download:
       policy: pull-push
   stage: build
   script:
+    - pwd
+    - pip --version
     - source venv/bin/activate
+    - pip --version
     # PyHOPE needs NRG Gmsh, pre-install it
     - uv pip install https://gitlab.iag.uni-stuttgart.de/libs/python-gmsh/-/raw/master/gmsh-4.14.0.post1-py3-none-linux_x86_64.whl
     # Install PyHOPE
@@ -564,13 +592,18 @@ reggie_download:
     # Check if the .day file exists under "reggie/.day" and move it here if that is the case
     # Check if the "reggie" directory exists and remove it before cloning it again
     # Clone the "reggie2.0" repository into the "reggie" directory
-    # "--break-system-packages" is only required on newer systems but not on Ubuntu 20
     - if [ ! -d "reggie/.git" ]; then
         if [ -f "reggie/.day" ]; then mv reggie/.day .; fi ;
         if [ -d "reggie" ]; then rm -rf reggie ; fi ;
         REGGIEBRANCH=master ;
         git clone --single-branch --branch ${REGGIEBRANCH} git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
-        if [ -d "reggie" ]; source venv/bin/activate ; then cd reggie ; uv pip install -e . ; cd .. ; fi ;
+        if [ ! -d "reggie" ]; then echo "Error. reggie directory not cloned. Exit." ; exit 1 ; fi ;
+        pwd ;
+        pip --version ;
+        source venv/bin/activate ;
+        pip --version ;
+        cd reggie ;
+        uv pip install -e . ; cd .. ;
         if [ -f ".day" ]; then mv .day reggie/. ; fi ;
       fi
     # Test reggie installation
@@ -1251,6 +1284,7 @@ NIG_PIC_Deposition:
 
 # 2023-10-28: Deactivate RK3 for photoionization for now in order to save time when running the reggies. This features is currently only used in combination with Leapfrog anyway.
 # 2024-01-17: Moved to weekly (reactivated 4 + move to weekly, move release_Leapfrog and debug_Leapfrog from nightly to weekly to reduce time further)
+# 2026-03-26: Deactivate RK3 for photoionization, except one remaining PETSc + Release
 
 # --- weekly
 WEK_PIC_poisson_Leapfrog_Debug: # This uses the same reggie as NIG_PIC_poisson_Leapfrog but compile everything with CMAKE_BUILD_TYPE = Debug
@@ -1285,32 +1319,32 @@ WEK_PIC_poisson_Leapfrog:
     - cd build ; reggie ../regressioncheck/WEK_PIC_poisson_Leapfrog/
   timeout: 15 minutes
 
-WEK_Photoionization_release_RK3:
-  <<: *defaults_poisson_weekly
-  stage: reggie_weekly
-  script:
-    - cd build_poisson_release_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
-  rules:
-    - if: '$DO_CORE_SPLIT'
-      when: never
-    - if: '$DO_NODE_SPLIT'
-      when: never
-    - if: '$DO_WEEKLY'
-
-WEK_Photoionization_debug_RK3:
-  <<: *defaults_poisson_weekly
-  stage: reggie_weekly
-  script:
-    - cd build_poisson_debug_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
-  rules:
-    - if: '$DO_CORE_SPLIT'
-      when: never
-    - if: '$DO_NODE_SPLIT'
-      when: never
-    - if: '$DO_WEEKLY'
+# WEK_Photoionization_release_RK3:
+#   <<: *defaults_poisson_weekly
+#   stage: reggie_weekly
+#   script:
+#     - cd build_poisson_release_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+#   rules:
+#     - if: '$DO_CORE_SPLIT'
+#       when: never
+#     - if: '$DO_NODE_SPLIT'
+#       when: never
+#     - if: '$DO_WEEKLY'
+#
+# WEK_Photoionization_debug_RK3:
+#   <<: *defaults_poisson_weekly
+#   stage: reggie_weekly
+#   script:
+#     - cd build_poisson_debug_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+#   rules:
+#     - if: '$DO_CORE_SPLIT'
+#       when: never
+#     - if: '$DO_NODE_SPLIT'
+#       when: never
+#     - if: '$DO_WEEKLY'
 
 WEK_Photoionization_petsc_release_RK3:
-  <<: *defaults_poisson_petsc_nightly
+  <<: *defaults_poisson_petsc_weekly
   stage: reggie_weekly
   script:
     - cd build_poisson_petsc_release_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
@@ -1321,17 +1355,17 @@ WEK_Photoionization_petsc_release_RK3:
       when: never
     - if: '$DO_WEEKLY'
 
-WEK_Photoionization_petsc_debug_RK3:
-  <<: *defaults_poisson_petsc_nightly
-  stage: reggie_weekly
-  script:
-    - cd build_poisson_petsc_debug_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
-  rules:
-    - if: '$DO_CORE_SPLIT'
-      when: never
-    - if: '$DO_NODE_SPLIT'
-      when: never
-    - if: '$DO_WEEKLY'
+# WEK_Photoionization_petsc_debug_RK3:
+#   <<: *defaults_poisson_petsc_weekly
+#   stage: reggie_weekly
+#   script:
+#     - cd build_poisson_petsc_debug_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+#   rules:
+#     - if: '$DO_CORE_SPLIT'
+#       when: never
+#     - if: '$DO_NODE_SPLIT'
+#       when: never
+#     - if: '$DO_WEEKLY'
 
 WEK_Photoionization_release_Leapfrog:
   <<: *defaults_poisson_weekly
@@ -1510,7 +1544,7 @@ WEK_DSMC_Radiation:
   <<: *defaults_DSMC_weekly
   needs: [build_DSMC]
   cache:
-    - key: "reggie"
+    - key: "venv"
       paths: [reggie]
       policy: pull
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"

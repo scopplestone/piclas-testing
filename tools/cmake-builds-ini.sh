@@ -33,7 +33,7 @@ if [[ -f "$filepath" ]]; then
   while IFS= read -r line; do name="$(echo "$line" | cut -d "=" -f1)"; value="$(echo "$line" | cut -d "=" -f2)"; keys+=("$name"); values_map["$name"]="$value"; done <<< "$test"
 
   # read in EXCLUDE and nocross patterns
-  exclude_patterns=$(grep -i "^EXCLUDE:" "$filepath" | sed 's/^EXCLUDE://i')
+  exclude_patterns=$(grep -i "^EXCLUDE:" "$filepath" | sed 's/^EXCLUDE://i' | sed 's/[[:space:]]//g')
   # Improvement: also exclude nocrosscombination
   # nocross_patterns=$(grep -i "^nocrosscombination:" "$filepath" | sed 's/^nocrosscombination://i')
 
@@ -44,24 +44,24 @@ if [[ -f "$filepath" ]]; then
     fi
     # read in combination
     local combo="$1"
-    while IFS=',' read -ra conditions; do
+    while IFS= read -r exclude_line; do
+      [[ -z "$exclude_line" ]] && continue
       local all_conditions_met=1
+      IFS=',' read -ra conditions <<< "$exclude_line"
       for condition in "${conditions[@]}"; do
         local var="${condition%%=*}"
         local val="${condition#*=}"
-        # check if current condition (e.g. PICLAS_EQNSYSNAME=poisson) is not in the combination
-        if ! [[ "$combo" == *"-D${var}=${val}"* ]]; then
-          # if its not in the combination, build is allowed and other conditions must not be checked (e.g. PICLAS_EQNSYSNAME=maxwell, but exclude is for poisson and any other option)
+        if ! [[ " $combo " =~ " -D${var}=${val} " ]]; then
           all_conditions_met=0
           break
         fi
       done
-      # all conditions of current exclusion pattern were met, so build is excluded
+
       if [[ $all_conditions_met -eq 1 ]]; then
-        return 0
+        return 0 # Should exclude
       fi
     done <<< "$exclude_patterns"
-    return 1
+    return 1 # Keep it
   }
 
   generate_combinations() {

@@ -58,8 +58,9 @@ USE MOD_ParticleInit           ,ONLY: InitialIonization
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                    :: SystemTime
-LOGICAL                 :: userblockFound
+REAL                        :: SystemTime
+LOGICAL                     :: userblockFound
+CHARACTER(LEN=20),PARAMETER :: BuildType=BT_REPLACE
 !===================================================================================================================================
 CALL SetStackSizeUnlimited()
 
@@ -85,7 +86,7 @@ SWRITE(UNIT_stdOut,'(A)')"                                       |/       \_____
 SWRITE(UNIT_stdOut,'(132(" "))')
 SWRITE(UNIT_stdOut,'(A)')"piclas version "&
     //TRIM(int2strf(MajorVersion))//"."//TRIM(int2strf(MinorVersion))//"."//TRIM(int2strf(PatchVersion))&
-    //" with commit "//TRIM(GIT_CURRENT_COMMIT)
+    //" with commit "//TRIM(GIT_CURRENT_COMMIT)//" and build type "//TRIM(BuildType)
 SWRITE(UNIT_stdOut,'(132("="))')
 
 CALL ParseCommandlineArguments()

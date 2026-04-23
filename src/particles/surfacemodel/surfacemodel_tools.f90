@@ -176,7 +176,7 @@ IF(SUM(ABS(WallVelo)).GT.0.)THEN
 ELSE
   PartState(4:6,PartID) = PartState(4:6,PartID) - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loc)*n_loc
   IF (DSMC%DoAmbipolarDiff) THEN
-    IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
+    IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
       v_old_Ambi = PartIntEn(PartID)%ElecVelo(1:3)
       PartIntEn(PartID)%ElecVelo(1:3) = PartIntEn(PartID)%ElecVelo(1:3) &
                      - 2.*DOT_PRODUCT(PartIntEn(PartID)%ElecVelo(1:3),n_loc)*n_loc
@@ -185,7 +185,7 @@ ELSE
 END IF
 
 ! Considering energy loss due to deformation in granular particles
-IF(Species(PartSpecies(PartID))%InterID.EQ.100) PartState(4:6,PartID) = PartState(4:6,PartID) * (1.0 - PartBound%DeformEnergyLoss(locBCID))
+IF(Species(SpecID)%InterID.EQ.100) PartState(4:6,PartID) = PartState(4:6,PartID) * (1.0 - PartBound%DeformEnergyLoss(locBCID))
 
 ! Set particle position on face
 LastPartPos(1:3,PartID) = POI_vec(1:3)
@@ -205,7 +205,7 @@ IF(UseRotRefFrame) THEN
     IF(DOT_PRODUCT(n_loc,NewVeloPush(1:3)).GT.0.) THEN
       ! Normal component of new velo push v = (v dot n / |n|^2) * n, |n| = 1
       NormNewVeloPush(1:3) = DOT_PRODUCT(n_loc,NewVeloPush(1:3)) * n_loc
-      ! Nullyfy normal component and keeping rest of NewVeloPush
+      ! Nullify normal component and keeping rest of NewVeloPush
       NewVeloPush(1:3) = NewVeloPush(1:3) - NormNewVeloPush(1:3)
       ! Move particle a little bit into the domain to avoid losing particles
       NewVeloPush(1:3) = NewVeloPush(1:3) - 1E-6 * n_loc

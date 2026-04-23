@@ -349,7 +349,11 @@ Variable particle weighting based on a split and merge algorithm is currently su
 
     Part-vMPF                           = T
 
-The split and merge algorithm is called at the end of every time step. In order to manipulate the number of particles per species per cell, merge and split thresholds can be defined as is shown in the following.
+The split and merge algorithm is performed at the end of every time step or every e.g. 100 iterations:
+
+    Part-vMPFSplitAndMergeStep          = 100
+
+In order to manipulate the number of particles per species per cell, merge and split thresholds can be defined as is shown in the following.
 
     Part-Species2-vMPFMergeThreshold    = 100
 

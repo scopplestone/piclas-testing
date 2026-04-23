@@ -685,7 +685,7 @@ ELSE ! Normal restart
               IF(MortarType(1,iSide).EQ.0)THEN
                 ! check all my big mortar sides and find the one to which the small virtual is connected
                 ! check all yellow (big mortar) sides
-                Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+                Check2: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
                   nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
                   ! loop over all blue sides (small mortar master)
                   DO iMortar=1,nMortars
@@ -698,10 +698,10 @@ ELSE ! Normal restart
                       IF(iLocSide_master.EQ.-1)THEN
                         CALL abort(__STAMP__,'This big mortar side must be master')
                       END IF !iLocSide.NE.-1
-                      EXIT Check1
+                      EXIT Check2
                     END IF ! iSide.EQ.SideID
                   END DO !iMortar
-                END DO Check1 !MortarSideID
+                END DO Check2 !MortarSideID
               END IF ! MortarType(1,iSide).EQ.0
 
               ! Read lambda from h5 on Nres

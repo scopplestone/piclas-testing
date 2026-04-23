@@ -357,8 +357,9 @@ USE MOD_Equation_Vars_FV       ,ONLY: StrVarNames_FV
 #else
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
 #endif
-USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,nVarPartStateBoundary
+USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,nVarPartStateBoundary!,PartStateBoundaryMemory
 USE MOD_TimeDisc_Vars          ,ONLY: iter
+USE MOD_Particle_Boundary_Init ,ONLY: InitPartStateBoundary
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -483,9 +484,7 @@ PartStateBoundaryVecLength = 0
 
 ! Re-allocate PartStateBoundary for a small number of particles and double the array size each time the
 ! maximum is reached
-DEALLOCATE(PartStateBoundary)
-ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:10))
-PartStateBoundary=0.
+CALL InitPartStateBoundary(ReInitialise=.TRUE.)
 
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
@@ -1232,7 +1231,7 @@ DO iDelay=0,tempDelay
           PartData(2+iPos,iPart) = ClonedParticles(pcount,iDelay)%PartIntEn%ERot(1)
         ELSE
           PartData(1+iPos,iPart) = 0.0
-          PartData(2+iPos,iPart) = 0.0 
+          PartData(2+iPos,iPart) = 0.0
         END IF
         iPos = iPos + 2
         ! Electronic energy modelling

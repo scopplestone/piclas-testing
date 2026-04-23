@@ -2,7 +2,7 @@
 # Set download locations depending on git origin
 # =========================================================================
 SET(LIBS_DLPATH "https://piclas.boltzplatz.eu/piclas/")
-# Origin pointing to IAG
+# Origin pointing to PICLas gitlab
 IF("${GIT_ORIGIN}" MATCHES "piclas.boltzplatz.eu" AND "${GIT_ORIGIN}" MATCHES "^git@")
   SET(LIBS_DLPATH "git@piclas.boltzplatz.eu:piclas/")
 ENDIF()
@@ -81,7 +81,7 @@ IF(LIBS_USE_MPI)
     # MESSAGE(FATAL_ERROR "Cannot detect supported MPI type or version. Valid options are Cray MPICH, IntelMPI, MPICH, and OpenMPI supporting MPI version 3.x")
   ENDIF()
 
-  MESSAGE(STATUS "Compiling with [${LIBS_MPI_NAME}] (v${MPI_C_LIBRARY_VERSION})")
+  MESSAGE(STATUS "Compiling with [${LIBS_MPI_NAME}] (${BoldBlue}v${MPI_C_LIBRARY_VERSION}${ColourReset})")
   ADD_COMPILE_DEFINITIONS(USE_MPI=1)
 
   # LUMI needs even more help here
@@ -267,7 +267,7 @@ ELSE()
   SET(HDF5_STR "1.14.5")
   SET(HDF5_TAG "hdf5_${HDF5_STR}" CACHE STRING   "HDF5 version tag")
   MARK_AS_ADVANCED(FORCE HDF5_TAG)
-  MESSAGE(STATUS "Setting [HDF5] download tag:  ${HDF5_TAG}")
+  MESSAGE(STATUS "Setting [HDF5] download tag: ${BoldBlue}${HDF5_TAG}${ColourReset}")
 
   # Set HDF5 build dir
   SET(LIBS_HDF5_DIR ${LIBS_EXTERNAL_LIB_DIR}/HDF5)
@@ -314,7 +314,7 @@ ELSE()
       GIT_REPOSITORY     ${HDF5_DOWNLOAD}
       GIT_TAG            ${HDF5_TAG}
       GIT_PROGRESS       TRUE
-      ${${GITSHALLOW}}
+      GIT_SHALLOW        ON
       PREFIX             ${LIBS_HDF5_DIR}
       UPDATE_COMMAND     ""
       # HDF5 explicitely needs "make" to configure
@@ -357,9 +357,9 @@ ENDIF()
 INCLUDE_DIRECTORIES(BEFORE ${HDF5_INCLUDE_DIR})
 LIST(PREPEND linkedlibs ${HDF5_Fortran_LIBRARIES} ${CMAKE_DL_LIBS})
 IF(${HDF5_IS_PARALLEL})
-  MESSAGE(STATUS "Compiling with ${HDF5_BUILD_STATUS} [HDF5] (v${HDF5_VERSION}) with parallel support ${HDF5_MPI_VERSION}")
+  MESSAGE(STATUS "Compiling with ${HDF5_BUILD_STATUS} [HDF5] (${BoldBlue}v${HDF5_VERSION}${ColourReset}) with parallel support ${HDF5_MPI_VERSION}")
 ELSE()
-  MESSAGE(STATUS "Compiling with ${HDF5_BUILD_STATUS} [HDF5] (v${HDF5_VERSION}) without parallel support")
+  MESSAGE(STATUS "Compiling with ${HDF5_BUILD_STATUS} [HDF5] (${BoldBlue}v${HDF5_VERSION}${ColourReset}) without parallel support")
 ENDIF()
 
 # Hide all the HDF5 libs paths
@@ -389,7 +389,7 @@ IF(NOT "${HDF5_COMPILER}" STREQUAL "" AND NOT "${HDF5_COMPILER}" STREQUAL "HDF5_
 ENDIF()
 
 # =========================================================================
-# Math libary
+# Math library
 # =========================================================================
 # Try to find system LAPACK/OpenBLAS
 IF (NOT LIBS_BUILD_MATH_LIB)
@@ -486,7 +486,7 @@ ELSE()
         GIT_REPOSITORY ${MATH_LIB_DOWNLOAD}
         GIT_TAG ${MATH_LIB_TAG}
         GIT_PROGRESS TRUE
-        ${${GITSHALLOW}}
+        GIT_SHALLOW ON
         PREFIX ${LIBS_MATH_DIR}
         UPDATE_COMMAND ""
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_PREFIX=${LIBS_MATH_DIR} -DBLAS++=OFF -DLAPACK++=OFF -DBUILD_SHARED_LIBS=ON -DCBLAS=OFF -DLAPACKE=OFF -DBUILD_TESTING=OFF
@@ -503,7 +503,7 @@ ELSE()
         GIT_REPOSITORY ${MATH_LIB_DOWNLOAD}
         GIT_TAG ${MATH_LIB_TAG}
         GIT_PROGRESS TRUE
-        ${${GITSHALLOW}}
+        GIT_SHALLOW ON
         PREFIX ${LIBS_MATH_DIR}
         UPDATE_COMMAND ""
         CONFIGURE_COMMAND ""
@@ -578,7 +578,7 @@ IF(LIBS_BUILD_HOPR)
     GIT_REPOSITORY ${HOPR_DOWNLOAD}
     GIT_TAG ${HOPR_TAG}
     GIT_PROGRESS FALSE
-    ${GITSHALLOW}
+    GIT_SHALLOW ON
     PREFIX ${LIBS_HOPR_DIR}
     # Avoids rebuilding during PICLas recompilation if HOPR has already been built in share folder
     UPDATE_DISCONNECTED true
@@ -676,7 +676,7 @@ ENDIF()
 #   SET (CMAKE_CXX_FLAGS_RELWITHDEBINFO     "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}     ${OpenMP_CXX_FLAGS}")
 #   SET (CMAKE_EXE_LINKER_FLAGS             "${CMAKE_EXE_LINKER_FLAGS}             ${OpenMP_EXE_LINKER_FLAGS}")
 #   ADD_COMPILE_DEFINITIONS(USE_OPENMP=1)
-#   MESSAGE(STATUS "Compiling with [OpenMP] (v${OpenMP_Fortran_VERSION})")
+#   MESSAGE(STATUS "Compiling with [OpenMP] (${BoldBlue}v${OpenMP_Fortran_VERSION}${ColourReset})")
 # ELSE()
 #   ADD_DEFINITIONS(-DUSE_OPENMP=0)
 # #  ENDIF()
@@ -739,7 +739,7 @@ IF(LIBS_USE_PETSC)
         GIT_REPOSITORY "https://gitlab.com/petsc/petsc.git"
         GIT_TAG "v${LIBS_BUILD_PETSC_VERSION}"
         GIT_PROGRESS TRUE
-        ${GITSHALLOW}
+        GIT_SHALLOW ON
         PREFIX ${LIBS_PETSC_DIR}
         INSTALL_DIR ${LIBS_EXTERNAL_LIB_DIR}/PETSc
         BUILD_IN_SOURCE TRUE
@@ -779,7 +779,7 @@ IF(LIBS_USE_PETSC)
     ENDIF()
 
     ADD_COMPILE_DEFINITIONS(USE_PETSC=1)
-    MESSAGE(STATUS "Compiling with self-built [PETSc] (v${LIBS_BUILD_PETSC_VERSION})")
+    MESSAGE(STATUS "Compiling with self-built [PETSc] (${BoldBlue}v${LIBS_BUILD_PETSC_VERSION}${ColourReset})")
   ELSE()
     IF(PETSC_FOUND)
       # Check if PETSc version needs FIX317
@@ -793,7 +793,7 @@ IF(LIBS_USE_PETSC)
       LIST(APPEND linkedlibs ${PETSC_LINK_LIBRARIES})
 
       ADD_COMPILE_DEFINITIONS(USE_PETSC=1)
-      MESSAGE(STATUS "Compiling with system [PETSc] (v${PETSC_VERSION}) [${PETSC_LINK_LIBRARIES}]")
+      MESSAGE(STATUS "Compiling with system [PETSc] (${BoldBlue}v${PETSC_VERSION}${ColourReset}) [${PETSC_LINK_LIBRARIES}]")
     ELSE()
       MESSAGE(FATAL_ERROR "PETSc not found! Consider building PETSc with LIBS_BUILD_PETSC = ON.")
     ENDIF()

@@ -50,7 +50,7 @@ USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod, TrackInfo, CountNbrOfLos
 USE MOD_Part_Tools               ,ONLY: StoreLostParticleProperties
 USE MOD_Dielectric_vars          ,ONLY: DoDielectric,isDielectricElem_Shared
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,DoBoundaryParticleOutputHDF5
+USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,DoBoundaryParticleOutputHDF5,DoVirtualDielectricLayer
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
 USE MOD_SurfaceModel             ,ONLY: SurfaceModelling
@@ -93,21 +93,23 @@ crossedBC    =.FALSE.
 
 #if USE_HDG
 ! Check particle index for VDL particles, which should NOT be here and kill them (regular treatment is in DepositVirtualDielectricLayerParticles)
-IF(IsVDLSpecID(iPart))THEN
-  IF(PDM%ParticleInside(iPart))THEN
-    IF(CountNbrOfLostParts)THEN
-      ! Store particle position using PartState(1:3,iPart) via UsePartState_opt=.TRUE. to show where the particles have been
-      ! moved to via the VDL displacement. Otherwise, LastPartPos(1:3,iPart) would contain the position where the particles have
-      ! impacted on the VDL boundary (the actual tracking BC. i.e. the mesh, not the virtual layer around the BC)
-      CALL StoreLostParticleProperties(iPart,ElemID,UsePartState_opt=.TRUE.,PartMissingType_opt=PartSpecies(iPart))
-      NbrOfLostParticles=NbrOfLostParticles+1
-    END IF ! CountNbrOfLostParts
-    ! Reset to original species index before removing the particle
-    PartSpecies(iPart) = ABS(PartSpecies(iPart)) - SpeciesOffsetVDL
-    CALL RemoveParticle(iPart,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
-    RETURN
-  END IF ! PDM%ParticleInside(iPart)
-END IF ! IsVDLSpecID(iPart)
+IF(DoVirtualDielectricLayer) THEN
+  IF(IsVDLSpecID(iPart))THEN
+    IF(PDM%ParticleInside(iPart))THEN
+      IF(CountNbrOfLostParts)THEN
+        ! Store particle position using PartState(1:3,iPart) via UsePartState_opt=.TRUE. to show where the particles have been
+        ! moved to via the VDL displacement. Otherwise, LastPartPos(1:3,iPart) would contain the position where the particles have
+        ! impacted on the VDL boundary (the actual tracking BC. i.e. the mesh, not the virtual layer around the BC)
+        CALL StoreLostParticleProperties(iPart,ElemID,UsePartState_opt=.TRUE.,PartMissingType_opt=PartSpecies(iPart))
+        NbrOfLostParticles=NbrOfLostParticles+1
+      END IF ! CountNbrOfLostParts
+      ! Reset to original species index before removing the particle
+      PartSpecies(iPart) = ABS(PartSpecies(iPart)) - SpeciesOffsetVDL
+      CALL RemoveParticle(iPart,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+      RETURN
+    END IF ! PDM%ParticleInside(iPart)
+  END IF ! IsVDLSpecID(iPart)
+END IF ! DoVirtualDielectricLayer
 #endif /*USE_HDG*/
 
 ! Calculate normal vector
