@@ -50,7 +50,6 @@ core
 # hopr debug files
 sfc.dat
 
-
 # visualization files
 *.vtu
 *.h5
@@ -88,3 +87,6 @@ reggie/
 
 # pyenv project settings
 .python-version
+
+# gmsh mesh files
+*.msh
