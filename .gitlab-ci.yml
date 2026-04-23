@@ -1544,7 +1544,7 @@ WEK_DSMC_Radiation:
   <<: *defaults_DSMC_weekly
   needs: [build_DSMC]
   cache:
-    - key: "reggie"
+    - key: "venv"
       paths: [reggie]
       policy: pull
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"
