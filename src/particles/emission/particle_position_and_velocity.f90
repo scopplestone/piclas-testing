@@ -265,6 +265,7 @@ USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonHoneycomb, SetPar
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLandmark,SetParticlePositionLandmarkNeutralization
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLiu2010Neutralization,SetParticlePositionLiu2010Neutralization3D
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLiu2010SzaboNeutralization
+USE MOD_part_emission_tools    ,ONLY: SetParticlePositionTaccogna2022Neutralization
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Part_Tools             ,ONLY: IncreaseMaxParticleNumber, GetNextFreePosition
@@ -413,6 +414,11 @@ IF (PartMPIInitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
     ! Neutralization at right BC (max. x-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010) - 2D and 3D case
     ! Some procs might have nothing to emit (cells are quasi neutral or negatively charged)
     IF(chunkSize.GT.0) CALL SetParticlePositionLiu2010SzaboNeutralization(chunkSize)
+  CASE('2D_Taccogna2022_neutralization')
+    ! Neutralization in right part of domain. F. Taccogna "Coupling plasma physics and chemistry in the PIC model of electric
+    ! propulsion: Application to an air-breathing, low-power Hall thruster" - 2D case
+    ! Some procs might have nothing to emit
+    IF(chunkSize.GT.0) CALL SetParticlePositionTaccogna2022Neutralization(FractNbr,chunkSize)
   END SELECT
   !------------------SpaceIC-cases: end-------------------------------------------------------------------------------------------
 #if USE_MPI
@@ -545,7 +551,7 @@ CASE('gyrotron_circle')
       PartState(4:6,PositionNbr) = Vec3D(1:3)
     END IF
   END DO
-CASE('maxwell_lpn','2D_landmark','2D_landmark_copy','2D_landmark_neutralization')
+CASE('maxwell_lpn','2D_landmark','2D_landmark_copy','2D_landmark_neutralization','2D_Taccogna2022_neutralization')
   ! maxwell_lpn: Maxwell low particle number
   ! 2D_landmark: Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark for low-temperature partially
   !              magnetized plasmas (2019)
@@ -557,8 +563,7 @@ CASE('maxwell_lpn','2D_landmark','2D_landmark_copy','2D_landmark_neutralization'
     END IF
   END DO
 CASE('2D_Liu2010_neutralization','3D_Liu2010_neutralization','2D_Liu2010_neutralization_Szabo','3D_Liu2010_neutralization_Szabo')
-  IF(.NOT.CalcBulkElectronTemp) CALL abort(__STAMP__,&
-      'Velocity distribution 2D_Liu2010_neutralization requires CalcBulkElectronTemp=T')
+  IF(.NOT.CalcBulkElectronTemp) CALL CollectiveStop(__STAMP__,'Velocity distribution 2D_Liu2010_neutralization needs CalcBulkElectronTemp=T')
   ! Use the global electron temperature if available
   DO iPart = 1,NbrOfParticle
     PositionNbr = GetNextFreePosition(iPart)
@@ -964,6 +969,5 @@ DO iElem = 1, nElems
 
 END DO ! iElem = 1, nElems
 END SUBROUTINE ParticleEmissionFromDistribution
-
 
 END  MODULE MOD_part_pos_and_velo

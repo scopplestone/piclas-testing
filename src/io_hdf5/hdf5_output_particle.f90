@@ -1405,7 +1405,6 @@ DO iSpec=1,nSpecies
      CASE(9) ! '2D_landmark_neutralization'
        ! Re-load the value because the emission communicator can change during load balance restarts: MPIRoot is always part of this
        ! specific communicator
-
        NeutralizationBalanceTmp(1) = NeutralizationBalanceGlobal
 
        WRITE(InitName,'(A,I0,A,I0)') 'Spec',iSpec,'Init',iInit

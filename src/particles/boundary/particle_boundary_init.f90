@@ -814,6 +814,13 @@ IF(Symmetry%Order.LT.3) THEN
   END IF
 END IF
 
+! If global deposition is deactivated, turn off the surface deposition flags
+IF (.NOT.DoDeposition) THEN
+  Do2DSurfaceCharge = .FALSE.
+  DoHaloDepo        = .FALSE. ! Deactivate deposition in the halo region (shape function)
+  DoDielectricSurfaceCharge = .FALSE.
+END IF ! .NOT.DoDeposition
+
 END SUBROUTINE InitializeVariablesPartBoundary
 
 

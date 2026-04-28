@@ -117,6 +117,7 @@ LOGICAL, ALLOCATABLE :: isNeutralizationElem(:)     ! Flag each element if it is
 INTEGER, ALLOCATABLE :: NeutralizationBalanceElem(:)! Number of particles to be emitted within each neutralization element
 INTEGER              :: NeutralizationBalance       ! Counter for charged particles (processor local): Add +1 for electrons and -1 for ions
 INTEGER              :: NeutralizationBalanceGlobal ! Counter for charged particles (global): Add +1 for electrons and -1 for ions
+REAL                 :: NeutralizationBalanceCurrent ! Electric current (positive) for emitted electrons. Note that the sampling time is only considered in the when the data is written to .csv
 
 ! Bulk electron temperature
 REAL              :: BulkElectronTemp            ! Bulk electron temperature for SEE model by Morozov2004
