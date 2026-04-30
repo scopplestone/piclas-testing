@@ -339,7 +339,7 @@ IMPLICIT NONE
 INTEGER           :: iSpec,iInit ! ,InitGroup
 LOGICAL           :: DataExists
 CHARACTER(LEN=50) :: InitName
-INTEGER(KIND=IK)  :: NeutralizationBalanceDummyArray(1:1) ! This is a dummy array of size 1 !
+REAL              :: NeutralizationBalanceDummyArray(1:1) ! This is a dummy array of size 1 !
 !===================================================================================================================================
 ! Loop over all species and inits
 DO iSpec=1,nSpecies
@@ -362,7 +362,7 @@ DO iSpec=1,nSpecies
          ! Read data only if dataset exists
          IF(DataExists)THEN
            ! Read the dataset into the dummy array of size 1:1
-           CALL ReadArray(TRIM(InitName),1,(/1_IK/),0_IK,1,IntegerArray=NeutralizationBalanceDummyArray)
+           CALL ReadArray(TRIM(InitName),1,(/1_IK/),0_IK,1,RealArray=NeutralizationBalanceDummyArray)
          ELSE
            ! If the dataset does not exist, set the value to zero
            WRITE (*,*) "Read array ["//TRIM(InitName)//"] from restart file ["//TRIM(RestartFile)//"] failed. "//&
@@ -373,10 +373,12 @@ DO iSpec=1,nSpecies
          ! Close the .h5 file
          CALL CloseDataFile()
          ! Set the global value
-         NeutralizationBalanceGlobal = INT(NeutralizationBalanceDummyArray(1),4)
+         NeutralizationBalanceGlobal = NeutralizationBalanceDummyArray(1)
          ! Set local value (only MPIRoot)
          NeutralizationBalance       = NeutralizationBalanceGlobal
        END IF ! MPIRoot
+     CASE DEFAULT
+       ! Do nothing
      END SELECT ! Species(iSpec)%Init(iInit)%ParticleEmissionType
   END DO  ! iInit
 END DO  ! iSpec=1,nSpecies

@@ -342,7 +342,7 @@ DO iSpec = 1, nSpecies
       NeutralizationSource = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-NeutralizationSource'))
       CALL LowCase(NeutralizationSource, NeutralizationSourceLoc)
       NeutralizationSource = TRIM(NeutralizationSourceLoc)
-      NeutralizationBalance = 0
+      NeutralizationBalance = 0.0
       NeutralizationBalanceCurrent = 0.0
       UseNeutralization = .TRUE.
       DoSurfModelAnalyze = .TRUE.

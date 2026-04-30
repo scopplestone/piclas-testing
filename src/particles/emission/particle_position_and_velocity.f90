@@ -339,7 +339,7 @@ CASE('2D_Liu2010_neutralization_Szabo','3D_Liu2010_neutralization_Szabo')
     MPF = Species(FractNbr)%MacroParticleFactor ! Use species MPF
   END IF ! usevMPF
   ! Override the chunkSize with the processor-local sum of the required number of emitted particles
-  chunkSize = NINT(REAL(NeutralizationBalance)/MPF) ! Sum over all elements of each processor (not global over all procs)
+  chunkSize = NINT(NeutralizationBalance/MPF) ! Sum over all elements of each processor (not global over all procs)
   nChunks   = 2 ! dummy value that is greater than 1
 CASE DEFAULT
 END SELECT

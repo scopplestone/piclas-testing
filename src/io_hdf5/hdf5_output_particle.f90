@@ -1393,7 +1393,7 @@ CHARACTER(LEN=*),INTENT(IN) :: FileName
 ! LOCAL VARIABLES
 INTEGER           :: iSpec,iInit ! ,InitGroup
 CHARACTER(LEN=50) :: InitName
-INTEGER(KIND=IK)  :: NeutralizationBalanceTmp(1:1) ! This is a dummy array of size 1 !
+REAL              :: NeutralizationBalanceTmp(1:1) ! This is a dummy array of size 1 !
 !===================================================================================================================================
 ! Only root writes the data
 IF(.NOT.MPIRoot) RETURN
@@ -1418,7 +1418,7 @@ DO iSpec=1,nSpecies
                                nValGlobal  = (/nGlobalEntries/) , &
                                nVal        = (/nEntries      /) , &
                                offset      = (/offsetEntries /) , &
-                               collective  = .FALSE. , IntegerArray = NeutralizationBalanceTmp)
+                               collective  = .FALSE. , RealArray = NeutralizationBalanceTmp)
        END ASSOCIATE
        CALL CloseDataFile()
 

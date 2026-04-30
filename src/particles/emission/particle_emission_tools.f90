@@ -2484,9 +2484,9 @@ INTEGER  :: iPart,iElem,iSpec
 REAL     :: MPF
 !===================================================================================================================================
 ! Reset local counter each time
-NeutralizationBalance = 0
+NeutralizationBalance = 0.0
 ! Reset local counter each time
-NeutralizationBalanceElem = 0
+NeutralizationBalanceElem = 0.0
 
 ! Loop all particles and check whether they are inside a neutralization element and sum up all charges
 DO iPart = 1, PDM%ParticleVecLength
@@ -2506,7 +2506,7 @@ DO iPart = 1, PDM%ParticleVecLength
       END IF
       ! Add -1 for electrons and +X for ions:  This is opposite to the summation in RemoveParticle() where the surplus of electrons
       ! is calculated and re-introduced at the boundary
-      NeutralizationBalanceElem(iElem) = NeutralizationBalanceElem(iElem) + NINT(Species(iSpec)%ChargeIC/ElementaryCharge*MPF)
+      NeutralizationBalanceElem(iElem) = NeutralizationBalanceElem(iElem) + Species(iSpec)%ChargeIC/ElementaryCharge*MPF
     END IF ! isNeutralizationElem(iElem)
   END IF
 END DO
