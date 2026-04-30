@@ -47,7 +47,7 @@ REAL                          :: PCouplAverageOld                    !< Power th
 TYPE tPCoupl
   REAL,ALLOCATABLE            :: DensityAvgElem(:)                   !< Power per volume that is coupled into plasma (moving average
                                                                      !< for each element) in [W/m^3]
-END TYPE
+END TYPE tPCoupl
 TYPE(tPCoupl),ALLOCATABLE     :: PCouplSpec(:)                       !< DensityAvgElem array for each species
 
 

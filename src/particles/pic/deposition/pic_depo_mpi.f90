@@ -24,7 +24,7 @@ PRIVATE
 TYPE NodeDepoMapping
   INTEGER                                     :: NodeID
   TYPE (NodeDepoMapping), POINTER             :: next => NULL()
-END TYPE
+END TYPE NodeDepoMapping
 !===================================================================================================================================
 PUBLIC :: InitDepoNodesMPI
 PUBLIC :: InitDepoSurfNodesMPI
@@ -81,7 +81,7 @@ TYPE tElemNodeDepoMap
   TYPE (NodeDepoMapping), POINTER :: first => NULL()
   LOGICAL               :: firstNode
   INTEGER               :: nNodes
-END TYPE
+END TYPE tElemNodeDepoMap
 TYPE(tElemNodeDepoMap), ALLOCATABLE :: ElemNodeDepoMap(:)
 TYPE(NodeDepoMapping), POINTER :: node
 !===================================================================================================================================
@@ -418,7 +418,7 @@ TYPE tElemNodeDepoMap
   TYPE (NodeDepoMapping), POINTER :: first => NULL()
   LOGICAL               :: firstNode
   INTEGER               :: nNodes
-END TYPE
+END TYPE tElemNodeDepoMap
 TYPE(tElemNodeDepoMap), ALLOCATABLE :: ElemNodeDepoMap(:)
 TYPE(NodeDepoMapping), POINTER :: node
 INTEGER :: iVertexConnect,GlobalNbElemID

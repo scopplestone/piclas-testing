@@ -21,42 +21,42 @@
 !*   Barcelona Supercomputing Center - Centro Nacional de Supercomputacion   *
 !*****************************************************************************
 
-!* -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- 
+!* -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 !| @file: $HeadURL: https://svn.bsc.es/repos/ptools/extrae/branches/2.3/include/extrae_module.f $
 !| @last_commit: $Date: 2013-05-16 12:34:14 +0200 (dj, 16 mai 2013) $
 !| @version:     $Revision: 1724 $
-!* -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- 
+!* -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
       module EXTRAE_MODULE
 
-      integer*4 extrae_disable_all_options
+      integer*4 :: extrae_disable_all_options
       parameter (extrae_disable_all_options=0)
 
-      integer*4 extrae_caller_option 
+      integer*4 :: extrae_caller_option
       parameter (extrae_caller_option=1)
 
-      integer*4 extrae_hwc_option
-      parameter (extrae_hwc_option=2)  
+      integer*4 :: extrae_hwc_option
+      parameter (extrae_hwc_option=2)
 
-      integer*4 extrae_mpi_hwc_option
+      integer*4 :: extrae_mpi_hwc_option
       parameter (extrae_mpi_hwc_option=4)
 
-      integer*4 extrae_mpi_option
+      integer*4 :: extrae_mpi_option
       parameter (extrae_mpi_option=8)
 
-      integer*4 extrae_omp_option
+      integer*4 :: extrae_omp_option
       parameter (extrae_omp_option=16)
 
-      integer*4 extrae_omp_hwc_option
+      integer*4 :: extrae_omp_hwc_option
       parameter (extrae_omp_hwc_option=32)
 
-      integer*4 extrae_uf_hwc_option
+      integer*4 :: extrae_uf_hwc_option
       parameter (extrae_uf_hwc_option=64)
 
-      integer*4 extrae_sampling_option
+      integer*4 :: extrae_sampling_option
       parameter (extrae_sampling_option=128)
 
-      integer*4 extrae_enable_all_options
+      integer*4 :: extrae_enable_all_options
       parameter (extrae_enable_all_options=255)
 
       interface
@@ -107,7 +107,7 @@
          end subroutine extrae_neventandcounters
 
          subroutine extrae_counters
-         end subroutine
+         end subroutine extrae_counters
 
          subroutine extrae_previous_hwc_set
          end subroutine extrae_previous_hwc_set

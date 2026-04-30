@@ -44,7 +44,7 @@ TYPE tPartMPIGROUP
   LOGICAL                                 :: MPIRoot                        ! Root, MPIRank=0
   INTEGER,ALLOCATABLE                     :: GroupToComm(:)                 ! list containing the rank in PartMPI%COMM
   INTEGER,ALLOCATABLE                     :: CommToGroup(:)                 ! list containing the rank in PartMPI%COMM
-END TYPE
+END TYPE tPartMPIGROUP
 
 TYPE(tPartMPIGROUP),ALLOCATABLE           :: PartMPIInitGroup(:)            ! small communicator for initialization
 
@@ -84,7 +84,7 @@ TYPE tMPIMessage
   REAL,ALLOCATABLE                        :: content(:)                     ! message buffer real
   LOGICAL,ALLOCATABLE                     :: content_log(:)                 ! message buffer logical for BGM
   INTEGER,ALLOCATABLE                     :: content_int(:)                 ! message buffer for integer
-END TYPE
+END TYPE tMPIMessage
 
 TYPE(tMPIMessage),ALLOCATABLE             :: PartRecvBuf(:)                 ! PartRecvBuf with all required types
 TYPE(tMPIMessage),ALLOCATABLE             :: PartSendBuf(:)                 ! PartSendBuf with all required types
@@ -105,7 +105,7 @@ TYPE tParticleMPIExchange
   TYPE(MPI_Request),ALLOCATABLE           :: SendRequest(:,:)               ! Send request message handle 1 - Number, 2-Message
   TYPE(MPI_Request),ALLOCATABLE           :: RecvRequest(:,:)               ! Receive request message handle,  1 - Number, 2-Message
   TYPE(tMPIMessage),ALLOCATABLE           :: send_message(:)                ! Message, required for particle emission
-END TYPE
+END TYPE tParticleMPIExchange
 
 TYPE (tParticleMPIExchange)               :: PartMPIExchange
 TYPE (tParticleMPIExchange)               :: PartMPIInsert
