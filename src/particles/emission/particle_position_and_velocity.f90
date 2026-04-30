@@ -253,7 +253,7 @@ SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,FractNbrOld,chunkSizeOld,NeutralizationBalance, PartPosRef, PEM
+USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,FractNbrOld,chunkSizeOld,NeutralizationBalance, PartPosRef, PEM,usevMPF
 USE MOD_Particle_Localization  ,ONLY: SinglePointToElement
 USE MOD_part_emission_tools    ,ONLY: IntegerDivide,SetParticlePositionPoint
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionEquidistLine, SetParticlePositionLine, SetParticlePositionDisk
@@ -293,6 +293,7 @@ INTEGER, ALLOCATABLE                     :: AcceptedParts(:)
 #if USE_MPI
 INTEGER                                  :: InitGroup
 #endif
+REAL                                     :: MPF
 !===================================================================================================================================
 Species(FractNbr)%Init(iInit)%sumOfRequestedParticles = NbrOfParticle
 IF((NbrOfParticle.LE.0).AND.(ABS(Species(FractNbr)%Init(iInit)%PartDensity).LE.0.)) RETURN
@@ -331,8 +332,14 @@ END IF
 ! Set special chunkSize (also for MPI=OFF)
 SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC))
 CASE('2D_Liu2010_neutralization_Szabo','3D_Liu2010_neutralization_Szabo')
+  ! Get MPF of emission species
+  IF(usevMPF)THEN
+    MPF = Species(FractNbr)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF
+  ELSE
+    MPF = Species(FractNbr)%MacroParticleFactor ! Use species MPF
+  END IF ! usevMPF
   ! Override the chunkSize with the processor-local sum of the required number of emitted particles
-  chunkSize = NeutralizationBalance ! Sum over all elements of each processor (not global over all procs)
+  chunkSize = NINT(REAL(NeutralizationBalance)/MPF) ! Sum over all elements of each processor (not global over all procs)
   nChunks   = 2 ! dummy value that is greater than 1
 CASE DEFAULT
 END SELECT
@@ -351,8 +358,6 @@ IF (PartMPIInitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
     particle_positions_size = chunkSize*DimSend
   END IF
   ALLOCATE( particle_positions(1:particle_positions_size), STAT=allocStat )
-  IF (allocStat .NE. 0) &
-    CALL abort(__STAMP__,'ERROR in SetParticlePosition: cannot allocate particle_positions!')
   ! Sanity check
   IF (allocStat .NE. 0) CALL abort(__STAMP__,'ERROR in SetParticlePosition: cannot allocate particle_positions!')
 
@@ -413,7 +418,7 @@ IF (PartMPIInitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
   CASE('2D_Liu2010_neutralization_Szabo','3D_Liu2010_neutralization_Szabo')
     ! Neutralization at right BC (max. x-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010) - 2D and 3D case
     ! Some procs might have nothing to emit (cells are quasi neutral or negatively charged)
-    IF(chunkSize.GT.0) CALL SetParticlePositionLiu2010SzaboNeutralization(chunkSize)
+    IF(chunkSize.GT.0) CALL SetParticlePositionLiu2010SzaboNeutralization(chunkSize,MPF)
   CASE('2D_Taccogna2022_neutralization')
     ! Neutralization in right part of domain. F. Taccogna "Coupling plasma physics and chemistry in the PIC model of electric
     ! propulsion: Application to an air-breathing, low-power Hall thruster" - 2D case

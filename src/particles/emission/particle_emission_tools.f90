@@ -2295,7 +2295,7 @@ chunkSize = chunkSize2
 END SUBROUTINE SetParticlePositionLiu2010Neutralization
 
 
-SUBROUTINE SetParticlePositionLiu2010SzaboNeutralization(chunkSize)
+SUBROUTINE SetParticlePositionLiu2010SzaboNeutralization(chunkSize,MPF)
 !===================================================================================================================================
 ! Create particle position at random position within one of the neutralization elements
 !===================================================================================================================================
@@ -2313,6 +2313,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)     :: chunkSize
+REAL, INTENT(IN)        :: MPF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2334,7 +2335,7 @@ DO iElem = 1, nElems
   ! Only consider neutralization elements
   IF(isNeutralizationElem(iElem))THEN
     ! Loop over the number of required particles per element
-    DO i = 1, NeutralizationBalanceElem(iElem)
+    DO i = 1, NINT(NeutralizationBalanceElem(iElem)/MPF)
       ! Count number of emitted particles to compare with chunkSize later on
       emittedParticles = emittedParticles + 1
       ! Emit at random position in element (assume tri-linear element geometry, if position is outside discard the position)
@@ -2358,7 +2359,7 @@ END DO ! iElem = 1, nElems
 ! Sanity check: Total number of emitted particles must be equal to the chunkSize
 IF(emittedParticles.NE.chunkSize)THEN
   IPWRITE(UNIT_StdOut,*) "emittedParticles,chunkSize =", emittedParticles,chunkSize
-  CALL abort(__STAMP__,'Total number of emitted particles must be equal to the chunkSize')
+  CALL abort(__STAMP__,'Total number of emitted particles must be equal to the chunkSize. vMPF is not tested with this method!')
 END IF ! emittedParticles.NE.chunkSize
 END SUBROUTINE SetParticlePositionLiu2010SzaboNeutralization
 
@@ -2471,7 +2472,7 @@ SUBROUTINE CountNeutralizationParticles()
 USE MOD_globals
 USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
 USE MOD_Particle_Vars ,ONLY: isNeutralizationElem,PDM,PEM,NeutralizationBalance,PartSpecies,Species
-USE MOD_Particle_Vars ,ONLY: NeutralizationBalanceElem
+USE MOD_Particle_Vars ,ONLY: NeutralizationBalanceElem,usevMPF,PartMPF
 USE MOD_part_tools    ,ONLY: ParticleOnProc
 USE MOD_Mesh_Vars     ,ONLY: nElems
 IMPLICIT NONE
@@ -2480,6 +2481,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER  :: iPart,iElem,iSpec
+REAL     :: MPF
 !===================================================================================================================================
 ! Reset local counter each time
 NeutralizationBalance = 0
@@ -2492,13 +2494,19 @@ DO iPart = 1, PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart).AND.ParticleOnProc(iPart)) THEN
     ! Get local elem ID
     iElem = PEM%LocalElemID(iPart)
-    ! Get species ID
-    iSpec = PartSpecies(iPart)
     ! Check if particle is in neutralization element
     IF(isNeutralizationElem(iElem))THEN
+      ! Get species ID
+      iSpec = PartSpecies(iPart)
+      ! Determine the particle weight without using the GetParticleWeight function, which includes the time step
+      IF(usevMPF) THEN
+        MPF = PartMPF(iPart)
+      ELSE
+        MPF = Species(iSpec)%MacroParticleFactor
+      END IF
       ! Add -1 for electrons and +X for ions:  This is opposite to the summation in RemoveParticle() where the surplus of electrons
       ! is calculated and re-introduced at the boundary
-      NeutralizationBalanceElem(iElem) = NeutralizationBalanceElem(iElem) + NINT(Species(iSpec)%ChargeIC/ElementaryCharge)
+      NeutralizationBalanceElem(iElem) = NeutralizationBalanceElem(iElem) + NINT(Species(iSpec)%ChargeIC/ElementaryCharge*MPF)
     END IF ! isNeutralizationElem(iElem)
   END IF
 END DO
