@@ -29,7 +29,7 @@ ABSTRACT INTERFACE
     USE MOD_Particle_Vars ,ONLY: PDM
     LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! Marked particles for deposition
     INTEGER,INTENT(IN),OPTIONAL :: stage_opt ! TODO: definition of this variable
-  END SUBROUTINE
+  END SUBROUTINE DepositionMethodInterface
 END INTERFACE
 
 PROCEDURE(DepositionMethodInterface),POINTER :: DepositionMethod    !< pointer defining the standard inner Riemann solver

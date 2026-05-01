@@ -63,7 +63,7 @@ TYPE tBoundaryParticleOutput
   INTEGER,ALLOCATABLE           :: SpecIDToBPOSpecID(:)     !< Mapping SpecID to BPOSpecID (1:BpoNSpecies)
 
   LOGICAL                       :: OutputTotalElectricCurrent !< calculate the sum of all charged particle currents and SEE
-END TYPE
+END TYPE tBoundaryParticleOutput
 
 TYPE(tBoundaryParticleOutput)   :: BPO
 
@@ -77,7 +77,7 @@ TYPE tSurfaceGroup
   REAL,ALLOCATABLE              :: Area(:)
   REAL,ALLOCATABLE              :: VarTimeStep(:)             ! Sum timestep weigthing factor for variable time step
   INTEGER,ALLOCATABLE           :: Counter(:)                 ! Total number of wall interactions per group
-END TYPE
+END TYPE tSurfaceGroup
 
 TYPE(tSurfaceGroup)   :: SurfaceGroup
 
@@ -97,7 +97,7 @@ TYPE tSEE
   INTEGER             :: NPartBoundaries    !< Total number of boundaries where the particles are counted
   INTEGER,ALLOCATABLE :: PartBoundaries(:)  !< Part-boundary number on which the particles are counted
   INTEGER,ALLOCATABLE :: BCIDToSEEBCID(:)   !< Mapping BCID to iSEE (1:nPartBound)
-END TYPE
+END TYPE tSEE
 
 TYPE(tSEE)   :: SEE
 

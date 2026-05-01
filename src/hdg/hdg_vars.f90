@@ -154,7 +154,7 @@ TYPE tMPIGROUP
   INTEGER                     :: nProcs                 !< number of MPI processes part of the FPC group
   INTEGER                     :: nProcsWithSides        !< number of MPI processes part of the FPC group and actual FPC sides
   INTEGER                     :: MyRank                 !< MyRank within communicator
-END TYPE
+END TYPE tMPIGROUP
 #endif /*USE_MPI*/
 
 !===================================================================================================================================
@@ -184,7 +184,7 @@ TYPE tFPC
                                                     !<   3: number of BCSides for each FPC group
   INTEGER,ALLOCATABLE         :: GroupGlobal(:)     !< Sum of nSides associated with each i-th FPC boundary
   LOGICAL,ALLOCATABLE         :: BConProc(:)        !< True, if iUniqueFPCBC is on current process
-END TYPE
+END TYPE tFPC
 
 TYPE(tFPC)   :: FPC
 !===================================================================================================================================
@@ -214,7 +214,7 @@ TYPE tEPC
                                                     !<   2: iUniqueEPC (i-th EPC group ID)
                                                     !<   3: number of BCSides for each EPC group
   INTEGER,ALLOCATABLE         :: GroupGlobal(:)     !< Sum of nSides associated with each i-th EPC boundary
-END TYPE
+END TYPE tEPC
 
 TYPE(tEPC)   :: EPC
 #if defined(PARTICLES)
@@ -254,7 +254,7 @@ TYPE tBV
   REAL                :: BVData(BVDataLength) !< 1: bias voltage
 !                                             !< 2: Ion excess
 !                                             !< 3: sim. time when next adjustment happens
-END TYPE
+END TYPE tBV
 
 TYPE(tBV)   :: BiasVoltage
 #endif /*defined(PARTICLES)*/

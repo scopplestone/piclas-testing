@@ -100,7 +100,7 @@ LOGICAL                       :: CalcBoundaryFieldOutput !< Flag for activating 
 TYPE tBoundaryFieldOutput
   INTEGER                       :: NFieldBoundaries   !< Total number of boundaries where the field BC is stored to .csv
   INTEGER,ALLOCATABLE           :: FieldBoundaries(:) !< Field-boundary number (iBC)
-END TYPE
+END TYPE tBoundaryFieldOutput
 
 TYPE(tBoundaryFieldOutput)   :: BFO
 !===================================================================================================================================
@@ -112,7 +112,7 @@ TYPE tMPIGROUP
   TYPE(mpi_comm)              :: UNICATOR=MPI_COMM_NULL !< MPI communicator for electric displacement current
   INTEGER                     :: nProcs                 !< number of MPI processes for particles
   INTEGER                     :: MyRank                 !< MyRank within communicator
-END TYPE
+END TYPE tMPIGROUP
 #endif /*USE_MPI*/
 
 !-- Electric displacement current
@@ -124,7 +124,7 @@ TYPE tEDC
   INTEGER                     :: NBoundaries         !< Total number of boundaries where the electric displacement current is evaluated
   INTEGER,ALLOCATABLE         :: FieldBoundaries(:)  !< Field-boundary number on which the particles are counted
   INTEGER,ALLOCATABLE         :: BCIDToEDCBCID(:)    !< Mapping BCID to EDC BCID (1:nPartBound)
-END TYPE
+END TYPE tEDC
 
 TYPE(tEDC) :: EDC
 
@@ -138,7 +138,7 @@ TYPE tEPE
   INTEGER                     :: NBoundaries         !< Total number of boundaries where the electric displacement current is evaluated
   INTEGER,ALLOCATABLE         :: FieldBoundaries(:)  !< Field-boundary number on which the particles are counted
   INTEGER,ALLOCATABLE         :: BCIDToEPEBCID(:)    !< Mapping BCID to EPE BCID (1:nPartBound)
-END TYPE
+END TYPE tEPE
 
 TYPE(tEPE) :: EPE
 !===================================================================================================================================

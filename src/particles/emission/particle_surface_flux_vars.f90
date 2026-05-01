@@ -94,7 +94,7 @@ TYPE tSurfaceFlux
   LOGICAL                                :: SchottkyEffectTE                 ! Flag for Schottky effect in thermionic emission
   REAL                                   :: WorkFunctionTE                   ! Material-specific work function [Input: eV]
   REAL                                   :: RichardsonConstant               ! Material-specific constant [Input: A/(cm^2*K^2)]
-END TYPE
+END TYPE tSurfaceFlux
 
 LOGICAL                                 :: UseCircularInflow              ! Flag is set if the circular inflow feature is used:
                                                                           ! Particle insertion only in the defined circular area
