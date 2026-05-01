@@ -173,8 +173,8 @@ before_script:
 stages:
   - build
   - build_weekly
-  - reggie_checkin
-  - reggie_feature_checkin
+  - reggie_checkin_short
+  - reggie_checkin_long
   - reggie_DSMC_nightly
 #  - reggie_bgk_nightly
   - reggie_tools_nightly
@@ -941,19 +941,19 @@ run_build_petsc_in_piclas:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 CHE_maxwell_run_basic:
   <<: *defaults_checkin
-  stage: reggie_checkin
+  stage: reggie_checkin_short
   script:
     - cd build ; reggie ../regressioncheck/run_basic/maxwell -e ./bin/piclas
 
 CHE_maxwell_only:
   <<: *defaults_maxwell_only
-  stage: reggie_checkin
+  stage: reggie_checkin_short
   script:
     - cd build_maxwell_only ; reggie ../regressioncheck/CHE_maxwell/maxwell -e ./bin/piclas
 
 CHE_poisson_release_RK3:
   <<: *defaults_poisson_checkin
-  stage: reggie_checkin
+  stage: reggie_checkin_long
   script:
     - cd build_poisson_release_RK3 ; reggie ../regressioncheck/CHE_poisson -e ./bin/piclas
 
@@ -965,7 +965,7 @@ NIG_poisson_debug_RK3:
 
 CHE_poisson_petsc_release_RK3:
   <<: *defaults_poisson_petsc_checkin
-  stage: reggie_checkin
+  stage: reggie_checkin_long
   script:
     - cd build_poisson_petsc_release_RK3 ; reggie ../regressioncheck/CHE_poisson -e ./bin/piclas
 
@@ -977,13 +977,13 @@ NIG_poisson_petsc_debug:
 
 CHE_drift_diffusion:
   <<: *defaults_drift_diffusion_checkin
-  stage: reggie_checkin
+  stage: reggie_checkin_short
   script:
     - cd build_drift_diffusion ; reggie ../regressioncheck/CHE_drift_diffusion_explicit-FV -e ./bin/piclas
 
 CHE_discrete_velocity:
   <<: *defaults_DVM_checkin
-  stage: reggie_checkin
+  stage: reggie_checkin_short
   script:
     - cd build_DVM ; reggie ../regressioncheck/CHE_DVM -e ./bin/piclas
 
@@ -994,37 +994,37 @@ CHE_discrete_velocity:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 CHE_PIC_maxwell_RK4:
   <<: *defaults_checkin
-  stage: reggie_feature_checkin
+  stage: reggie_checkin_short
   script:
     - cd build ; reggie ../regressioncheck/CHE_PIC_maxwell_RK4 -e ./bin/piclas
 
 CHE_PIC_maxwell_RK4_p_adaption:
   <<: *defaults_checkin
-  stage: reggie_feature_checkin
+  stage: reggie_checkin_short
   script:
     - cd build ; reggie ../regressioncheck/CHE_PIC_maxwell_RK4_p_adaption -e ./bin/piclas
 
 CHE_DSMC:
   <<: *defaults_DSMC_checkin
-  stage: reggie_feature_checkin
+  stage: reggie_checkin_long
   script:
     - cd build_DSMC_release ; reggie ../regressioncheck/CHE_DSMC -e ./bin/piclas
 
 CHE_BGK:
   <<: *defaults_checkin
-  stage: reggie_feature_checkin
+  stage: reggie_checkin_long
   script:
     - cd build ; reggie ../regressioncheck/CHE_BGK
 
 CHE_FPFlow:
   <<: *defaults_checkin
-  stage: reggie_feature_checkin
+  stage: reggie_checkin_long
   script:
     - cd build ; reggie ../regressioncheck/CHE_FPFlow
 
 CHE_poisson_p_adaption_release:
   <<: *defaults_poisson_petsc_checkin
-  stage: reggie_feature_checkin
+  stage: reggie_checkin_long
   script:
     - cd build_poisson_petsc_release_Leapfrog ; reggie ../regressioncheck/CHE_poisson_p_adaption -e ./bin/piclas
 
@@ -1036,13 +1036,13 @@ NIG_poisson_p_adaption_debug:
 
 CHE_poisson_periodic:
   <<: *defaults_checkin
-  stage: reggie_feature_checkin
+  stage: reggie_checkin_long
   script:
     - cd build ; reggie ../regressioncheck/CHE_poisson_periodic
 
 CHE_DVM_plasma:
   <<: *defaults_DVM_plasma_checkin
-  stage: reggie_feature_checkin
+  stage: reggie_checkin_short
   script:
     - cd build_DVM_plasma ; reggie ../regressioncheck/CHE_DVM_plasma -e ./bin/piclas
 
