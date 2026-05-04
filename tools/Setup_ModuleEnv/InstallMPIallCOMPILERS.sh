@@ -79,6 +79,7 @@ elif [ "${WHICHMPI}" == "mpich" ]; then
   MPIVERSION=4.1.2
   # MPIVERSION=4.2.1
   MPIVERSION=4.3.1
+  MPIVERSION=5.0.1
 elif [ "${WHICHMPI}" == "mpich-debug" ]; then
   # DOWNLOAD and INSTALL MPICH (example mpich-3.2.0)
   MPIVERSION=4.1.2
