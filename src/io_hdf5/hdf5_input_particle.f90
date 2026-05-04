@@ -323,12 +323,9 @@ SUBROUTINE ReadEmissionVariablesFromHDF5()
 #if USE_MPI
 USE mpi_f08
 #endif /*USE_MPI*/
-!USE MOD_io_HDF5
 USE MOD_Globals
-!USE MOD_PreProc
 USE MOD_Particle_Vars     ,ONLY: Species,nSpecies
-USE MOD_Particle_Vars     ,ONLY: NeutralizationBalanceGlobal
-!USE MOD_Particle_Vars     ,ONLY: NeutralizationBalance
+USE MOD_Particle_Vars     ,ONLY: NeutralizationBalance,NeutralizationBalanceGlobal
 USE MOD_HDF5_Input        ,ONLY: ReadArray,DatasetExists
 USE MOD_Restart_Vars      ,ONLY: RestartFile
 ! IMPLICIT VARIABLE HANDLING
@@ -342,7 +339,7 @@ IMPLICIT NONE
 INTEGER           :: iSpec,iInit ! ,InitGroup
 LOGICAL           :: DataExists
 CHARACTER(LEN=50) :: InitName
-INTEGER(KIND=IK)  :: NeutralizationBalanceTmp(1:1) ! This is a dummy array of size 1 !
+REAL              :: NeutralizationBalanceDummyArray(1:1) ! This is a dummy array of size 1 !
 !===================================================================================================================================
 ! Loop over all species and inits
 DO iSpec=1,nSpecies
@@ -351,40 +348,38 @@ DO iSpec=1,nSpecies
      CASE(9) ! '2D_landmark_neutralization'
        ! Re-load the value because the emission communicator can change during load balance restarts: MPIRoot is always part of this
        ! specific communicator
-
        ! Only the root reads the data and replaces his value, which will be communicated via the all-reduce (he also does the
        ! initial output)
        IF(MPIRoot)THEN
-
-         IF(.NOT.FILEEXISTS(RestartFile)) &
-             CALL abort(__STAMP__,'Error in ReadEmissionVariablesFromHDF5() because RestartFile does not exist: '//TRIM(RestartFile))
-
+         ! Check if the restart file exists, before trying to access it
+         IF(.NOT.FILEEXISTS(RestartFile)) CALL abort(__STAMP__,'Error in ReadEmissionVariablesFromHDF5() because RestartFile does not exist: '//TRIM(RestartFile))
+         ! Open the .h5 restart file
          CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+         ! Set string name from species and init
          WRITE(InitName,'(A,I0,A,I0)') 'Spec',iSpec,'Init',iInit
+         ! Check if the dataset exists in the .h5 file
          CALL DatasetExists(File_ID,TRIM(InitName),DataExists)
+         ! Read data only if dataset exists
          IF(DataExists)THEN
-           CALL ReadArray(TRIM(InitName),1,(/1_IK/),0_IK,1,IntegerArray=NeutralizationBalanceTmp)
+           ! Read the dataset into the dummy array of size 1:1
+           CALL ReadArray(TRIM(InitName),1,(/1_IK/),0_IK,1,RealArray=NeutralizationBalanceDummyArray)
          ELSE
-           !CALL abort(__STAMP__,"Read array ["//TRIM(InitName)//"] from restart file ["//TRIM(RestartFile)//"] failed.")
+           ! If the dataset does not exist, set the value to zero
            WRITE (*,*) "Read array ["//TRIM(InitName)//"] from restart file ["//TRIM(RestartFile)//"] failed. "//&
-             "Setting NeutralizationBalanceGlobal =0"
-           NeutralizationBalanceTmp = 0
+             "Setting NeutralizationBalanceGlobal = 0"
+           ! Initialize with zero
+           NeutralizationBalanceDummyArray = 0
          END IF ! DataExists
+         ! Close the .h5 file
          CALL CloseDataFile()
-
-         NeutralizationBalanceGlobal = INT(NeutralizationBalanceTmp(1),4)
-         !NeutralizationBalance       = NeutralizationBalanceGlobal
-       END IF
-
-! Only broadcast the information when MPI is used
-!#if USE_MPI
-!       ! Communicate number of particles with all procs in the same init group to the global root for output
-!       InitGroup=Species(iSpec)%Init(iInit)%InitCOMM
-!       ! Only processors which are part of group take part in the communication
-!        CALL MPI_BCAST(Box_X, 3, MPI_DOUBLE_PRECISION, 0, MPI_COMM_PICLAS, iError)
-!#endif /*USE_MPI*/
-
-     END SELECT
+         ! Set the global value
+         NeutralizationBalanceGlobal = NeutralizationBalanceDummyArray(1)
+         ! Set local value (only MPIRoot)
+         NeutralizationBalance       = NeutralizationBalanceGlobal
+       END IF ! MPIRoot
+     CASE DEFAULT
+       ! Do nothing
+     END SELECT ! Species(iSpec)%Init(iInit)%ParticleEmissionType
   END DO  ! iInit
 END DO  ! iSpec=1,nSpecies
 

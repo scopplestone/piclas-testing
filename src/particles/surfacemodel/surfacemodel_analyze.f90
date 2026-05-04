@@ -160,12 +160,14 @@ SUBROUTINE AnalyzeSurface(Time)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_SurfaceModel_Analyze_Vars
 USE MOD_Restart_Vars              ,ONLY: DoRestart
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, PorousBC
 USE MOD_Particle_Vars             ,ONLY: nSpecies,UseNeutralization,NeutralizationBalanceGlobal,Species,VarTimeStep
+USE MOD_Particle_Vars             ,ONLY: NeutralizationBalanceCurrent
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 #endif /*USE_MPI*/
@@ -282,6 +284,7 @@ IF(MPIRoot)THEN
 #endif /*USE_HDG*/
       IF(UseNeutralization)THEN ! Ion thruster neutralization current (virtual cathode electrons)
         CALL WriteDataHeaderInfo(unit_index,'NeutralizationParticles',OutputCounter)
+        CALL WriteDataHeaderInfo(unit_index,'NeutralizationCurrent',OutputCounter)
       END IF ! UseNeutralization
       IF(CalcCurrentSEE)THEN
         DO iSEE = 1, SEE%NPartBoundaries
@@ -474,7 +477,18 @@ IF(MPIRoot)THEN
     END DO ! iPartBound = 1, BPO%NPartBoundaries
   END IF ! CalcBoundaryParticleOutput
 
-  IF(UseNeutralization) CALL WriteDataInfo(unit_index,RealScalar=REAL(NeutralizationBalanceGlobal))
+  IF(UseNeutralization) THEN
+    ! Output MPF counter
+    CALL WriteDataInfo(unit_index,RealScalar=REAL(NeutralizationBalanceGlobal))
+    ! Output emission current
+    IF(ABS(SurfModelAnalyzeSampleTime).LE.0.0)THEN
+      CALL WriteDataInfo(unit_index,RealScalar=0.0)
+    ELSE
+      CALL WriteDataInfo(unit_index,RealScalar=ElementaryCharge*NeutralizationBalanceCurrent/SurfModelAnalyzeSampleTime)
+    END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
+    ! Reset MPIRoot counters after writing the data to the file
+    NeutralizationBalanceCurrent = 0.
+  END IF
 
   IF(CalcCurrentSEE)THEN
     DO iPartBound = 1, SEE%NPartBoundaries

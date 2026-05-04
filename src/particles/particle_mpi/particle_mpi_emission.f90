@@ -162,7 +162,7 @@ DO iSpec=1,nSpecies
     CASE('2D_landmark_neutralization')
       ! Neutralization at const. x-position from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
       ! for low-temperature partially magnetized plasmas (2019)
-      ! Check 1st region (emission at fixed x-position x=2.4cm)
+      ! 1.) Check 1st region where particles are emitted (emission at fixed x-position x=2.4cm)
       ASSOCIATE( &
                  x2 => 2.4001e-2    ,& ! m
                  x1 => 2.3999e-2-MPI_halo_eps ,& ! m
@@ -183,26 +183,10 @@ DO iSpec=1,nSpecies
       END ASSOCIATE
 
       ! Check 2nd region (left boundary where the exiting particles are counted)
-      IF(.NOT.RegionOnProc)THEN
-        ASSOCIATE(&
-                   x2 => 0.0001e-2    ,& ! m
-                   x1 => -0.001e-2    ,& ! m
-                   y2 => GEO%ymaxglob ,& ! m
-                   y1 => GEO%yminglob ,& ! m
-                   z2 => GEO%zmaxglob ,& ! m
-                   z1 => GEO%zminglob )
-         ! Check all 8 edges
-         xCoords(1:3,1) = (/x1,y1,z1/)
-         xCoords(1:3,2) = (/x2,y1,z1/)
-         xCoords(1:3,3) = (/x1,y2,z1/)
-         xCoords(1:3,4) = (/x2,y2,z1/)
-         xCoords(1:3,5) = (/x1,y1,z2/)
-         xCoords(1:3,6) = (/x2,y1,z2/)
-         xCoords(1:3,7) = (/x1,y2,z2/)
-         xCoords(1:3,8) = (/x2,y2,z2/)
-         RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
-      END ASSOCIATE
-      END IF ! .NOT.RegionOnProc
+      ! 2.) Check anode region, where the ions and electrons are absorbed (electrons are re-emitted into the emission region) and the
+      ! processes that register these removed particles need to be part of the communicator as well. Only do this check if the
+      ! previous check has not already been positive
+      IF (.NOT.RegionOnProc) CALL NeutralizationBoundaryConditionCheck(RegionOnProc)
     CASE('2D_Liu2010_neutralization')
       ! Neutralization at right BC (max. x-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)
       ! Check one region (emission at fixed x-position x=30 mm)
@@ -281,13 +265,37 @@ DO iSpec=1,nSpecies
        xCoords(1:3,8) = (/x2,y2,z2/)
        RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
       END ASSOCIATE
+    CASE('2D_Taccogna2022_neutralization')
+      ! Neutralization at right part of domain (>= x-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)
+        ! 1.) Check emission region (emission at fixed x-position x>=10 mm)
+        ASSOCIATE( &
+                   x2 => GEO%xmaxglob         ,& ! m
+                   x1 => 9.99e-3-MPI_halo_eps ,& ! m
+                   y2 => GEO%ymaxglob         ,& ! m
+                   y1 => GEO%yminglob         ,& ! m
+                   z2 => GEO%zmaxglob         ,& ! m
+                 z1 => GEO%zminglob          ) ! m
+       ! Check all 8 edges
+       xCoords(1:3,1) = (/x1,y1,z1/)
+       xCoords(1:3,2) = (/x2,y1,z1/)
+       xCoords(1:3,3) = (/x1,y2,z1/)
+       xCoords(1:3,4) = (/x2,y2,z1/)
+       xCoords(1:3,5) = (/x1,y1,z2/)
+       xCoords(1:3,6) = (/x2,y1,z2/)
+       xCoords(1:3,7) = (/x1,y2,z2/)
+       xCoords(1:3,8) = (/x2,y2,z2/)
+       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
+      END ASSOCIATE
+      ! 2.) Check anode region, where the ions and electrons are absorbed (electrons are re-emitted into the emission region) and the
+      ! processes that register these removed particles need to be part of the communicator as well. Only do this check if the
+      ! previous check has not already been positive
+      IF (.NOT.RegionOnProc) CALL NeutralizationBoundaryConditionCheck(RegionOnProc)
     CASE('circle')
-      xlen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))
-      ylen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(2)*Species(iSpec)%Init(iInit)%NormalIC(2))
-      zlen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
+      ASSOCIATE( nn => Species(iSpec)%Init(iInit)%NormalIC )
+        xlen=Species(iSpec)%Init(iInit)%RadiusIC * SQRT(1.0 - nn(1)*nn(1))
+        ylen=Species(iSpec)%Init(iInit)%RadiusIC * SQRT(1.0 - nn(2)*nn(2))
+        zlen=Species(iSpec)%Init(iInit)%RadiusIC * SQRT(1.0 - nn(3)*nn(3))
+      END ASSOCIATE
       ! all 8 edges
       xCoords(1:3,1) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,-zlen/)
       xCoords(1:3,2) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,-zlen/)
@@ -512,11 +520,11 @@ DO iSpec=1,nSpecies
       CALL CollectiveStop(__STAMP__,'The emission region was not found on any processor.  No processor in range for '//TRIM(hilf))
     END IF
 
-    ! Add MPIRoot to specific inits automatically for output of analysis data to disk
+    ! Add MPIRoot to specific inits automatically for output of analysis data to disk (PartAnalyze.csv)
     ! The root sometimes also reads data during restart and broadcasts it to the other processors in the communicator
     SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
     CASE('2D_landmark_neutralization','2D_Liu2010_neutralization','3D_Liu2010_neutralization','2D_Liu2010_neutralization_Szabo',&
-         '3D_Liu2010_neutralization_Szabo')
+         '3D_Liu2010_neutralization_Szabo','2D_Taccogna2022_neutralization')
       IF(MPIRoot) RegionOnProc=.TRUE.
     END SELECT
 
@@ -1255,6 +1263,50 @@ IF(    ((CartNode(1).LE.GEO%xmax).AND.(CartNode(1).GE.GEO%xmin)) &
   .AND.((CartNode(3).LE.GEO%zmax).AND.(CartNode(3).GE.GEO%zmin)) ) PointInProc = .TRUE.
 
 END FUNCTION PointInProc
+
+!===================================================================================================================================
+!> \brief Check if any element on the compute-node (proc-local, node-local or halo element) is connected to a neutrlization BC
+!>
+!> Loop over all compute-node elements and check if any of the six element sides is a neutralization BC, where the outgoing current
+!> is measured to determine if a neutralization current needs to be injected into the domain to sustain a quasi-neutral outflow.
+!===================================================================================================================================
+SUBROUTINE NeutralizationBoundaryConditionCheck(RegionOnProc)
+! MODULES
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
+USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: SideInfo_Shared
+USE MOD_Particle_Vars      ,ONLY: NeutralizationSource
+USE MOD_Mesh_Vars          ,ONLY: BoundaryName
+USE MOD_StringTools        ,ONLY: STRICMP
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+LOGICAL,INTENT(INOUT) :: RegionOnProc !< Flag that comes in false and is retured either true (if a BC is found) or false
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: GlobalElemID,BCID,iSide,iCNElem
+!===================================================================================================================================
+DO iCNElem=1,nComputeNodeTotalElems ! Loop over all elements on the node
+  GlobalElemID = GetGlobalElemID(iCNElem)
+  ! Check 6 local sides
+  DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,GlobalElemID)
+    ! Get BC index of the global side index
+    BCID   = SideInfo_Shared(SIDE_BCID,iSide)
+    ! Only check BC sides with BC index > 0
+    IF(BCID.GT.0)THEN
+      ! Check if neutralization BC is found. Compare strings ignoring the capitalization
+      IF(STRICMP(BoundaryName(BCID), NeutralizationSource))THEN
+        ! Flag element
+        RegionOnProc= .TRUE.
+        ! Exit the subroutine
+        RETURN
+      END IF
+    END IF ! BCID.GT.0
+  END DO
+END DO
+END SUBROUTINE NeutralizationBoundaryConditionCheck
 #endif /*USE_MPI*/
 
 END MODULE MOD_Particle_MPI_Emission

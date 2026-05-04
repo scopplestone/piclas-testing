@@ -303,19 +303,27 @@ Note that the temperature (translational, vibrational and electronic) of ions an
 This will be changed in a future release. At the moment, only the electron temperature will be considered.
 
 
-### Neutralization Boundaries (neutral outflow condition)
-There are different methods implemented to neutralize a charged particle flow, e.g., as encountered when simulation electric
-propulsion systems. Currently all methods require a specific geometry to function properly. For more details, see the regression
-tests under *regressioncheck/NIG_PIC_poisson_Boris-Leapfrog*. The following table lists the *SpaceIC* emission types
+### PIC Neutralization Boundaries (neutral outflow condition)
+Different methods found in the literature are implemented to neutralize a charged particle flow as encountered when simulation electric propulsion systems.
+Currently all methods require a specific geometry to function properly.
+For more details, see the regression tests under *regressioncheck/NIG_PIC_poisson_Boris-Leapfrog*. The following table lists the *SpaceIC* emission types
 
-| Distribution                    | Description                                                                                                                              |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| 2D_landmark_neutralization      | Charoy 2019 2D PIC benchmark, electrons are injected with 10 eV at the cathode if the anode current is negative                          |
-| 2D_Liu2010_neutralization       | Liu 2010 2D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                                      |
-| 2D_Liu2010_neutralization_Szabo | Liu 2010 2D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive |
-| 3D_Liu2010_neutralization       | Liu 2010 3D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                                      |
-| 3D_Liu2010_neutralization_Szabo | Liu 2010 3D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive |
+| Distribution                    | Reference | Description                                                                                                                              |
+| ------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 2D_landmark_neutralization      | Charoy 2019 {cite}`Charoy2019`| 2D PIC benchmark, electrons are injected with 10 eV at the cathode if the anode current is negative                          |
+| 2D_Liu2010_neutralization       | Liu 2010 {cite}`Liu2010`| 2D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                                      |
+| 2D_Liu2010_neutralization_Szabo | Liu 2010 {cite}`Liu2010`| 2D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive |
+| 3D_Liu2010_neutralization       | Liu 2010 {cite}`Liu2010`| 3D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                                      |
+| 3D_Liu2010_neutralization_Szabo | Liu 2010 {cite}`Liu2010`| 3D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive |
+| 3D_Liu2010_neutralization_Szabo | Liu 2010 {cite}`Liu2010`| 3D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive |
+| 2D_Taccogna2022_neutralization | Taccogna 2022 {cite}`Taccogna2022`| 2D PIC benchmark, electrons are injected in the region outside of the ionization channel if a macroscopic ion current is detected at the cathode and if the anode current is negative |
 
+
+#### Landmark 2D (Charoy 2019)
+The benchmark is described in {cite}`Charoy2019` and used in the reggie `2D_Landmark` in the `regressioncheck` directory.
+
+#### Hall Thruster 2D/3D (Liu 2010)
+The benchmark is described in {cite}`Liu2010` and used in the reggie `2D_HET_Liu2010` and `3D_HET_Liu2010` in the `regressioncheck` directory.
 For the *XD_Liu2010_neutralization* emission, a constant emitted electron temperature is defined via
 
     Part-SpeciesX-InitX-MWTemperatureIC = 5.80E+04 ! 5.0 eV
@@ -329,6 +337,9 @@ for the 2D setup and
     Part-SpeciesX-InitX-velocityDistribution = 3D_Liu2010_neutralization
 
 for the 3D setup. The bulk electron temperature is determined automatically and output to *PartAnalyze.csv* as *XXX-BulkElectronTemp-[K]* to track this value over time.
+
+#### Hall Thruster 2D (Taccogna 2022)
+The benchmark is described in {cite}`Taccogna2022` and used in the reggie `2D_HET_Taccogna2022` in the `regressioncheck` directory.
 
 ### Polychromatic Photo-ionization
 The volumetric photo-ionization can consider multiple wavelengths (polychromatic spectrum) and/or energy-dependent cross-section data.

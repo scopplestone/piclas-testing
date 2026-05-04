@@ -98,6 +98,7 @@ PUBLIC :: SetParticlePositionLandmarkNeutralization
 PUBLIC :: SetParticlePositionLiu2010Neutralization
 PUBLIC :: SetParticlePositionLiu2010SzaboNeutralization
 PUBLIC :: SetParticlePositionLiu2010Neutralization3D
+PUBLIC :: SetParticlePositionTaccogna2022Neutralization
 #ifdef CODE_ANALYZE
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
@@ -153,9 +154,7 @@ END DO
 
 !-- distribute remaining number
 IF (Nrest.LT.0) THEN
-  CALL abort(&
-__STAMP__&
-,'ERROR 1 in IntegerDivide!')
+  CALL abort(__STAMP__,'ERROR 1 in IntegerDivide!')
 ELSE IF (Nrest.GT.0) THEN
   DO iN=1,length
     Bi(iN)=Bi(iN)/A2tot !normalized upper limit
@@ -180,9 +179,7 @@ IF (Nrest.NE.0) THEN
   IPWRITE(*,*) 'Ntot: ',Ntot
   IPWRITE(*,*) 'Ntot0: ',Ntot0
   IPWRITE(*,*) 'Nrest: ',Nrest
-  CALL abort(&
-__STAMP__&
-,'ERROR 2 in IntegerDivide!')
+  CALL abort(__STAMP__,'ERROR 2 in IntegerDivide!')
 END IF
 
 !Error=0
@@ -319,8 +316,7 @@ REAL,INTENT(OUT)                :: Vec3D(3)
 ! LOCAL VARIABLES
 REAL                            :: RandVal(3), Velo1, Velo2, Velosq, Tx, ty, Tz, v_drift(3)
 !===================================================================================================================================
-IF(PRESENT(iInit).AND.PRESENT(Temperature)) CALL abort(__STAMP__&
-  ,'CalcVelocity_maxwell_lpn: iInit and Temperature cannot both be input arguments!')
+IF(PRESENT(iInit).AND.PRESENT(Temperature)) CALL abort(__STAMP__,'CalcVelocity_maxwell_lpn: iInit and Temperature cannot both be input arguments!')
 IF(PRESENT(iInit))THEN
   Tx=Species(FractNbr)%Init(iInit)%MWTemperatureIC
   Ty=Species(FractNbr)%Init(iInit)%MWTemperatureIC
@@ -639,9 +635,7 @@ INTEGER  :: kk, k0
 ! Compute K_0(x)
 !==========================================================================================!
   IF (arg .LE. 0.) THEN
-    CALL abort(&
-__STAMP__&
-,' mod. Bessel function of second kind requries pos arg:')
+    CALL abort(__STAMP__,' mod. Bessel function of second kind requries pos arg:')
   ELSE IF (arg .LE. 9.) THEN
     kk = 1
     ct = -log(arg/2.)-EuMas
@@ -2173,9 +2167,7 @@ LOGICAL                 :: PartAccepted
 !===================================================================================================================================
 IF(NbrOfParticleLandmarkMax.LT.chunkSize) THEN
   IPWRITE(UNIT_StdOut,*) "NbrOfParticleLandmarkMax,chunkSize =", NbrOfParticleLandmarkMax,chunkSize
-  CALL abort(&
-      __STAMP__&
-      ,'NbrOfParticleLandmarkMax.LT.chunkSize is not allowed! Allocate PartPosLandmark to the appropriate size.')
+  CALL abort(__STAMP__,'NbrOfParticleLandmarkMax.LT.chunkSize is not allowed! Allocate PartPosLandmark to the appropriate size.')
 END IF
 
 IF(mode.EQ.1)THEN!Create new position and store them
@@ -2303,7 +2295,7 @@ chunkSize = chunkSize2
 END SUBROUTINE SetParticlePositionLiu2010Neutralization
 
 
-SUBROUTINE SetParticlePositionLiu2010SzaboNeutralization(chunkSize)
+SUBROUTINE SetParticlePositionLiu2010SzaboNeutralization(chunkSize,MPF)
 !===================================================================================================================================
 ! Create particle position at random position within one of the neutralization elements
 !===================================================================================================================================
@@ -2321,6 +2313,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)     :: chunkSize
+REAL, INTENT(IN)        :: MPF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2342,7 +2335,7 @@ DO iElem = 1, nElems
   ! Only consider neutralization elements
   IF(isNeutralizationElem(iElem))THEN
     ! Loop over the number of required particles per element
-    DO i = 1, NeutralizationBalanceElem(iElem)
+    DO i = 1, NINT(NeutralizationBalanceElem(iElem)/MPF)
       ! Count number of emitted particles to compare with chunkSize later on
       emittedParticles = emittedParticles + 1
       ! Emit at random position in element (assume tri-linear element geometry, if position is outside discard the position)
@@ -2366,7 +2359,7 @@ END DO ! iElem = 1, nElems
 ! Sanity check: Total number of emitted particles must be equal to the chunkSize
 IF(emittedParticles.NE.chunkSize)THEN
   IPWRITE(UNIT_StdOut,*) "emittedParticles,chunkSize =", emittedParticles,chunkSize
-  CALL abort(__STAMP__,'Total number of emitted particles must be equal to the chunkSize')
+  CALL abort(__STAMP__,'Total number of emitted particles must be equal to the chunkSize. vMPF is not tested with this method!')
 END IF ! emittedParticles.NE.chunkSize
 END SUBROUTINE SetParticlePositionLiu2010SzaboNeutralization
 
@@ -2420,6 +2413,57 @@ END SUBROUTINE SetParticlePositionLiu2010Neutralization3D
 
 
 !===================================================================================================================================
+!> Neutralization in right part of domain. F. Taccogna "Coupling plasma physics and chemistry in the PIC model of electric
+!> propulsion: Application to an air-breathing, low-power Hall thruster" - 2D case
+!===================================================================================================================================
+SUBROUTINE SetParticlePositionTaccogna2022Neutralization(FractNbr,chunkSize)
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: FractNbr
+INTEGER, INTENT(INOUT)  :: chunkSize
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                    :: Particle_pos(3)
+INTEGER                 :: i, chunkSize2
+REAL                    :: RandVal(2)
+LOGICAL                 :: PartAccepted
+!===================================================================================================================================
+chunkSize2=0
+DO i=1,chunkSize
+  ! Coordinate system: x-direction is assumed to be the axial direction
+  ASSOCIATE( R2 => 20.0e-3  ,& ! y-position of outer radius in [m]
+             x1 => 10.0e-3  ,& ! x-posiotion of thruster exit plane in [m]
+             dx => 20.0e-3  ,& ! distance in x-direction over which the emission occurs [m]
+             z  => (GEO%zmaxglob+GEO%zminglob)/2.0 ) ! for 2D simulation, set fixed z-position in the middle of the domain in [m]
+      CALL RANDOM_NUMBER(RandVal)
+      Particle_pos(1) = x1 + dx * RandVal(1)
+      Particle_pos(2) = R2 * RandVal(2)
+      Particle_pos(3) = z
+  END ASSOCIATE
+
+  ! Calculates Symmetry Position, may withdraw the particle by weighting, and increases particle_positions array if necessary
+  CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
+  IF(PartAccepted) THEN
+    chunkSize2=chunkSize2+1
+    particle_positions(i*3-2) = Particle_pos(1)
+    particle_positions(i*3-1) = Particle_pos(2)
+    particle_positions(i*3  ) = Particle_pos(3)
+  END IF ! PartAccepted
+END DO ! chunkSize
+chunkSize = chunkSize2
+END SUBROUTINE SetParticlePositionTaccogna2022Neutralization
+
+
+!===================================================================================================================================
 !> Count the number of charged particles in the first layer of elements at the defined neutralization boundary condition for
 !> emitting particles to neutralize the net charge in this layer of elements
 !===================================================================================================================================
@@ -2428,7 +2472,7 @@ SUBROUTINE CountNeutralizationParticles()
 USE MOD_globals
 USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
 USE MOD_Particle_Vars ,ONLY: isNeutralizationElem,PDM,PEM,NeutralizationBalance,PartSpecies,Species
-USE MOD_Particle_Vars ,ONLY: NeutralizationBalanceElem
+USE MOD_Particle_Vars ,ONLY: NeutralizationBalanceElem,usevMPF,PartMPF
 USE MOD_part_tools    ,ONLY: ParticleOnProc
 USE MOD_Mesh_Vars     ,ONLY: nElems
 IMPLICIT NONE
@@ -2437,11 +2481,12 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER  :: iPart,iElem,iSpec
+REAL     :: MPF
 !===================================================================================================================================
 ! Reset local counter each time
-NeutralizationBalance = 0
+NeutralizationBalance = 0.0
 ! Reset local counter each time
-NeutralizationBalanceElem = 0
+NeutralizationBalanceElem = 0.0
 
 ! Loop all particles and check whether they are inside a neutralization element and sum up all charges
 DO iPart = 1, PDM%ParticleVecLength
@@ -2449,13 +2494,19 @@ DO iPart = 1, PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart).AND.ParticleOnProc(iPart)) THEN
     ! Get local elem ID
     iElem = PEM%LocalElemID(iPart)
-    ! Get species ID
-    iSpec = PartSpecies(iPart)
     ! Check if particle is in neutralization element
     IF(isNeutralizationElem(iElem))THEN
+      ! Get species ID
+      iSpec = PartSpecies(iPart)
+      ! Determine the particle weight without using the GetParticleWeight function, which includes the time step
+      IF(usevMPF) THEN
+        MPF = PartMPF(iPart)
+      ELSE
+        MPF = Species(iSpec)%MacroParticleFactor
+      END IF
       ! Add -1 for electrons and +X for ions:  This is opposite to the summation in RemoveParticle() where the surplus of electrons
       ! is calculated and re-introduced at the boundary
-      NeutralizationBalanceElem(iElem) = NeutralizationBalanceElem(iElem) + NINT(Species(iSpec)%ChargeIC/ElementaryCharge)
+      NeutralizationBalanceElem(iElem) = NeutralizationBalanceElem(iElem) + Species(iSpec)%ChargeIC/ElementaryCharge*MPF
     END IF ! isNeutralizationElem(iElem)
   END IF
 END DO

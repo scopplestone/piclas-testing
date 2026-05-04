@@ -283,34 +283,46 @@ DO i=1,nSpecies
      CASE(9) ! '2D_landmark_neutralization',
              ! '2D_Liu2010_neutralization'      ,'3D_Liu2010_neutralization'
              ! '2D_Liu2010_neutralization_Szabo','3D_Liu2010_neutralization_Szabo'
+             ! '2D_Taccogna2022_neutralization'
 #if USE_MPI
        ! Communicate number of particles with all procs in the same init group
        InitGroup=Species(i)%Init(iInit)%InitCOMM
-       NeutralizationBalanceGlobal=0 ! always nullify
+       NeutralizationBalanceGlobal=0.0 ! Always nullify the global value in each timestep
+       ! Only processes of the emission region take part (MPIRoot is always part of the region)
        IF(PartMPIInitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
-         ! Loop over all elements and count the ion surplus per element if element-local emission is used
+         ! OPTIONAL: Loop over all elements and count the ion surplus per element if element-local emission is used
+         ! This is only done for methods, where the first layer of elements at the neutralization boundary is used for counting the
+         ! ion surplus, from which the requried neutralization electrons are calculated
          IF(nNeutralizationElems.GT.0) CALL CountNeutralizationParticles()
          ! Only processors which are part of group take part in the communication
-         CALL MPI_ALLREDUCE(NeutralizationBalance,NeutralizationBalanceGlobal,1,MPI_INTEGER,MPI_SUM,PartMPIInitGroup(InitGroup)%COMM,IERROR)
+         CALL MPI_ALLREDUCE(NeutralizationBalance,NeutralizationBalanceGlobal,1,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPIInitGroup(InitGroup)%COMM,IERROR)
        ELSE
-         NeutralizationBalanceGlobal=0
+         NeutralizationBalanceGlobal=0.0
        END IF
 #else
        NeutralizationBalanceGlobal = NeutralizationBalance
 #endif
        ! Insert electrons only when the number is greater than zero
-       IF(NeutralizationBalanceGlobal.GT.0)THEN
+       IF(NeutralizationBalanceGlobal.GT.0.0)THEN
+         ! Get MPF of emission species
+         IF(usevMPF)THEN
+           MPF = Species(i)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF
+         ELSE
+           MPF = Species(i)%MacroParticleFactor ! Use species MPF
+         END IF ! usevMPF
          ! Insert only when positive
-         NbrOfParticle = NeutralizationBalanceGlobal
-         ! Reset the counter but only when not using element-local emission, nullify later is this case (in SetParticlePosition)
-         IF(nNeutralizationElems.EQ.-1) NeutralizationBalance = 0
+         NbrOfParticle = NINT(NeutralizationBalanceGlobal/MPF)
+         ! Reset the counter but only when not using element-local emission, nullify later in this case (in SetParticlePosition)
+         IF(nNeutralizationElems.EQ.-1) NeutralizationBalance = 0.0
+         ! Update the persistent value for output to SurfaceAnalyze.csv (note that the sampling time is calculated in surfacemodel_analyze.f90)
+         NeutralizationBalanceCurrent = NeutralizationBalanceCurrent + NeutralizationBalanceGlobal
        ELSE
          NbrOfParticle = 0
        END IF ! NeutralizationBalance.GT.0
 
-      CASE DEFAULT
-        NbrOfParticle = 0
-    END SELECT
+    CASE DEFAULT
+      NbrOfParticle = 0
+    END SELECT ! Species(i)%Init(iInit)%ParticleEmissionType
 
     ! Create particles by setting their position in space and checking if a host cell can be found
     ! Warning: this routine returns the emitted number of particles for each processor and changes the value of NbrOfParticle here

@@ -75,6 +75,9 @@ CALL prms%CreateIntArrayOption( 'Biasvoltage-PartBoundaries'  , 'Particle bounda
 CALL prms%CreateRealOption(     'BiasVoltage-Frequency'       , 'Frequency of the sinusoidal field boundary where the bias voltage is applied (a value of 0.0 corresponds to a DC potential BC). The total particle electric current over one cycle is required to converge to zero.')
 CALL prms%CreateRealOption(     'BiasVoltage-Delta'           , 'Bias voltage difference used for adjusting the DC voltage of the corresponding BC')
 #endif /*defined(PARTICLES)*/
+#if USE_PETSC && USE_DEBUG
+CALL prms%CreateLogicalOption('PETScDisplayDiagnostics'  ,'Display errors, warnings and main statistics for PETSc', '.TRUE.')
+#endif /*USE_PETSC && USE_DEBUG*/
 
 ! --- BR electron fluid
 #if defined(PARTICLES)
@@ -203,6 +206,9 @@ END IF
 
 ! Read in CG parameters (also used for PETSc)
 #if USE_PETSC
+#if USE_DEBUG
+PETScDisplayDiagnostics = GETLOGICAL('PETScDisplayDiagnostics') ! Increase MUMPS diagnostics level: Errors, warnings, main statistics
+#endif /*USE_DEBUG*/
 PetscCallA(PetscGetVersionNumber(major,minor,subminor,release,ierr))
 #ifdef PETSC_HAVE_HYPRE
 hilf = '(built with Hypre and'

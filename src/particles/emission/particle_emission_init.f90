@@ -337,12 +337,13 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%ParticleEmissionType = 8
       Species(iSpec)%Init(iInit)%NINT_Correction      = 0.0
     CASE('2D_landmark_neutralization','2D_Liu2010_neutralization','3D_Liu2010_neutralization','2D_Liu2010_neutralization_Szabo',&
-         '3D_Liu2010_neutralization_Szabo')
+         '3D_Liu2010_neutralization_Szabo','2D_Taccogna2022_neutralization')
       Species(iSpec)%Init(iInit)%ParticleEmissionType = 9
       NeutralizationSource = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-NeutralizationSource'))
       CALL LowCase(NeutralizationSource, NeutralizationSourceLoc)
       NeutralizationSource = TRIM(NeutralizationSourceLoc)
-      NeutralizationBalance = 0
+      NeutralizationBalance = 0.0
+      NeutralizationBalanceCurrent = 0.0
       UseNeutralization = .TRUE.
       DoSurfModelAnalyze = .TRUE.
       IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'3D_Liu2010_neutralization').OR.&
