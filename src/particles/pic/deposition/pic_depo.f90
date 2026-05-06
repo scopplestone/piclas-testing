@@ -1013,7 +1013,7 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: UniqueNodeID,NonUniqueNodeID,iNode,NeighUniqueNodeID
+INTEGER                        :: UniqueNodeID,NonUniqueNodeID,iNode,NeighUniqueNodeID,GlobalElemID
 REAL                           :: SFDepoScaling
 LOGICAL                        :: ElemDone
 INTEGER                        :: ppp,globElemID
@@ -1136,7 +1136,8 @@ DO iCNElem = firstElem,lastElem
 
   ! Because ElemVolume_Shared(CNElemID) is not available for halo elements, the bounding box volume is used as an approximate
   ! value for the element volume from which the characteristic length of the element is calculated
-  ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GetGlobalElemID(iCNElem)) ) ! 1-2: Min, Max value; 1-3: x,y,z
+  GlobalElemID = GetGlobalElemID(iCNElem)
+  ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z
     BoundingBoxVolume = (Bounds(2,1)-Bounds(1,1)) * (Bounds(2,2)-Bounds(1,2)) * (Bounds(2,3)-Bounds(1,3))
   END ASSOCIATE
   ! Check which shape function dimension is used
