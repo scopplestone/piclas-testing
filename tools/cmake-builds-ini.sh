@@ -107,18 +107,23 @@ if [[ -f "$filepath" ]]; then
   done
 
   echo -e "\nTotal number of combinations: ${#combinations[@]}"
-  echo "Enter the combination:"
-  read -r selection
-  selection=$(echo "$selection" | tr ',' ' ')
-  selected_numbers=($selection)
-  for num in "${selected_numbers[@]}"; do
-    if [[ $num =~ ^[0-9]+$ ]] && ((num > 0)) && ((num <= ${#combinations[@]})); then
-      index=$((num-1))
-      eval "cmake .. ${combinations[$index]} && make -j"
-    else
-      echo "Invalid selection: $num"
-    fi
-  done
+  if [[ ${#combinations[@]} -eq 1 ]]; then
+    echo "Only one combination exists. Automatically selecting it."
+    eval "cmake .. ${combinations[0]} && make -j"
+  else
+    echo "Enter the combination:"
+    read -r selection
+    selection=$(echo "$selection" | tr ',' ' ')
+    selected_numbers=($selection)
+    for num in "${selected_numbers[@]}"; do
+      if [[ $num =~ ^[0-9]+$ ]] && ((num > 0)) && ((num <= ${#combinations[@]})); then
+        index=$((num-1))
+        eval "cmake .. ${combinations[$index]} && make -j"
+      else
+        echo "Invalid selection: $num"
+      fi
+    done
+  fi
 else
   printf 'File [%s] does not exist. Exit.\n' "$1"
 fi
