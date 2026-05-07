@@ -218,7 +218,7 @@ before_script:
   - if [ "$[[ inputs.DO_MPICH ]]" == "true" ]; then
       echo "DO_MPICH activated. Loading MPICH.";
       module purge || true;
-      module load  cmake/4.3.3  gcc/16.1.0  mpich/5.0.1/gcc/16.1.0        hdf5/1.14.6/gcc/16.1.0/mpich/5.0.1        petsc/3.23.5/gcc/16.1.0/mpich/5.0.1 || true;
+      module load  cmake/4.3.3  gcc/16.1.0  mpich/5.0.1/gcc/16.1.0        hdf5/1.14.6/gcc/16.1.0/mpich/5.0.1        petsc/3.25.1/gcc/16.1.0/mpich/5.0.1 || true;
     fi
   - if [ "$[[ inputs.DO_MPICH_DEBUG ]]" == "true" ]; then
       echo "DO_MPICH_DEBUG activated. Loading MPICH with --with-device=ch3:sock which allows over-subscription without performance loss but cannot be used for shared memory arrays safely!";

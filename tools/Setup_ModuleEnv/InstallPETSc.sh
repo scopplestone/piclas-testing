@@ -156,10 +156,11 @@ done
 # PETSCVERSION=3.22.5 # error during configure with GCC 15.2.0 and GCC 14.2.0 in combination with OpenMPI 5.0.6 or 5.0.8
 # PETSCVERSION=3.23.0 # error during configure with GCC 15.2.0
 # PETSCVERSION=3.23.3 # error during configure with GCC 16.1.0 and MPICH 5.0.1
-PETSCVERSION=3.23.5
+# PETSCVERSION=3.23.5
 # PETSCVERSION=3.23.6
 # PETSCVERSION=3.24.1
 # PETSCVERSION=3.24.3
+PETSCVERSION=3.25.1
 
 # CMake version. Leave commented out to use default
 # CMAKEVERSION=3.31.1
