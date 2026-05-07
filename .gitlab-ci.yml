@@ -20,54 +20,67 @@ spec:
   inputs:
     DO_CHECKIN:
       type: boolean
+      description: "Run check-in regressiontests"
       default: false
 
     DO_NIGHTLY:
       type: boolean
+      description: "Run nightly regressiontests"
       default: false
 
     DO_WEEKLY:
       type: boolean
+      description: "Run weekly regressiontests"
       default: false
 
     DO_CORE_SPLIT:
       type: boolean
+      description: "Use shared memory splitting"
       default: false
 
     DO_NODE_SPLIT:
       type: boolean
+      description: "Use shared memory splitting"
       default: false
 
     DO_NINJA:
       type: boolean
+      description: "Use Ninja generator for CMake"
       default: false
 
     DO_OPENMPI:
       type: boolean
+      description: "Load OpenMPI module"
       default: false
 
     DO_MPICH:
       type: boolean
+      description: "Load MPICH module"
       default: false
 
     DO_MPICH_DEBUG:
       type: boolean
+      description: "Load MPICH debug module"
       default: false
 
     DO_CODE_COVERAGE:
       type: boolean
+      description: "Enable code coverage and report generation"
       default: false
 
     DO_REGGIE_COVERAGE:
       type: boolean
+      description: "Enable code coverage for reggie functions"
       default: false
 
     DO_CREATE_APPIMAGE:
       type: boolean
+      description: "Create AppImages"
       default: false
 
     DO_DEPLOY:
       type: boolean
+      description: "Deployment of the master.dev to GitHub"
       default: false
 ---
 variables:
