@@ -73,20 +73,26 @@ spec:
       description: "Enable code coverage for reggie functions"
       default: false
 
+    DO_RUN_LOCAL:
+      type: string
+      description: ""
+      default: ""
+
     DO_CREATE_APPIMAGE:
       type: boolean
       description: "Create AppImages"
       default: false
+
+    DO_TEST_APPIMAGE:
+      type: string
+      description: ""
+      default: ""
 
     DO_DEPLOY:
       type: boolean
       description: "Deployment of the master.dev to GitHub"
       default: false
 ---
-variables:
-  DO_RUN_LOCAL: ""
-  DO_TEST_APPIMAGE: ""
-
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Use pipeline name to indicate whether default shared memory, node split or core split is used, and whether it is a checkin, nightly or weekly pipeline
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
