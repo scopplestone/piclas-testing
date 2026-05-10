@@ -33,6 +33,7 @@ PUBLIC :: SynchronizeBV
 #endif /*USE_MPI */
 #if defined(PARTICLES)
 PUBLIC :: ReadBVDataFromH5
+PUBLIC :: ReadCMBCDataFromH5
 #endif /*defined(PARTICLES)*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
@@ -85,7 +86,7 @@ IF(MPIRoot)THEN
   IF(BVExists)THEN
     CALL ReadArray(TRIM(ContainerName) , 2 , (/1_IK , INT(BVDataLength,IK)/) , 0_IK , 1 , RealArray=BVDataHDF5)
     WRITE(UNIT_stdOut,'(3(A,ES10.2E3))') " Read bias voltage from restart file ["//TRIM(RestartFile)//&
-        "] Bias voltage[V]: ",BVDataHDF5(1),", Ion excess[C]: ",BVDataHDF5(2),", next adjustment time[s]: ",BVDataHDF5(3)
+        "] Bias voltage [V]: ",BVDataHDF5(1),", Ion excess [C]: ",BVDataHDF5(2),", next adjustment time [s]: ",BVDataHDF5(3)
     BiasVoltage%BVData = BVDataHDF5
   END IF ! BVExists
   CALL CloseDataFile()
@@ -95,8 +96,64 @@ END IF ! MPIRoot
 ! 2. The MPI root process distributes the information among the sub-communicator processes for each EPC
 CALL SynchronizeBV()
 #endif /*USE_MPI*/
-
 END SUBROUTINE ReadBVDataFromH5
+
+
+!===================================================================================================================================
+!> Read the Circuit Model BC (CMBC) data from a .h5 state file.
+!> 1. The MPI root process reads the info and checks data consistency
+!> 2. The MPI root process distributes the information among the sub-communicator processes connected to the CM boundary.
+!===================================================================================================================================
+SUBROUTINE ReadCMBCDataFromH5()
+! MODULES
+USE MOD_io_hdf5
+USE MOD_Globals          ,ONLY: UNIT_stdOut,MPIRoot,IK,abort
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
+USE MOD_IO_HDF5          ,ONLY: OpenDataFile,CloseDataFile,File_ID
+USE MOD_Restart_Vars     ,ONLY: DoRestart,RestartFile
+USE MOD_HDF5_Input       ,ONLY: DatasetExists,ReadArray,GetDataSize
+USE MOD_HDG_Vars         ,ONLY: CMBC,CMBCDataLength
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(255) :: ContainerName
+LOGICAL        :: CMBCExists
+REAL           :: CMBCDataHDF5(1:CMBCDataLength)
+!===================================================================================================================================
+! Only required during restart
+IF(.NOT.DoRestart) RETURN
+
+#if USE_LOADBALANCE
+! Do not try to read the data from .h5 if load balance is performed without creating a .h5 restart file
+IF(PerformLoadBalance.AND..NOT.(UseH5IOLoadBalance)) RETURN
+#endif /*USE_LOADBALANCE*/
+
+! 1. The MPI root process reads the info and checks data consistency
+! Only root reads the values and distributes them via MPI Broadcast
+IF(MPIRoot)THEN
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+  ! Check old parameter name
+  ContainerName='CMBC'
+  CALL DatasetExists(File_ID,TRIM(ContainerName),CMBCExists)
+  ! Check for new parameter name
+  IF(CMBCExists)THEN
+    CALL ReadArray(TRIM(ContainerName) , 2 , (/1_IK , INT(CMBCDataLength,IK)/) , 0_IK , 1 , RealArray=CMBCDataHDF5)
+    WRITE(UNIT_stdOut,'(2(A,ES10.2E3))') " Read bias voltage from restart file ["//TRIM(RestartFile)//&
+        "] Anode voltage [V]: ",CMBCDataHDF5(1),", Anode charge [C]: ",CMBCDataHDF5(2)
+    CMBC%CMBCData = CMBCDataHDF5
+  END IF ! CMBCExists
+  CALL CloseDataFile()
+END IF ! MPIRoot
+
+#if USE_MPI
+! 2. The MPI root process distributes the information among the sub-communicator processes for each EPC
+CALL SynchronizeCMBC()
+#endif /*USE_MPI*/
+END SUBROUTINE ReadCMBCDataFromH5
 
 
 #if USE_MPI
@@ -120,6 +177,28 @@ IF(BiasVoltage%COMM%UNICATOR.NE.MPI_COMM_NULL)THEN
   CALL MPI_BCAST(BiasVoltage%BVData, BVDataLength, MPI_DOUBLE_PRECISION, 0, BiasVoltage%COMM%UNICATOR, IERROR)
 END IF
 END SUBROUTINE SynchronizeBV
+
+
+!===================================================================================================================================
+!> Communicate the Circuit Model values from MPIRoot to sub-communicator processes
+!===================================================================================================================================
+SUBROUTINE SynchronizeCMBC()
+! MODULES
+USE mpi_f08
+USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
+USE MOD_HDG_Vars ,ONLY: CMBC,CMBCDataLength
+! insert modules here
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(CMBC%COMM%UNICATOR.NE.MPI_COMM_NULL)THEN
+  ! Broadcast from root to other processors on the sub-communicator
+  CALL MPI_BCAST(CMBC%CMBCData, CMBCDataLength, MPI_DOUBLE_PRECISION, 0, CMBC%COMM%UNICATOR, IERROR)
+END IF
+END SUBROUTINE SynchronizeCMBC
 #endif /*USE_MPI*/
 #endif /*defined(PARTICLES)*/
 

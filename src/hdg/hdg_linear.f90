@@ -245,23 +245,45 @@ DO iVar = 1, PP_nVar
     ! Communicate the accumulated charged on each BC to all processors on the communicator
     DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
       ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR)
-        IF(FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
+        IF(COMM.NE.MPI_COMM_NULL)THEN
           CALL MPI_ALLREDUCE(MPI_IN_PLACE, FPC%ChargeProc(iUniqueFPCBC), 1, MPI_DOUBLE_PRECISION, MPI_SUM, COMM, IERROR)
           FPC%Charge(iUniqueFPCBC) = FPC%Charge(iUniqueFPCBC) + FPC%ChargeProc(iUniqueFPCBC)
-        END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
+        END IF ! COMM.NE.MPI_COMM_NULL
       END ASSOCIATE
     END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
 #else
     FPC%Charge = FPC%Charge + FPC%ChargeProc
 #endif /*USE_MPI*/
     FPC%ChargeProc = 0.
-    ! Apply charge to RHS, which this is done below: RHS_conductor(1)=FPC%Charge(iUniqueFPCBC)/eps0
+    ! Apply charge to RHS, which is done below: RHS_conductor(1)=FPC%Charge(iUniqueFPCBC)/eps0
+  END IF ! UseFPC
+
+  IF(UseCircuitModel) THEN
+#if USE_MPI
+    ! Communicate the accumulated charged on each BC to all processors on the communicator
+    ASSOCIATE( COMM => CMBC%COMM%UNICATOR)
+        IF(COMM.NE.MPI_COMM_NULL)THEN
+          IF(MPIRoot)THEN
+            CALL MPI_REDUCE(MPI_IN_PLACE, CMBC%ChargeProc, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IERROR)
+          ELSE
+            CALL MPI_REDUCE(CMBC%ChargeProc, 0           , 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IERROR)
+          END IF ! MPIRoot
+          CMBC%Charge = CMBC%Charge + CMBC%ChargeProc
+        END IF ! COMM.NE.MPI_COMM_NULL
+      END ASSOCIATE
+    END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+#else
+    CMBC%Charge = CMBC%Charge + CMBC%ChargeProc
+#endif /*USE_MPI*/
+    CMBC%ChargeProc = 0.
+    IPWRITE(*,*) 'CMBC%Charge:', CMBC%Charge
+    ! Apply charge to RHS, which is done below: RHS_conductor(1)=CMBC%Charge/eps0
   END IF ! UseFPC
 #endif /*USE_PETSC*/
 
   ! Set potential to zero (only one process does this)
   IF(ZeroPotentialSide>0) HDG_Surf_N(ZeroPotentialSide)%lambda(iVar,1) = 0.
-END DO
+END DO ! iVar = 1, PP_nVar
 
 !volume source (volume RHS of u system)
 DO iElem=1,PP_nElems
@@ -336,7 +358,7 @@ DO BCsideID=1,nDistriCapBCsides
   NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,SideID) ! Get global side index
 
   ! Map surface charge from vertices to SideID surface with N=1
-  ! NOTE: ight not work because the side is not always oriented in the master ordering
+  ! NOTE: Might not work because the side is not always oriented in the master ordering
   DO q=0,1; DO p=0,1
     ! Get local node index
     ! Use mapping p,q -> iNode
@@ -483,12 +505,22 @@ END DO
 PetscCallA(VecAssemblyBegin(PETScRHS,ierr))
 PetscCallA(VecAssemblyEnd(PETScRHS,ierr))
 
-! The MPIRoot process has charge and voltage of all FPCs, there, this process sets all conductor RHS information
+! The MPIRoot process has charge and voltage of all FPCs, therefore, this process sets all conductor RHS information
 IF(UseFPC) THEN
   IF(MPIRoot)THEN
     DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
       PetscCallA(VecSetValues(PETScRHS,1,[nGlobalPETScDOFs-1-FPC%nUniqueFPCBounds+iUniqueFPCBC],[FPC%Charge(iUniqueFPCBC)/eps0],INSERT_VALUES,ierr))
     END DO
+  END IF
+END IF
+
+! The MPIRoot process has charge and voltage of the CMBC, therefore, this process sets all RHS information
+IF(UseCircuitModel) THEN
+  IF(MPIRoot)THEN
+    CALL ExactFunc(-1,(/0.,0.,0./),CMBC%VoltageRF(1:1),t=time,iRefState=CMBC%RefState)
+    IPWRITE(*,*) 'CMBC%Capacitance,CMBC%VoltageRF(1),CMBC%Voltage:', CMBC%Capacitance,CMBC%VoltageRF(1),CMBC%Voltage
+    IPWRITE(*,*) 'CMBC%Capacitance*(CMBC%VoltageRF(1)-CMBC%Voltage) , CMBC%Charge:', CMBC%Capacitance*(CMBC%VoltageRF(1)-CMBC%Voltage) , CMBC%Charge
+    PetscCallA(VecSetValues(PETScRHS,1,[nGlobalPETScDOFs-1],[(CMBC%Capacitance*(CMBC%VoltageRF(1)-CMBC%Voltage) + CMBC%Charge)/eps0],INSERT_VALUES,ierr))
   END IF
 END IF
 
@@ -607,6 +639,21 @@ IF(UseFPC) THEN
       FPC%Voltage(iUniqueFPCBC) = lambda_pointer(nLocalPETScDOFs - FPC%nUniqueFPCBounds + iUniqueFPCBC)
     END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   END IF ! MPIRoot
+END IF ! UseFPC
+
+! Fill circuit model lambda
+IF(UseCircuitModel) THEN
+  CMBC%Voltage = 0. ! nullify just to be safe
+  DO BCsideID=1,nCircuitModelBCsides
+    SideID       = CircuitModelBC(BCSideID)
+    Nloc         = N_SurfMesh(SideID)%NSide
+    BCState      = BoundaryType(BC(SideID),BC_STATE)
+    DO i=1,nGP_face(Nloc)
+      HDG_Surf_N(SideID)%lambda(1,i) = lambda_pointer(nLocalPETScDOFs)
+    END DO
+  END DO
+  ! MPIRoot sets global value for BC and I/O
+  IF(MPIRoot) CMBC%Voltage = lambda_pointer(nLocalPETScDOFs)
 END IF ! UseFPC
 
 PetscCallA(VecRestoreArrayRead(PETScSolutionLocal,lambda_pointer,ierr))

@@ -335,7 +335,7 @@ DO iBC=1,nBCs
   BCState = BoundaryType(iBC,BC_STATE) ! BCState of the corresponding BCType
   IF((BCType.EQ.2).AND.(BCState.NE.2)) CYCLE ! BCType=2 must be combined with BCState=2
   CPPBoundaries=CPPBoundaries+1
-  IF(BCState.LE.0) CALL CollectiveStop(__STAMP__,' BCState for FPC must be >0! BCState=',IntInfo=BCState)
+  IF(BCState.LE.0) CALL CollectiveStop(__STAMP__,' BCState for coupled power potential must be >0! BCState=',IntInfo=BCState)
 END DO
 
 IF(CPPBoundaries.EQ.0) RETURN ! Already determined in HDG initialization

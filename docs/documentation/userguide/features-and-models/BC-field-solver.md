@@ -1,4 +1,4 @@
-# Boundary Conditions - Field Solvee
+# Boundary Conditions - Field Solver
 
 Boundary conditions are defined in the mesh creation step in the hopr.ini file and can be modified when running PICLas in the
 corresponding *parameter.ini* file. In the *hopr.ini* file, which is read by *PyHOPE*, a boundary is defined by
@@ -155,8 +155,22 @@ following example
 
 (sec:floating-boundary-condition)=
 ### Floating boundary condition (FPC)
-A floating boundary condition (FPC) can be used to model a perfect electric conducting surface. The surface can carry a charge $Q$,
-which might change over time. however, the requirement is that the surface yields a closed surface integral in 3D (or 2D with
+A floating boundary condition (FPC) as desribed in {cite}`Chen2021` can be used to model a perfect electric conducting surface with the fundamental jump condition
+
+$$\vec{n}\cdot\left(\vec{D_2}-\vec{D_1}\right) = \sigma~,$$
+
+where $\vec{D_2}-\vec{D_1}$ is the jump in the electric displacement field is projected onto the normal direction $\vec{n}$ and is equal to the surface charge $\sigma$.
+This equation can be integrated over the surface area $S$, giving
+
+$$\oiint_S\vec{n}\cdot\left(\vec{D_2}-\vec{D_1}\right)dS = \oiint_S\sigma dS = Q~,$$
+
+where surface may carry a charge $Q$, which might change over time.
+Because the surface is perfectly conducting, the electric field inside the conductor vanishes $\vec{D_1}=0$, which simplifies to
+
+$$\oiint_S\vec{n}\cdot\vec{D}dS = Q~,$$
+
+with the unknown displacement field is $\vec{D}=\vec{D}_2$
+However, the requirement is that the surface yields a closed surface integral in 3D (or 2D with
 periodic/symmetric boundaries in the 3rd dimension). One or more FPCs can be set via
 
     BoundaryName = BC_FPC_1 ! BC name in the mesh.h5 file
@@ -180,6 +194,11 @@ condition (DCBC), which is activated in the field solver by setting
     BoundaryType = (/30,0/)                    ! BCType=30 for DCBC and the BCState=0 has no meaning or function here
 
 and solves the following equation on the boundary faces
+
+$$\vec{n}\cdot\left(\vec{D_2}-\vec{D_1}\right) = \sigma~,$$
+
+where the thin dielectric layer model is incorporated into $\vec{D_2}=\varepsilon_0\varepsilon_r\frac{\Phi-\Phi_0}{d}$ as one part
+of the jump and the remaining unknown displacement field is $\vec{D}_1=\vec{D}$, which gives
 
 $$-\vec{n}\cdot\vec{D}=\frac{\varepsilon_0\varepsilon_r}{d}\left(\Phi_0-\Phi\right)+\sigma~,$$
 
@@ -205,6 +224,15 @@ $J_p=\oiint_S \vec{n}\cdot\vec{j}dS$ is the current density integrated over the 
 $-\vec{n}\cdot\vec{D}=\sigma$ accumulating on the anode surface, which is the pointwise
 surface charge density in C/m$^2$ between the anode surface and the plasma region.
 
+The equation can be re-arranged into a similar expression as for the FPC
+
+$$ \oiint_S\vec{n}\cdot\vec{D}dS = C\left(\Phi_{rf} - \Phi\right) + \int_0^tJ_p(\tau)d\tau =  C\left(\Phi_{rf} - \Phi\right) + Q~,$$
+
+with the unknown electric potential $\Phi=\Phi_a$ and the charge $Q$ accumulated on the electrode
+or re-written into a similar expression as for the DCBC
+
+$$ \vec{n}\cdot\vec{D} = \frac{d}{dS}C\left(\Phi_{rf} - \Phi\right) + \sigma~,$$
+
 The boundary condition for the field solver is activated by setting
 
     BoundaryName = BC_CIRCUIT_MODEL ! Any BC name that is given in the mesh.h5 file can be used
@@ -224,7 +252,7 @@ Using this boundary condition automatically activates integral field and surface
 | :----------------- | :----------------------- |
 | FieldAnalyze.csv   | $\Phi_{rf}$           |
 | FieldAnalyze.csv   | $\Phi_{a}$               |
-| FieldAnalyze.csv   | $\Phi_{c}$               |
+| FieldAnalyze.csv   | $\Phi_{c}=\Phi_{a}-\Phi_{rf}$               |
 | SurfaceAnalyze.csv | $-\varepsilon_0\oiint_S\vec{n}\cdot\vec{E}dS$               |
 | SurfaceAnalyze.csv | $\int_0^tJ_p(\tau)d\tau$ |
 
