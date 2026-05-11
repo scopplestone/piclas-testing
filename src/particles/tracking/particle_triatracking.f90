@@ -665,7 +665,6 @@ DO WHILE (.NOT.PartisDone)
     IF (Symmetry%AxisymmetricExact) THEN
       TrackInfo%LastIntersectCount = tmpLastIntersectCount(1)
       TrackInfo%alpha = tmpDistance(1)
-      TrackInfo%LastIntersectCount = tmpLastIntersectCount(1)
     END IF
   END IF
   IF (Symmetry%AxisymmetricExact) THEN

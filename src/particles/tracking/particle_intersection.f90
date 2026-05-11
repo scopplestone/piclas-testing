@@ -406,7 +406,8 @@ INTEGER, INTENT(OUT)             :: LastInterCount
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                          :: CNElemID, interseccase
-REAL                             :: y_pos_start,x_pos_start,yNode1,xNode1,yNode2,xNode2,sy,sz,sx
+! FIX: added z_pos_start
+REAL                             :: y_pos_start,x_pos_start,z_pos_start,yNode1,xNode1,yNode2,xNode2,sy,sz,sx
 REAL                             :: l1,S1,l2,S2,l,S
 REAL                             :: beta, alpha,deltay, a, b, c, tmpsqrt
 REAL                             :: dx,dy, len2, lenPart2     
@@ -416,17 +417,18 @@ CNElemID = GetCNElemID(Element)
 Distance = 0.
 ! Sanity check
 IF(CNElemID.LE.0) CALL abort(__STAMP__,'PhotonIntersectionWithSide2D() found CNElemID<=0')
-
+ 
 ThroughSide = .FALSE.
-
+ 
 xNode1 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
 yNode1 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
 xNode2 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
 yNode2 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
-
-x_pos_start=LastPartPos(1,PartID)
-y_pos_start=LastPartPos(2,PartID)
-
+ 
+x_pos_start = LastPartPos(1,PartID)
+y_pos_start = LastPartPos(2,PartID)
+z_pos_start = LastPartPos(3,PartID)
+ 
 sx=TrackInfo%PartTrajectory(1)
 sy=TrackInfo%PartTrajectory(2)
 sz=TrackInfo%PartTrajectory(3)
@@ -447,15 +449,15 @@ ELSE
     interseccase=3
   END IF
 END IF
-
+ 
 SELECT CASE (interseccase)
 CASE(1)
   alpha = dy / dx
   beta = yNode1 + alpha * (x_pos_start - xNode1)
-
+ 
   a = sy*sy + sz*sz - (alpha*sx)*(alpha*sx)
-  b = 2.0*y_pos_start*sy - 2.0*beta*alpha*sx
-  c = y_pos_start*y_pos_start - beta*beta
+  b = 2.0*y_pos_start*sy + 2.0*z_pos_start*sz - 2.0*beta*alpha*sx
+  c = y_pos_start*y_pos_start + z_pos_start*z_pos_start - beta*beta
   tmpsqrt = b*b - 4.0*a*c
   IF (tmpsqrt.LE.0.0) THEN
     LastInterCount = 0
@@ -465,7 +467,7 @@ CASE(1)
   S2 = (-b - SQRT(tmpsqrt)) / (2.*a)
   l1 = (x_pos_start + sx*S1 - xNode1) / dx
   l2 = (x_pos_start + sx*S2 - xNode1) / dx
-
+ 
   IF (((l1.GT.0.0).AND.(l1.LT.1.0).AND.(S1.GT.0.0).AND.(S1.LT.TrackInfo%lengthPartTrajectory).AND. &
     (l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0).AND.(S2.LT.TrackInfo%lengthPartTrajectory)).OR.(TrackInfo%LastIntersectCount.EQ.1)) THEN
     IF (TrackInfo%LastIntersectCount.EQ.0) THEN
@@ -521,9 +523,9 @@ CASE(2)
   beta = (xNode2 - xNode1) / sx
   deltay = (yNode2 - yNode1)
   a = beta*beta*sy*sy - deltay*deltay + beta*beta*sz*sz
-  b = 2.*beta*sy*y_pos_start + 2.*alpha*beta*sy*sy - 2.*deltay*yNode1 + 2.*alpha*beta*sz*sz
-  c = y_pos_start*y_pos_start - yNode1*yNode1 + 2.*alpha*sy*y_pos_start + alpha*alpha*sy*sy + sz*sz*alpha*alpha
-  ! Check if equation is nearly lQinear (trajectory nearly parallel to cone surface)
+  b = 2.*beta*sy*y_pos_start + 2.*beta*sz*z_pos_start + 2.*alpha*beta*sy*sy - 2.*deltay*yNode1 + 2.*alpha*beta*sz*sz
+  c = y_pos_start*y_pos_start + z_pos_start*z_pos_start - yNode1*yNode1 + 2.*alpha*sy*y_pos_start + 2.*alpha*sz*z_pos_start + alpha*alpha*sy*sy + sz*sz*alpha*alpha
+  ! Check if equation is nearly linear (trajectory nearly parallel to cone surface)
   ! Quadratic equation
   tmpsqrt = b*b - 4.*a*c
   IF (tmpsqrt.LE.0.0) THEN  
@@ -534,7 +536,7 @@ CASE(2)
   S1 = (xNode1-x_pos_start+(xNode2-xNode1)*l1)/sx
   l2 = (-b - SQRT(tmpsqrt))/(2.*a)
   S2 = (xNode1-x_pos_start+(xNode2-xNode1)*l2)/sx 
-
+ 
   IF (((l1.GT.0.0).AND.(l1.LT.1.0).AND.(S1.GT.0.0).AND.(S1.LT.TrackInfo%lengthPartTrajectory).AND. &
     (l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0).AND.(S2.LT.TrackInfo%lengthPartTrajectory)).OR.(TrackInfo%LastIntersectCount.EQ.1)) THEN
     IF (TrackInfo%LastIntersectCount.EQ.0) THEN
@@ -587,11 +589,15 @@ CASE(2)
   END IF
 CASE(3)
   S = (xNode1 - x_pos_start) / sx
-  tmpsqrt = SQRT((y_pos_start + sy*S)**2 + (sz*S)**2)
+  tmpsqrt = SQRT((y_pos_start + sy*S)**2 + (z_pos_start + sz*S)**2)
   l = ( tmpsqrt - yNode1)/dy
+  l2 = (-tmpsqrt - yNode1) / dy
+  IF ((l2.GE.0.0).AND.(l2.LE.1.0).AND.((l.LT.0.0).OR.(l.GT.1.0))) THEN
+    l = l2
+  END IF
   LastInterCount = 0
 END SELECT
-
+ 
 IF((S .GT. 0.0).AND.(S.LT.TrackInfo%lengthPartTrajectory) .AND. (0.0 .LE. l) .AND. (l .LE. 1.0).AND.(S.GT.TrackInfo%alpha)) THEN
   ThroughSide = .TRUE.
   Distance = S
@@ -599,8 +605,9 @@ IF((S .GT. 0.0).AND.(S.LT.TrackInfo%lengthPartTrajectory) .AND. (0.0 .LE. l) .AN
 ELSE
   LastInterCount=0
 END IF
-
+ 
 END SUBROUTINE ParticleThroughSideCheck2DRotSym
+
 
 SUBROUTINE ParticleThroughSideCheck1D(PartID,iLocSide,Element,ThroughSide)
 !===================================================================================================================================
