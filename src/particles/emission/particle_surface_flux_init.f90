@@ -61,6 +61,8 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-EmissionCurrent'
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-Massflow', &
                                 'Mass flow over surface flux surface (as an alternative to PartDensity e.g. for outgassing. ' //&
                                 'Velocity magnitude can be zero or above.', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-CosineExponent', &
+                                'Cosine exponent for respective velocity distribution', '1.', numberedmulti=.TRUE.)
 ! === Unclear/Deprecated
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-ReduceNoise' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
@@ -479,7 +481,9 @@ DO iSpec=1,nSpecies
       CALL PrintOption('Velocity distribution for granular species set to constant.','INFO',StrOpt=TRIM(SF%velocityDistribution))
     END IF
     SELECT CASE(TRIM(SF%velocityDistribution))
-    CASE('constant','maxwell','maxwell_lpn','cosine','cosine2')
+    CASE('constant','maxwell','maxwell_lpn')
+    CASE('cosine')
+      SF%CosineExponent      = GETREAL('Part-Species'//TRIM(hilf2)//'-CosineExponent')
     CASE DEFAULT
       CALL CollectiveStop(__STAMP__,'Selected velocity distribution not implemented for surface flux!')
     END SELECT
@@ -628,7 +632,7 @@ DO iSpec=1,nSpecies
         IF(.NOT.SF%CircularInflow.AND.(SF%AdaptiveType.NE.4)) CALL CollectiveStop(__STAMP__,'ERROR in adaptive surface flux: using a reflective BC without circularInflow is only allowed for Type 4!')
       END IF
       ! Cosine distribution not tested with adaptive
-      IF(TRIM(SF%velocityDistribution).EQ.'cosine'.OR.TRIM(SF%velocityDistribution).EQ.'cosine2') CALL CollectiveStop(__STAMP__,'ERROR in Surface Flux: Cosine velocity distribution is not tested with adaptive surface flux!')
+      IF(TRIM(SF%velocityDistribution).EQ.'cosine') CALL CollectiveStop(__STAMP__,'ERROR in Surface Flux: Cosine velocity distribution is not tested with adaptive surface flux!')
     END IF
     ! === THERMIONIC EMISSION ======================================================================================================
     SF%ThermionicEmission = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-ThermionicEmission')
@@ -1102,7 +1106,7 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
     ELSE
       vSF = v_thermal / (2.0*SQRT(PI))  ! mean flux velocity through normal sub-face
     END IF
-  CASE('cosine','cosine2')
+  CASE('cosine')
     vSF = Species(iSpec)%Surfaceflux(iSF)%VeloIC
   CASE DEFAULT
     CALL abort(__STAMP__, 'ERROR in SurfaceFlux: Wrong velocity distribution!')
