@@ -105,6 +105,7 @@ USE MOD_Analyze_Vars           ,ONLY: CalcElectricTimeDerivative
 #ifdef PARTICLES
 USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,BiasVoltage,BVDataLength
 USE MOD_HDG_Vars               ,ONLY: UseCircuitModel,CMBC,CMBCDataLength
+USE MOD_HDG_Readin             ,ONLY: UpdateChargeOnCMBC
 USE MOD_PICInterpolation_Vars  ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
 USE MOD_Analyze_Vars           ,ONLY: AverageElectricPotential
 USE MOD_Mesh_Vars              ,ONLY: N_VolMesh
@@ -671,11 +672,15 @@ IF(UseBiasVoltage.AND.MPIRoot)THEN
   CALL CloseDataFile()
   DEALLOCATE(BVDataHDF5)
 END IF ! CalcBulkElectronTempi.AND.MPIRoot
+
+#if USE_PETSC
 ! Circuit model boundary condition (CMBC)
+IF(UseCircuitModel) CALL UpdateChargeOnCMBC()
+! MPIRoot outputs data to .h5
 IF(UseCircuitModel.AND.MPIRoot)THEN
   ALLOCATE(CMBCDataHDF5(1:CMBCDataLength,1))
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-  CMBCDataHDF5(1:CMBCDataLength,1) = CMBC%CMBCData(1:CMBCDataLength)
+  CMBCDataHDF5(1:CMBCDataLength,1) = (/CMBC%Voltage, CMBC%Charge/)
   CALL WriteArrayToHDF5( DataSetName = 'CMBC' , rank = 2   , &
                          nValGlobal  = (/1_IK , INT(CMBCDataLength,IK)/), &
                          nVal        = (/1_IK , INT(CMBCDataLength,IK)/), &
@@ -683,7 +688,8 @@ IF(UseCircuitModel.AND.MPIRoot)THEN
                          collective  = .FALSE., RealArray = CMBCDataHDF5(1:CMBCDataLength,1))
   CALL CloseDataFile()
   DEALLOCATE(CMBCDataHDF5)
-END IF ! CalcBulkElectronTempi.AND.MPIRoot
+END IF ! UseCircuitModel.AND.MPIRoot
+#endif /*USE_PETSC*/
 #endif /*USE_HDG*/
 #endif /*PARTICLES*/
 

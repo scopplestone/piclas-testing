@@ -56,7 +56,7 @@ USE MOD_Dielectric_Vars       ,ONLY: DoDielectric
 #if USE_HDG
 USE MOD_AnalyzeField_HDG      ,ONLY: CalculateAverageElectricPotential,CalculateElectricDisplacementCurrentSurface
 USE MOD_AnalyzeField_HDG      ,ONLY: CalculateElectricPotentialExtrema
-USE MOD_HDG_Vars              ,ONLY: HDGNorm,iterationTotal,RunTimeTotal,UseFPC,FPC,UseEPC,EPC
+USE MOD_HDG_Vars              ,ONLY: HDGNorm,iterationTotal,RunTimeTotal,UseFPC,FPC,UseEPC,EPC,UseCircuitModel,CMBC
 USE MOD_Analyze_Vars          ,ONLY: AverageElectricPotential,CalcAverageElectricPotential,EDC,CalcElectricTimeDerivative
 USE MOD_Analyze_Vars          ,ONLY: EPE,CalcElectricPotentialExtrema
 USE MOD_TimeDisc_Vars         ,ONLY: dt
@@ -157,6 +157,10 @@ IF(MPIROOT)THEN
       IF(UseFPC) nOutputVarTotal = nOutputVarTotal + 2*FPC%nUniqueFPCBounds ! Charge and Voltage on each FPC
       !-- Electric potential condition
       IF(UseEPC) nOutputVarTotal = nOutputVarTotal + 2*EPC%nUniqueEPCBounds ! Current and Voltage on each EPC
+      !-- Electric potential condition
+      ! CMBC: 1) AC power supply voltage 2) Anode voltage 3) Capacitor voltage 4) Integrated surface charge (from plasma and wire)
+      !       5) Total charge deposited on anode from plasma
+      IF(UseCircuitModel) nOutputVarTotal = nOutputVarTotal + 5
 #endif /*USE_HDG*/
 #if (PP_nVar==8)
       IF(.NOT.CalcEpot) nOutputVarTotal = nOutputVarTotal - 5
@@ -240,6 +244,20 @@ IF(MPIROOT)THEN
           WRITE(StrVarNameTmp,'(A,I0.3)') 'EPC-Voltage-BCState-',EPC%BCState(iUniqueEPCBC)
           WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
         END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+      END IF
+
+      !-- Circuit model boundary condition (CMBC)
+      IF(UseCircuitModel)THEN
+        nOutputVarTotal = nOutputVarTotal + 1
+        WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-CMBC-RF-Voltage"'
+        nOutputVarTotal = nOutputVarTotal + 1
+        WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-CMBC-Anode-Voltage"'
+        nOutputVarTotal = nOutputVarTotal + 1
+        WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-CMBC-Capacitor-Voltage"'
+        nOutputVarTotal = nOutputVarTotal + 1
+        WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-CMBC-IntSurfCharge"'
+        nOutputVarTotal = nOutputVarTotal + 1
+        WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-CMBC-DepoChargeQ"'
       END IF
 #endif /*USE_HDG*/
 
@@ -373,6 +391,15 @@ IF(MPIROOT)THEN
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',-EPC%Charge(iUniqueEPCBC)/dt
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',EPC%Voltage(iUniqueEPCBC)
     END DO !iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+  END IF
+
+  !-- Circuit model boundary condition (CMBC)
+  IF(UseCircuitModel)THEN
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',CMBC%VoltageRF(1)
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',CMBC%Voltage
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',CMBC%Voltage-CMBC%VoltageRF(1)
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',CMBC%Capacitance*(CMBC%VoltageRF(1)-CMBC%Voltage) + CMBC%Charge
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',CMBC%Charge
   END IF
 #endif /*USE_HDG*/
   ! ! Add BoundaryFieldOutput for each boundary that is required

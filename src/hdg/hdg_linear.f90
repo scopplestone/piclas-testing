@@ -62,6 +62,7 @@ USE MOD_Globals_Vars       ,ONLY: eps0
 USE PETSc
 USE MOD_Mesh_Vars          ,ONLY: SideToElem,nGlobalMortarSides
 USE MOD_HDG_Vars_PETSc
+USE MOD_HDG_Readin         ,ONLY: UpdateChargeOnCMBC
 #if USE_MPI
 USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_MPI_Vars
@@ -258,27 +259,8 @@ DO iVar = 1, PP_nVar
     ! Apply charge to RHS, which is done below: RHS_conductor(1)=FPC%Charge(iUniqueFPCBC)/eps0
   END IF ! UseFPC
 
-  IF(UseCircuitModel) THEN
-#if USE_MPI
-    ! Communicate the accumulated charged on each BC to all processors on the communicator
-    ASSOCIATE( COMM => CMBC%COMM%UNICATOR)
-        IF(COMM.NE.MPI_COMM_NULL)THEN
-          IF(MPIRoot)THEN
-            CALL MPI_REDUCE(MPI_IN_PLACE, CMBC%ChargeProc, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IERROR)
-          ELSE
-            CALL MPI_REDUCE(CMBC%ChargeProc, 0           , 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IERROR)
-          END IF ! MPIRoot
-          CMBC%Charge = CMBC%Charge + CMBC%ChargeProc
-        END IF ! COMM.NE.MPI_COMM_NULL
-      END ASSOCIATE
-    END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-#else
-    CMBC%Charge = CMBC%Charge + CMBC%ChargeProc
-#endif /*USE_MPI*/
-    CMBC%ChargeProc = 0.
-    IPWRITE(*,*) 'CMBC%Charge:', CMBC%Charge
-    ! Apply charge to RHS, which is done below: RHS_conductor(1)=CMBC%Charge/eps0
-  END IF ! UseFPC
+  ! Communicate the accumulated charged on each BC to MPIRoot
+  IF(UseCircuitModel) CALL UpdateChargeOnCMBC()
 #endif /*USE_PETSC*/
 
   ! Set potential to zero (only one process does this)
@@ -518,11 +500,10 @@ END IF
 IF(UseCircuitModel) THEN
   IF(MPIRoot)THEN
     CALL ExactFunc(-1,(/0.,0.,0./),CMBC%VoltageRF(1:1),t=time,iRefState=CMBC%RefState)
-    IPWRITE(*,*) 'CMBC%Capacitance,CMBC%VoltageRF(1),CMBC%Voltage:', CMBC%Capacitance,CMBC%VoltageRF(1),CMBC%Voltage
-    IPWRITE(*,*) 'CMBC%Capacitance*(CMBC%VoltageRF(1)-CMBC%Voltage) , CMBC%Charge:', CMBC%Capacitance*(CMBC%VoltageRF(1)-CMBC%Voltage) , CMBC%Charge
+    ! IPWRITE(*,*) 'C=',CMBC%Capacitance, 'Phi_rf=',CMBC%VoltageRF(1),'Phi_a=',CMBC%Voltage,'C*(Phi_rf-Phi_a)=',CMBC%Capacitance*(CMBC%VoltageRF(1)-CMBC%Voltage),"Q=",CMBC%Charge
     PetscCallA(VecSetValues(PETScRHS,1,[nGlobalPETScDOFs-1],[(CMBC%Capacitance*(CMBC%VoltageRF(1)-CMBC%Voltage) + CMBC%Charge)/eps0],INSERT_VALUES,ierr))
-  END IF
-END IF
+  END IF ! MPIRoot
+END IF ! UseCircuitModel
 
 ! Reset the RHS of the first DOF if ZeroPotential must be set
 IF(mpiRoot.AND.ZeroPotentialDOF.GE.0) THEN
@@ -643,7 +624,7 @@ END IF ! UseFPC
 
 ! Fill circuit model lambda
 IF(UseCircuitModel) THEN
-  CMBC%Voltage = 0. ! nullify just to be safe
+  CMBC%Voltage = 0. ! Nullify just to be safe
   DO BCsideID=1,nCircuitModelBCsides
     SideID       = CircuitModelBC(BCSideID)
     Nloc         = N_SurfMesh(SideID)%NSide
@@ -654,7 +635,7 @@ IF(UseCircuitModel) THEN
   END DO
   ! MPIRoot sets global value for BC and I/O
   IF(MPIRoot) CMBC%Voltage = lambda_pointer(nLocalPETScDOFs)
-END IF ! UseFPC
+END IF ! UseCircuitModel
 
 PetscCallA(VecRestoreArrayRead(PETScSolutionLocal,lambda_pointer,ierr))
 #else

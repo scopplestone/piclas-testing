@@ -83,7 +83,7 @@ USE MOD_HDG_Vars               ,ONLY: UseEPC
 #if defined(PARTICLES)
 USE MOD_Equation_Tools         ,ONLY: SynchronizeCPP
 USE MOD_HDG_Readin             ,ONLY: SynchronizeBV
-USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,UseCoupledPowerPotential
+USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,UseCoupledPowerPotential!,UseCircuitModel
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 USE MOD_Mesh_Vars              ,ONLY: SideToNonUniqueGlobalSide
 USE MOD_LoadBalance_Vars       ,ONLY: MPInSideSend,MPInSideRecv,MPIoffsetSideSend,MPIoffsetSideRecv
@@ -225,7 +225,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 #if defined(PARTICLES)
   ! CMBC: The MPI root process distributes the information among the sub-communicator processes for the CMBC
   !      (before and after load balancing, the root process is always part of each sub-communicator group)
-  IF(UseCircuitModel) CALL SynchronizeChargeOnCMBC()
+  ! IF(UseCircuitModel) CALL SynchronizeChargeOnCMBC()
 #endif /*defined(PARTICLES)*/
 #endif /*USE_PETSC*/
   ! EPC: The MPI root process distributes the information among the sub-communicator processes for each EPC

@@ -246,15 +246,15 @@ and the constant capacitance for the capacitor
 
     CMBC-Capacitance = 5e-9 ! 5nF capacitor
 
-Using this boundary condition automatically activates integral field and surface analysis ouptut:
+Using this boundary condition automatically activates integral field analysis ouptut to FieldAnalyze.csv
 
-|File |  Property |
+|Property |  Symbol/Equation |
 | :----------------- | :----------------------- |
-| FieldAnalyze.csv   | $\Phi_{rf}$           |
-| FieldAnalyze.csv   | $\Phi_{a}$               |
-| FieldAnalyze.csv   | $\Phi_{c}=\Phi_{a}-\Phi_{rf}$               |
-| SurfaceAnalyze.csv | $-\varepsilon_0\oiint_S\vec{n}\cdot\vec{E}dS$               |
-| SurfaceAnalyze.csv | $\int_0^tJ_p(\tau)d\tau$ |
+| AC power supply voltage   | $\Phi_{rf}$           |
+| Anode voltage   | $\Phi_{a}$               |
+| Capacitor voltage   | $\Phi_{c}=\Phi_{a}-\Phi_{rf}$               |
+| Integrated surface charge (from plasma and wire) | $\oiint_S\vec{n}\cdot\vec{D}dS=C\left(\Phi_{rf} - \Phi\right) + Q$               |
+| Total charge deposited on anode from plasma | $Q=\int_0^tJ_p(\tau)d\tau$ |
 
 (sec:electric-potential-condition)=
 ### Electric potential condition (EPC)

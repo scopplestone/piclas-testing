@@ -282,7 +282,7 @@ TYPE tCMBC
   REAL            :: Voltage                  !< Anode voltage on the electrode that is connected to the capacitor and the AC power supply
   REAL            :: Charge                   !< Accumulated charge on Circuit Model boundary condition over all processors
   REAL            :: ChargeProc               !< Accumulated charge on Circuit Model boundary condition for a single processor
-  REAL            :: CMBCData(CMBCDataLength) !< 1: Anode voltage
+  ! REAL            :: CMBCData(CMBCDataLength) !< 1: Anode voltage
 !                                             !< 2: Integral value of the surface current from plasma to electrode (anode): Charge Q
 END TYPE tCMBC
 

@@ -34,6 +34,9 @@ PUBLIC :: SynchronizeBV
 #if defined(PARTICLES)
 PUBLIC :: ReadBVDataFromH5
 PUBLIC :: ReadCMBCDataFromH5
+#if USE_PETSC
+PUBLIC :: UpdateChargeOnCMBC
+#endif /*USE_PETSC*/
 #endif /*defined(PARTICLES)*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
@@ -142,17 +145,14 @@ IF(MPIRoot)THEN
   ! Check for new parameter name
   IF(CMBCExists)THEN
     CALL ReadArray(TRIM(ContainerName) , 2 , (/1_IK , INT(CMBCDataLength,IK)/) , 0_IK , 1 , RealArray=CMBCDataHDF5)
-    WRITE(UNIT_stdOut,'(2(A,ES10.2E3))') " Read bias voltage from restart file ["//TRIM(RestartFile)//&
+    WRITE(UNIT_stdOut,'(2(A,ES10.2E3))') " Read circuit model anode voltage and charge from restart file ["//TRIM(RestartFile)//&
         "] Anode voltage [V]: ",CMBCDataHDF5(1),", Anode charge [C]: ",CMBCDataHDF5(2)
-    CMBC%CMBCData = CMBCDataHDF5
+    CMBC%Voltage = CMBCDataHDF5(1)
+    CMBC%Charge  = CMBCDataHDF5(2)
   END IF ! CMBCExists
   CALL CloseDataFile()
 END IF ! MPIRoot
 
-#if USE_MPI
-! 2. The MPI root process distributes the information among the sub-communicator processes for each EPC
-CALL SynchronizeCMBC()
-#endif /*USE_MPI*/
 END SUBROUTINE ReadCMBCDataFromH5
 
 
@@ -177,15 +177,17 @@ IF(BiasVoltage%COMM%UNICATOR.NE.MPI_COMM_NULL)THEN
   CALL MPI_BCAST(BiasVoltage%BVData, BVDataLength, MPI_DOUBLE_PRECISION, 0, BiasVoltage%COMM%UNICATOR, IERROR)
 END IF
 END SUBROUTINE SynchronizeBV
+#endif /*USE_MPI*/
 
 
+#if USE_PETSC
 !===================================================================================================================================
-!> Communicate the Circuit Model values from MPIRoot to sub-communicator processes
+!> Communicate the Circuit Model accumulated charge values to MPIRoot: Updates CMBC%Charge and nullifies CMBC%ChargeProc
 !===================================================================================================================================
-SUBROUTINE SynchronizeCMBC()
+SUBROUTINE UpdateChargeOnCMBC()
 ! MODULES
 USE mpi_f08
-USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
+USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION,MPIRoot
 USE MOD_HDG_Vars ,ONLY: CMBC,CMBCDataLength
 ! insert modules here
 IMPLICIT NONE
@@ -194,12 +196,28 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-IF(CMBC%COMM%UNICATOR.NE.MPI_COMM_NULL)THEN
-  ! Broadcast from root to other processors on the sub-communicator
-  CALL MPI_BCAST(CMBC%CMBCData, CMBCDataLength, MPI_DOUBLE_PRECISION, 0, CMBC%COMM%UNICATOR, IERROR)
-END IF
-END SUBROUTINE SynchronizeCMBC
+#if USE_MPI
+! Communicate the accumulated charged on each BC to MPIRoot
+ASSOCIATE( COMM => CMBC%COMM%UNICATOR)
+  IF(COMM.NE.MPI_COMM_NULL)THEN
+    IF(MPIRoot)THEN
+      CALL MPI_REDUCE(MPI_IN_PLACE, CMBC%ChargeProc, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IERROR)
+      ! Update CMBC%Charge on MPIRoot
+      CMBC%Charge = CMBC%Charge + CMBC%ChargeProc
+    ELSE
+      CALL MPI_REDUCE(CMBC%ChargeProc, 0           , 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IERROR)
+      CMBC%Charge = 0. ! Non-Root processes always have zero
+    END IF ! MPIRoot
+  END IF ! COMM.NE.MPI_COMM_NULL
+END ASSOCIATE
+#else
+! Update CMBC%Charge on MPIRoot
+CMBC%Charge = CMBC%Charge + CMBC%ChargeProc
 #endif /*USE_MPI*/
+! Reset the coutner
+CMBC%ChargeProc = 0.
+END SUBROUTINE UpdateChargeOnCMBC
+#endif /*USE_PETSC*/
 #endif /*defined(PARTICLES)*/
 
 

@@ -67,6 +67,7 @@ USE MOD_Particle_MPI_Vars  ,ONLY: halo_eps
 #if USE_MPI
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,nProcessors_Global
 #endif /*USE_MPI*/
+USE mpi_f08
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_HDG_Readin         ,ONLY: ReadFPCDataFromH5
@@ -678,7 +679,7 @@ USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput,BPO
 USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
-USE MOD_Globals                   ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION,MPI_COMM_PICLAS,MPI_INFO_NULL,MPI_UNDEFINED,MPIRoot
+USE MOD_Globals                   ,ONLY: IERROR,MPI_DOUBLE_PRECISION,MPI_COMM_PICLAS,MPI_INFO_NULL,MPI_UNDEFINED,MPIRoot
 USE MOD_Mesh_Vars                 ,ONLY: nBCSides,BC
 #endif /*USE_MPI*/
 USE MOD_HDG_Readin                ,ONLY: ReadBVDataFromH5
@@ -819,29 +820,44 @@ USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETREAL,GETINT,GETINTARRAY
 USE MOD_Mesh_Vars          ,ONLY: nBCs,BoundaryType
 USE MOD_HDG_Vars           ,ONLY: UseCircuitModel,CMBC
 USE MOD_Analyze_Vars       ,ONLY: DoFieldAnalyze
+USE MOD_HDG_Readin         ,ONLY: ReadCMBCDataFromH5
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
-USE MOD_Globals            ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION,MPI_COMM_PICLAS,MPI_INFO_NULL,MPI_UNDEFINED,MPIRoot
+USE mpi_f08
+USE MOD_Globals            ,ONLY: MPI_COMM_NULL,MPI_INTEGER,MPI_WTIME,MPI_SUM,abort
+USE MOD_Mesh_Vars          ,ONLY: nBCSides,BC
+USE MOD_Globals            ,ONLY: IERROR,MPI_DOUBLE_PRECISION,MPI_COMM_PICLAS,MPI_INFO_NULL,MPI_UNDEFINED,MPIRoot
+USE MOD_Globals            ,ONLY: VECNORM3D
 USE MOD_Mesh_Vars          ,ONLY: nBCSides
+USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
+USE MOD_Globals            ,ONLY: ElementOnProc
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,SideInfo_Shared
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
+USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem
+USE MOD_Particle_MPI_Vars  ,ONLY: halo_eps
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,nProcessors_Global
 #endif /*USE_MPI*/
-USE MOD_HDG_Readin         ,ONLY: ReadCMBCDataFromH5
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER, PARAMETER :: BCTypeCMBC(1:1) = (/40/) ! BCType which allows bias voltage control
-!                                            ! 40: AC frequency and capacitor with constant capacitance C
+!                                              ! 40: AC frequency and capacitor with constant capacitance C
 INTEGER            :: BCType,CMBCBoundaries,BCState,iBC
 #if USE_MPI
-INTEGER            :: color,SideID,WithSides
+INTEGER             :: iElem,iCNElem
+REAL                :: iElemCenter(1:3),iGlobElemCenter(1:3)
+REAL                :: iElemRadius,iGlobElemRadius
+INTEGER             :: iGlobElem,BCIndex,iSide
+INTEGER            :: color,SideID,WithSides,nprocswithsides
 LOGICAL            :: BConProc
 #endif /*USE_MPI*/
 REAL               :: StartT,EndT
 !===================================================================================================================================
-UseCircuitModel = .FALSE. ! Default
+UseCircuitModel = .FALSE. ! Default is always false
 
 ! 1.) Get global number of CMBC boundaries in [1:nBCs]
 CMBCBoundaries = 0
@@ -864,7 +880,7 @@ UseCircuitModel = .TRUE.
 IF(CMBCBoundaries.NE.1) CALL CollectiveStop(__STAMP__,' Cicuit model requires exactly one boundary with this feature!')
 
 #if !(USE_PETSC)
-CALL CollectiveStop(__STAMP__,'FPC model requires compilation with LIBS_USE_PETSC=ON')
+CALL CollectiveStop(__STAMP__,'Circuit model boundary condition (CMBC) requires compilation with LIBS_USE_PETSC=ON')
 #endif /*!(USE_PETSC)*/
 
 GETTIME(StartT)
@@ -880,13 +896,12 @@ IF(CMBC%Capacitance.LT.0) CALL CollectiveStop(__STAMP__,'CMBC-Capacitance must b
 ! Do not nullify during load balance in order to keep the old value on the MPIRoot
 IF((.NOT.PerformLoadBalance).OR.(.NOT.MPIRoot))THEN
 #endif /*USE_LOADBALANCE*/
-  CMBC%CMBCData = 0.
+  ! Initialize the containers
+  CMBC%Voltage = 0.
+  CMBC%Charge = 0.
 #if USE_LOADBALANCE
 END IF
 #endif /*USE_LOADBALANCE*/
-
-! Initialize the containers
-CMBC%Voltage = 0.
 
 #if USE_MPI
 WithSides = 0 ! For checking if the process is directly connected to a BC
@@ -942,7 +957,7 @@ IF(.NOT.BConProc)THEN
           ! Get boundary type
           BCType = BoundaryType(BCIndex,BC_TYPE)
           ! Check if CMBC has been found
-          IF(BCType.EQ.BCTypeCMBC)THEN
+          IF(ANY(BCType.EQ.BCTypeCMBC))THEN
 
             ! Check if the BC can be reached
             iGlobElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iGlobElem)),&
@@ -992,7 +1007,7 @@ IF(BConProc)THEN
 #if USE_LOADBALANCE
     IF(.NOT.PerformLoadBalance)&
 #endif /*USE_LOADBALANCE*/
-        WRITE(UNIT_StdOut,'(A,I0,A,I0)') ' Circuit model (CMBC) communicator on ',CMBC%COMM%nProcs,' procs for BCState ',BCState
+        WRITE(UNIT_StdOut,'(A,I0,A)') ' Circuit model (CMBC) communicator on ',CMBC%COMM%nProcs,' processes'
   END IF
 END IF ! BConProc
 
@@ -1001,8 +1016,8 @@ END IF ! BConProc
 ! Procs might have zero CMBC sides but are in the group because 1.) MPIRoot or 2.) the CMBC is in the halo region
 ! Because only the MPI root process writes the .csv data, the information regarding the voltage on each CMBC must be
 ! communicated with this process even though it might not be connected to each CMBC boundary
-ASSOCIATE( COMM => CMBC%COMM%UNICATOR)%nProcsWithSides )
-  IF(CMBC%COMM%UNICATOR.NE.MPI_COMM_NULL)THEN
+ASSOCIATE( COMM => CMBC%COMM%UNICATOR )
+  IF(COMM.NE.MPI_COMM_NULL)THEN
     ! Check if the current processor is actually connected to the CMBC via a BC side
     IF (WithSides.EQ.0) THEN
       ! Check local sides
@@ -1022,6 +1037,7 @@ ASSOCIATE( COMM => CMBC%COMM%UNICATOR)%nProcsWithSides )
       CALL MPI_REDUCE(WithSides, 0              , 1 ,MPI_INTEGER, MPI_SUM, 0, COMM, IError)
     END IF ! MPIRoot
   END IF ! CMBC%COMM%UNICATOR.NE.MPI_COMM_NULL
+END ASSOCIATE
 #endif /*USE_MPI*/
 
 ! When restarting, load the history data from the .h5 state file
