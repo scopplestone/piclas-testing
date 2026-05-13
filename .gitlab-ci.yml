@@ -92,6 +92,11 @@ spec:
       type: boolean
       description: "Deployment of the master.dev to GitHub"
       default: false
+
+    CHECK_WARNINGS:
+      type: boolean
+      description: "Check number of warnings after compiling"
+      default: false
 ---
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Use pipeline name to indicate whether default shared memory, node split or core split is used, and whether it is a checkin, nightly or weekly pipeline
@@ -216,9 +221,9 @@ before_script:
     fi
     # else
     #   module load openblas/v0.3.31/gcc/14.2.0;
-  - if [ -n "${DO_RUN_LOCAL}" ]; then
+  - if [ -n "$[[ inputs.DO_RUN_LOCAL ]]" ]; then
       source $(ls /opt/modules/*/init/bash | tail -n1);
-      for LOCALMODULE in ${DO_RUN_LOCAL}; do module load ${LOCALMODULE}; done;
+      for LOCALMODULE in $[[ inputs.DO_RUN_LOCAL ]]; do module load ${LOCALMODULE}; done;
       module list;
     else
       module list || true ;
@@ -280,7 +285,7 @@ stages:
     when: on_failure
   rules:
     # If the pipeline is for an appimage test run, the job is not added to the pipeline.
-    - if: '$DO_TEST_APPIMAGE'
+    - if: '"$[[ inputs.DO_TEST_APPIMAGE ]]" != ""'
       when: never
     # If the pipeline is for an appimage build run, the job is not added to the pipeline.
     - if: $[[ inputs.DO_CREATE_APPIMAGE ]] == true
@@ -722,7 +727,7 @@ build_maxwell_only:
     - cmake ..  -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
-        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+        if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
 
 build_poisson:
@@ -755,7 +760,7 @@ build_poisson:
     # - if [[ "$NWARN" =~ ^(1[1-9]|[2-9]+\d+|1\d\d+)$ ]]; then
     # Check greater than 9, see https://regex101.com/ for details
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
-        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+        if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
     - cd ..
     - mkdir -p build_poisson_release_Leapfrog ; cd build_poisson_release_Leapfrog
@@ -769,7 +774,7 @@ build_poisson:
     # - if [[ "$NWARN" =~ ^(1[1-9]|[2-9]+\d+|1\d\d+)$ ]]; then
     # Check greater than 9, see https://regex101.com/ for details
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
-        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+        if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
     - cd ..
 
@@ -800,7 +805,7 @@ build_poisson_petsc:
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
-        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+        if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
     - cd ..
     - mkdir -p build_poisson_petsc_release_Leapfrog ; cd build_poisson_petsc_release_Leapfrog
@@ -837,7 +842,7 @@ build_DSMC:
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
-        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+        if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
     - if [ "$[[ inputs.DO_WEEKLY ]]" == "true" ] ; then
         cd .. ;
@@ -866,7 +871,7 @@ build_drift_diffusion:
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -DLIBS_USE_PETSC=ON; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
-        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+        if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
 
 build_DVM:
@@ -2048,9 +2053,9 @@ github_test_appimage:
   tags: [appimage]
   stage: appimage
   rules:
-    - if: '$DO_TEST_APPIMAGE'
+    - if: '"$[[ inputs.DO_TEST_APPIMAGE ]]" != ""'
   script:
-    - if [ -z '${DO_TEST_APPIMAGE}' ]; then echo "DO_TEST_APPIMAGE is empty but should contain the artifact name"; exit; else echo "Artifact ${DO_TEST_APPIMAGE}"; fi
+    - if [ -z '$[[ inputs.DO_TEST_APPIMAGE ]]' ]; then echo "DO_TEST_APPIMAGE is empty but should contain the artifact name"; exit; else echo "Artifact $[[ inputs.DO_TEST_APPIMAGE ]]"; fi
     - if [ -z "${CI_COMMIT_REF_NAME}" ]; then echo "CI_COMMIT_REF_NAME is empty"; exit; else echo "Cloning ${CI_COMMIT_REF_NAME}"; fi
     - if [ -d "reggie-appimage" ]; then rm -rf reggie-appimage ; fi ;
     - git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie-appimage ;
@@ -2061,8 +2066,8 @@ github_test_appimage:
     - git clone -b ${CI_COMMIT_REF_NAME} --single-branch git@github.com-reggie2.0:scopplestone/piclas-testing.git piclas-testing
     - cd piclas-testing
     - source /var/lib/gitlab-runner/.bashrc
-    - echo "Downloading '${DO_TEST_APPIMAGE}' artifacts from piclas-testing via 'gh run download -n ${DO_TEST_APPIMAGE}'"
-    - gh run download -n ${DO_TEST_APPIMAGE}
+    - echo "Downloading '$[[ inputs.DO_TEST_APPIMAGE ]]' artifacts from piclas-testing via 'gh run download -n $[[ inputs.DO_TEST_APPIMAGE ]]'"
+    - gh run download -n $[[ inputs.DO_TEST_APPIMAGE ]]
     - ls -l
     - module li
     - echo "Checking ./piclasLeapfrogHDG executable output"
