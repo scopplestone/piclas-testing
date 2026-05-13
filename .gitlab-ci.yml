@@ -154,6 +154,7 @@ before_script:
   - which reggie || true
   - export MESHESDIR=True
   - export REGGIE_GITLAB_CI=1
+  - export REGGIE_MULTICORE=True
   - ulimit -s unlimited
   - python3 -V || true
   - python  -V || true
