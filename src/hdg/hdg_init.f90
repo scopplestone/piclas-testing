@@ -25,7 +25,9 @@ PUBLIC :: InitFPC  ! Floating Potential Condition Initialization
 PUBLIC :: InitEPC  ! Electric Potential Condition (simple resistor model) Initialization
 #if defined(PARTICLES)
 PUBLIC :: InitBV   ! Bias Voltage Initialization
+#if USE_PETSC
 PUBLIC :: InitCMBC ! Circuit Model (simple capacitor and AC power supply) Initialization
+#endif /*USE_PETSC*/
 #endif /*defined(PARTICLES)*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
@@ -804,6 +806,7 @@ CALL ReadBVDataFromH5()
 END SUBROUTINE InitBV
 
 
+#if USE_PETSC
 !===================================================================================================================================
 !> Create containers and communicators for each circuit model boundary condition where impacting charges (current density flux)
 !> and a connected capacitor with AC power supply lead to a surface charge build-up on the electrode (bias voltage).
@@ -878,10 +881,6 @@ UseCircuitModel = .TRUE.
 
 ! Check the number of boundaries that allow bias voltage: Must be exactly 1
 IF(CMBCBoundaries.NE.1) CALL CollectiveStop(__STAMP__,' Cicuit model requires exactly one boundary with this feature!')
-
-#if !(USE_PETSC)
-CALL CollectiveStop(__STAMP__,'Circuit model boundary condition (CMBC) requires compilation with LIBS_USE_PETSC=ON')
-#endif /*!(USE_PETSC)*/
 
 GETTIME(StartT)
 LBWRITE(UNIT_stdOut,'(A)')' | INIT CMBC ...'
@@ -1048,6 +1047,7 @@ LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' | INIT CMBC'
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE!')
 
 END SUBROUTINE InitCMBC
+#endif /*USE_PETSC*/
 #endif /*defined(PARTICLES)*/
 #endif /*USE_HDG*/
 

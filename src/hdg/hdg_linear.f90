@@ -62,7 +62,9 @@ USE MOD_Globals_Vars       ,ONLY: eps0
 USE PETSc
 USE MOD_Mesh_Vars          ,ONLY: SideToElem,nGlobalMortarSides
 USE MOD_HDG_Vars_PETSc
+#if defined(PARTICLES)
 USE MOD_HDG_Readin         ,ONLY: UpdateChargeOnCMBC
+#endif /*defined(PARTICLES*/
 #if USE_MPI
 USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_MPI_Vars
@@ -259,8 +261,10 @@ DO iVar = 1, PP_nVar
     ! Apply charge to RHS, which is done below: RHS_conductor(1)=FPC%Charge(iUniqueFPCBC)/eps0
   END IF ! UseFPC
 
+#if defined(PARTICLES)
   ! Communicate the accumulated charged on each BC to MPIRoot
   IF(UseCircuitModel) CALL UpdateChargeOnCMBC()
+#endif /*defined(PARTICLES*/
 #endif /*USE_PETSC*/
 
   ! Set potential to zero (only one process does this)
@@ -496,6 +500,7 @@ IF(UseFPC) THEN
   END IF
 END IF
 
+#if defined(PARTICLES)
 ! The MPIRoot process has charge and voltage of the CMBC, therefore, this process sets all RHS information
 IF(UseCircuitModel) THEN
   IF(MPIRoot)THEN
@@ -504,6 +509,7 @@ IF(UseCircuitModel) THEN
     PetscCallA(VecSetValues(PETScRHS,1,[nGlobalPETScDOFs-1],[(CMBC%Capacitance*(CMBC%VoltageRF(1)-CMBC%Voltage) + CMBC%Charge)/eps0],INSERT_VALUES,ierr))
   END IF ! MPIRoot
 END IF ! UseCircuitModel
+#endif /*defined(PARTICLES*/
 
 ! Reset the RHS of the first DOF if ZeroPotential must be set
 IF(mpiRoot.AND.ZeroPotentialDOF.GE.0) THEN
@@ -622,6 +628,7 @@ IF(UseFPC) THEN
   END IF ! MPIRoot
 END IF ! UseFPC
 
+#if defined(PARTICLES)
 ! Fill circuit model lambda
 IF(UseCircuitModel) THEN
   CMBC%Voltage = 0. ! Nullify just to be safe
@@ -636,6 +643,7 @@ IF(UseCircuitModel) THEN
   ! MPIRoot sets global value for BC and I/O
   IF(MPIRoot) CMBC%Voltage = lambda_pointer(nLocalPETScDOFs)
 END IF ! UseCircuitModel
+#endif /*defined(PARTICLES*/
 
 PetscCallA(VecRestoreArrayRead(PETScSolutionLocal,lambda_pointer,ierr))
 #else

@@ -508,8 +508,11 @@ USE MOD_part_tools              ,ONLY: BuildTransGaussNums, InRotRefFrameCheck, 
 USE MOD_Particle_Vars           ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 #if USE_HDG
-USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC,UseCircuitModel
+USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars               ,ONLY: BoundaryType
+#if USE_PETSC
+USE MOD_HDG_Vars                ,ONLY: UseCircuitModel
+#endif /*USE_PETSC*/
 #endif /*USE_HDG*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -674,10 +677,12 @@ CASE('photon_SEE_energy')
             END IF ! BCType.EQ.8
           END IF ! UseEPC
 
+#if USE_PETSC
           ! 4. Check if circuit model boundary condition (CMBC) are used and consider electron holes
           IF (UseCircuitModel) THEN
             CALL abort(__STAMP__,'Circuit model (CMBC) not implemented for electron holes due to photon emission')
           END IF ! UseCircuitModel
+#endif /*USE_PETSC*/
 #endif /*USE_HDG*/
 
         END ASSOCIATE

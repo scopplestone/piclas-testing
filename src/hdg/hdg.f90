@@ -135,7 +135,10 @@ USE MOD_Mesh_Vars             ,ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_HDG_Init              ,ONLY: InitFPC,InitEPC
 #if defined(PARTICLES)
-USE MOD_HDG_Init              ,ONLY: InitBV,InitCMBC
+USE MOD_HDG_Init              ,ONLY: InitBV
+#if USE_PETSC
+USE MOD_HDG_Init              ,ONLY: InitCMBC
+#endif /*USE_PETSC*/
 #endif /*defined(PARTICLES)*/
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 IMPLICIT NONE
@@ -160,8 +163,11 @@ INTEGER,ALLOCATABLE :: LocalToGlobalPETScDOF(:)
 CHARACTER(100)    :: hilf,hilf2
 #if USE_MPI
 INTEGER             :: iProc,PETScDOFOffsetsMPI(nProcessors)
-#endif
-#endif
+#endif /*USE_MPI*/
+#if !defined(PARTICLES)
+LOGICAL,PARAMETER :: UseCircuitModel=.FALSE. ! This flag can only be set with PARTICLES=ON
+#endif /*!defined(PARTICLES*/
+#endif /*USE_PETSC*/
 INTEGER           :: locSide,nMortars
 INTEGER           :: MortarSideID,iMortar
 REAL              :: StartT,EndT
@@ -424,8 +430,12 @@ CALL InitEPC()
 ! BCType: 52,X for bias voltage + cos(wt) function + coupled power adjustment (for AC and not DC in this case)
 CALL InitBV()
 
+#if USE_PETSC
 ! Circuit Model BC: Initialize containers and sub-communicator
 CALL InitCMBC()
+#else
+IF(nCircuitModelBCsides.GT.0) CALL CollectiveStop(__STAMP__,'Circuit model boundary condition (CMBC) requires LIBS_USE_PETSC=ON')
+#endif /*USE_PETSC*/
 #endif /*defined(PARTICLES)*/
 
 ! 8. BCs the second...

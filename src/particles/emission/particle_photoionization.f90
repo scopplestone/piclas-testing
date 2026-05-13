@@ -141,11 +141,14 @@ USE MOD_Timedisc_Vars           ,ONLY: RK_c, nRKStages
 #endif
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_loc,PhotonSurfSideArea
 #if USE_HDG
-USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC,UseCircuitModel
+USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars               ,ONLY: BoundaryType
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoVirtualDielectricLayer,Do2DSurfaceCharge
 USE MOD_Particle_Vars           ,ONLY: LastPartPos,PartSpecies
 USE MOD_PICDepo_Tools           ,ONLY: DepositParticleOnSurface
+#if USE_PETSC
+USE MOD_HDG_Vars                ,ONLY: UseCircuitModel
+#endif /*USE_PETSC*/
 #endif /*USE_HDG*/
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcPhotonSEE
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemBaryNGeo
@@ -307,10 +310,12 @@ DO iSurfSide = 1, nComputeNodeSurfSides
             END IF ! BCType.EQ.8
           END IF ! UseEPC
 
+#if USE_PETSC
           ! 4. Check if circuit model boundary condition (CMBC) are used and consider electron holes
           IF (UseCircuitModel) THEN
             CALL abort(__STAMP__,'Circuit model (CMBC) not implemented for electron holes due to photon emission')
           END IF ! UseCircuitModel
+#endif /*USE_PETSC*/
 
           ! 3. Check if SEE holes are to be deposited
           ! 3a. VDL
