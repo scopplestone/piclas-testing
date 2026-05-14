@@ -1382,7 +1382,7 @@ REAL,INTENT(IN),OPTIONAL         :: particle_xis(:)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: i,PositionNbr,envelope,currentBC,SampleElemID,iPart
+INTEGER                          :: i,PositionNbr,envelope,currentBC,SampleElemID,iPart,nARMTries
 REAL                             :: Vec3D(3), vec_nIn(1:3), vec_t1(1:3), vec_t2(1:3)
 REAL                             :: a,zstar,RandVal1,RandVal2(2),RandVal3(3),u,RandN,RandN_save,Velo1,Velo2,Velosq,T,beta,z
 LOGICAL                          :: RandN_in_Mem
@@ -1393,7 +1393,7 @@ REAL                             :: VeloIC
 REAL                             :: VeloVec(1:3)
 REAL                             :: VeloVecIC(1:3),v_thermal, pressure
 TYPE(tSurfaceflux), POINTER      :: SF => NULL()
-REAL                             :: Phi, Theta
+REAL                             :: Phi, Theta, gVal
 !===================================================================================================================================
 
 IF(PartIns.LT.1) RETURN
@@ -1693,6 +1693,36 @@ CASE('cosine')
     ! Convert to global coordinate system
     PartState(4:6,PositionNbr) = vec_t1(1:3) * Vec3D(1) + vec_t2(1:3) * Vec3D(2) + vec_nIn(1:3) * Vec3D(3)
   END DO ! i = NbrOfParticle-PartIns+1,NbrOfParticle
+CASE('cosine_double')
+  DO i = NbrOfParticle-PartIns+1,NbrOfParticle
+    PositionNbr = GetNextFreePosition(i)
+    ! === Velocity vector
+    ! Equally-distributed angle Phi [0:2*PI] for tangential component
+    CALL RANDOM_NUMBER(RandVal1)
+    Phi = RandVal1 * 2.0 * PI
+
+    ! Polar angle Theta [0:PI/2] via acceptance-rejection, target g(theta) = sin(theta)*(A*cos^n(theta) - B*cos^m(theta))
+    nARMTries = 0
+    DO
+      CALL RANDOM_NUMBER(RandVal2)
+      Theta    = RandVal2(1) * 0.5 * PI
+      gVal     = SIN(Theta) * ( SF%CosineA * COS(Theta)**SF%CosineExponent - SF%CosineB * COS(Theta)**SF%CosineExponent2 )
+      IF (RandVal2(2) * SF%CosineDoubleMax .LE. gVal) EXIT
+      nARMTries = nARMTries + 1
+      IF (nARMTries .GT. 1000) CALL abort(__STAMP__, 'ERROR in SetSurfacefluxVelocities: cosine_double ARM did not converge after 1000 attempts.')
+    END DO
+
+    ! Normalized velocity vector in surface-local orientation
+    Vec3D(1) = SIN(Theta) * COS(Phi)
+    Vec3D(2) = SIN(Theta) * SIN(Phi)
+    Vec3D(3) = COS(Theta)
+
+    ! Multiply by velocity magnitude
+    Vec3D(1:3) = Vec3D(1:3) * VeloIC
+
+    ! Convert to global coordinate system
+    PartState(4:6,PositionNbr) = vec_t1(1:3)*Vec3D(1) + vec_t2(1:3)*Vec3D(2) + vec_nIn(1:3)*Vec3D(3)
+  END DO
 CASE DEFAULT
   CALL abort(__STAMP__,'ERROR in SetSurfacefluxVelocities: Wrong velocity distribution!')
 END SELECT
