@@ -33,15 +33,14 @@ spec:
       description: "Run weekly regressiontests"
       default: false
 
-    DO_CORE_SPLIT:
-      type: boolean
-      description: "Use shared memory splitting"
-      default: false
-
-    DO_NODE_SPLIT:
-      type: boolean
-      description: "Use shared memory splitting"
-      default: false
+    SHARED_MEMORY:
+      type: string
+      options:
+        - PICLAS_COMM_TYPE_NODE
+        - OMPI_COMM_TYPE_CORE
+        - MPI_COMM_TYPE_SHARED
+      default: MPI_COMM_TYPE_SHARED
+      description: "OMPI_COMM_TYPE_CORE: core-level, PICLAS_COMM_TYPE_NODE: virtual node-level splitting with 2 core per node, MPI_COMM_TYPE_SHARED: physical node-level (default)"
 
     DO_NINJA:
       type: boolean
@@ -75,17 +74,17 @@ spec:
 
     DO_RUN_LOCAL:
       type: string
-      description: ""
+      description: "Set specific set of modules to load for local execution"
       default: ""
 
     DO_CREATE_APPIMAGE:
       type: boolean
-      description: "Create AppImages"
+      description: "Push the CI_COMMIT_REF_NAME branch to github to invoke creating the AppImages"
       default: false
 
     DO_TEST_APPIMAGE:
       type: string
-      description: ""
+      description: "Download the AppImages from the piclas-testing repository and test them"
       default: ""
 
     DO_DEPLOY:
@@ -95,9 +94,12 @@ spec:
 
     CHECK_WARNINGS:
       type: boolean
-      description: "Check number of warnings after compiling"
+      description: "Check number of warnings after compiling and exit for more than nine errors"
       default: false
 ---
+variables:
+  # used for pipeline name in wek_radiation
+  SHARED_MEMORY: $[[ inputs.SHARED_MEMORY]]
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Use pipeline name to indicate whether default shared memory, node split or core split is used, and whether it is a checkin, nightly or weekly pipeline
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -108,10 +110,10 @@ workflow:
       when: never
 
     # --- Nightly ---
-    - if: $[[ inputs.DO_NIGHTLY ]] && $[[ inputs.DO_NODE_SPLIT ]]
+    - if: $[[ inputs.DO_NIGHTLY ]] && "$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"
       variables:
         PIPELINE_NAME: '[Nightly] 🔵 Node Splitting ${CI_COMMIT_REF_NAME}'
-    - if: $[[ inputs.DO_NIGHTLY ]] && $[[ inputs.DO_CORE_SPLIT ]]
+    - if: $[[ inputs.DO_NIGHTLY ]] && "$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"
       variables:
         PIPELINE_NAME: '[Nightly] 🟠 Core Splitting ${CI_COMMIT_REF_NAME}'
     - if: $[[ inputs.DO_NIGHTLY ]] == true
@@ -119,10 +121,10 @@ workflow:
         PIPELINE_NAME: '[Nightly] 🟢 ${CI_COMMIT_REF_NAME}'
 
     # --- Weekly ---
-    - if: $[[ inputs.DO_WEEKLY ]] && $[[ inputs.DO_NODE_SPLIT ]]
+    - if: $[[ inputs.DO_WEEKLY ]] && "$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"
       variables:
         PIPELINE_NAME: '[Weekly] 🔵 Node Splitting ${CI_COMMIT_REF_NAME}'
-    - if: $[[ inputs.DO_WEEKLY ]] && $[[ inputs.DO_CORE_SPLIT ]]
+    - if: $[[ inputs.DO_WEEKLY ]] && "$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"
       variables:
         PIPELINE_NAME: '[Weekly] 🟠 Core Splitting ${CI_COMMIT_REF_NAME}'
     - if: $[[ inputs.DO_WEEKLY ]] == true
@@ -130,13 +132,13 @@ workflow:
         PIPELINE_NAME: '[Weekly] 🟢 ${CI_COMMIT_REF_NAME}'
 
     # --- Checkin (DO_CHECKIN, push, or manual) ---
-    - if: $[[ inputs.DO_NODE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       variables:
         PIPELINE_NAME: '[Checkin] 🔵 Node Splitting ${CI_COMMIT_REF_NAME}'
-    - if: $[[ inputs.DO_CORE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       variables:
         PIPELINE_NAME: '[Checkin] 🟠 Core Splitting ${CI_COMMIT_REF_NAME}'
-    - if: $[[ inputs.DO_CORE_SPLIT ]] == false && $[[ inputs.DO_NODE_SPLIT ]] == false
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "default"'
       variables:
         PIPELINE_NAME: '[Checkin] 🟢 ${CI_COMMIT_REF_NAME}'
 
@@ -157,16 +159,16 @@ before_script:
   - ulimit -s unlimited
   - python3 -V || true
   - python  -V || true
-  - if [ "$[[ inputs.DO_CORE_SPLIT ]]" == "true" ]; then
+  - if [ "$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE" ]; then
       echo " PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE. Splitting shared memory domains on processor level (\"core splitting\")";
       export PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE;
     else
-      if [ "$[[ inputs.DO_NODE_SPLIT ]]" == "true" ]; then
+      if [ "$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE" ]; then
         echo " PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE. Splitting shared memory domains on sub-node level with 2 cores per node (\"node splitting\")!";
         export PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE;
       else
         echo "PICLAS_SHARED_MEMORY=MPI_COMM_TYPE_SHARED. Splitting shared memory domains on physical node level (default)!";
-        echo "Set variable [DO_CORE_SPLIT=T] to force core-level OR [DO_NODE_SPLIT=T] to force sub-node-level shared memory splitting for all regression tests.";
+        echo "Set input OMPI_COMM_TYPE_CORE to force core-level OR PICLAS_COMM_TYPE_NODE to force sub-node-level shared memory splitting for all regression tests.";
       fi
     fi
   - if [ "$[[ inputs.DO_NINJA ]]" == "true" ]; then
@@ -240,6 +242,7 @@ before_script:
     fi
   - |
     if [ "$[[ inputs.DO_REGGIE_COVERAGE ]]" == "true" ]; then
+      if [ ! -d "Coverage" ]; then mkdir Coverage ; fi ;
       if [ ! -d "Coverage/reggie" ]; then mkdir Coverage/reggie ; fi ;
       echo "DO_REGGIE_COVERAGE activated. Creating Coverage/reggie to store coverage report.";
       COVERAGE_REGGIE_DIR="${PWD}/Coverage/reggie" ;
@@ -936,9 +939,9 @@ build_DVM_plasma:
 #     - mkdir -p build_hopr_lib ; cd build_hopr_lib
 #     - reggie ../regressioncheck/WEK_HOPR
 #   rules:
-#     #- if: $[[ inputs.DO_CORE_SPLIT ]] == true
+#     #- if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
 #       #when: never
-#     #- if: $[[ inputs.DO_NODE_SPLIT ]] == true
+#     #- if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
 #       #when: never
 #     - if: $[[ inputs.DO_WEEKLY ]] == true
 
@@ -1144,9 +1147,9 @@ NIG_Reservoir_single_core:
   script:
     - cd build_DSMC_release/ ; reggie ../regressioncheck/NIG_Reservoir_single_core -e bin/piclas
   rules:
-    - if: $[[ inputs.DO_CORE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: $[[ inputs.DO_NODE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
     - if: $[[ inputs.DO_NIGHTLY ]] == true
 
@@ -1306,9 +1309,9 @@ NIG_PIC_poisson_Leapfrog_single_node_Release:
   script:
     - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_Leapfrog_single_node/
   rules:
-    - if: $[[ inputs.DO_CORE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: $[[ inputs.DO_NODE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
     - if: $[[ inputs.DO_NIGHTLY ]] == true
 
@@ -1377,9 +1380,9 @@ WEK_PIC_poisson_Leapfrog_Debug: # This uses the same reggie as NIG_PIC_poisson_L
   script:
     - cd build ; reggie -t Debug ../regressioncheck/NIG_PIC_poisson_Leapfrog/
   rules:
-    - if: $[[ inputs.DO_CORE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: $[[ inputs.DO_NODE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
     - if: $[[ inputs.DO_WEEKLY ]] == true
 
@@ -1390,9 +1393,9 @@ WEK_PIC_poisson_Leapfrog_single_node_Debug: # This uses the same reggie as NIG_P
   script:
     - cd build ; reggie -t Debug ../regressioncheck/NIG_PIC_poisson_Leapfrog_single_node/
   rules:
-    - if: $[[ inputs.DO_CORE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: $[[ inputs.DO_NODE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
     - if: $[[ inputs.DO_WEEKLY ]] == true
 
@@ -1409,9 +1412,9 @@ WEK_PIC_poisson_Leapfrog:
 #   script:
 #     - cd build_poisson_release_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
 #   rules:
-#     - if: $[[ inputs.DO_CORE_SPLIT ]] == true
+#     - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
 #       when: never
-#     - if: $[[ inputs.DO_NODE_SPLIT ]] == true
+#     - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
 #       when: never
 #     - if: $[[ inputs.DO_WEEKLY ]] == true
 #
@@ -1421,9 +1424,9 @@ WEK_PIC_poisson_Leapfrog:
 #   script:
 #     - cd build_poisson_debug_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
 #   rules:
-#     - if: $[[ inputs.DO_CORE_SPLIT ]] == true
+#     - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
 #       when: never
-#     - if: $[[ inputs.DO_NODE_SPLIT ]] == true
+#     - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
 #       when: never
 #     - if: $[[ inputs.DO_WEEKLY ]] == true
 
@@ -1433,9 +1436,9 @@ WEK_Photoionization_petsc_release_RK3:
   script:
     - cd build_poisson_petsc_release_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
-    - if: $[[ inputs.DO_CORE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: $[[ inputs.DO_NODE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
     - if: $[[ inputs.DO_WEEKLY ]] == true
 
@@ -1445,9 +1448,9 @@ WEK_Photoionization_petsc_release_RK3:
 #   script:
 #     - cd build_poisson_petsc_debug_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
 #   rules:
-#     - if: $[[ inputs.DO_CORE_SPLIT ]] == true
+#     - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
 #       when: never
-#     - if: $[[ inputs.DO_NODE_SPLIT ]] == true
+#     - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
 #       when: never
 #     - if: $[[ inputs.DO_WEEKLY ]] == true
 
@@ -1457,9 +1460,9 @@ WEK_Photoionization_release_Leapfrog:
   script:
     - cd build_poisson_release_Leapfrog;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
-    - if: $[[ inputs.DO_CORE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: $[[ inputs.DO_NODE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
     - if: $[[ inputs.DO_WEEKLY ]] == true
 
@@ -1469,9 +1472,9 @@ WEK_Photoionization_debug_Leapfrog:
   script:
     - cd build_poisson_debug_Leapfrog;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
-    - if: $[[ inputs.DO_CORE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: $[[ inputs.DO_NODE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
     - if: $[[ inputs.DO_WEEKLY ]] == true
 
@@ -1483,9 +1486,9 @@ NIG_Photoionization_petsc_release_Leapfrog:
   script:
     - cd build_poisson_petsc_release_Leapfrog;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
-    - if: $[[ inputs.DO_CORE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: $[[ inputs.DO_NODE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
     - if: $[[ inputs.DO_NIGHTLY ]] == true
 
@@ -1495,9 +1498,9 @@ WEK_Photoionization_petsc_debug_Leapfrog:
   script:
     - cd build_poisson_petsc_debug_Leapfrog;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
-    - if: $[[ inputs.DO_CORE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: $[[ inputs.DO_NODE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
     - if: $[[ inputs.DO_WEEKLY ]] == true
 
@@ -1509,9 +1512,9 @@ NIG_Raytracing_release_Leapfrog:
   script:
     - cd build_poisson_release_Leapfrog;  reggie ../regressioncheck/NIG_Raytracing -e ./bin/piclas
   rules:
-    - if: $[[ inputs.DO_CORE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: $[[ inputs.DO_NODE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
     - if: $[[ inputs.DO_NIGHTLY ]] == true
 
@@ -1521,9 +1524,9 @@ WEK_Raytracing_debug_Leapfrog:
   script:
     - cd build_poisson_debug_Leapfrog;  reggie ../regressioncheck/WEK_Raytracing -e ./bin/piclas
   rules:
-    - if: $[[ inputs.DO_CORE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: $[[ inputs.DO_NODE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
     - if: $[[ inputs.DO_WEEKLY ]] == true
 
@@ -1533,9 +1536,9 @@ WEK_Raytracing_debug_Leapfrog:
   script:
     - cd build_poisson_debug_Leapfrog;  reggie ../regressioncheck/NIG_Raytracing -e ./bin/piclas
   rules:
-    - if: $[[ inputs.DO_CORE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: $[[ inputs.DO_NODE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
     - if: $[[ inputs.DO_WEEKLY ]] == true
 
@@ -1634,7 +1637,7 @@ WEK_DSMC_Radiation:
       paths:
         - build_DSMC_release
       policy: pull
-    - key: "${CI_COMMIT_REF_SLUG}-DSMC-CS-${DO_CORE_SPLIT}-NS-${DO_NODE_SPLIT}"
+    - key: "${CI_COMMIT_REF_SLUG}-DSMC-CS-${SHARED_MEMORY}"
       paths:
         - build_DSMC_release_WEK_DSMC_Radiation
       policy: push
@@ -1661,7 +1664,7 @@ WEK_Radiation:
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"
       paths: [build_radiation]
       policy: pull
-    - key: "${CI_COMMIT_REF_SLUG}-DSMC-CS-${DO_CORE_SPLIT}-NS-${DO_NODE_SPLIT}"
+    - key: "${CI_COMMIT_REF_SLUG}-DSMC-CS-${SHARED_MEMORY}"
       paths:
         - build_DSMC_release_WEK_DSMC_Radiation
       policy: pull-push
@@ -1690,9 +1693,9 @@ WEK_Reservoir_single_core:
   script:
     - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_Reservoir_single_core -e bin/piclas
   rules:
-    - if: $[[ inputs.DO_CORE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: $[[ inputs.DO_NODE_SPLIT ]] == true
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
     - if: $[[ inputs.DO_WEEKLY ]] == true
 
