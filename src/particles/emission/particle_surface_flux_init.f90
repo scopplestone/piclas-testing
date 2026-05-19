@@ -497,20 +497,20 @@ DO iSpec=1,nSpecies
       SF%CosineA              = GETREAL('Part-Species'//TRIM(hilf2)//'-CosineA')
       SF%CosineB              = GETREAL('Part-Species'//TRIM(hilf2)//'-CosineB')
       ! Sanity checks
-      IF (SF%CosineA .LE. 0.0)          CALL abort(__STAMP__,'ERROR ReadInAndPrepareSurfaceFlux: Velocity distribution cosine_double requires CosineA > 0')
-      IF (SF%CosineB .LT.  0.0)         CALL abort(__STAMP__,'ERROR ReadInAndPrepareSurfaceFlux: Velocity distribution cosine_double requires CosineB >= 0')
-      IF (SF%CosineExponent .LT. 0.0)   CALL abort(__STAMP__,'ERROR ReadInAndPrepareSurfaceFlux: Velocity distribution cosine_double requires CosineExponent >= 0')
-      IF (SF%CosineExponent2 .LT. 0.0)  CALL abort(__STAMP__,'ERROR ReadInAndPrepareSurfaceFlux: Velocity distribution cosine_double requires CosineExponent2 >= 0')
-      IF (SF%CosineB .GT. SF%CosineA)   CALL abort(__STAMP__,'ERROR ReadInAndPrepareSurfaceFlux: Velocity distribution cosine_double requires A >= B (non-negativity at theta=0)')
-      IF (SF%CosineB .GT. 0.0 .AND. SF%CosineExponent2 .LE. SF%CosineExponent) CALL abort(__STAMP__,'ERROR ReadInAndPrepareSurfaceFlux: Velocity distribution cosine_double requires m > n')
+      IF (SF%CosineA .LE. 0.0)          CALL CollectiveStop(__STAMP__,'ERROR ReadInAndPrepareSurfaceFlux: Velocity distribution cosine_double requires CosineA > 0')
+      IF (SF%CosineB .LT.  0.0)         CALL CollectiveStop(__STAMP__,'ERROR ReadInAndPrepareSurfaceFlux: Velocity distribution cosine_double requires CosineB >= 0')
+      IF (SF%CosineExponent .LT. 0.0)   CALL CollectiveStop(__STAMP__,'ERROR ReadInAndPrepareSurfaceFlux: Velocity distribution cosine_double requires CosineExponent >= 0')
+      IF (SF%CosineExponent2 .LT. 0.0)  CALL CollectiveStop(__STAMP__,'ERROR ReadInAndPrepareSurfaceFlux: Velocity distribution cosine_double requires CosineExponent2 >= 0')
+      IF (SF%CosineB .GT. SF%CosineA)   CALL CollectiveStop(__STAMP__,'ERROR ReadInAndPrepareSurfaceFlux: Velocity distribution cosine_double requires A >= B (non-negativity at theta=0)')
+      IF (SF%CosineB .GT. 0.0 .AND. SF%CosineExponent2 .LE. SF%CosineExponent) CALL CollectiveStop(__STAMP__,'ERROR ReadInAndPrepareSurfaceFlux: Velocity distribution cosine_double requires m > n')
       ! Precompute maximum of distribution function
       CALL FindCosineDoubleMax(SF%CosineA, SF%CosineB, SF%CosineExponent, SF%CosineExponent2, SF%CosineDoubleMax)
       ! Report expected acceptance rate
       ! eta = mean(g) / gMax, with mean(g) = (2/PI)*[A/(n+1) - B/(m+1)]
       eta_est = (2.0/PI) * (SF%CosineA/(SF%CosineExponent+1.0) - SF%CosineB/(SF%CosineExponent2+1.0)) / SF%CosineDoubleMax
-      SWRITE(UNIT_StdOut,'(A,F6.3)') ' cosine_double: expected acceptance rate = ', eta_est
+      LBWRITE(UNIT_StdOut,'(A,F6.3)') '| Velocity distribution cosine_double: expected acceptance rate = ', eta_est
       IF(eta_est.LT.0.1) THEN
-        SWRITE(UNIT_StdOut,'(A)') ' WARNING: cosine_double acceptance < 10% -- check parameters.'
+        LBWRITE(UNIT_StdOut,'(A)') '| WARNING Velocity distribution cosine_double has an acceptance rate below 10%. Check parameters!'
       END IF
 
     CASE DEFAULT
