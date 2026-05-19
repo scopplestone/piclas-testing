@@ -1453,7 +1453,7 @@ INTEGER(KIND=IK),INTENT(OUT) :: globnPart(6)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if USE_MPI
-INTEGER(KIND=8)              :: locnPart8,locnPart8Recv,globnPart8 ! always integer KIND=8
+INTEGER(KIND=i8)             :: locnPart8,locnPart8Recv,globnPart8 ! always integer KIND=8
 INTEGER(KIND=IK)             :: SimNumSpecMin,SimNumSpecMax
 #else
 CHARACTER(LEN=255) :: dummy_char

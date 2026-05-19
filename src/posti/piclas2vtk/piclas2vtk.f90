@@ -466,6 +466,7 @@ END PROGRAM piclas2vtk
 SUBROUTINE WriteDataToVTK_PICLas(dim,data_size,FileString,nVar,VarNameVisu,nNodes,Coords,nElems,Array,ConnectInfo)
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars              , ONLY: i4
 USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample
 USE MOD_VTK                       ,ONLY: CreateConnectivity
 ! IMPLICIT VARIABLE HANDLING
@@ -488,7 +489,7 @@ INTEGER                       :: iLen, str_len, NVisu, NVisuCoords,NPlot_p1_2,NV
 CHARACTER(LEN=35)             :: StrOffset,TempStr1,TempStr2
 CHARACTER(LEN=200)            :: Buffer, tmp, tmp2, VarNameString
 CHARACTER(LEN=1)              :: lf, components_string
-REAL(KIND=4)                  :: float
+REAL(KIND=i4)                 :: float
 INTEGER,ALLOCATABLE           :: VarNameCombine(:), VarNameCombineLen(:), Vertex(:,:)
 REAL                          :: StartT,EndT ! Timer
 INTEGER,ALLOCATABLE,TARGET    :: nodeids(:)
@@ -2161,7 +2162,7 @@ Buffer='      <Points>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='        <DataArray type="Float32" Name="Coordinates" NumberOfComponents="3" format="appended" '// &
                   'offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
 ! INTEGER KIND=4 check
-CHECKSAFEINT(INT(Offset,8)+INT(SizeINTdummy,8)+3_8*INT(nVTKPoints,8)*INT(SIZEOF_F(FLOATdummy),8),4)
+CHECKSAFEINT(INT(Offset,8)+INT(SizeINTdummy,8)+INT(3,8)*INT(nVTKPoints,8)*INT(SIZEOF_F(FLOATdummy),8),4)
 Offset=          Offset   +    SizeINTdummy   +3  *    nVTKPoints   *    SIZEOF_F(FLOATdummy)
 WRITE(StrOffset,'(I16)')Offset
 Buffer='      </Points>'//lf;WRITE(ivtk) TRIM(Buffer)

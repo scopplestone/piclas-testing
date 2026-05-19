@@ -436,8 +436,8 @@ REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
 REAL               :: norm
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)    :: CounterStart,CounterEnd
-REAL(KIND=8)       :: Rate
+INTEGER(KIND=i8)   :: CounterStart,CounterEnd
+REAL(KIND=dp)      :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 #if USE_LOADBALANCE
@@ -791,8 +791,8 @@ INTEGER            :: iPart
 INTEGER            :: iElem,iProc,locElem, globElem, offSetDof, i,j,k,r, Nloc
 #endif
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)    :: CounterStart,CounterEnd
-REAL(KIND=8)       :: Rate
+INTEGER(KIND=i8)   :: CounterStart,CounterEnd
+REAL(KIND=dp)      :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 #if USE_LOADBALANCE
 REAL               :: tLBStart ! load balance
@@ -874,14 +874,14 @@ IF ((stage.EQ.0).OR.(stage.EQ.2)) THEN
 #if defined(MEASURE_MPI_WAIT)
     CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
     MPIW8TimePart(6)  = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
-    MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
+    MPIW8CountPart(6) = MPIW8CountPart(6) + 1_i8
     CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
     CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
 #if defined(MEASURE_MPI_WAIT)
     CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
     MPIW8TimePart(6)  = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
-    MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
+    MPIW8CountPart(6) = MPIW8CountPart(6) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     DO iElem = 1, ShapeMapping(iProc)%nRecvShapeElems

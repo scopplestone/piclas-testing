@@ -22,6 +22,7 @@ MODULE MOD_Mesh_ReadIn
 !> - readin of boundary conditions
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i8
 USE MOD_HDF5_Input
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -357,7 +358,7 @@ IF (.NOT.PerformLoadBalance) THEN
   CHECKSAFEINT(HSize(2),4)
   nGlobalElems=INT(HSize(2),4) !global number of elements
   ! INTEGER KIND=4 check for number of nodes
-  CHECKSAFEINT(8_8*INT(nGlobalElems,8),4)
+  CHECKSAFEINT(8_i8*INT(nGlobalElems,8),4)
   DEALLOCATE(HSize)
   IF(MPIRoot.AND.(nGlobalElems.LT.nProcessors))CALL abort(__STAMP__&
       ,' Number of elements < number of processors',nGlobalElems,REAL(nProcessors))

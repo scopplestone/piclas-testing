@@ -14,6 +14,7 @@
 
 MODULE MOD_RecordPoints
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i8
 IMPLICIT NONE
 PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -161,7 +162,7 @@ CHARACTER(LEN=255),INTENT(IN) :: FileString !< name of hdf5 file for readin of r
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)            :: MeshFile_RPList
-INTEGER(8)                    :: nGlobalElems_RPList
+INTEGER(KIND=i8)              :: nGlobalElems_RPList
 INTEGER                       :: iElem,iRP,iRP_glob
 INTEGER,ALLOCATABLE           :: OffsetRPArray(:,:)
 REAL,ALLOCATABLE              :: xi_RP(:,:)

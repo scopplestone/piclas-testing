@@ -836,8 +836,8 @@ INTEGER           :: iProc
 TYPE(MPI_Request) :: RecvRequest(1:nNodeRecvExchangeProcs),SendRequest(1:nNodeSendExchangeProcs)
 INTEGER           :: iNode
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)   :: CounterStart,CounterEnd
-REAL(KIND=8)      :: Rate
+INTEGER(KIND=i8)  :: CounterStart,CounterEnd
+REAL(KIND=dp)     :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 ! 1.1) Receive charge density
@@ -884,7 +884,7 @@ END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
 MPIW8TimePart(6)  = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
-MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
+MPIW8CountPart(6) = MPIW8CountPart(6) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! 2) Send/Receive current density
@@ -931,7 +931,7 @@ IF(doCalculateCurrentDensity)THEN
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
   MPIW8TimePart(6)  = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
-  MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
+  MPIW8CountPart(6) = MPIW8CountPart(6) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
   ! 3) Extract messages
@@ -984,8 +984,8 @@ TYPE(MPI_Request)              :: RecvRequest(1:nNodeRecvExchangeProcs),SendRequ
 #endif /*USE_MPI*/
 INTEGER                        :: globalNode, iNode
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)                :: CounterStart,CounterEnd
-REAL(KIND=8)                   :: Rate
+INTEGER(KIND=i8)               :: CounterStart,CounterEnd
+REAL(KIND=dp)                  :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 ! 1) Receive charge density
@@ -1030,7 +1030,7 @@ END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
 MPIW8TimePart(6)  = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
-MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
+MPIW8CountPart(6) = MPIW8CountPart(6) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! 3) Extract messages
@@ -1080,8 +1080,8 @@ INTEGER                        :: iProc
 TYPE(MPI_Request)              :: RecvRequest(1:nSurfNodeRecvExchangeProcs),SendRequest(1:nSurfNodeSendExchangeProcs)
 INTEGER                        :: iNode, iDepoSurfNodeID, FEMVertexID
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)                :: CounterStart,CounterEnd
-REAL(KIND=8)                   :: Rate
+INTEGER(KIND=i8)               :: CounterStart,CounterEnd
+REAL(KIND=dp)                  :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 ! 1) Receive surface node area data
@@ -1154,7 +1154,7 @@ END IF ! MPIRoot
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
 MPIW8TimePart(6)  = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
-MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
+MPIW8CountPart(6) = MPIW8CountPart(6) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! 3) Extract messages
@@ -1203,8 +1203,8 @@ INTEGER                        :: iProc
 TYPE(MPI_Request)              :: RecvRequest(1:nSurfNodeRecvExchangeProcs),SendRequest(1:nSurfNodeSendExchangeProcs)
 INTEGER                        :: iNode, iDepoSurfNodeID, FEMVertexID
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)                :: CounterStart,CounterEnd
-REAL(KIND=8)                   :: Rate
+INTEGER(KIND=i8)               :: CounterStart,CounterEnd
+REAL(KIND=dp)                  :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 ! 1) Receive surface node source data
@@ -1263,7 +1263,7 @@ END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
 MPIW8TimePart(6)  = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
-MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
+MPIW8CountPart(6) = MPIW8CountPart(6) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! 3) Extract messages
@@ -1322,8 +1322,8 @@ TYPE(MPI_Request)              :: RecvRequest(1:nSurfNodeSendExchangeProcs),Send
 ! Send/Receive containers are used in reverse here
 INTEGER                        :: iNode, iDepoSurfNodeID, FEMVertexID
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)                :: CounterStart,CounterEnd
-REAL(KIND=8)                   :: Rate
+INTEGER(KIND=i8)               :: CounterStart,CounterEnd
+REAL(KIND=dp)                  :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 ! OPTIMIZE: check if the SurfNodeSource is sent to processes, which do not have any fem vertices for surface deposition and skip them
@@ -1402,7 +1402,7 @@ END IF ! .NOT.MPIRoot
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
 MPIW8TimePart(6)  = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
-MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
+MPIW8CountPart(6) = MPIW8CountPart(6) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! 3) Extract messages
@@ -1456,8 +1456,8 @@ TYPE(MPI_Request)              :: RecvRequest(1:nSurfNodeSendExchangeProcs),Send
 ! Send/Receive containers are used in reverse here
 INTEGER                        :: iNode, iDepoSurfNodeID, FEMVertexID
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)                :: CounterStart,CounterEnd
-REAL(KIND=8)                   :: Rate
+INTEGER(KIND=i8)               :: CounterStart,CounterEnd
+REAL(KIND=dp)                  :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 ! OPTIMIZE: check if the SurfNodeArea is sent to processes, which do not have any fem vertices for surface deposition and skip them
@@ -1536,7 +1536,7 @@ END IF ! .NOT.MPIRoot
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
 MPIW8TimePart(6)  = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
-MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
+MPIW8CountPart(6) = MPIW8CountPart(6) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! 3) Extract messages

@@ -17,6 +17,7 @@
 !===================================================================================================================================
 MODULE MOD_LoadDistribution
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
@@ -1252,7 +1253,7 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 LOGICAL,INTENT(IN)                      :: WriteHeader
 REAL,INTENT(IN),OPTIONAL                :: time_opt
-INTEGER(KIND=8),INTENT(IN),OPTIONAL     :: iter_opt
+INTEGER(KIND=i8),INTENT(IN),OPTIONAL     :: iter_opt
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 REAL                                     :: time_loc

@@ -20,6 +20,7 @@
 !===================================================================================================================================
 MODULE MOD_HDG
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i8
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -536,7 +537,7 @@ DO iElem=1,PP_nElems
   END IF
 END DO !iElem
 
-CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
+CALL Elem_Mat(0_i8) ! takes iter=0 (kind=8)
 
 ! 10. Allocate and zero missing HDG_VOL_N and HDG_Surf_N stuff
 DO iElem = 1, PP_nElems
@@ -774,7 +775,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)             :: t !time
-INTEGER(KIND=8),INTENT(IN)  :: iter
+INTEGER(KIND=i8),INTENT(IN)  :: iter
 #if defined(PARTICLES)
 LOGICAL,INTENT(IN),OPTIONAL :: ForceCGSolverIteration_opt ! set converged=F in first step (only required for BR electron fluid)
 #endif /*defined(PARTICLES)*/
@@ -910,7 +911,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
-INTEGER(KIND=8),INTENT(IN)  :: iter
+INTEGER(KIND=i8),INTENT(IN)  :: iter
 INTEGER,INTENT(IN) :: mode !< 1: store E^n at the beginning of the time step
                            !< 2: store E^n+1 at the end of the time step and subtract E^n to calculate the difference
 !-----------------------------------------------------------------------------------------------------------------------------------

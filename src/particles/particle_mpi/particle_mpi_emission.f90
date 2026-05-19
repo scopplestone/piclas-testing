@@ -16,6 +16,7 @@
 ! module for MPI communication during particle emission
 !===================================================================================================================================
 MODULE MOD_Particle_MPI_Emission
+USE MOD_Globals_Vars, ONLY: i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
@@ -617,8 +618,8 @@ INTEGER                       :: messageSize
 INTEGER                       :: nRecvParticles,nSendParticles
 REAL,ALLOCATABLE              :: recvPartPos(:)
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)               :: CounterStart,CounterEnd
-REAL(KIND=8)                  :: Rate
+INTEGER(KIND=i8)              :: CounterStart,CounterEnd
+REAL(KIND=dp)                 :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 InitGroup = Species(FractNbr)%Init(iInit)%InitCOMM
@@ -839,7 +840,7 @@ END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
 MPIW8TimePart(5)  = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
-MPIW8CountPart(5) = MPIW8CountPart(5) + 1_8
+MPIW8CountPart(5) = MPIW8CountPart(5) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! recvPartPos holds particles from ALL procs
@@ -905,9 +906,9 @@ DO i = 1, chunkSize
       chunkState(1:3,i) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+3)
       IF (TrackingMethod.EQ.REFMAPPING) THEN
         CALL GetPositionInRefElem(chunkState(1:3,i),chunkState(4:6,i),ElemID)
-        chunkState(7,i) = REAL(ElemID,KIND=8)
+        chunkState(7,i) = REAL(ElemID,KIND=i8)
       ELSE
-        chunkState(4,i) = REAL(ElemID,KIND=8)
+        chunkState(4,i) = REAL(ElemID,KIND=i8)
       END IF ! TrackingMethod.EQ.REFMAPPING
     ! Located particle on local proc.
     ELSE
@@ -986,7 +987,7 @@ END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
 MPIW8TimePart(5)  = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
-MPIW8CountPart(5) = MPIW8CountPart(5) + 1_8
+MPIW8CountPart(5) = MPIW8CountPart(5) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 DO iProc=0,PartMPIInitGroup(InitGroup)%nProcs-1
@@ -1048,7 +1049,7 @@ END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
 MPIW8TimePart(5)  = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
-MPIW8CountPart(5) = MPIW8CountPart(5) + 1_8
+MPIW8CountPart(5) = MPIW8CountPart(5) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 !--- 8/10 Try to locate received non-located particles
@@ -1095,7 +1096,7 @@ END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
 MPIW8TimePart(5)  = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
-MPIW8CountPart(5) = MPIW8CountPart(5) + 1_8
+MPIW8CountPart(5) = MPIW8CountPart(5) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 !--- 10/10 Write located particles

@@ -71,8 +71,8 @@ IMPLICIT NONE
 ! Local variable declaration
 INTEGER                          :: i, iPart, PositionNbr, iInit, IntSample
 INTEGER                          :: NbrOfParticle,iSEEBC
-INTEGER(KIND=8)                  :: inserted_Particle_iter,inserted_Particle_time
-INTEGER(KIND=8)                  :: inserted_Particle_diff
+INTEGER(KIND=i8)                 :: inserted_Particle_iter,inserted_Particle_time
+INTEGER(KIND=i8)                 :: inserted_Particle_diff
 REAL                             :: PartIns, RandVal1
 REAL                             :: RiseFactor, RiseTime,NbrOfPhotons
 REAL                             :: dtVar, TimeVar
@@ -81,8 +81,8 @@ INTEGER                          :: InitGroup
 #endif
 REAL                             :: NbrOfReactions,NbrOfParticlesReal,MPF
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)                  :: CounterStart,CounterEnd
-REAL(KIND=8)                     :: Rate
+INTEGER(KIND=i8)                 :: CounterStart,CounterEnd
+REAL(KIND=dp)                    :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 
@@ -136,7 +136,7 @@ DO i=1,nSpecies
           inserted_Particle_diff = inserted_Particle_time - Species(i)%Init(iInit)%InsertedParticle &
             - inserted_Particle_iter - Species(i)%Init(iInit)%InsertedParticleSurplus &
             + Species(i)%Init(iInit)%InsertedParticleMisMatch
-          Species(i)%Init(iInit)%InsertedParticleSurplus = ABS(MIN(inserted_Particle_iter + inserted_Particle_diff,0_8))
+          Species(i)%Init(iInit)%InsertedParticleSurplus = ABS(MIN(inserted_Particle_iter + inserted_Particle_diff,0_i8))
           NbrOfParticle = MAX(INT(inserted_Particle_iter + inserted_Particle_diff,4),0)
           !-- if maxwell velo dist and less than 5 parts: skip (to ensure maxwell dist)
           IF (TRIM(Species(i)%Init(iInit)%velocityDistribution).EQ.'maxwell') THEN
@@ -379,7 +379,7 @@ DO i=1,nSpecies
 #if defined(MEASURE_MPI_WAIT)
       CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
       MPIW8TimePart(5)  = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
-      MPIW8CountPart(5) = MPIW8CountPart(5) + 1_8
+      MPIW8CountPart(5) = MPIW8CountPart(5) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
       IF(PartMPIInitGroup(InitGroup)%MPIRoot) THEN

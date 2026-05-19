@@ -17,6 +17,7 @@ MODULE MOD_Particle_Emission_Init
 !>
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
@@ -832,7 +833,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                     :: iSpec, iInit
-INTEGER(KIND=8)             :: insertParticles
+INTEGER(KIND=i8)            :: insertParticles
 REAL                        :: A_ins
 !===================================================================================================================================
 
