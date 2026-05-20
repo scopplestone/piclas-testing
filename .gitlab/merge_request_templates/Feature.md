@@ -12,7 +12,7 @@
   * [ ] Are there new or changed shared memory windows (SHM)? Check if the [rules in the Developer Guide are being followed](https://piclas.readthedocs.io/en/latest/developerguide/bestpractices.html#shared-memory-windows).
 * Maximum number of 10 compiler warnings
   * [ ] Check with specific compiler settings for the feature branch via `./tools/test_max_warnings.sh`. Number of found warnings:
-  * [ ] Run [pipeline](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines/new) for the feature branch and supply the variables `DO_CHECKIN=T` and `CHECK_WARNINGS=T` for automatic compiler warning tests for other compiler flag combinations
+  * [ ] Run [pipeline](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines/new) for the feature branch and set the inputs `DO_CHECKIN` and `CHECK_WARNINGS` to `true` for automatic compiler warning tests for other compiler flag combinations
 * [ ] Check file size via *./tools/test_max_file_size.sh*. Write the name and file size of the largest here: _________
 
 ### Regression testing
@@ -26,7 +26,7 @@ The new feature must be tested with at least one new or old [regression test(s)]
   block](https://github.com/piclas-framework/piclas/blob/master/regressioncheck/NIG_PIC_poisson_Leapfrog/MCC_EBeam_SpeciesSpecificTimestep/parameter.ini) in the `parameter.ini` file.
   * [ ] Implement restart functionality check within the reggie example via
     [parameter-pre.ini](https://github.com/piclas-framework/piclas/blob/master/regressioncheck/CHE_drift_diffusion_explicit-FV/periodic_box_free-stream/parameter-pre.ini) file, which in executed in
-    [externals.ini](https://github.com/piclas-framework/piclas/blob/master/regressioncheck/CHE_drift_diffusion_explicit-FV/periodic_box_free-stream/externals.ini) 
+    [externals.ini](https://github.com/piclas-framework/piclas/blob/master/regressioncheck/CHE_drift_diffusion_explicit-FV/periodic_box_free-stream/externals.ini)
     and creates a restart state file that is used in [command_line.ini](https://github.com/piclas-framework/piclas/blob/master/regressioncheck/CHE_drift_diffusion_explicit-FV/periodic_box_free-stream/command_line.ini),
     see [example](https://github.com/piclas-framework/piclas/blob/master/regressioncheck/CHE_drift_diffusion_explicit-FV/periodic_box_free-stream/).
   * [ ] Compile PICLas with Sanitizer and `MPI=OFF` as well as `MPI=ON` and run with one process to find possible memory leaks.
@@ -42,8 +42,8 @@ The new feature must be tested with at least one new or old [regression test(s)]
    within the `regressioncheck` directory `cd regressioncheck && ../tools/convertHoprToPyHopeIni.sh` and adding the files changed by
    the script to the MR
 * [ ] When all the above points regarding the reggie have been completed, [run a Gitlab pipeline](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines/new) for the feature branch with the
-  variables `DO_NIGHTLY=T` and `DO_CORE_SPLIT=T`, which are described in the [Developer Guide: Remote Testing on Gitlab](https://piclas.readthedocs.io/en/latest/developerguide/reggie.html#remote-testing-on-gitlab) section.
-* [ ] Run the regression checks, which should test the new feature (either new tests or existing tests using the added lines) with code coverage (`DO_CODE_COVERAGE=T` or locally to avoid unnecessary runs) and check that
+  inputs `DO_NIGHTLY` and `DO_CORE_SPLIT` set to `true`, which are described in the [Developer Guide: Remote Testing on Gitlab](https://piclas.readthedocs.io/en/latest/developerguide/reggie.html#remote-testing-on-gitlab) section.
+* [ ] Run the regression checks, which should test the new feature (either new tests or existing tests using the added lines) with code coverage (`DO_CODE_COVERAGE` set to `true` or locally to avoid unnecessary runs) and check that
   * [ ] all new features are tested (visible as green/red bars next to each code line in merge request diff view)
 
 ### Documentation
