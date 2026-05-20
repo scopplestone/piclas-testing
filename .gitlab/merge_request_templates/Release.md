@@ -18,9 +18,9 @@ Update the library versions and push the most recent version of the `master.dev`
   * [ ] Update the information in the user guide regarding the versions of the glibc (currently the OS version is used) and OpenMPI dependencies in the [AppImage dependeny table](https://piclas.readthedocs.io/en/latest/userguide/installation.html#appimage-executable-download) that are required for the AppImage. Check the following examples and linked commits on how this is done:
     *  Release 1.0.0 - 3.3.0: glibc 2.17 + OpenMPI X.X.X
     *  Release 3.3.0 - X.X.X: glibc 2.18 [9b09c795](https://piclas.boltzplatz.eu/piclas/piclas/-/commit/9b09c7957800915cbdf5ecc4a0d8ba43993060da) + OpenMPI X.X.X
-  * [ ] Push the feature branch `feature.branch.name`, which is usually the `master.dev` branch, with the changed `cmake-ninja.yml` file that features an updated version of the MPI/HDF5/PETSc libraries for building the AppImage to the testing repository via gitlab Pipelines. Select [New Pipeline](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines/new) and set "Run for branch name or tag" to the required `feature.branch.name` and supply `DO_CREATE_APPIMAGE` as "Input variable key" and set it to `T` for "Input variable value".
+  * [ ] Push the feature branch `feature.branch.name`, which is usually the `master.dev` branch, with the changed `cmake-ninja.yml` file that features an updated version of the MPI/HDF5/PETSc libraries for building the AppImage to the testing repository via gitlab Pipelines. Select [New Pipeline](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines/new) and set "Run for branch name or tag" to the required `feature.branch.name` and set `DO_CREATE_APPIMAGE` to `true`.
     ```
-    DO_CREATE_APPIMAGE = T
+    DO_CREATE_APPIMAGE = true
     ```
     * [ ] Check the status of the pipeline, which pushes the`feature.branch.name` branch to the GitHub repository [piclas-testing](https://github.com/scopplestone/piclas-testing) in the final gitlab stage. The AppImage is built on GitHub.
     * [ ] When the previous step is completed, go to the [piclas-testing GitHub Workflows](https://github.com/scopplestone/piclas-testing/actions) page and check if the build is running. Fix any errors that might occur during the build process and repeat the process. Continue with the next step only and as soon as the AppImage has been built using the GitHub actions.
@@ -30,7 +30,7 @@ Update the library versions and push the most recent version of the `master.dev`
     - [ ] Run one of the AppImage executables and check if the updated *version number* and *commit hash* are correct.
     - [ ] Check AppImage integrity by running `md5sum -c md5sum.txt` in the directory where the AppImage executables and the
           md5sum.txt have been extracted.
-    - [ ] Select [New Pipeline](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines/new) and set "Run for branch name or tag" to the required `feature.branch.name` and supply `DO_TEST_APPIMAGE` as "Input variable key" and set it to the latest artifact (get the name "piclas-binaries-vX.X.X" from [piclas-testing GitHub Workflows](https://github.com/scopplestone/piclas-testing/actions), e.g., `piclas-binaries-v3.5.0` for "Input variable value".
+    - [ ] Select [New Pipeline](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines/new) and set "Run for branch name or tag" to the required `feature.branch.name` and set the string-type "Input value" of `DO_TEST_APPIMAGE` to the latest artifact (get the name "piclas-binaries-vX.X.X" from [piclas-testing GitHub Workflows](https://github.com/scopplestone/piclas-testing/actions), e.g., `piclas-binaries-v3.5.0` for string-type "Input value".
 
     ```
     DO_TEST_APPIMAGE = piclas-binaries-vX.X.X
@@ -57,7 +57,7 @@ Draft the GitHub Release notes for creating the official release
       [New Pipeline](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines/new) and set the pipeline variable
 
 ```
-DO_DEPLOY = T
+DO_DEPLOY = true
 ```
 - [ ] Check that the code base under [GitHub piclas](https://github.com/piclas-framework/piclas) has been updated
 

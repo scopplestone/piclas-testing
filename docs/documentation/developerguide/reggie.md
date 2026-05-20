@@ -205,16 +205,16 @@ Code coverage information can be inspected in multiple ways: on GitLab, by downl
 
 ### Coverage on GitLab
 
-For regression testing on GitLab with code coverage, a separate input `DO_CODE_COVERAGE` is required. This creates a separate stage, which is executed after all other stages. This way the code coverage stage is able to collect the coverage data from all (previous) jobs/runs of the current pipeline. This is done in the following way.
+To enable code coverage when running regression tests on GitLab, set the pipeline input `DO_CODE_COVERAGE` to `true`. This creates a separate stage, which is executed after all other stages. This way the code coverage stage is able to collect the coverage data from all (previous) jobs/runs of the current pipeline. This is done in the following way.
 
-For each job (e.g., CHE_DSMC), the coverage data is collected and stored in a `.json` report file per build. These reports are named after the build and stored in the `Coverage` directory. If the build is reused for another job (e.g., same DSMC build for both CHE_DSMC and NIG_DSMC), the report file is updated. After all jobs in the other stages are finished, the coverage stage starts. The report files from all builds are combined into a single report containing the coverage data from all previously triggered runs/builds of the current pipeline. For example, if only `DO_CODE_COVERAGE` and `DO_CHECKIN` are set, the report will show coverage data from all builds with corresponding runs in the `DO_CHECKIN` case. The output of the coverage stage will also display which `.json` report files are found and therefore used to check whether the correct files and builds are considered.
+For each job (e.g., CHE_DSMC), the coverage data is collected and stored in a `.json` report file per build. These reports are named after the build and stored in the `Coverage` directory. If the build is reused for another job (e.g., same DSMC build for both CHE_DSMC and NIG_DSMC), the report file is updated. After all jobs in the other stages are finished, the coverage stage starts. The report files from all builds are combined into a single report containing the coverage data from all previously triggered runs/builds of the current pipeline. For example, if only the inputs `DO_CODE_COVERAGE` and `DO_CHECKIN` are set, the report will show coverage data from all builds with corresponding runs in the `DO_CHECKIN` case. The output of the coverage stage will also display which `.json` report files are found and therefore used to check whether the correct files and builds are considered.
 
 #### Inspecting data on GitLab
 
 The coverage stage will create a [GitLab report artifact](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportscoverage_report), which is used for the visualization. GitLab currently uses the coverage report of the latest pipeline of the current branch (if not expired yet) to display the coverage. Note that if the latest pipeline did not create coverage data, nothing will be displayed in the merge request difference view. This is done to prevent a false representation for new code evaluated with older coverage information. Moreover, displaying older coverage data would not be possible if the source code has changed. Keep in mind that new pipelines might change the coverage data if a different set of tests is run. The coverage report is shown in the merge request difference view/changes. A line that was tested is indicated by a green bar to its left, otherwise a red bar appears. This allows inspection of regression tests for new features directly on GitLab. For smaller features/tests, it is recommended to check the coverage locally first to avoid triggering unnecessary tests.
 
 To generate a full coverage report for all available regression tests of PICLas, either:
-* Execute all tests in the same pipeline with `DO_CODE_COVERAGE`, or
+* Execute all tests in the same pipeline with `DO_CODE_COVERAGE` set to `true`, or
 * Combine separate reports manually
 
 On GitLab the coverage is shown as a single number either in the output of the coverage job, on the right side when inspecting the job, or even in the merge request view. The displayed number is the line coverage (different coverage types in "Inspecting data locally"), which is set in `.gitlab-ci.yml`.
@@ -267,7 +267,7 @@ For more information on gcovr and coverage report formats, see the [gcovr docume
 
 ### Reggie coverage
 
-Besides generating code coverage reports of PICLas, it is also possible to generate a report of the reggie tool itself. To do this, set `DO_REGGIE_COVERAGE`, which wraps each reggie call with the [Python coverage tool](https://coverage.readthedocs.io/). This generates a coverage report of all used lines in the reggie module, which is stored as a GitLab artifact. The report can be inspected using the `Coverage/reggie/index.html` file.
+Besides generating code coverage reports of PICLas, it is also possible to generate a report of the reggie tool itself. To do this, set the pipeline input `DO_REGGIE_COVERAGE` to `true`, which wraps each reggie call with the [Python coverage tool](https://coverage.readthedocs.io/). This generates a coverage report of all used lines in the reggie module, which is stored as a GitLab artifact. The report can be inspected using the `Coverage/reggie/index.html` file.
 
 ## Local Testing using *gitlab-ci-local*
 
@@ -333,7 +333,7 @@ name: tab:gitlab_ci_local_inputs
   | --shell-isolation                     | Avoid errors due to parallel writing of the ctags.txt file                          |
   | --needs WEK_Radiation                 | Run WEK_Radiation, which also requires WEK_DSMC_Radiation                           |
   | --input DO_RUN_LOCAL=$DO_RUN_LOCAL    | Pass the locally installed and used modules                                         |
-  | --input DO_WEEKLY=T                   | WEK_Radiation is a weekly reggie that requires the DO_WEEKLY to be passed           |
+  | --input DO_WEEKLY=true                | WEK_Radiation is a weekly reggie that requires the DO_WEEKLY to be passed           |
 ```
 
 ## Regression Test *Gitlab Runner* Setup for self-hosted Servers

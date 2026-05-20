@@ -138,7 +138,7 @@ workflow:
     - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       variables:
         PIPELINE_NAME: '[Checkin] 🟠 Core Splitting ${CI_COMMIT_REF_NAME}'
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "default"'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "MPI_COMM_TYPE_SHARED"'
       variables:
         PIPELINE_NAME: '[Checkin] 🟢 ${CI_COMMIT_REF_NAME}'
 
