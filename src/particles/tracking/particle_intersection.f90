@@ -17,6 +17,7 @@ MODULE MOD_Particle_InterSection
 ! Provides routines to calculate the intersection of the particle trajectory with a side depending on the side type
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
@@ -715,7 +716,7 @@ REAL                                     :: XiNewton(2)
 REAL                                     :: coeffA,locSideDistance
 ! fallback algorithm
 LOGICAL                                  :: failed
-INTEGER(KIND=2)                          :: ClipMode
+INTEGER(KIND=i2)                         :: ClipMode
 REAL                                     :: LineNormVec(1:2,1:2)
 INTEGER                                  :: iClipIter,nXiClip,nEtaClip
 REAL                                     :: PartFaceAngle
@@ -1269,7 +1270,7 @@ REAL                                     :: BezierControlPoints2D(2,0:NGeo,0:NGe
 REAL                                     :: BezierControlPoints2D_tmp(2,0:NGeo,0:NGeo)
 #endif /*CODE_ANALYZE*/
 INTEGER,ALLOCATABLE,DIMENSION(:)         :: locID,realInterID
-INTEGER(KIND=2)                          :: ClipMode
+INTEGER(KIND=i2)                         :: ClipMode
 REAL                                     :: LineNormVec(1:2,1:2)
 INTEGER                                  :: realnInter,isInter
 REAL                                     :: XiNewton(2)
@@ -1642,7 +1643,7 @@ REAL,INTENT(IN),DIMENSION(1:3)       :: PartTrajectory
 !--------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 INTEGER,INTENT(INOUT)                  :: iClipIter,nXiClip,nEtaClip,nInterSections
-INTEGER(KIND=2),INTENT(INOUT)          :: ClipMode
+INTEGER(KIND=i2),INTENT(INOUT)         :: ClipMode
 REAL,DIMENSION(2,2),INTENT(INOUT)      :: LineNormVec
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -2469,7 +2470,7 @@ REAL,INTENT(IN),DIMENSION(1:3)       :: PartTrajectory
 ! OUTPUT VARIABLES
 INTEGER,INTENT(INOUT)                  :: iClipIter
 INTEGER,INTENT(INOUT)                  :: nXiClip,nEtaClip,nInterSections
-INTEGER(KIND=2),INTENT(INOUT)          :: ClipMode
+INTEGER(KIND=i2),INTENT(INOUT)         :: ClipMode
 REAL,DIMENSION(2,2),INTENT(INOUT)      :: LineNormVec
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -2484,7 +2485,7 @@ INTEGER                              :: tmpnClip,tmpnXi,tmpnEta
 REAL                                 :: xiup(0:NGeo),xidown(0:NGeo)
 REAL                                 :: XiBuf(0:NGeo,0:NGeo)
 REAL                                 :: dmin,dmax
-INTEGER(KIND=2)                      :: tmpClipMode
+INTEGER(KIND=i2)                     :: tmpClipMode
 REAL,DIMENSION(2,2)                  :: tmpLineNormVec
 !================================================================================================================================
 
@@ -2863,7 +2864,7 @@ REAL,INTENT(IN),DIMENSION(1:3)       :: PartTrajectory
 ! OUTPUT VARIABLES
 INTEGER,INTENT(INOUT)                  :: iClipIter
 INTEGER,INTENT(INOUT)                  :: nXiClip,nEtaClip,nInterSections
-INTEGER(KIND=2),INTENT(INOUT)          :: ClipMode
+INTEGER(KIND=i2),INTENT(INOUT)         :: ClipMode
 REAL,DIMENSION(2,2),INTENT(INOUT)      :: LineNormVec
 !--------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -2878,7 +2879,7 @@ INTEGER                              :: tmpnClip,tmpnXi,tmpnEta
 REAL                                 :: etaup(0:NGeo),etadown(0:NGeo)
 REAL                                 :: EtaBuf(0:NGeo,0:NGeo)
 REAL                                 :: dmin,dmax
-INTEGER(KIND=2)                      :: tmpClipMode
+INTEGER(KIND=i2)                      :: tmpClipMode
 REAL,DIMENSION(2,2)                  :: tmpLineNormVec
 !================================================================================================================================
 

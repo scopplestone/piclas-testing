@@ -20,6 +20,7 @@ MODULE MOD_Globals
 #if USE_MPI
 USE mpi_f08
 #endif /*USE_MPI*/
+USE MOD_Globals_Vars, ONLY: dp,i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1373,7 +1374,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL               :: iRan
-REAL(KIND=8)       :: X
+REAL(KIND=dp)      :: X
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
@@ -1627,8 +1628,8 @@ REAL :: NodeMemoryUsed !< Sum of used memory across one compute node
 INTEGER :: dummy
 #endif /*USE_MPI*/
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8) :: CounterStart,CounterEnd
-REAL(KIND=8)    :: Rate
+INTEGER(KIND=i8):: CounterStart,CounterEnd
+REAL(KIND=dp)   :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 CALL ProcessMemUsage(memory(1),memory(2),memory(3)) ! Get memUsed, memAvail, memTotal
@@ -1662,7 +1663,7 @@ END IF ! nProcessors.EQ.1
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
 MPIW8TimeMM  = MPIW8TimeMM + REAL(CounterEnd-CounterStart,8)/Rate
-MPIW8CountMM = MPIW8CountMM + 1_8
+MPIW8CountMM = MPIW8CountMM + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 #else
 RETURN

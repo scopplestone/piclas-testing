@@ -1646,11 +1646,11 @@ END SUBROUTINE WriteInterPlanePosition
 
 !===================================================================================================================================
 !> Check if PartStateBoundary is already allocated (e.g. if this routine is called during load balance) and if not allocate it
-!> RAM in bit: SIZE(Array,KIND=8)*STORAGE_SIZE(Array,KIND=8)
-!> RAM in byte SIZE(Array,KIND=8)*STORAGE_SIZE(Array,KIND=8)/(8)
-!> RAM in KiB: SIZE(Array,KIND=8)*STORAGE_SIZE(Array,KIND=8)/(8*1024)
-!> RAM in MiB: SIZE(Array,KIND=8)*STORAGE_SIZE(Array,KIND=8)/(8*1024*1024)
-!> RAM in GiB: SIZE(Array,KIND=8)*STORAGE_SIZE(Array,KIND=8)/(8*1024*1024*1024)
+!> RAM in bit: SIZE(Array,KIND=i8)*STORAGE_SIZE(Array,KIND=i8)
+!> RAM in byte SIZE(Array,KIND=i8)*STORAGE_SIZE(Array,KIND=i8)/(8)
+!> RAM in KiB: SIZE(Array,KIND=i8)*STORAGE_SIZE(Array,KIND=i8)/(8*1024)
+!> RAM in MiB: SIZE(Array,KIND=i8)*STORAGE_SIZE(Array,KIND=i8)/(8*1024*1024)
+!> RAM in GiB: SIZE(Array,KIND=i8)*STORAGE_SIZE(Array,KIND=i8)/(8*1024*1024*1024)
 !===================================================================================================================================
 SUBROUTINE InitPartStateBoundary(ReInitialise)
 ! MODULES
@@ -1683,7 +1683,7 @@ IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot all
 ! Nullify
 PartStateBoundary=0.
 ! Set initial memory requirement in GiB
-PartStateBoundaryMemory = SIZE(PartStateBoundary,KIND=8)*STORAGE_SIZE(PartStateBoundary,KIND=8)/(8.0*1024.0*1024.0*1024.0)
+PartStateBoundaryMemory = SIZE(PartStateBoundary,KIND=i8)*STORAGE_SIZE(PartStateBoundary,KIND=i8)/(8.0*1024.0*1024.0*1024.0)
 ! Initialise counter
 PartStateBoundaryResizeCounter = 1
 ! Get node memory at the beginning of the simulation

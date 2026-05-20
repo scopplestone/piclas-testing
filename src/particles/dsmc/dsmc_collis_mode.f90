@@ -17,6 +17,7 @@ MODULE MOD_DSMC_Collis
 ! Module including collisions, relaxation and reaction decision
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
@@ -187,9 +188,9 @@ INTEGER, INTENT(IN)           :: iPair
 ! LOCAL VARIABLES
 REAL                          :: FracMassCent1, FracMassCent2     ! mx/(mx+my)
 REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
-REAL (KIND=8)                 :: iRan                             ! Random number
+REAL (KIND=i8)                :: iRan                             ! Random number
 LOGICAL                       :: DoRot1, DoRot2, DoVib1, DoVib2   ! Check whether rot or vib relax is performed
-REAL (KIND=8)                 :: Xi_rel, Xi, FakXi                ! Factors of DOF
+REAL (KIND=i8)                :: Xi_rel, Xi, FakXi                ! Factors of DOF
 REAL                          :: cRelaNew(3)                       ! random relative velocity
 REAL                          :: ReducedMass
 REAL                          :: ProbRot1, ProbRotMax1, ProbRot2, ProbRotMax2, ProbVib1, ProbVib2, ProbElec1, ProbElec2
@@ -233,7 +234,7 @@ REAL                          :: Weight1, Weight2
   Weight2 = GetParticleWeight(iPart2)
   ! Energy conservation
   Energy_old=0.5*Species(iSpec1)%MassIC*DOT_PRODUCT(PartState(4:6,iPart1),PartState(4:6,iPart1)) * Weight1 &
-            +0.5*Species(iSpec2)%MassIC*DOT_PRODUCT(PartState(4:6,iPart2),PartState(4:6,iPart2)) * Weight2 
+            +0.5*Species(iSpec2)%MassIC*DOT_PRODUCT(PartState(4:6,iPart2),PartState(4:6,iPart2)) * Weight2
   IF ((Species(iSpec1)%InterID.EQ.2).OR.(Species(iSpec1)%InterID.EQ.20)) THEN
     Energy_old= Energy_old + (PartIntEn(iPart1)%EVib(1) + PartIntEn(iPart1)%ERot(1)) * Weight1
   END IF
@@ -519,7 +520,7 @@ END IF
                                         + (VeloMz - FracMassCent1*cRelaNew(3))**2) * Weight2 &
              +0.5*Species(iSpec1)%MassIC*((VeloMx + FracMassCent2*cRelaNew(1))**2 &
                                         + (VeloMy + FracMassCent2*cRelaNew(2))**2 &
-                                        + (VeloMz + FracMassCent2*cRelaNew(3))**2) * Weight1 
+                                        + (VeloMz + FracMassCent2*cRelaNew(3))**2) * Weight1
   IF ((Species(iSpec1)%InterID.EQ.2).OR.(Species(iSpec1)%InterID.EQ.20)) THEN
     Energy_new= Energy_new + (PartIntEn(iPart1)%EVib(1) + PartIntEn(iPart1)%ERot(1)) * Weight1
   END IF
@@ -591,10 +592,10 @@ INTEGER, INTENT(IN)           :: iPair
 REAL                          :: FracMassCent1, FracMassCent2                 ! mx/(mx+my)
 REAL                          :: VeloMx, VeloMy, VeloMz                       ! center of mass velo
 INTEGER                       :: iDOF, iPolyatMole, DOFRelax, iElem
-REAL (KIND=8)                 :: iRan
+REAL (KIND=i8)                :: iRan
 LOGICAL                       :: DoRot1, DoRot2, DoVib1, DoVib2               ! Check whether rot or vib relax is performed
 LOGICAL                       :: DoElec1, DoElec2
-REAL (KIND=8)                 :: FakXi, Xi_rel                                ! Factors of DOF
+REAL (KIND=i8)                :: FakXi, Xi_rel                                ! Factors of DOF
 REAL                          :: cRelaNew(3),ReducedMass                      ! post collision relative velocity
 REAL                          :: ProbFrac1, ProbFrac2, ProbFrac3, ProbFrac4   ! probability-fractions according to Zhang
 REAL                          :: ProbFrac5, ProbFrac6                         ! probability-fractions according to Zhang
@@ -646,7 +647,7 @@ IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) RETURN
   Weight2 = GetParticleWeight(iPart2)
   ! Energy conservation
   Energy_old=0.5*Species(iSpec1)%MassIC*DOT_PRODUCT(PartState(4:6,iPart1),PartState(4:6,iPart1)) * Weight1 &
-            +0.5*Species(iSpec2)%MassIC*DOT_PRODUCT(PartState(4:6,iPart2),PartState(4:6,iPart2)) * Weight2 
+            +0.5*Species(iSpec2)%MassIC*DOT_PRODUCT(PartState(4:6,iPart2),PartState(4:6,iPart2)) * Weight2
   IF ((Species(iSpec1)%InterID.EQ.2).OR.(Species(iSpec1)%InterID.EQ.20)) THEN
     Energy_old= Energy_old + (PartIntEn(iPart1)%EVib(1) + PartIntEn(iPart1)%ERot(1)) * Weight1
   END IF
@@ -908,7 +909,7 @@ IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) RETURN
                                                      + (VeloMz - FracMassCent1*cRelaNew(3))**2) * Weight2 &
              +0.5*Species(PartSpecies(iPart1))%MassIC*((VeloMx + FracMassCent2*cRelaNew(1))**2 &
                                                      + (VeloMy + FracMassCent2*cRelaNew(2))**2 &
-                                                     + (VeloMz + FracMassCent2*cRelaNew(3))**2) * Weight1 
+                                                     + (VeloMz + FracMassCent2*cRelaNew(3))**2) * Weight1
   IF ((Species(iSpec1)%InterID.EQ.2).OR.(Species(iSpec1)%InterID.EQ.20)) THEN
     Energy_new= Energy_new + (PartIntEn(iPart1)%EVib(1) + PartIntEn(iPart1)%ERot(1)) * Weight1
   END IF
