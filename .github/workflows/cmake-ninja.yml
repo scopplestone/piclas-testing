@@ -182,7 +182,7 @@ jobs:
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: |
         source ~/.bashrc
-        cmake -G Ninja -B build_single -DPICLAS_INSTRUCTION=-mtune=generic -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+        cmake -G Ninja -B build_single -DPICLAS_INSTRUCTION=-mtune=generic -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=OFF -DLIBS_BUILD_HDF5=ON -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
     - name: Build PICLas Single-core
       shell: bash
