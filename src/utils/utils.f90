@@ -564,9 +564,9 @@ PPURE RECURSIVE SUBROUTINE QuickSortTwoArrays(StartID,EndID,ArrayA,ArrayB)
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)    :: StartID,EndID
-INTEGER,INTENT(INOUT) :: ArrayA(*)
-INTEGER,INTENT(INOUT) :: ArrayB(*)
+INTEGER,INTENT(IN)                 :: StartID,EndID
+INTEGER,DIMENSION(:),INTENT(INOUT) :: ArrayA
+INTEGER,DIMENSION(:),INTENT(INOUT) :: ArrayB
 ! insert IO variables here
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
