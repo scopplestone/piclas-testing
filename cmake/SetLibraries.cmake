@@ -697,8 +697,7 @@ ENDIF()
 
 IF(LIBS_USE_PETSC)
   IF (LIBS_BUILD_PETSC)
-    SET(LIBS_BUILD_PETSC_VERSION "3.22.5" CACHE STRING "PETSc self-built version tag")
-    # SET(LIBS_BUILD_PETSC_VERSION "3.25.1" CACHE STRING "PETSc self-built version tag")
+    SET(LIBS_BUILD_PETSC_VERSION "3.25.1" CACHE STRING "PETSc self-built version tag")
     MARK_AS_ADVANCED(CLEAR LIBS_BUILD_PETSC_VERSION)
   ELSE()
     UNSET(LIBS_BUILD_PETSC_VERSION CACHE)
@@ -751,6 +750,10 @@ IF(LIBS_USE_PETSC)
           SET(SCALAPACK_COMPILER_FLAGS -std=gnu90)
         ENDIF()
       ENDIF()
+    ELSE()
+      # Fix MPI Error: Name ‘mpi_comm_dup_fn’ at (1) is an ambiguous reference: PETSc internally uses use mpi (the old MPI Fortran module),
+      # and when piclas uses mpi_f08, the compiler sees two conflicting sets of interfaces for the same MPI symbols (e.g. MPI_COMM_DUP_FN) causing the ambiguous reference error.
+      SET(PETSC_MPI_COMPILER_FLAGS --with-mpi-ftn-module=mpi_f08)
     ENDIF()
 
     # Settings
@@ -775,6 +778,7 @@ IF(LIBS_USE_PETSC)
           COPTFLAGS=${PETSC_OPTIMIZATION}
           CXXOPTFLAGS=${PETSC_OPTIMIZATION}
           FOPTFLAGS=${PETSC_OPTIMIZATION}
+          ${PETSC_MPI_COMPILER_FLAGS}
           --with-shared-libraries=1
           --with-mpi-f90module-visibility=0
           --with-bison=0
