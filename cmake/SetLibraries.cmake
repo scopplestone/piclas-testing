@@ -698,6 +698,7 @@ ENDIF()
 IF(LIBS_USE_PETSC)
   IF (LIBS_BUILD_PETSC)
     SET(LIBS_BUILD_PETSC_VERSION "3.22.5" CACHE STRING "PETSc self-built version tag")
+    # SET(LIBS_BUILD_PETSC_VERSION "3.25.1" CACHE STRING "PETSc self-built version tag")
     MARK_AS_ADVANCED(CLEAR LIBS_BUILD_PETSC_VERSION)
   ELSE()
     UNSET(LIBS_BUILD_PETSC_VERSION CACHE)
@@ -731,6 +732,27 @@ IF(LIBS_USE_PETSC)
       SET(PETSC_CMAKEPOLICY "3.5")
     ENDIF()
 
+    # Fixes for GCC 15 and 16: Tested with PETSc version 3.22.5
+    IF(${LIBS_BUILD_PETSC_VERSION} VERSION_LESS "3.24.0")
+      IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+        IF(${CMAKE_Fortran_COMPILER_VERSION} VERSION_LESS "15.0.0")
+          SET(HYPRE_COMPILER_FLAGS )
+          SET(SCALAPACK_COMPILER_FLAGS )
+        ELSE()
+          # Fix "Error running make; make install on HYPRE" for 3.22.5 with GCC 15 and 16
+          # GCC 15 changed the default C language standard from -std=gnu17 to -std=gnu23, and C23 added bool as a proper keyword — meaning older code that tries
+          # to define bool via typedef now fails. This is exactly what HYPRE's older source does.
+          # Set --download-hypre-configure-arguments=CFLAGS=-std=gnu17       for configure
+          #     --download-hypre-cmake-arguments=-DCMAKE_C_FLAGS=-std=gnu17  for CMAKE
+          SET(HYPRE_COMPILER_FLAGS -std=gnu17)
+          # Fix "Error running make; make install on ScaLAPACK" for 3.22.5 with GCC 15 and 16: https://github.com/Reference-ScaLAPACK/scalapack/issues/129
+          # "GCC-15 upped the default for -std= to gnu23 (more or less c23) from gnu18, which resulted in this error. The solution I found was to use -std=gnu90."
+          # Set --download-scalapack-cmake-arguments=-DCMAKE_C_FLAGS=-std=gnu90
+          SET(SCALAPACK_COMPILER_FLAGS -std=gnu90)
+        ENDIF()
+      ENDIF()
+    ENDIF()
+
     # Settings
     # --with-mpi-f90module-visibility=0       "With 0, mpi.mod will not be visible in use code (via petscsys.mod) - so mpi_f08 can now be used" (https://petsc.org/main/changes/315/)
 
@@ -757,8 +779,10 @@ IF(LIBS_USE_PETSC)
           --with-mpi-f90module-visibility=0
           --with-bison=0
           --download-hypre
+          --download-hypre-configure-arguments=CFLAGS=${HYPRE_COMPILER_FLAGS} # -std=gnu17 for non-CMake HYPRE builds
           --download-mumps
           --download-scalapack
+          --download-scalapack-cmake-arguments=-DCMAKE_C_FLAGS=${SCALAPACK_COMPILER_FLAGS} # -std=gnu90 for CMake ScaLAPACK builds
           --download-metis
           --download-parmetis     # requires metis
         # BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -j4
