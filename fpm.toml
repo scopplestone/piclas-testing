@@ -52,7 +52,17 @@ ignore            = ["C003",    # C003: implicit-external-procedures
                      "MOD021",  # MOD021: deprecated-relational-operator
                      "S102",    # S102: incorrect-space-before-comment
                      "S201",    # S201: superfluous-implicit-none
+                     # "C031",    # C031: Checks for use of literals when specifying array sizes
+                     # "S081",    # S081: Catches a semicolon at the end of a line of code
+                     "S082",    # S082: multiple statements per line [1]
+                     "C061",    # C061: ERROR argument 'X' missing 'intent' attribute [2]
                     ]
+# Footnotes:
+# [1] Deactivate due to false positives in fortitude version 0.8.0 because of pre-processor macros, e.g.,
+#     SWRITE(UNIT_stdOut,"(A)") TRIM(current%opt%name). The macro call might make it look like two separate
+#     statements. Possible Workaround: SWRITE(UNIT_stdOut,"(A)") '',TRIM(current%opt%name)
+# [1] Deactivate due to false positives in fortitude version 0.8.0, e.g., local REAL or INTEGER variables
+
 [extra.fortitude.check.per-file-ignores]
 "src/**/*_vars.f90"                     = ["C132"]  # Vars files need to be public
 "src/globals/globals.f90"               = ["C132"]  # Globals needs to public
@@ -62,3 +72,4 @@ ignore            = ["C003",    # C003: implicit-external-procedures
 "src/globals/preprocessing.f90"         = ["C132"]  # PreProc needs to be public
 "src/readintools/isovaryingstring.f90"  = ["T042"]  # ISO Varying String needs assumed size variables
 "src/readintools/stringtools.f90"       = ["T042"]  # ISO Varying String needs assumed size variables
+"src/extrae/extrae_module.f90"          = ["C061"]  # external lib: subroutine argument 'num' missing 'intent' attribute
