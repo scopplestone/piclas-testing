@@ -89,17 +89,13 @@ INTERFACE FinalizeElemData
   MODULE PROCEDURE FinalizeElemData
 END INTERFACE
 
-INTERFACE GetDatasetNamesInGroup
-  MODULE PROCEDURE GetDatasetNamesInGroup
-END INTERFACE
-
-PUBLIC::DefineParametersIO
-PUBLIC::InitIOHDF5
-PUBLIC::InitMPIInfo
-PUBLIC::OpenDataFile
-PUBLIC::CloseDataFile
-PUBLIC::AddToElemData
-PUBLIC::GetDatasetNamesInGroup
+PUBLIC :: DefineParametersIO
+PUBLIC :: InitIOHDF5
+PUBLIC :: InitMPIInfo
+PUBLIC :: OpenDataFile
+PUBLIC :: CloseDataFile
+PUBLIC :: AddToElemData
+PUBLIC :: GetDatasetNamesInGroup
 
 !===================================================================================================================================
 
@@ -431,8 +427,8 @@ END SUBROUTINE FinalizeElemData
 SUBROUTINE GetDatasetNamesInGroup(group,names)
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-CHARACTER(LEN=*)               :: group    !< name of group
-CHARACTER(LEN=255),ALLOCATABLE :: names(:) !< names of datasets
+CHARACTER(LEN=*),INTENT(IN)                :: group    !< name of group
+CHARACTER(LEN=255),INTENT(OUT),ALLOCATABLE :: names(:) !< names of datasets
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: nMembers,i,type

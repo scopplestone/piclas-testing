@@ -797,7 +797,7 @@ END SUBROUTINE InitDepoSurfNodesMPI
 RECURSIVE SUBROUTINE DeallocateNodeList(node)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-TYPE(NodeDepoMapping), POINTER    :: node
+TYPE(NodeDepoMapping), POINTER, INTENT(INOUT) :: node
 !===================================================================================================================================
 
 IF (ASSOCIATED(node)) THEN

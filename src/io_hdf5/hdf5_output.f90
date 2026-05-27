@@ -28,9 +28,9 @@ PRIVATE
 
 INTERFACE
   SUBROUTINE copy_userblock(outfilename,infilename) BIND(C)
-      USE ISO_C_BINDING, ONLY: C_CHAR
-      CHARACTER(KIND=C_CHAR) :: outfilename(*)
-      CHARACTER(KIND=C_CHAR) :: infilename(*)
+     USE ISO_C_BINDING, ONLY: C_CHAR
+     CHARACTER(KIND=C_CHAR),INTENT(IN) :: outfilename(*)
+     CHARACTER(KIND=C_CHAR),INTENT(IN) :: infilename(*)
   END SUBROUTINE copy_userblock
 END INTERFACE
 
@@ -72,7 +72,7 @@ CHARACTER(LEN=*),INTENT(IN)          :: TypeString
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: FileNameIn
 INTEGER,INTENT(IN)                   :: nVar
 INTEGER,INTENT(IN),OPTIONAL          :: NIn
-CHARACTER(LEN=255)                   :: StrVarNames(nVar)
+CHARACTER(LEN=255),INTENT(IN)        :: StrVarNames(nVar)
 CHARACTER(LEN=*),INTENT(IN)          :: MeshFileName
 REAL,INTENT(IN)                      :: OutputTime
 LOGICAL,INTENT(IN),OPTIONAL          :: WriteUserblockIn
