@@ -74,8 +74,8 @@ LOGICAL                         :: converged
 REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)   :: CounterStart,CounterEnd
-REAL(KIND=8)      :: Rate
+INTEGER(KIND=i8)  :: CounterStart,CounterEnd
+REAL(KIND=dp)     :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 IF(HDGDisplayConvergence.AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
@@ -121,7 +121,7 @@ END IF
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
   MPIW8TimeField(3)  = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
-  MPIW8CountField(3) = MPIW8CountField(3) + 1_8
+  MPIW8CountField(3) = MPIW8CountField(3) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 IF(converged) THEN !converged
@@ -185,7 +185,7 @@ DO iteration=1,MaxIterCG
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
   MPIW8TimeField(3)  = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
-  MPIW8CountField(3) = MPIW8CountField(3) + 1_8
+  MPIW8CountField(3) = MPIW8CountField(3) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 #else
@@ -309,8 +309,8 @@ REAL              :: ResuSend
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)   :: CounterStart,CounterEnd
-REAL(KIND=8)      :: Rate
+INTEGER(KIND=i8)  :: CounterStart,CounterEnd
+REAL(KIND=dp)     :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 #if USE_MPI
@@ -342,7 +342,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
   MPIW8TimeField(4)  = MPIW8TimeField(4) + REAL(CounterEnd-CounterStart,8)/Rate
-  MPIW8CountField(4) = MPIW8CountField(4) + 1_8
+  MPIW8CountField(4) = MPIW8CountField(4) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 END SUBROUTINE VectorDotProductRR
@@ -844,8 +844,8 @@ REAL              :: ResuSend
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)   :: CounterStart,CounterEnd
-REAL(KIND=8)      :: Rate
+INTEGER(KIND=i8)  :: CounterStart,CounterEnd
+REAL(KIND=dp)     :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 #if USE_MPI
@@ -877,7 +877,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
   MPIW8TimeField(4)  = MPIW8TimeField(4) + REAL(CounterEnd-CounterStart,8)/Rate
-  MPIW8CountField(4) = MPIW8CountField(4) + 1_8
+  MPIW8CountField(4) = MPIW8CountField(4) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 END SUBROUTINE VectorDotProductRZ
@@ -920,8 +920,8 @@ REAL              :: ResuSend
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)   :: CounterStart,CounterEnd
-REAL(KIND=8)      :: Rate
+INTEGER(KIND=i8)  :: CounterStart,CounterEnd
+REAL(KIND=dp)     :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 #if USE_MPI
@@ -953,7 +953,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
   MPIW8TimeField(4)  = MPIW8TimeField(4) + REAL(CounterEnd-CounterStart,8)/Rate
-  MPIW8CountField(4) = MPIW8CountField(4) + 1_8
+  MPIW8CountField(4) = MPIW8CountField(4) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 END SUBROUTINE VectorDotProductRV
@@ -996,8 +996,8 @@ REAL              :: ResuSend
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)   :: CounterStart,CounterEnd
-REAL(KIND=8)      :: Rate
+INTEGER(KIND=i8)  :: CounterStart,CounterEnd
+REAL(KIND=dp)     :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 #if USE_MPI
@@ -1029,7 +1029,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
   MPIW8TimeField(4)  = MPIW8TimeField(4) + REAL(CounterEnd-CounterStart,8)/Rate
-  MPIW8CountField(4) = MPIW8CountField(4) + 1_8
+  MPIW8CountField(4) = MPIW8CountField(4) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 END SUBROUTINE VectorDotProductVZ
