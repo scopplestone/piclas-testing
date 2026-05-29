@@ -2018,21 +2018,21 @@ DO iGlobalElem = firstElem,lastElem
 SideLoop: DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobalElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobalElem)
     ! Get BC
     iBC = SideInfo_Shared(SIDE_BCID,SideID)
-    IF(iBC.EQ.0) CYCLE
+    IF(iBC.EQ.0) CYCLE SideLoop
 
     ! Get particle BC
     iPartBC = PartBound%MapToPartBC(iBC)
-    IF (iPartBC.EQ.0) CYCLE
+    IF (iPartBC.EQ.0) CYCLE SideLoop
 
     ! Boundary is a periodic boundary
-    IF (PartBound%TargetBoundCond(iPartBC).NE.3) CYCLE
+    IF (PartBound%TargetBoundCond(iPartBC).NE.3) CYCLE SideLoop
 
     ! Check if side is master side
     BCALPHA = BoundaryType(iBC,BC_ALPHA)
 
     IF (BCALPHA.GT.0) THEN
       ! Periodic vector already found
-      IF (PeriodicFound(BCALPHA)) CYCLE
+      IF (PeriodicFound(BCALPHA)) CYCLE SideLoop
 
       ! Periodic slave side has same ID, but negative sign
       flip          = MERGE(0,MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
@@ -2048,7 +2048,7 @@ SideLoop: DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobalElem)+1,ElemInfo_
       Vec           = SlaveCoords-MasterCoords
 
       ! Might consider aborting here, malformed periodic sides
-      IF (VECNORM3D(Vec).EQ.0) CYCLE
+      IF (VECNORM3D(Vec).EQ.0) CYCLE SideLoop
 
       ! Check if the periodic vector is ALMOST aligned with a Cartesian direction
       DO iVec = 1,3

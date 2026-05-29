@@ -392,14 +392,14 @@ DO iNeigh=1,NumRotPeriodicNeigh(RotSideID)
   locSideLoop: DO iLocSide = 1,nLocSides
     newSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,newElemID) + iLocSide
     ! Cycle over non-BC sides
-    IF (SideInfo_Shared(SIDE_BCID,newSideID).LE.0) CYCLE
+    IF (SideInfo_Shared(SIDE_BCID,newSideID).LE.0) CYCLE locSideLoop
     BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,newSideID)))
     ! Cycle over non-rotBC sides
-    IF(BCType.NE.PartBound%RotPeriodicBC) CYCLE
+    IF(BCType.NE.PartBound%RotPeriodicBC) CYCLE locSideLoop
 
     locSideID = SideInfo_Shared(SIDE_LOCALID,newSideID)
     ! Side is not one of the 6 local sides
-    IF (locSideID.LE.0) CYCLE
+    IF (locSideID.LE.0) CYCLE locSideLoop
     ! Calculate the determinant
     DO NodeNum = 1,4
       !--- A = vector from particle to node coords
@@ -772,14 +772,14 @@ DO iSide = 1, NumInterPlaneSides
   locSideLoop: DO iLocSide = 1,nLocSides
     newSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,newElemID) + iLocSide
     ! Cycle over non-BC sides
-    IF (SideInfo_Shared(SIDE_BCID,newSideID).LE.0) CYCLE
+    IF (SideInfo_Shared(SIDE_BCID,newSideID).LE.0) CYCLE locSideLoop
     BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,newSideID)))
     ! Cycle over non-interPlaneBC sides
-    IF(BCType.NE.PartBound%RotPeriodicInterPlaneBC) CYCLE
+    IF(BCType.NE.PartBound%RotPeriodicInterPlaneBC) CYCLE locSideLoop
 
     locSideID = SideInfo_Shared(SIDE_LOCALID,newSideID)
     ! Side is not one of the 6 local sides
-    IF (locSideID.LE.0) CYCLE
+    IF (locSideID.LE.0) CYCLE locSideLoop
     ! Calculate the determinant
     DO NodeNum = 1,4
       !--- A = vector from particle to node coords

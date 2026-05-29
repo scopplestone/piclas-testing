@@ -73,10 +73,6 @@ INTERFACE Abort
   MODULE PROCEDURE AbortProg
 END INTERFACE Abort
 
-INTERFACE CollectiveStop
-  MODULE PROCEDURE CollectiveStop
-END INTERFACE CollectiveStop
-
 INTERFACE PrintWarning
   MODULE PROCEDURE PrintWarning
 END INTERFACE PrintWarning

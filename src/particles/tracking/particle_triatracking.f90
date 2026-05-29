@@ -556,10 +556,10 @@ DO WHILE (.NOT.PartisDone)
   SideLoop: DO iLocSide=1,nlocSides
     TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
     ! Skip symmetry side
-    IF(SideIsSymSide(TempSideID)) CYCLE
+    IF(SideIsSymSide(TempSideID)) CYCLE SideLoop
     localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
     ! Side is not one of the 6 local sides
-    IF (localSideID.LE.0) CYCLE
+    IF (localSideID.LE.0) CYCLE SideLoop
     NbElemID = SideInfo_Shared(SIDE_NBELEMID,TempSideID)
     IF (NbElemID.LT.0) THEN ! Mortar side
       nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,TempSideID).EQ.-1)
@@ -586,7 +586,7 @@ DO WHILE (.NOT.PartisDone)
         END IF
       END DO
     ELSE  ! Regular side
-      IF (TempSideID.EQ.TrackInfo%LastSide) CYCLE
+      IF (TempSideID.EQ.TrackInfo%LastSide) CYCLE SideLoop
       ThroughSide = .FALSE.
       CALL ParticleThroughSideCheck1D2D(i,localSideID,ElemID,ThroughSide)
       IF (ThroughSide) THEN
@@ -597,7 +597,7 @@ DO WHILE (.NOT.PartisDone)
         EXIT SideLoop
       END IF
     END IF  ! Mortar or regular side
-  END DO  SideLoop
+  END DO SideLoop
 
   ! ----------------------------------------------------------------------------
   ! Addition treatment if particle did not cross any sides or it crossed multiple sides

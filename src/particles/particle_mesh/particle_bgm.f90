@@ -1068,7 +1068,7 @@ ELSE
       ! Use a named loop so the entire element can be cycled
 ElemLoop: DO iElem = offsetElemMPI(iProc-1)+1,offsetElemMPI(iProc)
         ! Ignore elements other than halo elements
-        IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LT.2) CYCLE
+        IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LT.2) CYCLE ElemLoop
 
         DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iElem)
           IF (SideIsExchangeSide(iSide)) THEN
