@@ -464,11 +464,11 @@ CALL FLUSH(UNIT_stdOut)
 CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 CALL MPI_FINALIZE(iError)
 #endif
-IF (MPIRoot) THEN
-  ERROR STOP 1
-ELSE
-  STOP
-END IF
+! Display stack trace on MPIRoot during CollectiveStop only when compiling in Debug mode
+#if USE_DEBUG
+IF (MPIRoot) ERROR STOP 1
+#endif /*USE_DEBUG*/
+STOP
 END SUBROUTINE CollectiveStop
 
 
