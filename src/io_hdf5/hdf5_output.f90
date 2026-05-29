@@ -29,7 +29,9 @@ PRIVATE
 INTERFACE
   SUBROUTINE copy_userblock(outfilename,infilename) BIND(C)
      USE ISO_C_BINDING, ONLY: C_CHAR
+     ! allow(C071)
      CHARACTER(KIND=C_CHAR),INTENT(IN) :: outfilename(*)
+     ! allow(C071)
      CHARACTER(KIND=C_CHAR),INTENT(IN) :: infilename(*)
   END SUBROUTINE copy_userblock
 END INTERFACE
