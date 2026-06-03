@@ -311,17 +311,18 @@ Testing more complex DSMC routines with reservoir (heat bath) simulations: [Link
 
 Testing of different tracking routines with DSMC: [Link to build](regressioncheck/NIG_tracking_DSMC/builds.ini).
 
-|    **Case**     | **CMAKE-CONFIG** | **Feature**                     |                 **Execution**                  |          **Comparing**           | **Readme** |
-| :-------------: | :--------------: | :------------------------------ | :--------------------------------------------: | :------------------------------: | :--------: |
-|    ANSA box     |                  |                                 | DoRefMapping=T,F; TriaTracking=F,T; nProcs=1,2 | PartInt, PartPos in bounding box |            |
-|     curved      |                  |                                 |          DoRefMapping=T  , nProcs=1,2          | PartInt with relative tolerance  |            |
-|     mortar      |                  |                                 | DoRefMapping=T,F; TriaTracking=F,T; nProcs=1,2 | PartInt, PartPos in bounding box |            |
-| mortar_hexpress |                  | Mortar mesh built with HEXPRESS |           TriaTracking=T; nProcs=2,4           |             PartInt              |            |
-|    periodic     |                  |                                 |       DoRefMapping=T,F, nProcs=1,2,5,10        | PartInt, PartPos in bounding box |            |
-| periodic_2cells |                  |                                 |  DoRefMapping=T,F;TriaTracking=T,F, nProcs=1   |     PartPos in bounding box      |            |
-|   semicircle    |                  |                                 |          DoRefMapping=T,F, nProcs=1,2          |     PartPos in bounding box      |            |
-|   sphere_soft   |                  |                                 | DoRefMapping=T;RefMappingGuess=1,3,nProcs=1,2  |     PartPos in bounding box      |            |
-|  tiny_channel   |                  | TriaTracking, nano channel      |                nProcs=1,2,5,10                 |       Number of particles        |            |
+|          **Case**           | **CMAKE-CONFIG** | **Feature**                     |                     **Execution**                     |          **Comparing**           |                                   **Readme**                                    |
+| :-------------------------: | :--------------: | :------------------------------ | :---------------------------------------------------: | :------------------------------: | :-----------------------------------------------------------------------------: |
+|          ANSA box           |                  |                                 |    DoRefMapping=T,F; TriaTracking=F,T; nProcs=1,2     | PartInt, PartPos in bounding box |                                                                                 |
+| axisymmetric_exact_tracking |                  |                                 | Exact axisymmetric tracking, TriaTracking=T, nProcs=5 |           Total_VeloY            | [Link](regressioncheck/NIG_tracking_DSMC/axisymmetric_exact_tracking/readme.md) |
+|           curved            |                  |                                 |             DoRefMapping=T  , nProcs=1,2              | PartInt with relative tolerance  |                                                                                 |
+|           mortar            |                  |                                 |    DoRefMapping=T,F; TriaTracking=F,T; nProcs=1,2     | PartInt, PartPos in bounding box |                                                                                 |
+|       mortar_hexpress       |                  | Mortar mesh built with HEXPRESS |              TriaTracking=T; nProcs=2,4               |             PartInt              |                                                                                 |
+|          periodic           |                  |                                 |           DoRefMapping=T,F, nProcs=1,2,5,10           | PartInt, PartPos in bounding box |                                                                                 |
+|       periodic_2cells       |                  |                                 |      DoRefMapping=T,F;TriaTracking=T,F, nProcs=1      |     PartPos in bounding box      |                                                                                 |
+|         semicircle          |                  |                                 |             DoRefMapping=T,F, nProcs=1,2              |     PartPos in bounding box      |                                                                                 |
+|         sphere_soft         |                  |                                 |     DoRefMapping=T;RefMappingGuess=1,3,nProcs=1,2     |     PartPos in bounding box      |                                                                                 |
+|        tiny_channel         |                  | TriaTracking, nano channel      |                    nProcs=1,2,5,10                    |       Number of particles        |                                                                                 |
 
 ### NIG_SuperB
 
