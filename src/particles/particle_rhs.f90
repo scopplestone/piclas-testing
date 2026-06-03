@@ -28,10 +28,6 @@ INTERFACE CalcPartRHSSingleParticle
   MODULE PROCEDURE CalcPartRHSSingleParticle
 END INTERFACE
 
-INTERFACE PartRHS
-  PROCEDURE PartRHS
-END INTERFACE
-
 !----------------------------------------------------------------------------------------------------------------------------------
 PUBLIC :: CalcPartRHS
 PUBLIC :: PartVeloToGammaVelo, GammaVeloToPartVelo

@@ -698,10 +698,12 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
   ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
   IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'XSec') THEN
     CollEnergy = 0.
-    EductReac(1:3) = ChemReac%Reactants(ReacTest,1:3); ProductReac(1:4) = ChemReac%Products(ReacTest,1:4)
+    EductReac(1:3) = ChemReac%Reactants(ReacTest,1:3)
+    ProductReac(1:4) = ChemReac%Products(ReacTest,1:4)
 
     ! Sum of the zero-point energies of the reactants
-    EZeroPoint_Educt = 0.0; EZeroPoint_Prod = 0.0
+    EZeroPoint_Educt = 0.0
+    EZeroPoint_Prod = 0.0
     IF((Species(EductReac(1))%InterID.EQ.2).OR.(Species(EductReac(1))%InterID.EQ.20)) THEN
       EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(EductReac(1))%EZeroPoint
     END IF
@@ -739,7 +741,7 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       PartIntEn(bggPartIndex)%ERot = RotInitPolyRoutineFuncPTR(jSpec,Temp_Rot,bggPartIndex)
       CollEnergy = CollEnergy + PartIntEn(bggPartIndex)%EVib(1) + PartIntEn(bggPartIndex)%ERot(1)
     END IF
-    IF (DSMC%ElectronicModel.GT.0)THEN 
+    IF (DSMC%ElectronicModel.GT.0)THEN
       IF ((.NOT.SpecDSMC(jSpec)%FullyIonized).AND.(Species(jSpec)%InterID.NE.4)) THEN
         IF (.NOT.ALLOCATED(PartIntEn(bggPartIndex)%EElec)) ALLOCATE(PartIntEn(bggPartIndex)%EElec(1))
         IF(BGGas%UseDistribution) THEN

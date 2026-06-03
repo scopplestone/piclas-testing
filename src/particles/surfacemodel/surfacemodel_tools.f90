@@ -189,7 +189,7 @@ IF(SUM(ABS(WallVelo)).GT.0.)THEN
 ELSE
   PartState(4:6,PartID) = PartState(4:6,PartID) - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loctmp)*n_loctmp
   IF (DSMC%DoAmbipolarDiff) THEN
-    IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) THEN
+    IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
       v_old_Ambi = PartIntEn(PartID)%ElecVelo(1:3)
       PartIntEn(PartID)%ElecVelo(1:3) = PartIntEn(PartID)%ElecVelo(1:3) &
                      - 2.*DOT_PRODUCT(PartIntEn(PartID)%ElecVelo(1:3),n_loctmp)*n_loctmp
@@ -198,7 +198,7 @@ ELSE
 END IF
 
 ! Considering energy loss due to deformation in granular particles
-IF(Species(PartSpecies(PartID))%InterID.EQ.100) PartState(4:6,PartID) = PartState(4:6,PartID) * (1.0 - PartBound%DeformEnergyLoss(locBCID))
+IF(Species(SpecID)%InterID.EQ.100) PartState(4:6,PartID) = PartState(4:6,PartID) * (1.0 - PartBound%DeformEnergyLoss(locBCID))
 
 ! Set particle position on face
 LastPartPos(1:3,PartID) = POI_vec(1:3)
@@ -218,7 +218,7 @@ IF(UseRotRefFrame) THEN
     IF(DOT_PRODUCT(n_loctmp,NewVeloPush(1:3)).GT.0.) THEN
       ! Normal component of new velo push v = (v dot n / |n|^2) * n, |n| = 1
       NormNewVeloPush(1:3) = DOT_PRODUCT(n_loctmp,NewVeloPush(1:3)) * n_loctmp
-      ! Nullyfy normal component and keeping rest of NewVeloPush
+      ! Nullify normal component and keeping rest of NewVeloPush
       NewVeloPush(1:3) = NewVeloPush(1:3) - NormNewVeloPush(1:3)
       ! Move particle a little bit into the domain to avoid losing particles
       NewVeloPush(1:3) = NewVeloPush(1:3) - 1E-6 * n_loctmp
@@ -367,7 +367,7 @@ IF(Symmetry%Axisymmetric) THEN
     ! Storing the old and the new particle position (which is outside the domain), at this point the position is only in the xy-plane
     VelX = PartState(1,PartID) - LastPartPos(1,PartID)
     VelY = PartState(2,PartID) - LastPartPos(2,PartID)
-    
+
     LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
 
     ! Getting the vectors, which span the cell
@@ -405,7 +405,7 @@ IF(Symmetry%Axisymmetric) THEN
     VecX = SideNormalEdge2D_Shared(3,iLocSide, CNElemID)
     VecY = POI_vec(2)/nValIntersec * SideNormalEdge2D_Shared(4,iLocSide, CNElemID)
     VecZ = POI_vec(3)/nValIntersec * SideNormalEdge2D_Shared(4,iLocSide, CNElemID)
-    NewVelo(1) = VecX*VeloC(1) + (nz*VecY-ny*VecZ)*VeloC(2) - nx*VeloC(3) 
+    NewVelo(1) = VecX*VeloC(1) + (nz*VecY-ny*VecZ)*VeloC(2) - nx*VeloC(3)
     NewVelo(2) = VecY*VeloC(1) + (nx*VecZ-nz*VecX)*VeloC(2) - ny*VeloC(3)
     NewVelo(3) = VecZ*VeloC(1) + (ny*VecX-nx*VecY)*VeloC(2) - nz*VeloC(3)
   ELSE
@@ -425,14 +425,14 @@ IF (DSMC%DoAmbipolarDiff) THEN
   IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
     IF(Symmetry%Axisymmetric) THEN
       IF (Symmetry%AxisymmetricExact) THEN
-        NewVeloAmbi(1) = VecX*VeloCAmbi(1) + (nz*VecY-ny*VecZ)*VeloCAmbi(2) - nx*VeloCAmbi(3) 
+        NewVeloAmbi(1) = VecX*VeloCAmbi(1) + (nz*VecY-ny*VecZ)*VeloCAmbi(2) - nx*VeloCAmbi(3)
         NewVeloAmbi(2) = VecY*VeloCAmbi(1) + (nx*VecZ-nz*VecX)*VeloCAmbi(2) - ny*VeloCAmbi(3)
         NewVeloAmbi(3) = VecZ*VeloCAmbi(1) + (ny*VecX-nx*VecY)*VeloCAmbi(2) - nz*VeloCAmbi(3)
       ELSE
         NewVeloAmbi(1) = VecX*VeloCAmbi(1) + nx*VeloCAmbi(3)
         NewVeloAmbi(2) = VecY*VeloCAmbi(1) + ny*VeloCAmbi(3)
         NewVeloAmbi(3) = VeloCAmbi(2)
-      END IF      
+      END IF
     ELSE
       NewVeloAmbi(1:3) = VeloCAmbi(1)*tang1(1:3)-tang2(1:3)*VeloCAmbi(2)-VeloCAmbi(3)*n_loc(1:3)
     END IF
@@ -501,7 +501,7 @@ IF(Symmetry%Axisymmetric.AND.(.NOT.Symmetry%AxisymmetricExact)) THEN
   PartState(3,PartID) = 0.0
   NewVelo(2) = rotVelY
   NewVelo(3) = rotVelZ
-  
+
   ! First check ensures that the normal vector of the side is not almost entirely in the x-direction (thus avoiding ny = 0)
   IF (ABS(nx).LT.0.999) THEN
     ! If particle has been rotated in the opposite direction of the normal vector, shift last particle position slightly

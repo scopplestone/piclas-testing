@@ -240,7 +240,7 @@ if [ -n "$CHANGED" ]; then
 
   if [ "$EXEERR" -ne 0 ]; then
     printf "\n${RED}ERROR: The following file(s) are executable, which is not allowed. Remove the execute permission via 'chmod -x filename' to fix the files. Run 'git add' on the fixed files and then 'git commit' afterwards.${NC}\n"
-    printf "%s\n" "${EXELINE}"
+    printf "${EXELINE}"
   fi
 
   if [ "$TABERR" -ne 0 ]; then

@@ -191,6 +191,7 @@ USE MOD_HDG_Vars                  ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars                 ,ONLY: BoundaryType
 #endif /*USE_HDG*/
 USE MOD_Particle_Vars             ,ONLY: PartState
+USE MOD_StringTools               ,ONLY: STRICMP
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -201,7 +202,7 @@ LOGICAL, INTENT(OUT),OPTIONAL :: crossedBC               !< optional flag is nee
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec, iSF
-REAL                          :: MPF!,RandVal(2)
+REAL                          :: MPF
 #if USE_HDG
 INTEGER                       :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
 #endif /*USE_HDG*/
@@ -272,11 +273,12 @@ IF(PRESENT(BCID)) THEN
   ! Ion thruster simulations: Landmark and Liu2010 (SPT-100) if neutralization current is determined from the particle flux over the
   ! neutralization boundary condition instead of looking into the first row of elements along that BC
   IF(UseNeutralization.AND.(nNeutralizationElems.EQ.-1))THEN
-    IF(TRIM(BoundaryName(PartBound%MapToFieldBC(BCID))).EQ.TRIM(NeutralizationSource))THEN
+    ! Check if neutralization BC is present. Compare strings ignoring the capitalization
+    IF(STRICMP(BoundaryName(PartBound%MapToFieldBC(BCID)), NeutralizationSource))THEN
       ! Add +1 for electrons and -X for ions: This is opposite to the summation in CountNeutralizationParticles() where the surplus
       ! of ions is calculated and compensated with an equal amount of electrons to force quasi-neutrality in the neutralization
       ! elements.
-      NeutralizationBalance = NeutralizationBalance - NINT(Species(iSpec)%ChargeIC/ElementaryCharge)
+      NeutralizationBalance = NeutralizationBalance - Species(iSpec)%ChargeIC/ElementaryCharge*MPF
     END IF
   END IF ! UseNeutralization
 

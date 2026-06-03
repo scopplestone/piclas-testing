@@ -1,6 +1,6 @@
 # Photoionization in the volume (rectangle) for ray tracing with high-order refinement and bilinear tracking (split2hex mesh)
 - **Comparing**: the total number of real electrons in the system with a numerical ref. solution
-* convert cubit mesh with hopr to .h5: a tetrahedral mesh was generated and converted to a hex mesh using the cubit internal split2hex feature
+* convert cubit mesh with pyhope to .h5: a tetrahedral mesh was generated and converted to a hex mesh using the cubit internal split2hex feature
 * ray tracing + volume ionization reactions
 * reference density in Electrons_ref.csv calculated with the old model and 1x1x1 emission region for volume see and 1e-3 J
   * the size of the domain in this example is 1mm x 1mm x 1.33 mm, which is much smaller than the other reggies with 1m3 simulation

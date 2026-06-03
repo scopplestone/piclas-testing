@@ -3,7 +3,7 @@
 # Welcome to PICLas
 
 The PICLas code is licensed under the [GNU General Public License v3.0](http://fsf.org/).
-The licence can be found in [LICENCE.md](LICENCE.md) and the list of contributors in [CONTRIBUTORS.md](CONTRIBUTORS.md).
+The license can be found in [LICENSE.md](LICENSE.md) and the list of contributors in [CONTRIBUTORS.md](CONTRIBUTORS.md).
 Among other things, PICLas is a scientific project and if you use PICLas for publications or presentations in science, please
 support the project by citing our publications given in [REFERENCE.md](REFERENCE.md).
 
@@ -22,7 +22,7 @@ An overview of the regression tests used for continuous integration is given in 
 
 PICLas uses several external libraries as well as auxiliary functions from open source projects, including:
 
-* [HOPR (High Order Preprocessor)](https://github.com/hopr-framework/hopr)
+* [PyHOPE (High Order Preprocessor)](https://github.com/hopr-framework/PyHOPE)
 * [cmake](https://www.cmake.org)
 * [LAPACK](http://www.netlib.org/lapack/)
 * [MPI](https://www.open-mpi.org/)

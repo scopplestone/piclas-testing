@@ -20,7 +20,7 @@ if [ "$DOXYDIR" != "doxygen" ]; then
    echo "Security exit:"
    echo "builddoxy.sh must be placed in a directory with name 'doxygen'!"
    exit 1
-fi   
+fi
 
 function deletesrc {
    cd $CURDIR
@@ -38,7 +38,7 @@ cp -r ../../src .
 cp -r ../../README.md .
 sed -i 's\doc/logo.png\doc_logo.png\g' README.md
 cp -r ../../CONTRIBUTORS.md .
-cp -r ../../LICENCE.md .
+cp -r ../../LICENSE.md .
 cp -r ../../REFERENCE.md .
 cp -r ../../REGGIE.md .
 
@@ -93,4 +93,3 @@ done
 cd ../..
 cp ../logo.png ./doxygen/latex/doc_logo.png
 cp ../logo.png ./doxygen/html/doc_logo.png
-

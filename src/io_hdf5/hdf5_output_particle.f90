@@ -357,8 +357,9 @@ USE MOD_Equation_Vars_FV       ,ONLY: StrVarNames_FV
 #else
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
 #endif
-USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,nVarPartStateBoundary
+USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,nVarPartStateBoundary!,PartStateBoundaryMemory
 USE MOD_TimeDisc_Vars          ,ONLY: iter
+USE MOD_Particle_Boundary_Init ,ONLY: InitPartStateBoundary
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -483,9 +484,7 @@ PartStateBoundaryVecLength = 0
 
 ! Re-allocate PartStateBoundary for a small number of particles and double the array size each time the
 ! maximum is reached
-DEALLOCATE(PartStateBoundary)
-ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:10))
-PartStateBoundary=0.
+CALL InitPartStateBoundary(ReInitialise=.TRUE.)
 
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
@@ -1232,7 +1231,7 @@ DO iDelay=0,tempDelay
           PartData(2+iPos,iPart) = ClonedParticles(pcount,iDelay)%PartIntEn%ERot(1)
         ELSE
           PartData(1+iPos,iPart) = 0.0
-          PartData(2+iPos,iPart) = 0.0 
+          PartData(2+iPos,iPart) = 0.0
         END IF
         iPos = iPos + 2
         ! Electronic energy modelling
@@ -1394,7 +1393,7 @@ CHARACTER(LEN=*),INTENT(IN) :: FileName
 ! LOCAL VARIABLES
 INTEGER           :: iSpec,iInit ! ,InitGroup
 CHARACTER(LEN=50) :: InitName
-INTEGER(KIND=IK)  :: NeutralizationBalanceTmp(1:1) ! This is a dummy array of size 1 !
+REAL              :: NeutralizationBalanceTmp(1:1) ! This is a dummy array of size 1 !
 !===================================================================================================================================
 ! Only root writes the data
 IF(.NOT.MPIRoot) RETURN
@@ -1406,7 +1405,6 @@ DO iSpec=1,nSpecies
      CASE(9) ! '2D_landmark_neutralization'
        ! Re-load the value because the emission communicator can change during load balance restarts: MPIRoot is always part of this
        ! specific communicator
-
        NeutralizationBalanceTmp(1) = NeutralizationBalanceGlobal
 
        WRITE(InitName,'(A,I0,A,I0)') 'Spec',iSpec,'Init',iInit
@@ -1420,7 +1418,7 @@ DO iSpec=1,nSpecies
                                nValGlobal  = (/nGlobalEntries/) , &
                                nVal        = (/nEntries      /) , &
                                offset      = (/offsetEntries /) , &
-                               collective  = .FALSE. , IntegerArray = NeutralizationBalanceTmp)
+                               collective  = .FALSE. , RealArray = NeutralizationBalanceTmp)
        END ASSOCIATE
        CALL CloseDataFile()
 
@@ -1454,7 +1452,7 @@ INTEGER(KIND=IK),INTENT(OUT) :: globnPart(6)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if USE_MPI
-INTEGER(KIND=8)              :: locnPart8,locnPart8Recv,globnPart8 ! always integer KIND=8
+INTEGER(KIND=i8)             :: locnPart8,locnPart8Recv,globnPart8 ! always integer KIND=8
 INTEGER(KIND=IK)             :: SimNumSpecMin,SimNumSpecMax
 #else
 CHARACTER(LEN=255) :: dummy_char

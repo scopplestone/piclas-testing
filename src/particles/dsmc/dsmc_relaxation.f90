@@ -25,7 +25,7 @@ ABSTRACT INTERFACE
   SUBROUTINE RotRelaxDiaRoutine(iPair,iPart,FakXi)
     INTEGER,INTENT(IN)          :: iPair, iPart               ! index of collision pair
     REAL,INTENT(IN)             :: FakXi
-  END SUBROUTINE
+  END SUBROUTINE RotRelaxDiaRoutine
 END INTERFACE
 
 PROCEDURE(RotRelaxDiaRoutine),POINTER :: RotRelaxDiaRoutineFuncPTR !< pointer defining the function called for rotational relaxation

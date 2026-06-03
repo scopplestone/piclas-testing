@@ -1,5 +1,5 @@
 # PML-2elem
-- two zones are defined in hopr, each having 1 element
+- two zones are defined in pyhope, each having 1 element
 - one zone is PML and the other is vacuum
 - the runs are repeated multiple times as N is chosen at random
 - pAdaptionType = 0,1

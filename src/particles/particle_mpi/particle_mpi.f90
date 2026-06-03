@@ -17,6 +17,7 @@ MODULE MOD_Particle_MPI
 ! Contains global variables provided by the particle surfaces routines
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
@@ -240,6 +241,7 @@ USE MOD_Particle_MPI_Vars,      ONLY: nExchangeProcessors,ExchangeProcToGlobalPr
 USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,PEM,PDM,Species, UseGranularSpecies
 USE MOD_Mesh_Vars              ,ONLY: ELEM_RANK
 #if USE_HDG
+USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
 USE MOD_Particle_Vars          ,ONLY: ResetVDLSpecID
 #endif/*USE_HDG*/
 ! variables for parallel deposition
@@ -290,7 +292,7 @@ DO iPart=1,PDM%ParticleVecLength
     SpecID = PartSpecies(iPart)
 #if USE_HDG
     ! Check particle index for VDL particles and reset to original species index
-    SpecID = ResetVDLSpecID(iPart)
+    IF(DoVirtualDielectricLayer) SpecID = ResetVDLSpecID(iPart)
 #endif/*USE_HDG*/
     IF ((DSMC%NumPolyatomMolecs.GT.0).OR.(DSMC%ElectronicModel.EQ.2).OR.DSMC%DoAmbipolarDiff) THEN
       IF((DSMC%NumPolyatomMolecs.GT.0).AND.(SpecDSMC(SpecID)%PolyatomicMol)) THEN
@@ -370,6 +372,7 @@ USE MOD_Particle_Vars,           ONLY:Pt_temp
 USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
 #if USE_HDG
+USE MOD_Particle_Boundary_Vars  ,ONLY: DoVirtualDielectricLayer
 USE MOD_Particle_Vars           ,ONLY: ResetVDLSpecID
 #endif/*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
@@ -394,8 +397,8 @@ INTEGER                       :: MsgLengthRotVib(0:nExchangeProcessors-1), pos_r
 INTEGER                       :: MsgLengthElectronic(0:nExchangeProcessors-1), pos_electronic(0:nExchangeProcessors-1)
 INTEGER                       :: MsgLengthSolid(0:nExchangeProcessors-1), pos_solid(0:nExchangeProcessors-1)
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)               :: CounterStart(2),CounterEnd(2)
-REAL(KIND=8)                  :: Rate(2)
+INTEGER(KIND=i8)              :: CounterStart(2),CounterEnd(2)
+REAL(KIND=dp)                 :: Rate(2)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 
@@ -488,7 +491,7 @@ DO iProc=0,nExchangeProcessors-1
         jPos=jPos+3
       END IF
       !>> particle species
-      PartSendBuf(iProc)%content(       1+jPos) = REAL(PartSpecies(iPart),KIND=8)
+      PartSendBuf(iProc)%content(       1+jPos) = REAL(PartSpecies(iPart),KIND=i8)
       jPos=jPos+1
 
 #if defined(LSERK)
@@ -504,7 +507,7 @@ DO iProc=0,nExchangeProcessors-1
 #endif
 
       !>> particle element
-      PartSendBuf(iProc)%content(    1+jPos) = REAL(PEM%GlobalElemID(iPart),KIND=8)
+      PartSendBuf(iProc)%content(    1+jPos) = REAL(PEM%GlobalElemID(iPart),KIND=i8)
       jPos=jPos+1
       SpecID = PartSpecies(iPart)
       IF (usevMPF) THEN
@@ -516,7 +519,7 @@ DO iProc=0,nExchangeProcessors-1
       IF (useDSMC) THEN
 #if USE_HDG
         ! Check particle index for VDL particles and reset to original species index
-        SpecID = ResetVDLSpecID(iPart)
+        IF(DoVirtualDielectricLayer) SpecID = ResetVDLSpecID(iPart)
 #endif/*USE_HDG*/
         !--- add the polyatomic vibquants per particle
         IF (DSMC%NumPolyatomMolecs.GT.0) THEN
@@ -600,9 +603,9 @@ DO iProc=0,nExchangeProcessors-1
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd(2), count_rate=Rate(2))
   MPIW8TimePart(1)  = MPIW8TimePart(1) + REAL(CounterEnd(1)-CounterStart(1),8)/Rate(1)
-  MPIW8CountPart(1) = MPIW8CountPart(1) + 1_8
+  MPIW8CountPart(1) = MPIW8CountPart(1) + 1_i8
   MPIW8TimePart(2)  = MPIW8TimePart(2) + REAL(CounterEnd(2)-CounterStart(2),8)/Rate(2)
-  MPIW8CountPart(2) = MPIW8CountPart(2) + 1_8
+  MPIW8CountPart(2) = MPIW8CountPart(2) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 END DO ! iProc
 
@@ -755,6 +758,7 @@ USE MOD_Part_Tools             ,ONLY: GetNextFreePosition
 USE MOD_Particle_Vars          ,ONLY: Pt_temp
 #endif
 #if USE_HDG
+USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
 USE MOD_Particle_Vars          ,ONLY: ResetVDLSpecID
 #endif/*USE_HDG*/
 USE MOD_DSMC_Symmetry          ,ONLY: AdjustParticleWeight
@@ -779,8 +783,8 @@ INTEGER                       :: MessageSize, nRecvParticles
 INTEGER                       :: iPolyatMole, pos_poly, MsgLengthPoly, MsgLengthElec, pos_elec, pos_ambi, MsgLengthAmbi
 INTEGER                       :: MsgLengthRotVib, pos_rotvib, MsgLengthElectronic, pos_electronic, MsgLengthSolid, pos_solid
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)               :: CounterStart(2),CounterEnd(2)
-REAL(KIND=8)                  :: Rate(2)
+INTEGER(KIND=i8)              :: CounterStart(2),CounterEnd(2)
+REAL(KIND=dp)                 :: Rate(2)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 
@@ -797,7 +801,7 @@ DO iProc=0,nExchangeProcessors-1
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd(1), count_rate=Rate(1))
   MPIW8TimePart(3) = MPIW8TimePart(3) + REAL(CounterEnd(1)-CounterStart(1),8)/Rate(1)
-  MPIW8CountPart(3) = MPIW8CountPart(3) + 1_8
+  MPIW8CountPart(3) = MPIW8CountPart(3) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 END DO ! iProc
 
@@ -870,7 +874,7 @@ DO iProc=0,nExchangeProcessors-1
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd(2), count_rate=Rate(2))
   MPIW8TimePart(4) = MPIW8TimePart(4) + REAL(CounterEnd(2)-CounterStart(2),8)/Rate(2)
-  MPIW8CountPart(4) = MPIW8CountPart(4) + 1_8
+  MPIW8CountPart(4) = MPIW8CountPart(4) + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
   ! place particle information in correct arrays
@@ -936,7 +940,7 @@ DO iProc=0,nExchangeProcessors-1
     IF (useDSMC) THEN
 #if USE_HDG
       ! Check particle index for VDL particles and reset to original species index
-      SpecID = ResetVDLSpecID(PartID)
+      IF(DoVirtualDielectricLayer) SpecID = ResetVDLSpecID(PartID)
 #endif/*USE_HDG*/
       !--- put the polyatomic vibquants per particle at the end of the message
       IF (DSMC%NumPolyatomMolecs.GT.0) THEN
