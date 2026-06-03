@@ -86,6 +86,8 @@ IF(Symmetry%Order.LE.2) CALL InitParticleThroughSideCheck1D2D()
 Symmetry%Axisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
 IF (Symmetry%Axisymmetric) THEN
   Symmetry%AxisymmetricExact = GETLOGICAL('Particles-Symmetry2DAxisymmetricExact')
+ELSE
+  Symmetry%AxisymmetricExact = .FALSE.
 END IF
 #if defined(PARTICLES)
 ! Only abort when particles are active

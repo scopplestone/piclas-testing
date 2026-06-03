@@ -362,13 +362,21 @@ END SUBROUTINE ParticleThroughSideCheck2D
 
 
 !===================================================================================================================================
-!> Routine to check whether a photon crossed the given side.
+!> Checks whether a particle crosses a given side in the exact 2D rotationally-symmetric (axisymmetric) tracking. The 2D side
+!> (Node1->Node2 in the x-y plane, x = symmetry axis, y = radius) defines a surface of revolution about the x-axis that the full
+!> 3D trajectory (radius r=sqrt(y^2+z^2)) may intersect.
+!> Workflow:
+!>  1. Get the side node coordinates, particle start position (LastPartPos) and the trajectory direction.
+!>  2. Pick the best-conditioned parametrization (interseccase) from the relative x-extent of side vs. trajectory.
+!>  3. Solve the resulting quadratic (cases 1/2) or the degenerate near-radial geometry (case 3) for intersection candidates.
+!>  4. Select the correct root via the entering/exiting bookkeeping (LastIntersectCount) and accept it if it lies within the
+!>     side (0<=l<=1), in front of the particle and within the remaining trajectory length.
 !===================================================================================================================================
 SUBROUTINE ParticleThroughSideCheck2DRotSym(PartID, iLocSide,Element, SideID,ThroughSide, Distance,LastInterCount)
 ! MODULES
 USE MOD_Globals             ,ONLY: abort
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemSideNodeID2D_Shared, NodeCoords_Shared, SideInfo_Shared
-USE MOD_Particle_Vars       ,ONLY: LastPartPos,PartState
+USE MOD_Particle_Vars       ,ONLY: LastPartPos
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackInfo
 ! IMPLICIT VARIABLE HANDLING
@@ -383,30 +391,31 @@ REAL, INTENT(OUT)                :: Distance
 INTEGER, INTENT(OUT)             :: LastInterCount
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: CNElemID, interseccase
-! FIX: added z_pos_start
+INTEGER                          :: CNElemID, IntersectCase
 REAL                             :: y_pos_start,x_pos_start,z_pos_start,yNode1,xNode1,yNode2,xNode2,sy,sz,sx
 REAL                             :: l1,S1,l2,S2,l,S
 REAL                             :: beta, alpha,deltay, a, b, c, tmpsqrt
-REAL                             :: dx,dy, len2, lenPart2     
+REAL                             :: dx,dy, len2, lenPart2
 REAL, PARAMETER                  :: eps = 1E-18
 !===================================================================================================================================
 CNElemID = GetCNElemID(Element)
 Distance = 0.
 ! Sanity check
-IF(CNElemID.LE.0) CALL abort(__STAMP__,'PhotonIntersectionWithSide2D() found CNElemID<=0')
- 
+IF(CNElemID.LE.0) CALL abort(__STAMP__,'ParticleThroughSideCheck2DRotSym() found CNElemID<=0')
+
 ThroughSide = .FALSE.
- 
+
+! Side end-node coordinates in the x-y plane (x: symmetry axis, y: radial coordinate)
 xNode1 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
 yNode1 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
 xNode2 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
 yNode2 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
- 
+
+! Particle start position (full 3D) and trajectory direction
 x_pos_start = LastPartPos(1,PartID)
 y_pos_start = LastPartPos(2,PartID)
 z_pos_start = LastPartPos(3,PartID)
- 
+
 sx=TrackInfo%PartTrajectory(1)
 sy=TrackInfo%PartTrajectory(2)
 sz=TrackInfo%PartTrajectory(3)
@@ -414,38 +423,47 @@ dx = xNode2 - xNode1
 dy = yNode2 - yNode1
 len2= dx*dx+dy*dy
 lenPart2=sx*sx+sy*sy+sz*sz
+! Select the best-conditioned parametrization to avoid dividing by a near-zero x-extent:
+!   case 1: side dominated by x-extent  -> parametrize by S, expressing the radius as r(x)
+!   case 2: trajectory dominated by x   -> parametrize by the side coordinate l
+!   case 3: both near-radial (x nearly constant) -> degenerate geometry, solved directly
 IF((dx*dx/len2).GT.(sx*sx/lenPart2)) THEN
   IF ((dx*dx).GT.eps*len2) THEN
-    interseccase=1
+    IntersectCase = 1
   ELSE
-    interseccase=3
+    IntersectCase = 3
   END IF
 ELSE
   IF ((sx*sx).GT.eps*lenPart2) THEN
-    interseccase=2
+    IntersectCase = 2
   ELSE
-    interseccase=3
+    IntersectCase = 3
   END IF
 END IF
- 
-SELECT CASE (interseccase)
+
+SELECT CASE (IntersectCase)
 CASE(1)
+  ! Side radius expressed as a line in x: r = beta + alpha*sx*S along the trajectory (alpha = dy/dx).
+  ! Setting r^2 = y(S)^2 + z(S)^2 yields a quadratic in the trajectory parameter S.
   alpha = dy / dx
   beta = yNode1 + alpha * (x_pos_start - xNode1)
- 
+
   a = sy*sy + sz*sz - (alpha*sx)*(alpha*sx)
   b = 2.0*y_pos_start*sy + 2.0*z_pos_start*sz - 2.0*beta*alpha*sx
   c = y_pos_start*y_pos_start + z_pos_start*z_pos_start - beta*beta
   tmpsqrt = b*b - 4.0*a*c
+  ! Negative discriminant -> trajectory misses the surface of revolution
   IF (tmpsqrt.LE.0.0) THEN
     LastInterCount = 0
     RETURN
   END IF
+  ! Two candidate intersections; recover the corresponding side coordinate l for each root
   S1 = (-b + SQRT(tmpsqrt)) / (2.*a)
   S2 = (-b - SQRT(tmpsqrt)) / (2.*a)
   l1 = (x_pos_start + sx*S1 - xNode1) / dx
   l2 = (x_pos_start + sx*S2 - xNode1) / dx
- 
+
+  ! Pick the correct root depending on the entering/exiting state carried over from the previous side (LastIntersectCount)
   IF (((l1.GT.0.0).AND.(l1.LT.1.0).AND.(S1.GT.0.0).AND.(S1.LT.TrackInfo%lengthPartTrajectory).AND. &
     (l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0).AND.(S2.LT.TrackInfo%lengthPartTrajectory)).OR.(TrackInfo%LastIntersectCount.EQ.1)) THEN
     IF (TrackInfo%LastIntersectCount.EQ.0) THEN
@@ -453,7 +471,7 @@ CASE(1)
         l=l1; S=S1
       ELSE
         l=l2; S=S2
-      END IF  
+      END IF
       LastInterCount=1
     ELSE IF (TrackInfo%LastIntersectCount.EQ.2) THEN
       IF (ABS(S2).GT.ABS(S1)) THEN
@@ -462,13 +480,13 @@ CASE(1)
         l=l1; S=S1
       END IF
       LastInterCount=0
-    ELSE 
+    ELSE
       IF (S2.GT.S1) THEN
         l=l2; S=S2
       ELSE
-        l=l1; S=S1  
-      END IF      
-      LastInterCount=0        
+        l=l1; S=S1
+      END IF
+      LastInterCount=0
     END IF
   ELSE
     IF (TrackInfo%LastIntersectCount.EQ.2) THEN
@@ -497,24 +515,30 @@ CASE(1)
     LastInterCount = 0
   END IF
 CASE(2)
+  ! Trajectory parametrized by the side coordinate l: S = alpha + beta*l (from matching the x-coordinate).
+  ! Setting the side radius r(l) equal to sqrt(y(S)^2+z(S)^2) yields a quadratic in l.
   alpha = (xNode1 - x_pos_start) / sx
   beta = (xNode2 - xNode1) / sx
   deltay = (yNode2 - yNode1)
   a = beta*beta*sy*sy - deltay*deltay + beta*beta*sz*sz
   b = 2.*beta*sy*y_pos_start + 2.*beta*sz*z_pos_start + 2.*alpha*beta*sy*sy - 2.*deltay*yNode1 + 2.*alpha*beta*sz*sz
-  c = y_pos_start*y_pos_start + z_pos_start*z_pos_start - yNode1*yNode1 + 2.*alpha*sy*y_pos_start + 2.*alpha*sz*z_pos_start + alpha*alpha*sy*sy + sz*sz*alpha*alpha
+  c = y_pos_start*y_pos_start + z_pos_start*z_pos_start - yNode1*yNode1 + 2.*alpha*sy*y_pos_start + 2.*alpha*sz*z_pos_start &
+      + alpha*alpha*sy*sy + sz*sz*alpha*alpha
   ! Check if equation is nearly linear (trajectory nearly parallel to cone surface)
   ! Quadratic equation
   tmpsqrt = b*b - 4.*a*c
-  IF (tmpsqrt.LE.0.0) THEN  
+  ! Negative discriminant -> trajectory misses the surface of revolution
+  IF (tmpsqrt.LE.0.0) THEN
     LastInterCount = 0
     RETURN
   END IF
+  ! Two candidate intersections; recover the corresponding trajectory parameter S for each root
   l1 = (-b + SQRT(tmpsqrt))/(2.*a)
   S1 = (xNode1-x_pos_start+(xNode2-xNode1)*l1)/sx
   l2 = (-b - SQRT(tmpsqrt))/(2.*a)
-  S2 = (xNode1-x_pos_start+(xNode2-xNode1)*l2)/sx 
- 
+  S2 = (xNode1-x_pos_start+(xNode2-xNode1)*l2)/sx
+
+  ! Pick the correct root depending on the entering/exiting state carried over from the previous side (LastIntersectCount)
   IF (((l1.GT.0.0).AND.(l1.LT.1.0).AND.(S1.GT.0.0).AND.(S1.LT.TrackInfo%lengthPartTrajectory).AND. &
     (l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0).AND.(S2.LT.TrackInfo%lengthPartTrajectory)).OR.(TrackInfo%LastIntersectCount.EQ.1)) THEN
     IF (TrackInfo%LastIntersectCount.EQ.0) THEN
@@ -522,7 +546,7 @@ CASE(2)
         l=l1; S=S1
       ELSE
         l=l2; S=S2
-      END IF  
+      END IF
       LastInterCount=1
     ELSE IF (TrackInfo%LastIntersectCount.EQ.2) THEN
       IF (ABS(S2).GT.ABS(S1)) THEN
@@ -531,13 +555,13 @@ CASE(2)
         l=l1; S=S1
       END IF
       LastInterCount=0
-    ELSE  
+    ELSE
       IF (S2.GT.S1) THEN
         l=l2; S=S2
       ELSE
-        l=l1; S=S1  
-      END IF      
-      LastInterCount=0        
+        l=l1; S=S1
+      END IF
+      LastInterCount=0
     END IF
   ELSE
     IF (TrackInfo%LastIntersectCount.EQ.2) THEN
@@ -566,16 +590,21 @@ CASE(2)
     LastInterCount = 0
   END IF
 CASE(3)
+  ! Degenerate case: x is essentially constant, so S follows directly from the x-coordinate match.
+  ! Evaluate the radius at S and map it onto the side; both radius signs (+/-) are admissible candidates for l.
   S = (xNode1 - x_pos_start) / sx
   tmpsqrt = SQRT((y_pos_start + sy*S)**2 + (z_pos_start + sz*S)**2)
   l = ( tmpsqrt - yNode1)/dy
   l2 = (-tmpsqrt - yNode1) / dy
+  ! Fall back to the negative-radius solution if only it lies within the side
   IF ((l2.GE.0.0).AND.(l2.LE.1.0).AND.((l.LT.0.0).OR.(l.GT.1.0))) THEN
     l = l2
   END IF
   LastInterCount = 0
 END SELECT
- 
+
+! Accept the intersection only if it lies in front of the particle, within the remaining trajectory length, on the side
+! (0<=l<=1) and beyond the last accepted intersection (S>alpha). For a boundary side flag a pending second intersection.
 IF((S .GT. 0.0).AND.(S.LT.TrackInfo%lengthPartTrajectory) .AND. (0.0 .LE. l) .AND. (l .LE. 1.0).AND.(S.GT.TrackInfo%alpha)) THEN
   ThroughSide = .TRUE.
   Distance = S
@@ -583,7 +612,7 @@ IF((S .GT. 0.0).AND.(S.LT.TrackInfo%lengthPartTrajectory) .AND. (0.0 .LE. l) .AN
 ELSE
   LastInterCount=0
 END IF
- 
+
 END SUBROUTINE ParticleThroughSideCheck2DRotSym
 
 

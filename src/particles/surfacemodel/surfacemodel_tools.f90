@@ -120,7 +120,7 @@ INTEGER                              :: locBCID, SpecID, CNElemID, iLocSide
 LOGICAL                              :: SymmetricCase
 REAL                                 :: POI_vec(1:3)
 REAL                                 :: NormNewVeloPush(1:3)
-REAL                                 :: dtVar, n_loctmp(3), nValIntersec, rotVelY, rotVelZ, rotPosY
+REAL                                 :: dtVar, n_loctmp(3), nValIntersec
 !===================================================================================================================================
 ! Initialize
 SymmetricCase = .FALSE.
