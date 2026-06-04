@@ -161,6 +161,10 @@ To enable axisymmetric simulations, the following flag is required
 
     Particles-Symmetry2DAxisymmetric=T
 
+Note that currently two tracking approaches are implemented. The current default utilizes an exact axisymmetric tracking (`Particles-Symmetry2DAxisymmetricExact = T`), where the
+curvature of the rotated geometry is considered. While marginally more computationally expensive, it provides improved accuracy for interior
+flows and avoids numerical artifacts as demonstrated in the following regression test: `regressioncheck/NIG_tracking_DSMC/axisymmetric_exact_tracking`.
+
 To fully exploit rotational symmetry, a radial weighting can be enabled, which will linearly increase the weighting factor $w$
 towards $y_{\mathrm{max}}$ (i.e. the domain border in $y$-direction), depending on the current $y$-position of the particle.
 

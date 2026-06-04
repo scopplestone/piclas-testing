@@ -395,8 +395,9 @@ INTEGER                          :: CNElemID, IntersectCase
 REAL                             :: y_pos_start,x_pos_start,z_pos_start,yNode1,xNode1,yNode2,xNode2,sy,sz,sx
 REAL                             :: l1,S1,l2,S2,l,S
 REAL                             :: beta, alpha,deltay, a, b, c, tmpsqrt
-REAL                             :: dx,dy, len2, lenPart2
-REAL, PARAMETER                  :: eps = 1E-18
+REAL                             :: dx,dy, lenElem2, lenPart2
+! Relative tolerance for detecting (near-)degenerate intersection geometries
+REAL, PARAMETER                  :: eps = 1E-12
 !===================================================================================================================================
 CNElemID = GetCNElemID(Element)
 Distance = 0.
@@ -416,19 +417,24 @@ x_pos_start = LastPartPos(1,PartID)
 y_pos_start = LastPartPos(2,PartID)
 z_pos_start = LastPartPos(3,PartID)
 
-sx=TrackInfo%PartTrajectory(1)
-sy=TrackInfo%PartTrajectory(2)
-sz=TrackInfo%PartTrajectory(3)
+sx = TrackInfo%PartTrajectory(1)
+sy = TrackInfo%PartTrajectory(2)
+sz = TrackInfo%PartTrajectory(3)
 dx = xNode2 - xNode1
 dy = yNode2 - yNode1
-len2= dx*dx+dy*dy
-lenPart2=sx*sx+sy*sy+sz*sz
+lenElem2 = dx*dx+dy*dy
+lenPart2 = sx*sx+sy*sy+sz*sz
+! Degenerate side (zero length) or stationary particle (zero trajectory) -> no crossing possible, avoid division by zero below
+IF ((lenElem2.LE.0.0).OR.(lenPart2.LE.0.0)) THEN
+  LastInterCount = 0
+  RETURN
+END IF
 ! Select the best-conditioned parametrization to avoid dividing by a near-zero x-extent:
 !   case 1: side dominated by x-extent  -> parametrize by S, expressing the radius as r(x)
 !   case 2: trajectory dominated by x   -> parametrize by the side coordinate l
 !   case 3: both near-radial (x nearly constant) -> degenerate geometry, solved directly
-IF((dx*dx/len2).GT.(sx*sx/lenPart2)) THEN
-  IF ((dx*dx).GT.eps*len2) THEN
+IF((dx*dx/lenElem2).GT.(sx*sx/lenPart2)) THEN
+  IF ((dx*dx).GT.eps*lenElem2) THEN
     IntersectCase = 1
   ELSE
     IntersectCase = 3
@@ -451,6 +457,11 @@ CASE(1)
   a = sy*sy + sz*sz - (alpha*sx)*(alpha*sx)
   b = 2.0*y_pos_start*sy + 2.0*z_pos_start*sz - 2.0*beta*alpha*sx
   c = y_pos_start*y_pos_start + z_pos_start*z_pos_start - beta*beta
+  ! Degenerate (a = 0): trajectory parallel to a cone surface -> no isolated intersection with this side, avoiding division by zero
+  IF (ABS(a).LE.eps*MAX(ABS(b),ABS(c))) THEN
+    LastInterCount = 0
+    RETURN
+  END IF
   tmpsqrt = b*b - 4.0*a*c
   ! Negative discriminant -> trajectory misses the surface of revolution
   IF (tmpsqrt.LE.0.0) THEN
@@ -464,56 +475,7 @@ CASE(1)
   l2 = (x_pos_start + sx*S2 - xNode1) / dx
 
   ! Pick the correct root depending on the entering/exiting state carried over from the previous side (LastIntersectCount)
-  IF (((l1.GT.0.0).AND.(l1.LT.1.0).AND.(S1.GT.0.0).AND.(S1.LT.TrackInfo%lengthPartTrajectory).AND. &
-    (l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0).AND.(S2.LT.TrackInfo%lengthPartTrajectory)).OR.(TrackInfo%LastIntersectCount.EQ.1)) THEN
-    IF (TrackInfo%LastIntersectCount.EQ.0) THEN
-      IF (S2.GT.S1) THEN
-        l=l1; S=S1
-      ELSE
-        l=l2; S=S2
-      END IF
-      LastInterCount=1
-    ELSE IF (TrackInfo%LastIntersectCount.EQ.2) THEN
-      IF (ABS(S2).GT.ABS(S1)) THEN
-        l=l2; S=S2
-      ELSE
-        l=l1; S=S1
-      END IF
-      LastInterCount=0
-    ELSE
-      IF (S2.GT.S1) THEN
-        l=l2; S=S2
-      ELSE
-        l=l1; S=S1
-      END IF
-      LastInterCount=0
-    END IF
-  ELSE
-    IF (TrackInfo%LastIntersectCount.EQ.2) THEN
-      IF (ABS(S2).GT.ABS(S1)) THEN
-        l=l2; S=S2
-      ELSE
-        l=l1; S=S1
-      END IF
-    ELSE IF ((l1.LE.0.0).OR.(l1.GE.1.0)) THEN !if 1 is not a valid intersection -> 2
-      l = l2; S = S2
-    ELSE                                      !1 is valid intersection
-      IF ((S1.LE.0.0)) THEN                   !1 would be moving backwards -> 2
-        l = l2; S = S2
-      ELSE
-        IF ((l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0)) THEN !1 and 2 valid -> chose shorter one
-          IF (S2.GT.S1) THEN
-            l=l1; S=S1
-          ELSE
-            l=l2; S=S2
-          END IF
-        ELSE                                  !1 is only valid intersection -> 1
-          l=l1; S=S1
-        END IF
-      END IF
-    END IF
-    LastInterCount = 0
-  END IF
+  CALL SelectIntersection2DRotSym(l1,S1,l2,S2,TrackInfo%lengthPartTrajectory,TrackInfo%LastIntersectCount,l,S,LastInterCount)
 CASE(2)
   ! Trajectory parametrized by the side coordinate l: S = alpha + beta*l (from matching the x-coordinate).
   ! Setting the side radius r(l) equal to sqrt(y(S)^2+z(S)^2) yields a quadratic in l.
@@ -524,8 +486,11 @@ CASE(2)
   b = 2.*beta*sy*y_pos_start + 2.*beta*sz*z_pos_start + 2.*alpha*beta*sy*sy - 2.*deltay*yNode1 + 2.*alpha*beta*sz*sz
   c = y_pos_start*y_pos_start + z_pos_start*z_pos_start - yNode1*yNode1 + 2.*alpha*sy*y_pos_start + 2.*alpha*sz*z_pos_start &
       + alpha*alpha*sy*sy + sz*sz*alpha*alpha
-  ! Check if equation is nearly linear (trajectory nearly parallel to cone surface)
-  ! Quadratic equation
+  ! Degenerate (a = 0): trajectory parallel to a cone surface -> no isolated intersection with this side, avoiding division by zero
+  IF (ABS(a).LE.eps*MAX(ABS(b),ABS(c))) THEN
+    LastInterCount = 0
+    RETURN
+  END IF
   tmpsqrt = b*b - 4.*a*c
   ! Negative discriminant -> trajectory misses the surface of revolution
   IF (tmpsqrt.LE.0.0) THEN
@@ -539,58 +504,16 @@ CASE(2)
   S2 = (xNode1-x_pos_start+(xNode2-xNode1)*l2)/sx
 
   ! Pick the correct root depending on the entering/exiting state carried over from the previous side (LastIntersectCount)
-  IF (((l1.GT.0.0).AND.(l1.LT.1.0).AND.(S1.GT.0.0).AND.(S1.LT.TrackInfo%lengthPartTrajectory).AND. &
-    (l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0).AND.(S2.LT.TrackInfo%lengthPartTrajectory)).OR.(TrackInfo%LastIntersectCount.EQ.1)) THEN
-    IF (TrackInfo%LastIntersectCount.EQ.0) THEN
-      IF (S2.GT.S1) THEN
-        l=l1; S=S1
-      ELSE
-        l=l2; S=S2
-      END IF
-      LastInterCount=1
-    ELSE IF (TrackInfo%LastIntersectCount.EQ.2) THEN
-      IF (ABS(S2).GT.ABS(S1)) THEN
-        l=l2; S=S2
-      ELSE
-        l=l1; S=S1
-      END IF
-      LastInterCount=0
-    ELSE
-      IF (S2.GT.S1) THEN
-        l=l2; S=S2
-      ELSE
-        l=l1; S=S1
-      END IF
-      LastInterCount=0
-    END IF
-  ELSE
-    IF (TrackInfo%LastIntersectCount.EQ.2) THEN
-      IF (ABS(S2).GT.ABS(S1)) THEN
-        l=l2; S=S2
-      ELSE
-        l=l1; S=S1
-      END IF
-    ELSE IF ((l1.LE.0.0).OR.(l1.GE.1.0)) THEN !if 1 is not a valid intersection -> 2
-      l = l2; S = S2
-    ELSE                                      !1 is valid intersection
-      IF ((S1.LE.0.0)) THEN                   !1 would be moving backwards -> 2
-        l = l2; S = S2
-      ELSE
-        IF ((l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0)) THEN !1 and 2 valid -> chose shorter one
-          IF (S2.GT.S1) THEN
-            l=l1; S=S1
-          ELSE
-            l=l2; S=S2
-          END IF
-        ELSE                                  !1 is only valid intersection -> 1
-          l=l1; S=S1
-        END IF
-      END IF
-    END IF
-    LastInterCount = 0
-  END IF
+  CALL SelectIntersection2DRotSym(l1,S1,l2,S2,TrackInfo%lengthPartTrajectory,TrackInfo%LastIntersectCount,l,S,LastInterCount)
 CASE(3)
-  ! Degenerate case: x is essentially constant, so S follows directly from the x-coordinate match.
+  ! Degenerate case: both side and trajectory are near-radial (x nearly constant).
+  ! A particle with (almost) no axial velocity can only cross the constant-x side if it already lies in that x-plane;
+  ! otherwise it never reaches it within the finite trajectory. Guard avoids the division by zero for sx -> 0.
+  IF (ABS(sx).LE.eps*SQRT(lenPart2)) THEN
+    LastInterCount = 0
+    RETURN
+  END IF
+  ! x is essentially constant, so S follows directly from the x-coordinate match.
   ! Evaluate the radius at S and map it onto the side; both radius signs (+/-) are admissible candidates for l.
   S = (xNode1 - x_pos_start) / sx
   tmpsqrt = SQRT((y_pos_start + sy*S)**2 + (z_pos_start + sz*S)**2)
@@ -614,6 +537,82 @@ ELSE
 END IF
 
 END SUBROUTINE ParticleThroughSideCheck2DRotSym
+
+
+!===================================================================================================================================
+!> Selects the relevant intersection from the two candidate roots (l1,S1) and (l2,S2) of the axisymmetric intersection quadratic
+!> (see ParticleThroughSideCheck2DRotSym). Since a surface of revolution can be crossed twice, the choice depends on the
+!> entering/exiting state carried over from the previously checked side (LastIntersectCountIn):
+!>   = 0: no pending pair -> pick the nearer valid root and flag a pending second intersection (LastInterCount = 1)
+!>   = 1: second intersection of a pair pending -> pick the farther root and clear the flag
+!>   = 2: previous hit was a boundary side -> pick the root with the larger |S|
+!> If no consistent pair exists, the single valid/forward root is returned. Outputs the chosen (l,S) and the new LastInterCount.
+!===================================================================================================================================
+PURE SUBROUTINE SelectIntersection2DRotSym(l1,S1,l2,S2,lengthPartTrajectory,LastIntersectCountIn,l,S,LastInterCount)
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                  :: l1,S1,l2,S2          ! Side coordinate and trajectory parameter of the two candidate roots
+REAL,INTENT(IN)                  :: lengthPartTrajectory ! Remaining trajectory length
+INTEGER,INTENT(IN)               :: LastIntersectCountIn ! Entering/exiting state from the previously checked side
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                 :: l,S                  ! Selected side coordinate and trajectory parameter
+INTEGER,INTENT(OUT)              :: LastInterCount       ! Updated entering/exiting state passed back to the caller
+!===================================================================================================================================
+IF (((l1.GT.0.0).AND.(l1.LT.1.0).AND.(S1.GT.0.0).AND.(S1.LT.lengthPartTrajectory).AND. &
+  (l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0).AND.(S2.LT.lengthPartTrajectory)).OR.(LastIntersectCountIn.EQ.1)) THEN
+  IF (LastIntersectCountIn.EQ.0) THEN
+    IF (S2.GT.S1) THEN
+      l=l1; S=S1
+    ELSE
+      l=l2; S=S2
+    END IF
+    LastInterCount=1
+  ELSE IF (LastIntersectCountIn.EQ.2) THEN
+    IF (ABS(S2).GT.ABS(S1)) THEN
+      l=l2; S=S2
+    ELSE
+      l=l1; S=S1
+    END IF
+    LastInterCount=0
+  ELSE
+    IF (S2.GT.S1) THEN
+      l=l2; S=S2
+    ELSE
+      l=l1; S=S1
+    END IF
+    LastInterCount=0
+  END IF
+ELSE
+  IF (LastIntersectCountIn.EQ.2) THEN
+    IF (ABS(S2).GT.ABS(S1)) THEN
+      l=l2; S=S2
+    ELSE
+      l=l1; S=S1
+    END IF
+  ELSE IF ((l1.LE.0.0).OR.(l1.GE.1.0)) THEN !if 1 is not a valid intersection -> 2
+    l = l2; S = S2
+  ELSE                                      !1 is valid intersection
+    IF ((S1.LE.0.0)) THEN                   !1 would be moving backwards -> 2
+      l = l2; S = S2
+    ELSE
+      IF ((l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0)) THEN !1 and 2 valid -> chose shorter one
+        IF (S2.GT.S1) THEN
+          l=l1; S=S1
+        ELSE
+          l=l2; S=S2
+        END IF
+      ELSE                                  !1 is only valid intersection -> 1
+        l=l1; S=S1
+      END IF
+    END IF
+  END IF
+  LastInterCount = 0
+END IF
+
+END SUBROUTINE SelectIntersection2DRotSym
 
 
 SUBROUTINE ParticleThroughSideCheck1D(PartID,iLocSide,Element,ThroughSide)
