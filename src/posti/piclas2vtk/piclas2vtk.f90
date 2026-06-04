@@ -1670,6 +1670,7 @@ CALL PrintOption('DSMC_nSurfSample','HDF5',IntOpt=nSurfSample) ! 'HDF5.'
 CALL GetDataSize(File_ID,'SurfaceData',nDims,HSize)
 nVarSurf = INT(HSize(1),4)
 nSurfaceSidesReadin = INT(HSize(4),4)
+DEALLOCATE(HSize)
 ALLOCATE(VarNamesSurf_HDF5(nVarSurf))
 CALL ReadAttribute(File_ID,'VarNamesSurface',nVarSurf,StrArray=VarNamesSurf_HDF5(1:nVarSurf))
 
