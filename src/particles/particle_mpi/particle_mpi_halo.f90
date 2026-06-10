@@ -1070,7 +1070,7 @@ DO iProc = 0,nProcessors_Global-1
 
   ProcHasExchangeElem = .FALSE.
   ! Use a named loop so the entire element can be cycled
-ExchangeLoop: DO iElem = offsetElemMPI(iProc)+1,offsetElemMPI(iProc+1)
+  ExchangeLoop: DO iElem = offsetElemMPI(iProc)+1,offsetElemMPI(iProc+1)
     ! Ignore elements outside nComputeNodeTotalElems
     IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LT.0) CYCLE ExchangeLoop
 

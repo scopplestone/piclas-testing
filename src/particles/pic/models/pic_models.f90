@@ -118,9 +118,7 @@ DO iPart = 1, PDM%ParticleVecLength
 #ifdef CODE_ANALYZE
               WRITE(UNIT_stdOut,'(A)') "ERROR FieldIonization: ADK model is not applicable for electric fields > critical value!"
 #else
-              CALL abort(&
-                  __STAMP__&
-                  ,'ERROR FieldIonization: ADK model is not applicable for electric fields > critical value!', oldSpec)
+              CALL abort(__STAMP__,'ERROR FieldIonization: ADK model is not applicable for electric fields > critical value!', oldSpec)
 #endif /* CODE_ANALYZE */
             END IF
             ! Z (ChargedNum): Charge number of the atom/ion AFTER the ionization (thus + 1)

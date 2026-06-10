@@ -2015,7 +2015,7 @@ DO iGlobalElem = firstElem,lastElem
   ! Every periodic vector already found
   IF (ALL(PeriodicFound(:))) EXIT
 
-SideLoop: DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobalElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobalElem)
+  SideLoop: DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobalElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobalElem)
     ! Get BC
     iBC = SideInfo_Shared(SIDE_BCID,SideID)
     IF(iBC.EQ.0) CYCLE SideLoop
