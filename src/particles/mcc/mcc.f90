@@ -50,7 +50,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars
 ! VARIABLES
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartIntEn, DSMC
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMCSumOfFormedParticles, PolyatomMolDSMC
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PolyatomMolDSMC
 USE MOD_MCC_Vars                ,ONLY: SpecXSec, XSec_NullCollision
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep, UseGranularSpecies
@@ -294,11 +294,7 @@ DO iSpec = 1, nSpecies
           IF(iPartSplit.LT.SplitPartNum) THEN
             ! Clone the regular particle (re-using the index of the previous particle if it didn't collide)
             IF(PartIndex.EQ.0) THEN
-              DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
               PartIndex = GetNextFreePosition()
-              IF (PartIndex.EQ.0) THEN
-                CALL Abort(__STAMP__,'ERROR in MCC: MaxParticleNumber should be increased!')
-              END IF
               PartSpecies(PartIndex) = iSpec
               PartState(1:6,PartIndex) = PartStateSplit(1:6)
               IF(TrackingMethod.EQ.REFMAPPING) PartPosRef(1:3,PartIndex)=PartPosRefSplit(1:3)
@@ -442,13 +438,7 @@ DO iSpec = 1, nSpecies
         IF(CollisMode.EQ.3) THEN
           ! Chemical reaction with cross-section based probability
           IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
-            IF(bggPartIndex.EQ.0) THEN
-              DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-              bggPartIndex = GetNextFreePosition()
-              IF (bggPartIndex.EQ.0) THEN
-                CALL Abort(__STAMP__,'ERROR in MCC: MaxParticleNumber should be increased!')
-              END IF
-            END IF
+            IF(bggPartIndex.EQ.0) bggPartIndex = GetNextFreePosition()
             ! If standard collision modelling is used, the reaction probability is added to the collision probability
             CALL MCC_CalcReactionProb(iCase,bgSpec,CRela2,SpecXSec(iCase)%CollEnergy,PartIndex,bggPartIndex,iElem)
             CollProb = CollProb + SUM(ChemReac%CollCaseInfo(iCase)%ReactionProb(:))
@@ -498,13 +488,7 @@ DO iSpec = 1, nSpecies
         iPair = 1
         Coll_pData(iPair)%iPart_p1 = PartIndex
         ! Creating a new background gas particle
-        IF(bggPartIndex.EQ.0) THEN
-          DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-          bggPartIndex = GetNextFreePosition()
-          IF (bggPartIndex.EQ.0) THEN
-            CALL Abort(__STAMP__,'ERROR in MCC: MaxParticleNumber should be increased!')
-          END IF
-        END IF
+        IF(bggPartIndex.EQ.0) bggPartIndex = GetNextFreePosition()
         ! Set collision pair index
         Coll_pData(iPair)%iPart_p2 = bggPartIndex
         ! Assign properties

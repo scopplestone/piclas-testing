@@ -149,7 +149,7 @@ SUBROUTINE AD_InsertParticles(iPartIndx_Node, nPart, iPartIndx_NodeTotalAmbi, To
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: BGGas, DSMC, PartIntEn
-USE MOD_DSMC_Vars               ,ONLY: DSMCSumOfFormedParticles, newAmbiParts, iPartIndx_NodeNewAmbi
+USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_PARTICLE_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, Species, PartMPF, usevMPF
 USE MOD_PARTICLE_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
@@ -195,7 +195,6 @@ iPartIndx_NodeTotalAmbi(1:nPart) = iPartIndx_Node(1:nPart)
 TotalPartNum = nPart
 
 DO iLoop = 1, nNewElectrons
-  DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
   PositionNbr = GetNextFreePosition()
   InsideFlag=.FALSE.
   iElem = PEM%GlobalElemID(iPartIndx_Node(1))

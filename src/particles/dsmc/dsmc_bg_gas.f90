@@ -749,7 +749,6 @@ SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,TotalNbrOfReactions)
 USE MOD_Globals
 USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib,CalcMeanFreePath
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollisMode, ChemReac, DSMC
-USE MOD_DSMC_Vars              ,ONLY: DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, BGGas
 USE MOD_Particle_Vars          ,ONLY: PEM, PDM, PartSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr
@@ -890,7 +889,6 @@ IF(NbrOfParticle.EQ.0) RETURN
 
 ALLOCATE(Coll_pData(NbrOfParticle))
 Coll_pData%Ec=0.
-DSMCSumOfFormedParticles = 0
 
 iNewPart = 0; iPair = 0
 
@@ -1008,8 +1006,6 @@ ELSE
   END DO
 END IF ! NbrOfPhotonXsecReactions.GT.0
 END ASSOCIATE
-
-DSMCSumOfFormedParticles = 0
 
 DEALLOCATE(Coll_pData)
 

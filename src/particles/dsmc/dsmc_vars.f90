@@ -38,8 +38,6 @@ END TYPE
 
 TYPE(tTLU_Data)                           :: TLU_Data
 
-INTEGER                       :: DSMCSumOfFormedParticles   !number of formed particles per iteration in chemical reactions
-                                                            ! for counting the nextfreeparticleposition
 INTEGER                       :: CollisMode                 ! Mode of Collision:, ini_1
                                                             !    0: No Collisions (=free molecular flow with DSMC-Sampling-Routines)
                                                             !    1: Elastic Collision

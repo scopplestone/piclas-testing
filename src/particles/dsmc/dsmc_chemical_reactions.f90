@@ -335,7 +335,7 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac)
 ! MODULES
 USE MOD_Globals                ,ONLY: abort,DOTPRODUCT,StringBeginsWith,UNIT_StdOut
 USE MOD_Globals_Vars
-USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
+USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC, CollInf, SpecDSMC
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartIntEn, PolyatomMolDSMC, BGGas, ElecRelaxPart
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, newElecRelaxParts, iPartIndx_NodeNewElecRelax
 USE MOD_DSMC_Vars              ,ONLY: iPartIndx_NodeElecRelaxChem, nElecRelaxChemParts
@@ -514,7 +514,6 @@ SumWeightProd = WeightProd(1) + WeightProd(2)
 IF(EductReac(3).EQ.0) THEN
   IF(ProductReac(3).NE.0) THEN
     ! === Get free particle index for the 3rd product
-    DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
     ReactInx(3) = GetNextFreePosition()
     PDM%ParticleInside(ReactInx(3)) = .true.
     PDM%IsNewPart(ReactInx(3)) = .true.
@@ -561,7 +560,6 @@ END IF
 
 IF(ProductReac(4).NE.0) THEN
   ! === Get free particle index for the 4th product
-  DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
   ReactInx(4) = GetNextFreePosition()
   PDM%ParticleInside(ReactInx(4)) = .true.
   PDM%IsNewPart(ReactInx(4)) = .true.
@@ -1165,9 +1163,6 @@ IF(ChemReac%NumDeleteProducts.GT.0) THEN
       IF(ProductReac(iProd).EQ.SpecToDelete) THEN
         ! Remove the respective particle
         CALL RemoveParticle(ReactInx(iProd))
-        ! Remove the newly created particles from chemistry counter
-        IF((iProd.EQ.3).AND.(EductReac(3).EQ.0)) DSMCSumOfFormedParticles = DSMCSumOfFormedParticles - 1
-        IF(iProd.EQ.4) DSMCSumOfFormedParticles = DSMCSumOfFormedParticles - 1
       END IF
     END DO
   END DO
@@ -1497,7 +1492,7 @@ SUBROUTINE PhotoIonization_InsertProducts(iPair, iReac, b1, b2, normal, iLineOpt
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: eV2Joule
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, DSMCSumOfFormedParticles, CollInf
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, CollInf
 USE MOD_DSMC_Vars               ,ONLY: ChemReac,PartIntEn
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_MCC_Vars                ,ONLY: ReacToPhotoReac,NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
@@ -1573,7 +1568,6 @@ SumWeightProd = Weight(1) + Weight(2)
 IF(EductReac(3).EQ.0) THEN
   IF(ProductReac(3).NE.0) THEN
     ! === Get free particle index for the 3rd product
-    DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
     ReactInx(3) = GetNextFreePosition()
     PDM%ParticleInside(ReactInx(3)) = .true.
     PDM%IsNewPart(ReactInx(3)) = .true.
@@ -1611,7 +1605,6 @@ END IF
 
 IF(ProductReac(4).NE.0) THEN
   ! === Get free particle index for the 4th product
-  DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
   ReactInx(4) = GetNextFreePosition()
   PDM%ParticleInside(ReactInx(4)) = .true.
   PDM%IsNewPart(ReactInx(4)) = .true.

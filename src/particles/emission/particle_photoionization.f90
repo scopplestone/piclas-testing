@@ -503,11 +503,6 @@ DO iVar = 1, 2
 
               ! Create new particle from the background gas
               PartID = GetNextFreePosition()
-              IF(PartID.GT.PDM%MaxParticleNumber)THEN
-                CALL abort(__STAMP__,'Raytrace Photoionization: PartID.GT.PDM%MaxParticleNumber. '//&
-                                    'Increase Part-maxParticleNumber or use more processors. PartID=',IntInfoOpt=PartID)
-              END IF
-              IF(PartID.EQ.0) CALL Abort(__STAMP__,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
               ! Set the position
               PartState(1:3,PartID) = RandomPos(1:3)
               ! Set the species
@@ -536,13 +531,6 @@ DO iVar = 1, 2
               PEM%LastGlobalElemID(PartID) = 0 ! Initialize with invalid value
               ! Create second particle (only the index and the flags/elements needs to be set)
               newPartID = GetNextFreePosition()
-              IF(newPartID.GT.PDM%MaxParticleNumber)THEN
-                CALL abort(__STAMP__,'Raytrace Photoionization: newPartID.GT.PDM%MaxParticleNumber. '//&
-                                    'Increase Part-maxParticleNumber or use more processors. newPartID=',IntInfoOpt=newPartID)
-              END IF
-              IF (newPartID.EQ.0) THEN
-                CALL Abort(__STAMP__,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
-              END IF
               IF (DSMC%DoAmbipolarDiff) THEN
                 newAmbiParts = newAmbiParts + 1
                 iPartIndx_NodeNewAmbi(newAmbiParts) = newPartID
