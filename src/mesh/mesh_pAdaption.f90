@@ -17,6 +17,7 @@ MODULE MOD_Mesh_pAdaption
 ! Contains subroutines to build (curviilinear) meshes and provide metrics, etc.
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
@@ -70,7 +71,7 @@ IMPLICIT NONE
 INTEGER :: iElem,BCSideID,BCType
 REAL    :: RandVal,x
 LOGICAL :: SetBCElemsToNMax
-INTEGER(KIND=8) :: nLocalDOFs
+INTEGER(KIND=i8):: nLocalDOFs
 #endif /*!(PP_TimeDiscMethod==700)*/
 !===================================================================================================================================
 #if !(PP_TimeDiscMethod==700)

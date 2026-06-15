@@ -20,6 +20,7 @@ MODULE MOD_DSMC_Vars
 #if USE_MPI
 USE mpi_f08
 #endif /*USE_MPI*/
+USE MOD_Globals_Vars, ONLY: i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -64,7 +65,7 @@ TYPE tPartIntEn
   REAL, ALLOCATABLE           :: ElecVelo(:)                ! Electron velocity for ambipolar diffusion
 END TYPE tPartIntEn
 
-TYPE(tPartIntEn), ALLOCATABLE :: PartIntEn(:)        
+TYPE(tPartIntEn), ALLOCATABLE :: PartIntEn(:)
 
 LOGICAL                       :: useRelaxProbCorrFactor     ! Use the relaxation probability correction factor of Lumpkin
 
@@ -567,8 +568,8 @@ INTEGER                         :: nElecRelaxChemParts
 LOGICAL, ALLOCATABLE            :: ElecRelaxPart(:)
 
 ! MacValout and MacroVolSample have to be separated due to autoinitialrestart
-INTEGER(KIND=8)                  :: iter_macvalout             ! iterations since last macro volume output
-INTEGER(KIND=8)                  :: iter_macsurfvalout         ! iterations since last macro surface output
+INTEGER(KIND=i8)                 :: iter_macvalout             ! iterations since last macro volume output
+INTEGER(KIND=i8)                 :: iter_macsurfvalout         ! iterations since last macro surface output
 LOGICAL                          :: SamplingActive             ! Identifier if DSMC Sampling is activated
 INTEGER                          :: ReactionProbGTUnityCounter ! Count the number of ReactionProb>1 (turn off the warning after
 !                                                              ! reaching 1000 outputs of said warning

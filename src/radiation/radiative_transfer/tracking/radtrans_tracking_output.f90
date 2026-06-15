@@ -17,6 +17,7 @@ MODULE MOD_Photon_TrackingOutput
 ! Module for the main radiation transport routines
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i4,i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
@@ -690,7 +691,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER           :: MessageSize,offset,NlocOffset
-INTEGER(KIND=8)   :: nGlobalEntries
+INTEGER(KIND=i8)  :: nGlobalEntries
 REAL, ALLOCATABLE :: RayElemPassedEnergyHO(:,:) ! <
 INTEGER           :: iElem,Nloc
 CHARACTER(LEN=255):: hilf
@@ -728,10 +729,10 @@ IF(nProcessors.GT.1)THEN
   END DO ! iElem = 1, nGlobalElems
 
   ! Sanity check
-  IF(nGlobalEntries * INT(nVarRay,8).GT.INT(HUGE(1_4),8))THEN
+  IF(nGlobalEntries * INT(nVarRay,8).GT.INT(HUGE(1_i4),8))THEN
     IF(MPIRoot)THEN
       WRITE(UNIT=hilf,FMT='(A,I0,A,I0)') "Number of entries in RayElemPassedEnergyHO(1:nVarRay,1:nGlobalEntries) "&
-          ,nGlobalEntries * INT(nVarRay,8)," is larger than ",HUGE(1_4)
+          ,nGlobalEntries * INT(nVarRay,8)," is larger than ",HUGE(1_i4)
       CALL abort(__STAMP__,TRIM(hilf))
     END IF
   END IF

@@ -178,22 +178,22 @@ The tests are defined in the file *.gitlab-ci.yml* in the top-level directory of
 
 Open a browser and go to the [piclas gitlab pipelines website](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines), where the
 latest pipeline jobs are displayed. To start a new pipeline, click the button *Run pipeline* and select the required branch name or
-tag, which should be tested. Then, define the necessary *Variables*, which are summarized in {numref}`tab:pipeline_vars`.
+tag, which should be tested. Then, activate the necessary *inputs* by selecting `true`, which are summarized in {numref}`tab:pipeline_inputs`.
 
-```{table} Gitlab pipeline variables
+```{table} Gitlab pipeline inputs
 ---
-name: tab:pipeline_vars
+name: tab:pipeline_inputs
 ---
-| Property                      | Description                                                                                                                              |  Value  |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | :-----: |
-| DO_CHECKIN                    | short tests that are also run, when new commits are pushed                                                                               |    T    |
-| DO_NIGHTLY                    | longer tests, executed every day                                                                                                         |    T    |
-| DO_WEEKLY                     | very long tests, executed once a week                                                                                                    |    T    |
-| DO_CODE_COVERAGE              | Generate coverage data of piclas for all jobs in current pipeline                                                                        |    T    |
-| DO_REGGIE_COVERAGE            | Generate coverage data of reggie2.0 itself for all jobs in current pipeline                                                              |    T    |
-| DO_NODE_SPLIT                 | MPI: virtual CPU splitting for multi-node testing, where a specific number of cores/threads are grouped in separate nodes (default is 2) |    T    |
-| DO_CORE_SPLIT                 | MPI: virtual CPU splitting for multi-node testing, where each core/thread resembles a separate node                                      |    T    |
-| DO_MPICH                      | MPI: Force compilation using MPICH instead of OpenMPI                                                                                    |    T    |
+| Property                      | Description                                                                                                                              |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| DO_CHECKIN                    | short tests that are also run, when new commits are pushed                                                                               |
+| DO_NIGHTLY                    | longer tests, executed every day                                                                                                         |
+| DO_WEEKLY                     | very long tests, executed once a week                                                                                                    |
+| DO_CODE_COVERAGE              | Generate coverage data of piclas for all jobs in current pipeline                                                                        |
+| DO_REGGIE_COVERAGE            | Generate coverage data of reggie2.0 itself for all jobs in current pipeline                                                              |
+| DO_NODE_SPLIT                 | MPI: virtual CPU splitting for multi-node testing, where a specific number of cores/threads are grouped in separate nodes (default is 2) |
+| DO_CORE_SPLIT                 | MPI: virtual CPU splitting for multi-node testing, where each core/thread resembles a separate node                                      |
+| DO_MPICH                      | MPI: Force compilation using MPICH instead of OpenMPI                                                                                    |
 ```
 
 Per default, `DO_CHECKIN`, `DO_NIGHTLY`, `DO_WEEKLY`, `DO_NODE_SPLIT` and `DO_CORE_SPLIT` are tested automatically for the branch
@@ -205,16 +205,16 @@ Code coverage information can be inspected in multiple ways: on GitLab, by downl
 
 ### Coverage on GitLab
 
-For regression testing on GitLab with code coverage, a separate flag `DO_CODE_COVERAGE` is required. This creates a separate stage, which is executed after all other stages. This way the code coverage stage is able to collect the coverage data from all (previous) jobs/runs of the current pipeline. This is done in the following way.
+To enable code coverage when running regression tests on GitLab, set the pipeline input `DO_CODE_COVERAGE` to `true`. This creates a separate stage, which is executed after all other stages. This way the code coverage stage is able to collect the coverage data from all (previous) jobs/runs of the current pipeline. This is done in the following way.
 
-For each job (e.g., CHE_DSMC), the coverage data is collected and stored in a `.json` report file per build. These reports are named after the build and stored in the `Coverage` directory. If the build is reused for another job (e.g., same DSMC build for both CHE_DSMC and NIG_DSMC), the report file is updated. After all jobs in the other stages are finished, the coverage stage starts. The report files from all builds are combined into a single report containing the coverage data from all previously triggered runs/builds of the current pipeline. For example, if only `DO_CODE_COVERAGE` and `DO_CHECKIN` are set, the report will show coverage data from all builds with corresponding runs in the `DO_CHECKIN` case. The output of the coverage stage will also display which `.json` report files are found and therefore used to check whether the correct files and builds are considered.
+For each job (e.g., CHE_DSMC), the coverage data is collected and stored in a `.json` report file per build. These reports are named after the build and stored in the `Coverage` directory. If the build is reused for another job (e.g., same DSMC build for both CHE_DSMC and NIG_DSMC), the report file is updated. After all jobs in the other stages are finished, the coverage stage starts. The report files from all builds are combined into a single report containing the coverage data from all previously triggered runs/builds of the current pipeline. For example, if only the inputs `DO_CODE_COVERAGE` and `DO_CHECKIN` are set, the report will show coverage data from all builds with corresponding runs in the `DO_CHECKIN` case. The output of the coverage stage will also display which `.json` report files are found and therefore used to check whether the correct files and builds are considered.
 
 #### Inspecting data on GitLab
 
-The coverage stage will create a [GitLab report artifact](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportscoverage_report), which is used for the visualization. GitLab uses the last created report file of the current branch (if not expired yet) to display the coverage. Keep in mind that new pipelines might change the coverage data if a different set of tests is run. The coverage report is shown in the merge request difference view/changes. A line that was tested is indicated by a green bar to its left, otherwise a red bar appears. This allows inspection of regression tests for new features directly on GitLab. For smaller features/tests, it is recommended to check the coverage locally first to avoid triggering unnecessary tests.
+The coverage stage will create a [GitLab report artifact](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportscoverage_report), which is used for the visualization. GitLab currently uses the coverage report of the latest pipeline of the current branch (if not expired yet) to display the coverage. Note that if the latest pipeline did not create coverage data, nothing will be displayed in the merge request difference view. This is done to prevent a false representation for new code evaluated with older coverage information. Moreover, displaying older coverage data would not be possible if the source code has changed. Keep in mind that new pipelines might change the coverage data if a different set of tests is run. The coverage report is shown in the merge request difference view/changes. A line that was tested is indicated by a green bar to its left, otherwise a red bar appears. This allows inspection of regression tests for new features directly on GitLab. For smaller features/tests, it is recommended to check the coverage locally first to avoid triggering unnecessary tests.
 
 To generate a full coverage report for all available regression tests of PICLas, either:
-* Execute all tests in the same pipeline with `DO_CODE_COVERAGE`, or
+* Execute all tests in the same pipeline with `DO_CODE_COVERAGE` set to `true`, or
 * Combine separate reports manually
 
 On GitLab the coverage is shown as a single number either in the output of the coverage job, on the right side when inspecting the job, or even in the merge request view. The displayed number is the line coverage (different coverage types in "Inspecting data locally"), which is set in `.gitlab-ci.yml`.
@@ -267,7 +267,7 @@ For more information on gcovr and coverage report formats, see the [gcovr docume
 
 ### Reggie coverage
 
-Besides generating code coverage reports of PICLas, it is also possible to generate a report of the reggie tool itself. To do this, set `DO_REGGIE_COVERAGE`, which wraps each reggie call with the [Python coverage tool](https://coverage.readthedocs.io/). This generates a coverage report of all used lines in the reggie module, which is stored as a GitLab artifact. The report can be inspected using the `Coverage/reggie/index.html` file.
+Besides generating code coverage reports of PICLas, it is also possible to generate a report of the reggie tool itself. To do this, set the pipeline input `DO_REGGIE_COVERAGE` to `true`, which wraps each reggie call with the [Python coverage tool](https://coverage.readthedocs.io/). This generates a coverage report of all used lines in the reggie module, which is stored as a GitLab artifact. The report can be inspected using the `Coverage/reggie/index.html` file.
 
 ## Local Testing using *gitlab-ci-local*
 
@@ -309,11 +309,11 @@ which gives the expanded version of utilized `extends:` and `<<:` templates.
 When running `gitlab-ci-local` on a system with a module environment, it is neccessary to pass the local modules that are used for compiling
 ```
 DO_RUN_LOCAL="cmake/3.30.3   gcc/14.2.0   mpich/4.1.2/gcc/14.2.0    hdf5/1.14.0/gcc/14.2.0/mpich/4.1.2    petsc/3.21.6/gcc/14.2.0/mpich/4.1.2"
-gitlab-ci-local --variable DO_RUN_LOCAL=$DO_RUN_LOCAL
+gitlab-ci-local --input DO_RUN_LOCAL=$DO_RUN_LOCAL
 ```
-If multiple variables are required add them to the command
+If multiple inputs are required add them to the command
 ```
-gitlab-ci-local --variable DO_RUN_LOCAL=$DO_RUN_LOCAL --variable CHECK_WARNINGS=True
+gitlab-ci-local --input DO_RUN_LOCAL=$DO_RUN_LOCAL --input CHECK_WARNINGS=true
 ```
 to envoke additional options of the pipeline.
 
@@ -321,19 +321,19 @@ to envoke additional options of the pipeline.
 To run a specific reggie job, in this case a *weekly* reggie that depends on another job, the following parameters are passed
 ```
 DO_RUN_LOCAL="cmake/3.30.3   gcc/14.2.0   mpich/4.1.2/gcc/14.2.0    hdf5/1.14.0/gcc/14.2.0/mpich/4.1.2    petsc/3.21.6/gcc/14.2.0/mpich/4.1.2"
-gitlab-ci-local --shell-isolation --needs WEK_Radiation --variable DO_RUN_LOCAL=$DO_RUN_LOCAL --variable DO_WEEKLY=T
+gitlab-ci-local --shell-isolation --needs WEK_Radiation --input DO_RUN_LOCAL=$DO_RUN_LOCAL --input DO_WEEKLY=true
 ```
-where the arguments are listed and explained in the following table
-```{table} gitlab-ci-local variables example
+where the arguments are listed and explained in {numref}`tab:gitlab_ci_local_inputs`
+```{table} gitlab-ci-local inputs example
 ---
-name: tab:gitlab_ci_local_vars
+name: tab:gitlab_ci_local_inputs
 ---
   | Parameter                             | Description                                                                         |
   | ------------------------------------- | ----------------------------------------------------------------------------------- |
   | --shell-isolation                     | Avoid errors due to parallel writing of the ctags.txt file                          |
   | --needs WEK_Radiation                 | Run WEK_Radiation, which also requires WEK_DSMC_Radiation                           |
-  | --variable DO_RUN_LOCAL=$DO_RUN_LOCAL | Pass the locally installed and used modules                                         |
-  | --variable DO_WEEKLY=T                | WEK_Radiation is a weekly reggie that requires the DO_WEEKLY to be passed           |
+  | --input DO_RUN_LOCAL=$DO_RUN_LOCAL    | Pass the locally installed and used modules                                         |
+  | --input DO_WEEKLY=true                | WEK_Radiation is a weekly reggie that requires the DO_WEEKLY to be passed           |
 ```
 
 ## Regression Test *Gitlab Runner* Setup for self-hosted Servers
@@ -605,7 +605,7 @@ check_interval = 0
       tags:
         - withmodules-concurrent
       script:
-        - if [ -z "${DO_DEPLOY}" ]; then exit ; fi
+        - if [ "$[[ inputs.DO_DEPLOY ]]" == "false" ]; then exit ; fi
         - rm -rf piclas_github || true ;
         - git clone -b master --single-branch git@piclas.boltzplatz.eu:piclas/piclas.git piclas_github ;
         - cd piclas_github ;

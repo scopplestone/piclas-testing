@@ -167,8 +167,8 @@ INTEGER               :: p, q, iPartBound, SpecID, iPart, NbrOfSEE, iSEEBC
 REAL                  :: RealNbrOfSEE, TimeScalingFactor, MPF,PhotonEnergy
 REAL                  :: PartPos(1:3), PartPosSurf(1:3), xi(2)
 REAL                  :: RandVal, RandVal2(2), xiab(1:2,1:2), nVec(3), tang1(3), tang2(3), Velo3D(3)
-REAL                  :: ChargeHole
 #if USE_HDG
+REAL                  :: ChargeHole
 INTEGER               :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
 #endif /*USE_HDG*/
 #if USE_LOADBALANCE

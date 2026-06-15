@@ -17,6 +17,7 @@ MODULE MOD_Particle_Emission_Vars
 !> Variables and types for the particle emission, used directly in MOD_Particle_Vars as types are part of the Species type
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i4,i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -63,9 +64,9 @@ TYPE tInit                                                                   ! P
                                                                          !               1 = emission rate in 1/s,
                                                                          !               2 = emission rate 1/iteration
   REAL                               :: ParticleNumber                   ! Initial, Emission in [1/s] or [1/Iteration]
-  INTEGER(KIND=8)                    :: InsertedParticle                 ! Number of all already inserted Particles
-  INTEGER(KIND=8)                    :: InsertedParticleSurplus          ! accumulated "negative" number of inserted Particles
-  INTEGER(KIND=4)                    :: InsertedParticleMisMatch=0       ! error in number of inserted particles of last step
+  INTEGER(KIND=i8)                   :: InsertedParticle                 ! Number of all already inserted Particles
+  INTEGER(KIND=i8)                   :: InsertedParticleSurplus          ! accumulated "negative" number of inserted Particles
+  INTEGER(KIND=i4)                   :: InsertedParticleMisMatch=0       ! error in number of inserted particles of last step
 #if USE_MPI
   INTEGER                            :: InitComm                         ! number of init-communicator
 #endif /*USE_MPI*/

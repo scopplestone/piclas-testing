@@ -14,6 +14,7 @@
 
 MODULE MOD_SurfaceModel_Analyze
 ! IMPLICIT VARIABLE HANDLING
+USE MOD_Globals_Vars, ONLY: i8
 IMPLICIT NONE
 #ifdef PARTICLES
 PRIVATE
@@ -598,7 +599,7 @@ INTEGER           ,INTENT(IN),OPTIONAL :: IntegerScalar
 CHARACTER(LEN=*)  ,INTENT(IN),OPTIONAL :: StrScalar
 REAL              ,INTENT(IN),OPTIONAL :: RealArray(:)
 INTEGER           ,INTENT(IN),OPTIONAL :: IntegerArray(:)
-INTEGER(KIND=8)   ,INTENT(IN),OPTIONAL :: IntegerK8Array(:)
+INTEGER(KIND=i8)  ,INTENT(IN),OPTIONAL :: IntegerK8Array(:)
 CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: StrArray(:)
 LOGICAL           ,INTENT(IN),OPTIONAL :: LogicalScalar
 !----------------------------------------------------------------------------------------------------------------------------------!

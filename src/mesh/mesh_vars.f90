@@ -17,6 +17,7 @@ MODULE MOD_Mesh_Vars
 !> Contains global variables provided by the mesh routines
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -178,7 +179,7 @@ INTEGER,PARAMETER :: TangDirs(6)   = (/ 1 , 3 , 2 , 3 , 2 , 1 /) !< first tangen
 REAL   ,PARAMETER :: NormalSigns(6)= (/-1.,-1., 1., 1.,-1., 1./) !< normal vector sign for element local side
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER          :: nGlobalElems=0          !< number of elements in mesh
-INTEGER(KIND=8)  :: nGlobalDOFs=0           !< number of DOF in mesh (depends on the polynomial degree in each element)
+INTEGER(KIND=i8) :: nGlobalDOFs=0           !< number of DOF in mesh (depends on the polynomial degree in each element)
 INTEGER          :: NMaxGlobal,NMinGlobal   !< global min/max polynomial degree that is actually present (not the theoretical limits)
 INTEGER          :: nElems=0                !< number of local elements
 INTEGER          :: offsetElem=0            !< for MPI, until now=0 Elems pointer array range: [offsetElem+1:offsetElem+nElems]
@@ -232,10 +233,10 @@ INTEGER,ALLOCATABLE :: MortarType(:,:)         !< Side Info about mortars, [1:2,
 INTEGER,ALLOCATABLE :: MortarInfo(:,:,:)       !< 1:2,1:4,1:nMortarSides: [1] nbSideID / flip, [2] max 4 mortar sides, [3] sides
 INTEGER,ALLOCATABLE :: MortarSlave2MasterInfo(:) !< 1:nSides: map of slave mortar sides to belonging master mortar sides
 !----------------------------------------------------------------------------------------------------------------------------------
-INTEGER(KIND=8),ALLOCATABLE     :: ElemGlobalID(:)                   !< global element id of each element
-INTEGER(KIND=8),ALLOCATABLE     :: myInvisibleRank(:)                !< global proc ID which the current proc cannot see (particle
+INTEGER(KIND=i8),ALLOCATABLE     :: ElemGlobalID(:)                   !< global element id of each element
+INTEGER(KIND=i8),ALLOCATABLE     :: myInvisibleRank(:)                !< global proc ID which the current proc cannot see (particle
                                                                      !< communication)
-INTEGER(KIND=8),ALLOCATABLE     :: LostRotPeriodicSides(:)           !< Number of lost sides during rotational periodic search
+INTEGER(KIND=i8),ALLOCATABLE     :: LostRotPeriodicSides(:)           !< Number of lost sides during rotational periodic search
 !LOGICAL                         :: RotPeriodicReBuild                !< Force re-building of mapping (might already exist)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=255),ALLOCATABLE   :: BoundaryName(:)

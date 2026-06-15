@@ -15,6 +15,91 @@
 #
 #      - when: never
 
+# define gitlab ci/cd inputs for pipeline, these values are set at pipeline creation and cannot be changed afterwards
+spec:
+  inputs:
+    DO_CHECKIN:
+      type: boolean
+      description: "Run check-in regressiontests"
+      default: false
+
+    DO_NIGHTLY:
+      type: boolean
+      description: "Run nightly regressiontests"
+      default: false
+
+    DO_WEEKLY:
+      type: boolean
+      description: "Run weekly regressiontests"
+      default: false
+
+    SHARED_MEMORY:
+      type: string
+      options:
+        - PICLAS_COMM_TYPE_NODE
+        - OMPI_COMM_TYPE_CORE
+        - MPI_COMM_TYPE_SHARED
+      default: MPI_COMM_TYPE_SHARED
+      description: "OMPI_COMM_TYPE_CORE: core-level, PICLAS_COMM_TYPE_NODE: virtual node-level splitting with 2 core per node, MPI_COMM_TYPE_SHARED: physical node-level (default)"
+
+    DO_NINJA:
+      type: boolean
+      description: "Use Ninja generator for CMake"
+      default: false
+
+    DO_OPENMPI:
+      type: boolean
+      description: "Load OpenMPI module"
+      default: false
+
+    DO_MPICH:
+      type: boolean
+      description: "Load MPICH module"
+      default: false
+
+    DO_MPICH_DEBUG:
+      type: boolean
+      description: "Load MPICH debug module"
+      default: false
+
+    DO_CODE_COVERAGE:
+      type: boolean
+      description: "Enable code coverage and report generation"
+      default: false
+
+    DO_REGGIE_COVERAGE:
+      type: boolean
+      description: "Enable code coverage for reggie functions"
+      default: false
+
+    DO_RUN_LOCAL:
+      type: string
+      description: "Set specific set of modules to load for local execution"
+      default: ""
+
+    DO_CREATE_APPIMAGE:
+      type: boolean
+      description: "Push the CI_COMMIT_REF_NAME branch to github to invoke creating the AppImages"
+      default: false
+
+    DO_TEST_APPIMAGE:
+      type: string
+      description: "Download the AppImages from the piclas-testing repository and test them"
+      default: ""
+
+    DO_DEPLOY:
+      type: boolean
+      description: "Deployment of the master.dev to GitHub"
+      default: false
+
+    CHECK_WARNINGS:
+      type: boolean
+      description: "Check number of warnings after compiling and exit for more than nine errors"
+      default: false
+---
+variables:
+  # used for pipeline name in wek_radiation
+  SHARED_MEMORY: $[[ inputs.SHARED_MEMORY]]
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Use pipeline name to indicate whether default shared memory, node split or core split is used, and whether it is a checkin, nightly or weekly pipeline
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -25,35 +110,35 @@ workflow:
       when: never
 
     # --- Nightly ---
-    - if: '$DO_NIGHTLY && $DO_NODE_SPLIT'
+    - if: $[[ inputs.DO_NIGHTLY ]] && "$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"
       variables:
         PIPELINE_NAME: '[Nightly] 🔵 Node Splitting ${CI_COMMIT_REF_NAME}'
-    - if: '$DO_NIGHTLY && $DO_CORE_SPLIT'
+    - if: $[[ inputs.DO_NIGHTLY ]] && "$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"
       variables:
         PIPELINE_NAME: '[Nightly] 🟠 Core Splitting ${CI_COMMIT_REF_NAME}'
-    - if: '$DO_NIGHTLY'
+    - if: $[[ inputs.DO_NIGHTLY ]] == true
       variables:
         PIPELINE_NAME: '[Nightly] 🟢 ${CI_COMMIT_REF_NAME}'
 
     # --- Weekly ---
-    - if: '$DO_WEEKLY && $DO_NODE_SPLIT'
+    - if: $[[ inputs.DO_WEEKLY ]] && "$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"
       variables:
         PIPELINE_NAME: '[Weekly] 🔵 Node Splitting ${CI_COMMIT_REF_NAME}'
-    - if: '$DO_WEEKLY && $DO_CORE_SPLIT'
+    - if: $[[ inputs.DO_WEEKLY ]] && "$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"
       variables:
         PIPELINE_NAME: '[Weekly] 🟠 Core Splitting ${CI_COMMIT_REF_NAME}'
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
       variables:
         PIPELINE_NAME: '[Weekly] 🟢 ${CI_COMMIT_REF_NAME}'
 
     # --- Checkin (DO_CHECKIN, push, or manual) ---
-    - if: '$DO_NODE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       variables:
         PIPELINE_NAME: '[Checkin] 🔵 Node Splitting ${CI_COMMIT_REF_NAME}'
-    - if: '$DO_CORE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       variables:
         PIPELINE_NAME: '[Checkin] 🟠 Core Splitting ${CI_COMMIT_REF_NAME}'
-    - if: '$DO_CORE_SPLIT == null && $DO_NODE_SPLIT == null'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "MPI_COMM_TYPE_SHARED"'
       variables:
         PIPELINE_NAME: '[Checkin] 🟢 ${CI_COMMIT_REF_NAME}'
 
@@ -74,19 +159,19 @@ before_script:
   - ulimit -s unlimited
   - python3 -V || true
   - python  -V || true
-  - if [ -n "${DO_CORE_SPLIT}" ]; then
+  - if [ "$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE" ]; then
       echo " PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE. Splitting shared memory domains on processor level (\"core splitting\")";
       export PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE;
     else
-      if [ -n "${DO_NODE_SPLIT}" ]; then
+      if [ "$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE" ]; then
         echo " PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE. Splitting shared memory domains on sub-node level with 2 cores per node (\"node splitting\")!";
         export PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE;
       else
         echo "PICLAS_SHARED_MEMORY=MPI_COMM_TYPE_SHARED. Splitting shared memory domains on physical node level (default)!";
-        echo "Set variable [DO_CORE_SPLIT=T] to force core-level OR [DO_NODE_SPLIT=T] to force sub-node-level shared memory splitting for all regression tests.";
+        echo "Set input OMPI_COMM_TYPE_CORE to force core-level OR PICLAS_COMM_TYPE_NODE to force sub-node-level shared memory splitting for all regression tests.";
       fi
     fi
-  - if [ -n "${DO_NINJA}" ]; then
+  - if [ "$[[ inputs.DO_NINJA ]]" == "true" ]; then
       echo " Setting CMAKE_GENERATOR=Ninja to use ninja generator";
       export CMAKE_GENERATOR=Ninja;
       export GENERATOR=ninja;
@@ -121,26 +206,26 @@ before_script:
       module purge || true;
       module load  cmake/4.1.2  gcc/14.2.0  mpich/4.3.1/gcc/14.2.0        hdf5/1.14.6/gcc/14.2.0/mpich/4.3.1        hopr/master/gcc/14.2.0/mpich/4.3.1/hdf5/1.14.6        petsc/3.22.5/gcc/14.2.0/mpich/4.3.1 || true;
     fi
-  - if [ -n "${DO_OPENMPI}" ]; then
+  - if [ "$[[ inputs.DO_OPENMPI ]]" == "true" ]; then
       echo "DO_OPENMPI activated. Loading OpenMPI.";
       module purge || true;
       module load  cmake/4.1.2  gcc/14.2.0  openmpi/5.0.9/gcc/14.2.0      hdf5/1.14.6/gcc/14.2.0/openmpi/5.0.9      hopr/master/gcc/14.2.0/openmpi/5.0.9/hdf5/1.14.6      petsc/3.22.5/gcc/14.2.0/openmpi/5.0.9 || true;
     fi
-  - if [ -n "${DO_MPICH}" ]; then
+  - if [ "$[[ inputs.DO_MPICH ]]" == "true" ]; then
       echo "DO_MPICH activated. Loading MPICH.";
       module purge || true;
       module load  cmake/4.1.2  gcc/14.2.0  mpich/4.3.1/gcc/14.2.0        hdf5/1.14.6/gcc/14.2.0/mpich/4.3.1        hopr/master/gcc/14.2.0/mpich/4.3.1/hdf5/1.14.6        petsc/3.22.5/gcc/14.2.0/mpich/4.3.1 || true;
     fi
-  - if [ -n "${DO_MPICH_DEBUG}" ]; then
+  - if [ "$[[ inputs.DO_MPICH_DEBUG ]]" == "true" ]; then
       echo "DO_MPICH_DEBUG activated. Loading MPICH with --with-device=ch3:sock which allows over-subscription without performance loss but cannot be used for shared memory arrays safely!";
       module purge || true;
       module load  cmake/3.26.4  gcc/13.2.0  mpich-debug/4.1.2/gcc/13.2.0  hdf5/1.14.0/gcc/13.2.0/mpich-debug/4.1.2  hopr/master/gcc/13.2.0/mpich-debug/4.1.2/hdf5/1.14.0  petsc/3.21.6/gcc/13.2.0/mpich-debug/4.1.2;
     fi
     # else
     #   module load openblas/v0.3.31/gcc/14.2.0;
-  - if [ -n "${DO_RUN_LOCAL}" ]; then
+  - if [ -n "$[[ inputs.DO_RUN_LOCAL ]]" ]; then
       source $(ls /opt/modules/*/init/bash | tail -n1);
-      for LOCALMODULE in ${DO_RUN_LOCAL}; do module load ${LOCALMODULE}; done;
+      for LOCALMODULE in $[[ inputs.DO_RUN_LOCAL ]]; do module load ${LOCALMODULE}; done;
       module list;
     else
       module list || true ;
@@ -148,7 +233,7 @@ before_script:
   # GCOVR_ARGS: - use --include-internal-functions to include all functions starting with '__' (basically every function in piclas)
   #             - --gcov-ignore-parse-errors Skip lines with parse errors in GCOV files instead of exiting with an error
   #             - --exclude-lines-by-pattern exclude all lines that start with the regex pattern. Called multiple times for no and one or more (^\s+) leading whitespaces since reggie execution expands wildcards
-  - if [ -n "${DO_CODE_COVERAGE}" ]; then
+  - if [ "$[[ inputs.DO_CODE_COVERAGE ]]" == "true" ]; then
       export CODE_COVERAGE=True;
       if [ ! -d "Coverage" ]; then mkdir Coverage ; fi ;
       export PICLAS_CODE_COVERAGE=ON ;
@@ -156,7 +241,8 @@ before_script:
       export GCOVR_ARGS='--include-internal-functions --gcov-ignore-parse-errors all --exclude-lines-by-pattern (?i)^\s+CALL\s+collectivestop --exclude-lines-by-pattern (?i)^CALL\s+collectivestop --exclude-lines-by-pattern (?i)^\s+CALL\s+ABORT --exclude-lines-by-pattern (?i)^CALL\s+ABORT';
     fi
   - |
-    if [ -n "${DO_REGGIE_COVERAGE}" ]; then
+    if [ "$[[ inputs.DO_REGGIE_COVERAGE ]]" == "true" ]; then
+      if [ ! -d "Coverage" ]; then mkdir Coverage ; fi ;
       if [ ! -d "Coverage/reggie" ]; then mkdir Coverage/reggie ; fi ;
       echo "DO_REGGIE_COVERAGE activated. Creating Coverage/reggie to store coverage report.";
       COVERAGE_REGGIE_DIR="${PWD}/Coverage/reggie" ;
@@ -202,13 +288,13 @@ stages:
     when: on_failure
   rules:
     # If the pipeline is for an appimage test run, the job is not added to the pipeline.
-    - if: '$DO_TEST_APPIMAGE'
+    - if: '"$[[ inputs.DO_TEST_APPIMAGE ]]" != ""'
       when: never
     # If the pipeline is for an appimage build run, the job is not added to the pipeline.
-    - if: '$DO_CREATE_APPIMAGE'
+    - if: $[[ inputs.DO_CREATE_APPIMAGE ]] == true
       when: never
     # If the pipeline is for pushing the master branch to GitHub
-    - if: '$DO_DEPLOY'
+    - if: $[[ inputs.DO_DEPLOY ]] == true
       when: never
     # In all other cases, the job is added to the pipeline, with when: on_success
     - when: on_success
@@ -250,18 +336,18 @@ stages:
 .defaults_checkin: &defaults_checkin
   <<: *defaults
   rules:
-    - if: '$DO_CHECKIN'
+    - if: $[[ inputs.DO_CHECKIN ]] == true
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
 .defaults_nightly: &defaults_nightly
   <<: *defaults
   rules:
-    - if: '$DO_NIGHTLY'
+    - if: $[[ inputs.DO_NIGHTLY ]] == true
 
 .defaults_weekly: &defaults_weekly
   <<: *defaults
   rules:
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for other maxwell tests with PICLAS_DEBUG_MEMORY=ON
@@ -277,7 +363,7 @@ stages:
       policy: pull
     - *coverage_cache
   rules:
-    - if: '$DO_CHECKIN'
+    - if: $[[ inputs.DO_CHECKIN ]] == true
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -305,18 +391,18 @@ stages:
 .defaults_poisson_checkin: &defaults_poisson_checkin
   <<: *defaults_poisson
   rules:
-    - if: '$DO_CHECKIN'
+    - if: $[[ inputs.DO_CHECKIN ]] == true
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
 .defaults_poisson_nightly: &defaults_poisson_nightly
   <<: *defaults_poisson
   rules:
-    - if: '$DO_NIGHTLY'
+    - if: $[[ inputs.DO_NIGHTLY ]] == true
 
 .defaults_poisson_weekly: &defaults_poisson_weekly
   <<: *defaults_poisson
   rules:
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for drift_diffusion tests
@@ -337,18 +423,18 @@ stages:
 .defaults_drift_diffusion_checkin: &defaults_drift_diffusion_checkin
   <<: *defaults_drift_diffusion
   rules:
-    - if: '$DO_CHECKIN'
+    - if: $[[ inputs.DO_CHECKIN ]] == true
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
 .defaults_drift_diffusion_nightly: &defaults_drift_diffusion_nightly
   <<: *defaults_drift_diffusion
   rules:
-    - if: '$DO_NIGHTLY'
+    - if: $[[ inputs.DO_NIGHTLY ]] == true
 
 .defaults_drift_diffusion_weekly: &defaults_drift_diffusion_weekly
   <<: *defaults_drift_diffusion
   rules:
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for DVM tests
@@ -369,18 +455,18 @@ stages:
 .defaults_DVM_checkin: &defaults_DVM_checkin
   <<: *defaults_DVM
   rules:
-    - if: '$DO_CHECKIN'
+    - if: $[[ inputs.DO_CHECKIN ]] == true
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
 .defaults_DVM_nightly: &defaults_DVM_nightly
   <<: *defaults_DVM
   rules:
-    - if: '$DO_NIGHTLY'
+    - if: $[[ inputs.DO_NIGHTLY ]] == true
 
 .defaults_DVM_weekly: &defaults_DVM_weekly
   <<: *defaults_DVM
   rules:
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for DVM plasma tests
@@ -401,18 +487,18 @@ stages:
 .defaults_DVM_plasma_checkin: &defaults_DVM_plasma_checkin
   <<: *defaults_DVM_plasma
   rules:
-    - if: '$DO_CHECKIN'
+    - if: $[[ inputs.DO_CHECKIN ]] == true
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
 .defaults_DVM_plasma_nightly: &defaults_DVM_plasma_nightly
   <<: *defaults_DVM_plasma
   rules:
-    - if: '$DO_NIGHTLY'
+    - if: $[[ inputs.DO_NIGHTLY ]] == true
 
 .defaults_DVM_plasma_weekly: &defaults_DVM_plasma_weekly
   <<: *defaults_DVM_plasma
   rules:
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for poisson + PETSC tests
@@ -439,18 +525,18 @@ stages:
 .defaults_poisson_petsc_checkin: &defaults_poisson_petsc_checkin
   <<: *defaults_poisson_petsc
   rules:
-    - if: '$DO_CHECKIN'
+    - if: $[[ inputs.DO_CHECKIN ]] == true
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
 .defaults_poisson_petsc_nightly: &defaults_poisson_petsc_nightly
   <<: *defaults_poisson_petsc
   rules:
-    - if: '$DO_NIGHTLY'
+    - if: $[[ inputs.DO_NIGHTLY ]] == true
 
 .defaults_poisson_petsc_weekly: &defaults_poisson_petsc_weekly
   <<: *defaults_poisson_petsc
   rules:
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 .defaults_poisson_build_petsc_lib: &defaults_poisson_build_petsc_lib
   extends: .default_param
@@ -466,7 +552,7 @@ stages:
       policy: pull
     - *coverage_cache
   rules:
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for DSMC tests (pull only)
@@ -493,18 +579,18 @@ stages:
 .defaults_DSMC_checkin: &defaults_DSMC_checkin
   <<: *defaults_DSMC
   rules:
-    - if: '$DO_CHECKIN'
+    - if: $[[ inputs.DO_CHECKIN ]] == true
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
 .defaults_DSMC_nightly: &defaults_DSMC_nightly
   <<: *defaults_DSMC
   rules:
-    - if: '$DO_NIGHTLY'
+    - if: $[[ inputs.DO_NIGHTLY ]] == true
 
 .defaults_DSMC_weekly: &defaults_DSMC_weekly
   <<: *defaults_DSMC
   rules:
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage ".pre": always executed at the start of each pipeline
@@ -519,7 +605,7 @@ cleanup:
       echo "Old coverage files deleted";
       fi
   rules:
-    - if: '$DO_CODE_COVERAGE'
+    - if: $[[ inputs.DO_CODE_COVERAGE ]] == true
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "build": Build on check-in
@@ -644,7 +730,7 @@ build_maxwell_only:
     - cmake ..  -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
-        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+        if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
 
 build_poisson:
@@ -677,7 +763,7 @@ build_poisson:
     # - if [[ "$NWARN" =~ ^(1[1-9]|[2-9]+\d+|1\d\d+)$ ]]; then
     # Check greater than 9, see https://regex101.com/ for details
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
-        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+        if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
     - cd ..
     - mkdir -p build_poisson_release_Leapfrog ; cd build_poisson_release_Leapfrog
@@ -691,7 +777,7 @@ build_poisson:
     # - if [[ "$NWARN" =~ ^(1[1-9]|[2-9]+\d+|1\d\d+)$ ]]; then
     # Check greater than 9, see https://regex101.com/ for details
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
-        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+        if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
     - cd ..
 
@@ -722,7 +808,7 @@ build_poisson_petsc:
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
-        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+        if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
     - cd ..
     - mkdir -p build_poisson_petsc_release_Leapfrog ; cd build_poisson_petsc_release_Leapfrog
@@ -759,14 +845,14 @@ build_DSMC:
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
-        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+        if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
-    - if [ -n "${DO_WEEKLY}" ] ; then
+    - if [ "$[[ inputs.DO_WEEKLY ]]" == "true" ] ; then
         cd .. ;
         mkdir -p build_DSMC_N1 ; cd build_DSMC_N1 ;
         cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ; $GENERATOR -j $NCORES all ;
       fi
-    - if [ -n "${DO_WEEKLY}" ] ; then
+    - if [ "$[[ inputs.DO_WEEKLY ]]" == "true" ] ; then
         cd .. ;
         mkdir -p build_radiation ; cd build_radiation ;
         cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; $GENERATOR -j $NCORES all ;
@@ -788,7 +874,7 @@ build_drift_diffusion:
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -DLIBS_USE_PETSC=ON; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
-        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+        if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
 
 build_DVM:
@@ -826,7 +912,7 @@ build_DVM:
 #     #- tail -n 20 output.txt;
 #     #- rm output.txt;
 #   rules:
-#     - if: '$DO_WEEKLY'
+#     - if: $[[ inputs.DO_WEEKLY ]] == true
 
 build_DVM_plasma:
   extends: .default_build_param
@@ -853,11 +939,11 @@ build_DVM_plasma:
 #     - mkdir -p build_hopr_lib ; cd build_hopr_lib
 #     - reggie ../regressioncheck/WEK_HOPR
 #   rules:
-#     #- if: '$DO_CORE_SPLIT'
+#     #- if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
 #       #when: never
-#     #- if: '$DO_NODE_SPLIT'
+#     #- if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
 #       #when: never
-#     - if: '$DO_WEEKLY'
+#     - if: $[[ inputs.DO_WEEKLY ]] == true
 
 build_no_git:
   tags: [withmodules-concurrent]
@@ -872,7 +958,7 @@ build_no_git:
     - cmake .. -DLIBS_BUILD_HDF5=OFF
     - $GENERATOR -j $NCORES all
   rules:
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 build_outside_repository:
   tags: [withmodules-concurrent]
@@ -888,7 +974,7 @@ build_outside_repository:
     - $GENERATOR -j $NCORES all
     - cd .. ; rm -r build-piclas-outside ;
   rules:
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 build_no_git_libs:
   tags: [withmodules-concurrent]
@@ -907,7 +993,7 @@ build_no_git_libs:
     - rm output.txt
     - ls bin/piclas
   rules:
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 build_petsc_in_piclas:
   tags: [withmodules-concurrent]
@@ -928,7 +1014,7 @@ build_petsc_in_piclas:
     - echo " Compiling with Poisson, RK3 and self-built PETSc (-DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON) ..."
     - $GENERATOR -j $NCORES all
   rules:
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 run_build_petsc_in_piclas:
   <<: *defaults_poisson_build_petsc_lib
@@ -1061,11 +1147,11 @@ NIG_Reservoir_single_core:
   script:
     - cd build_DSMC_release/ ; reggie ../regressioncheck/NIG_Reservoir_single_core -e bin/piclas
   rules:
-    - if: '$DO_CORE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: '$DO_NODE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
-    - if: '$DO_NIGHTLY'
+    - if: $[[ inputs.DO_NIGHTLY ]] == true
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run tracking examples on nightly
@@ -1223,11 +1309,11 @@ NIG_PIC_poisson_Leapfrog_single_node_Release:
   script:
     - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_Leapfrog_single_node/
   rules:
-    - if: '$DO_CORE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: '$DO_NODE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
-    - if: '$DO_NIGHTLY'
+    - if: $[[ inputs.DO_NIGHTLY ]] == true
 
 NIG_poisson:
   <<: *defaults_nightly
@@ -1294,11 +1380,11 @@ WEK_PIC_poisson_Leapfrog_Debug: # This uses the same reggie as NIG_PIC_poisson_L
   script:
     - cd build ; reggie -t Debug ../regressioncheck/NIG_PIC_poisson_Leapfrog/
   rules:
-    - if: '$DO_CORE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: '$DO_NODE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 # Sme reggies only work on single node, e.g., ray tracing
 WEK_PIC_poisson_Leapfrog_single_node_Debug: # This uses the same reggie as NIG_PIC_poisson_Leapfrog_single_node_Release but compile everything with CMAKE_BUILD_TYPE = Debug
@@ -1307,11 +1393,11 @@ WEK_PIC_poisson_Leapfrog_single_node_Debug: # This uses the same reggie as NIG_P
   script:
     - cd build ; reggie -t Debug ../regressioncheck/NIG_PIC_poisson_Leapfrog_single_node/
   rules:
-    - if: '$DO_CORE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: '$DO_NODE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 WEK_PIC_poisson_Leapfrog:
   <<: *defaults_weekly
@@ -1326,11 +1412,11 @@ WEK_PIC_poisson_Leapfrog:
 #   script:
 #     - cd build_poisson_release_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
 #   rules:
-#     - if: '$DO_CORE_SPLIT'
+#     - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
 #       when: never
-#     - if: '$DO_NODE_SPLIT'
+#     - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
 #       when: never
-#     - if: '$DO_WEEKLY'
+#     - if: $[[ inputs.DO_WEEKLY ]] == true
 #
 # WEK_Photoionization_debug_RK3:
 #   <<: *defaults_poisson_weekly
@@ -1338,11 +1424,11 @@ WEK_PIC_poisson_Leapfrog:
 #   script:
 #     - cd build_poisson_debug_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
 #   rules:
-#     - if: '$DO_CORE_SPLIT'
+#     - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
 #       when: never
-#     - if: '$DO_NODE_SPLIT'
+#     - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
 #       when: never
-#     - if: '$DO_WEEKLY'
+#     - if: $[[ inputs.DO_WEEKLY ]] == true
 
 WEK_Photoionization_petsc_release_RK3:
   <<: *defaults_poisson_petsc_weekly
@@ -1350,11 +1436,11 @@ WEK_Photoionization_petsc_release_RK3:
   script:
     - cd build_poisson_petsc_release_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
-    - if: '$DO_CORE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: '$DO_NODE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 # WEK_Photoionization_petsc_debug_RK3:
 #   <<: *defaults_poisson_petsc_weekly
@@ -1362,11 +1448,11 @@ WEK_Photoionization_petsc_release_RK3:
 #   script:
 #     - cd build_poisson_petsc_debug_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
 #   rules:
-#     - if: '$DO_CORE_SPLIT'
+#     - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
 #       when: never
-#     - if: '$DO_NODE_SPLIT'
+#     - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
 #       when: never
-#     - if: '$DO_WEEKLY'
+#     - if: $[[ inputs.DO_WEEKLY ]] == true
 
 WEK_Photoionization_release_Leapfrog:
   <<: *defaults_poisson_weekly
@@ -1374,11 +1460,11 @@ WEK_Photoionization_release_Leapfrog:
   script:
     - cd build_poisson_release_Leapfrog;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
-    - if: '$DO_CORE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: '$DO_NODE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 WEK_Photoionization_debug_Leapfrog:
   <<: *defaults_poisson_weekly
@@ -1386,11 +1472,11 @@ WEK_Photoionization_debug_Leapfrog:
   script:
     - cd build_poisson_debug_Leapfrog;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
-    - if: '$DO_CORE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: '$DO_NODE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 # --- nightly
 
@@ -1400,11 +1486,11 @@ NIG_Photoionization_petsc_release_Leapfrog:
   script:
     - cd build_poisson_petsc_release_Leapfrog;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
-    - if: '$DO_CORE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: '$DO_NODE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
-    - if: '$DO_NIGHTLY'
+    - if: $[[ inputs.DO_NIGHTLY ]] == true
 
 WEK_Photoionization_petsc_debug_Leapfrog:
   <<: *defaults_poisson_petsc_weekly
@@ -1412,11 +1498,11 @@ WEK_Photoionization_petsc_debug_Leapfrog:
   script:
     - cd build_poisson_petsc_debug_Leapfrog;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
-    - if: '$DO_CORE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: '$DO_NODE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 # Raytracing regression tests
 # TODO: Rename stage to WEK_ when it is finalized
@@ -1426,11 +1512,11 @@ NIG_Raytracing_release_Leapfrog:
   script:
     - cd build_poisson_release_Leapfrog;  reggie ../regressioncheck/NIG_Raytracing -e ./bin/piclas
   rules:
-    - if: '$DO_CORE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: '$DO_NODE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
-    - if: '$DO_NIGHTLY'
+    - if: $[[ inputs.DO_NIGHTLY ]] == true
 
 WEK_Raytracing_debug_Leapfrog:
   <<: *defaults_poisson_weekly
@@ -1438,11 +1524,11 @@ WEK_Raytracing_debug_Leapfrog:
   script:
     - cd build_poisson_debug_Leapfrog;  reggie ../regressioncheck/WEK_Raytracing -e ./bin/piclas
   rules:
-    - if: '$DO_CORE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: '$DO_NODE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 WEK_Raytracing_debug_Leapfrog:
   <<: *defaults_poisson_weekly
@@ -1450,11 +1536,11 @@ WEK_Raytracing_debug_Leapfrog:
   script:
     - cd build_poisson_debug_Leapfrog;  reggie ../regressioncheck/NIG_Raytracing -e ./bin/piclas
   rules:
-    - if: '$DO_CORE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: '$DO_NODE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 NIG_Radiation:
   <<: *defaults_nightly
@@ -1551,7 +1637,7 @@ WEK_DSMC_Radiation:
       paths:
         - build_DSMC_release
       policy: pull
-    - key: "${CI_COMMIT_REF_SLUG}-DSMC-CS-${DO_CORE_SPLIT}-NS-${DO_NODE_SPLIT}"
+    - key: "${CI_COMMIT_REF_SLUG}-DSMC-CS-${SHARED_MEMORY}"
       paths:
         - build_DSMC_release_WEK_DSMC_Radiation
       policy: push
@@ -1578,7 +1664,7 @@ WEK_Radiation:
     - key: "${CI_COMMIT_REF_SLUG}-DSMC"
       paths: [build_radiation]
       policy: pull
-    - key: "${CI_COMMIT_REF_SLUG}-DSMC-CS-${DO_CORE_SPLIT}-NS-${DO_NODE_SPLIT}"
+    - key: "${CI_COMMIT_REF_SLUG}-DSMC-CS-${SHARED_MEMORY}"
       paths:
         - build_DSMC_release_WEK_DSMC_Radiation
       policy: pull-push
@@ -1593,7 +1679,7 @@ WEK_Radiation:
     - rm -rf ../${BUILDDIR}/output_dir
     - reggie -e ./bin/piclas ${REGGIEDIR}
   rules:
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 WEK_Reservoir:
   <<: *defaults_DSMC_weekly
@@ -1607,11 +1693,11 @@ WEK_Reservoir_single_core:
   script:
     - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_Reservoir_single_core -e bin/piclas
   rules:
-    - if: '$DO_CORE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
       when: never
-    - if: '$DO_NODE_SPLIT'
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
       when: never
-    - if: '$DO_WEEKLY'
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 WEK_FPFlow:
   <<: *defaults_weekly
@@ -1672,7 +1758,7 @@ code_coverage:
         coverage_format: cobertura
         path: Coverage/cobertura/*.xml
   rules:
-    - if: '$DO_CODE_COVERAGE'
+    - if: $[[ inputs.DO_CODE_COVERAGE ]] == true
 
 reggie_coverage:
   extends: .defaults
@@ -1688,7 +1774,7 @@ reggie_coverage:
     expire_in: 1 week
     when: on_success
   rules:
-    - if: '$DO_REGGIE_COVERAGE'
+    - if: $[[ inputs.DO_REGGIE_COVERAGE ]] == true
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage ".post": Update release notes (if merging a branch into master.dev)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1937,9 +2023,9 @@ github:
   stage: deploy
   tags: [deploy]
   rules:
-    - if: '$DO_DEPLOY'
+    - if: $[[ inputs.DO_DEPLOY ]] == true
   script:
-    - if [ -z "${DO_DEPLOY}" ]; then exit ; fi
+    - if [ "$[[ inputs.DO_DEPLOY ]]" == "false" ]; then exit ; fi
     - rm -rf piclas_github || true ;
     - git clone -b master --single-branch git@piclas.boltzplatz.eu:piclas/piclas.git piclas_github ;
     - cd piclas_github ;
@@ -1953,9 +2039,9 @@ github_create_appimage:
   tags: [appimage]
   stage: appimage
   rules:
-    - if: '$DO_CREATE_APPIMAGE'
+    - if: $[[ inputs.DO_CREATE_APPIMAGE ]] == true
   script:
-    - if [ -z "${DO_CREATE_APPIMAGE}" ]; then exit; fi
+    - if [ "$[[ inputs.DO_CREATE_APPIMAGE ]]" == "false" ]; then exit; fi
     - if [ -z "${CI_COMMIT_REF_NAME}" ]; then echo "CI_COMMIT_REF_NAME is empty"; exit; else echo "Cloning ${CI_COMMIT_REF_NAME}"; fi
     - rm -rf piclas-testing || true ;
     - git clone -b ${CI_COMMIT_REF_NAME} --single-branch git@piclas.boltzplatz.eu:piclas/piclas.git piclas-testing
@@ -1970,9 +2056,9 @@ github_test_appimage:
   tags: [appimage]
   stage: appimage
   rules:
-    - if: '$DO_TEST_APPIMAGE'
+    - if: '"$[[ inputs.DO_TEST_APPIMAGE ]]" != ""'
   script:
-    - if [ -z "${DO_TEST_APPIMAGE}" ]; then echo "DO_TEST_APPIMAGE is empty but should contain the artifact name"; exit; else echo "Artifact ${DO_TEST_APPIMAGE}"; fi
+    - if [ -z '$[[ inputs.DO_TEST_APPIMAGE ]]' ]; then echo "DO_TEST_APPIMAGE is empty but should contain the artifact name"; exit; else echo "Artifact $[[ inputs.DO_TEST_APPIMAGE ]]"; fi
     - if [ -z "${CI_COMMIT_REF_NAME}" ]; then echo "CI_COMMIT_REF_NAME is empty"; exit; else echo "Cloning ${CI_COMMIT_REF_NAME}"; fi
     - if [ -d "reggie-appimage" ]; then rm -rf reggie-appimage ; fi ;
     - git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie-appimage ;
@@ -1983,8 +2069,8 @@ github_test_appimage:
     - git clone -b ${CI_COMMIT_REF_NAME} --single-branch git@github.com-reggie2.0:scopplestone/piclas-testing.git piclas-testing
     - cd piclas-testing
     - source /var/lib/gitlab-runner/.bashrc
-    - echo "Downloading '${DO_TEST_APPIMAGE}' artifacts from piclas-testing via 'gh run download -n ${DO_TEST_APPIMAGE}'"
-    - gh run download -n ${DO_TEST_APPIMAGE}
+    - echo "Downloading '$[[ inputs.DO_TEST_APPIMAGE ]]' artifacts from piclas-testing via 'gh run download -n $[[ inputs.DO_TEST_APPIMAGE ]]'"
+    - gh run download -n $[[ inputs.DO_TEST_APPIMAGE ]]
     - ls -l
     - module li
     - echo "Checking ./piclasLeapfrogHDG executable output"

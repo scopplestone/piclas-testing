@@ -12,10 +12,12 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_Particle_SurfFlux
 !===================================================================================================================================
 !> Module for particle insertion through the surface flux
 !===================================================================================================================================
+MODULE MOD_Particle_SurfFlux
+! Modules
+USE MOD_Globals_Vars, ONLY: i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
@@ -356,7 +358,7 @@ INTEGER, INTENT(OUT), ALLOCATABLE   :: PartInsSubSides(:,:,:)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER(KIND=8)        :: inserted_Particle_iter,inserted_Particle_time,inserted_Particle_diff
+INTEGER(KIND=i8)       :: inserted_Particle_iter,inserted_Particle_time,inserted_Particle_diff
 INTEGER                :: currentBC, PartInsSF, IntSample
 REAL                   :: VFR_total, PartIns, RandVal1
 INTEGER, ALLOCATABLE   :: PartInsProc(:)
@@ -405,7 +407,7 @@ IF (.NOT.SF%ReduceNoise .OR. MPIroot) THEN !ReduceNoise: root only
   END IF
   !-- evaluate inserted_Particle_time and inserted_Particle_iter
   inserted_Particle_diff = inserted_Particle_time - SF%InsertedParticle - inserted_Particle_iter - SF%InsertedParticleSurplus
-  SF%InsertedParticleSurplus = ABS(MIN(inserted_Particle_iter + inserted_Particle_diff,0_8))
+  SF%InsertedParticleSurplus = ABS(MIN(inserted_Particle_iter + inserted_Particle_diff,0_i8))
   PartInsSF = MAX(INT(inserted_Particle_iter + inserted_Particle_diff,4),0)
   SF%InsertedParticle = SF%InsertedParticle + INT(PartInsSF,8)
   IF (SF%ReduceNoise) THEN

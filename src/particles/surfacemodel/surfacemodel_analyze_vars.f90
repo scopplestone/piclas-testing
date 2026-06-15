@@ -15,6 +15,7 @@ MODULE MOD_SurfaceModel_Analyze_Vars
 ! Contains global variables used by the Analyze modules.
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -24,7 +25,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                       :: SurfModelAnalyzeInitIsDone = .FALSE.
 REAL                          :: SurfModelAnalyzeSampleTime  !< Accumulated simulation time between two outputs to SurfaceAnalyze.csv
-INTEGER(KIND=8)               :: SurfaceAnalyzeStep       ! Analyze of surface is performed each Nth time step
+INTEGER(KIND=i8)              :: SurfaceAnalyzeStep       ! Analyze of surface is performed each Nth time step
 ! Output flags
 LOGICAL                       :: CalcSurfCollCounter      ! Calculate the number of surface collision and number of
                                                           ! adsorbed particles per species

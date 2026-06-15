@@ -17,6 +17,7 @@ MODULE MOD_HDF5_Output
 ! Add comments please!
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i4
 USE MOD_io_HDF5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -405,7 +406,7 @@ INTEGER(SIZE_T)                :: SizeSet=255
 LOGICAL                        :: chunky
 TYPE(C_PTR)                    :: buf
 #if !defined(INTKIND8)
-INTEGER(KIND=8)                :: Nbr8
+INTEGER(KIND=i8)               :: Nbr8
 INTEGER                        :: irank
 #endif /*!defined(INTKIND8)*/
 ! Sanity check
@@ -425,10 +426,10 @@ IF(MPIRoot)THEN
   DO irank = 1, rank
     Nbr8 = Nbr8 * INT(nValGlobal(irank),8)
   END DO ! i = 1, rank
-  IF(Nbr8.GT.INT(HUGE(1_4),8))THEN
+  IF(Nbr8.GT.INT(HUGE(1_i4),8))THEN
     WRITE (UNIT_stdOut,'(A,I0,A,I0,A1)',ADVANCE='NO') "WARNING: Number of entries in "//TRIM(DataSetName)//" ",Nbr8,&
-        " is larger than ",HUGE(1_4)," "
-  END IF ! Nbr8.GT.INT(HUGE(1_4),9)
+        " is larger than ",HUGE(1_i4)," "
+  END IF ! Nbr8.GT.INT(HUGE(1_i4),9)
 END IF ! MPIRoot
 #endif /*!defined(INTKIND8)*/
 

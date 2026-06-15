@@ -16,6 +16,7 @@ MODULE MOD_part_emission_tools
 !===================================================================================================================================
 ! module for particle emission
 !===================================================================================================================================
+USE MOD_Globals_Vars, ONLY: dp
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
@@ -557,27 +558,27 @@ REAL     :: set_a(12), set_b(12), set_c(8)
 INTEGER  :: kk, k0
 !===================================================================================================================================
 
-  !em = 0.577215664901533_8        ! Euler–Mascheroni constant
-  eps= 1E-15_8
+  !em = 0.577215664901533_dp        ! Euler–Mascheroni constant
+  eps= 1E-15_dp
 
-  set_a = (/0.125E0_8, 7.03125E-2_8,                  &
-          7.32421875E-2_8, 1.1215209960938E-1_8,      &
-          2.2710800170898E-1_8, 5.7250142097473E-1_8, &
-          1.7277275025845E0_8, 6.0740420012735E0_8,    &
-          2.4380529699556E01_8, 1.1001714026925E02_8, &
-          5.5133589612202E02_8, 3.0380905109224E03_8/)
+  set_a = (/0.125E0_dp, 7.03125E-2_dp,                  &
+          7.32421875E-2_dp, 1.1215209960938E-1_dp,      &
+          2.2710800170898E-1_dp, 5.7250142097473E-1_dp, &
+          1.7277275025845E0_dp, 6.0740420012735E0_dp,    &
+          2.4380529699556E01_dp, 1.1001714026925E02_dp, &
+          5.5133589612202E02_dp, 3.0380905109224E03_dp/)
 
-  set_b = (/-0.375E0_8, -1.171875E-1_8,                 &
-          -1.025390625E-1_8, -1.4419555664063E-1_8,     &
-          -2.7757644653320E-1_8, -6.7659258842468E-1_8, &
-          -1.9935317337513E0_8, -6.8839142681099E0_8,   &
-          -2.7248827311269E01_8, -1.2159789187654E02_8, &
-          -6.0384407670507E02_8, -3.3022722944809E03_8/)
+  set_b = (/-0.375E0_dp, -1.171875E-1_dp,                 &
+          -1.025390625E-1_dp, -1.4419555664063E-1_dp,     &
+          -2.7757644653320E-1_dp, -6.7659258842468E-1_dp, &
+          -1.9935317337513E0_dp, -6.8839142681099E0_dp,   &
+          -2.7248827311269E01_dp, -1.2159789187654E02_dp, &
+          -6.0384407670507E02_dp, -3.3022722944809E03_dp/)
 
-  set_c = (/0.125E0_8, 0.2109375E0_8,                 &
-          1.0986328125E0_8, 1.1775970458984E01_8,     &
-          2.1461706161499E2_8, 5.9511522710323E03_8,  &
-          2.3347645606175E05_8, 1.2312234987631E07_8/)
+  set_c = (/0.125E0_dp, 0.2109375E0_dp,                 &
+          1.0986328125E0_dp, 1.1775970458984E01_dp,     &
+          2.1461706161499E2_dp, 5.9511522710323E03_dp,  &
+          2.3347645606175E05_dp, 1.2312234987631E07_dp/)
 
 
 !==========================================================================================!
@@ -617,17 +618,17 @@ INTEGER  :: kk, k0
     ELSE
       k0 =  7
     END IF
-    BessI0 = 1._8
+    BessI0 = 1._dp
     DO kk = 1,k0
       BessI0 = BessI0 + set_a(kk)*arg**(-kk)
     END DO
-    BessI0 = exp(arg)/sqrt(2._8*pi*arg)*BessI0
+    BessI0 = exp(arg)/sqrt(2._dp*pi*arg)*BessI0
 !     WRITE(*,*) 'BessI0: ', BessI0
-    BessI1 = 1._8
+    BessI1 = 1._dp
     DO kk = 1,k0
       BessI1 = BessI1 + set_b(kk)*arg**(-kk)
     END DO
-    BessI1 = exp(arg)/sqrt(2._8*pi*arg)*BessI1
+    BessI1 = exp(arg)/sqrt(2._dp*pi*arg)*BessI1
 !     WRITE(*,*) 'BessI1: ', BessI1
   END IF
 
@@ -639,32 +640,32 @@ INTEGER  :: kk, k0
   ELSE IF (arg .LE. 9.) THEN
     kk = 1
     ct = -log(arg/2.)-EuMas
-    w0 = 1._8
+    w0 = 1._dp
     rr = 0.25*arg*arg
     BessK0 = rr*(w0+ct)
     BessK0_old = 1.E20
     DO WHILE (abs((BessK0-BessK0_old)/BessK0) .GT. eps)
       kk = kk+1
       BessK0_old = BessK0
-      w0 = w0+1._8/kk
+      w0 = w0+1._dp/kk
       rr = 0.25*rr*arg*arg/(kk*kk)
       BessK0 = BessK0 + rr*(w0+ct)
     END DO
     BessK0 = BessK0 + ct
   ELSE
-    BessK0 = 1._8
+    BessK0 = 1._dp
     DO kk = 1,8
-      BessK0 = BessK0 + set_c(kk)*arg**(-2._8*kk)
+      BessK0 = BessK0 + set_c(kk)*arg**(-2._dp*kk)
     END DO
-    BessK0 = BessK0/(2._8*arg*BessI0)
+    BessK0 = BessK0/(2._dp*arg*BessI0)
 !     WRITE(*,*) 'BessK0: ', BessK0
   END IF
 
 !==========================================================================================!
 ! Compute K_1(x) and K_n(x)
 !==========================================================================================!
-  BessK1 = (1._8/arg-BessI1*BessK0)/BessI0
-  BessK = 2._8*(ord-1._8)*BessK1/arg + BessK0
+  BessK1 = (1._dp/arg-BessI1*BessK0)/BessI0
+  BessK = 2._dp*(ord-1._dp)*BessK1/arg + BessK0
 
 END FUNCTION BessK
 
@@ -685,7 +686,7 @@ REAL,INTENT(IN)     :: mass, temp, gamma
 REAL                :: DEVI
 !===================================================================================================================================
   DEVI = mass*c2/(BoltzmannConst*temp)* &
-           gamma*(gamma*gamma-1._8)-5._8*gamma*gamma+3._8
+           gamma*(gamma*gamma-1._dp)-5._dp*gamma*gamma+3._dp
 END FUNCTION DEVI
 
 
@@ -731,8 +732,8 @@ REAL     :: QUASIREL
 REAL     :: gamma
 !===================================================================================================================================
   gamma = 1/sqrt(1-(velabs*c_inv)*(velabs*c_inv))
-  QUASIREL = velabs*velabs*gamma**5._8* &
-               exp((1._8-gamma)*mass*c2/(BoltzmannConst*temp))
+  QUASIREL = velabs*velabs*gamma**5._dp* &
+               exp((1._dp-gamma)*mass*c2/(BoltzmannConst*temp))
 END FUNCTION QUASIREL
 
 
