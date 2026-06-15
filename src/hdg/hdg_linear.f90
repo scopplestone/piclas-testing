@@ -182,15 +182,15 @@ DO iVar = 1, PP_nVar
         r=q*(Nloc+1) + p+1
         CALL ExactFunc(-4,N_SurfMesh(SideID)%Face_xGP(:,p,q),HDG_Surf_N(SideID)%lambda(iVar,r:r),t=time,BCState=BCState)
       END DO; END DO !p,q
-    CASE(9) ! exact BC = Dirichlet BC !! ExactFunc via RefState, bias voltage instead of phase shift with sine function
-      DO q=0,Nloc; DO p=0,Nloc
-        r=q*(Nloc+1) + p+1
-        CALL ExactFunc(-9,N_SurfMesh(SideID)%Face_xGP(:,p,q),HDG_Surf_N(SideID)%lambda(iVar,r:r),t=time,iRefState=BCState)
-      END DO; END DO !p,q
     CASE(50) ! exact BC = Dirichlet BC !! ExactFunc via DC bias voltage
       DO q=0,Nloc; DO p=0,Nloc
         r=q*(Nloc+1) + p+1
         CALL ExactFunc(-5,N_SurfMesh(SideID)%Face_xGP(:,p,q),HDG_Surf_N(SideID)%lambda(iVar,r:r),t=time,BCState=BCState)
+      END DO; END DO !p,q
+    CASE(53) ! exact BC = Dirichlet BC !! ExactFunc via RefState, bias voltage instead of phase shift with sine function
+      DO q=0,Nloc; DO p=0,Nloc
+        r=q*(Nloc+1) + p+1
+        CALL ExactFunc(-53,N_SurfMesh(SideID)%Face_xGP(:,p,q),HDG_Surf_N(SideID)%lambda(iVar,r:r),t=time,iRefState=BCState)
       END DO; END DO !p,q
     END SELECT ! BCType
   END DO !BCsideID=1,nDirichletBCSides

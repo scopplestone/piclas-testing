@@ -526,7 +526,7 @@ INTEGER                         :: i!,iPart
 #endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
-CASE(-9) ! Fixed bias voltage + sine function, RefState(1): amplitude, RefState(2,iRefState): frequency, RefState(3,iRefState): bias voltage
+CASE(-53) ! Fixed bias voltage + sine function, RefState(1): amplitude, RefState(2,iRefState): frequency, RefState(3,iRefState): bias voltage
   Omega   = 2.*PI*RefState(2,iRefState)
   Resu(:) = RefState(1,iRefState)*SIN(Omega*t) + RefState(3,iRefState)
 #if defined(PARTICLES)

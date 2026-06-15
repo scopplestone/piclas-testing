@@ -86,8 +86,8 @@ as detailed in the following table.
 |    (/50,0/)    | Dirichlet | {ref}`sec:bias-voltage-for-dc` (0: this number has no meaning)                                                                 |
 |    (/51,1/)    | Dirichlet | {ref}`sec:bias-voltage-for-ac` (1: use RefState Nbr 1, see {ref}`sec:ref-state-bcs`)                                           |
 |    (/52,1/)    | Dirichlet | {ref}`sec:bias-voltage-for-ac-and-cpp` (1: use RefState Nbr 1, see {ref}`sec:ref-state-bcs`) and {ref}`sec:fixed-coupled-power`|
+|    (/53,1/)    | Dirichlet | Alternating voltage with fixed bias voltage ($A\sin(\omega t) + C$) (for details see {ref}`sec:fixed-bias-voltage-for-ac`)     |
 |    (/60,1/)    | Dirichlet | {ref}`sec:fixed-coupled-power` for $\Phi=A\cos(\omega t)$ (1: use RefState Nbr 1, see {ref}`sec:ref-state-bcs`)                |
-|    (/9,1/)     | Dirichlet | Alternating voltage with fixed bias voltage ($A\sin(\omega t) + C$) (for details see {ref}`sec:fixed-bias-voltage-for-ac`)     |
 
 (sec:ref-state-bcs)=
 ### RefState boundaries
@@ -323,14 +323,14 @@ where a RefState must be defined, which specifies the parameters for the $cos(\o
 For details on the power coupling, see {ref}`sec:fixed-coupled-power`.
 
 (sec:fixed-bias-voltage-for-ac)=
-### Fixed bias voltage and AC
-To couple an alternating voltage with a fixed bias voltage, the function $A\sin(2\pi f t)+C$ can be enabled by
+### Fixed/constant bias voltage and AC
+To couple an alternating voltage with a fixed/constant bias voltage $C$, the function $A\sin(2\pi f t)+C$ can be enabled by
 
     BoundaryName = BC_left  ! BC name in the mesh.h5 file
-    BoundaryType = (/9,1/)
+    BoundaryType = (/53,1/)
     RefState     = (/200., 13.56E6, -100.0/)
 
-Within the `RefState` input, the phase shift (ie. the third variable), has been replaced with the constant $C$, representing a bias voltage. Note that the general form has been changed from a cosine to a sine function.
+Within the `RefState` input, the phase shift (third variable) has been replaced with the constant $C$, representing a bias voltage. Note that the general form has been changed from a cosine to a sine function, as opposed to the definition above. An example is provided in `regressioncheck/CHE_poisson/BC_RF_FixedBiasVoltage`.
 
 (sec:dielectric-materials)=
 ## Dielectric Materials
