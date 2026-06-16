@@ -549,6 +549,8 @@ END SUBROUTINE ParticleThroughSideCheck2DRotSym
 !> If no consistent pair exists, the single valid/forward root is returned. Outputs the chosen (l,S) and the new LastInterCount.
 !===================================================================================================================================
 PURE SUBROUTINE SelectIntersection2DRotSym(l1,S1,l2,S2,lengthPartTrajectory,LastIntersectCountIn,l,S,LastInterCount)
+! MODULES
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -564,7 +566,7 @@ INTEGER,INTENT(OUT)              :: LastInterCount       ! Updated entering/exit
 IF (((l1.GT.0.0).AND.(l1.LT.1.0).AND.(S1.GT.0.0).AND.(S1.LT.lengthPartTrajectory).AND. &
   (l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0).AND.(S2.LT.lengthPartTrajectory)).OR.(LastIntersectCountIn.EQ.1)) THEN
   IF (LastIntersectCountIn.EQ.0) THEN
-    IF (S2.GT.S1) THEN
+    IF ((S1.GT.TrackInfo%alpha).AND.((S1.LE.S2).OR.(S2.LE.TrackInfo%alpha)))THEN
       l=l1; S=S1
     ELSE
       l=l2; S=S2
@@ -599,7 +601,7 @@ ELSE
       l = l2; S = S2
     ELSE
       IF ((l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0)) THEN !1 and 2 valid -> chose shorter one
-        IF (S2.GT.S1) THEN
+        IF ((S1.GT.TrackInfo%alpha).AND.((S1.LE.S2).OR.(S2.LE.TrackInfo%alpha))) THEN
           l=l1; S=S1
         ELSE
           l=l2; S=S2
