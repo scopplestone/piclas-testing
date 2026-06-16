@@ -638,6 +638,7 @@ fortitude:
   stage: lint
   dependencies: []
   script:
+    - ln -sf /var/lib/gitlab-runner/.local/bin/fortitude
     - fortitude --version
     - fortitude check --output-format=grouped src
   rules:
@@ -656,6 +657,7 @@ ruff:
   stage: lint
   dependencies: []
   script:
+    - ln -sf /var/lib/gitlab-runner/.local/bin/ruff
     - ruff --version
     - ruff check --extend-ignore=E201,E202,E203,E221,E222,E225,E231,E271,E272 --line-length=132 --preview docs tools
 
