@@ -562,13 +562,13 @@ DO WHILE (.NOT.PartisDone)
     TrackInfo%LastIntersectCount = 0
     TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
     ! Skip symmetry side
-    IF(SideIsSymSide(TempSideID)) CYCLE
+    IF(SideIsSymSide(TempSideID)) CYCLE SideLoop
     IF ((Symmetry%AxisymmetricExact).AND.(SideInfo_Shared(SIDE_BCID,TempSideID).GT.0)) THEN
-        IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,TempSideID))).EQ.PartBound%SymmetryAxis) CYCLE
+        IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,TempSideID))).EQ.PartBound%SymmetryAxis) CYCLE SideLoop
     END IF
     localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
     ! Side is not one of the 6 local sides
-    IF (localSideID.LE.0) CYCLE
+    IF (localSideID.LE.0) CYCLE SideLoop
     NbElemID = SideInfo_Shared(SIDE_NBELEMID,TempSideID)
     IF (NbElemID.LT.0) THEN ! Mortar side
       nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,TempSideID).EQ.-1)
@@ -619,12 +619,12 @@ DO WHILE (.NOT.PartisDone)
       IF (TempSideID.EQ.TrackInfo%LastSide) THEN
         IF (Symmetry%AxisymmetricExact) THEN
           IF (InterCountLastSide.EQ.0) THEN
-            CYCLE
+            CYCLE SideLoop
           ELSE
             TrackInfo%LastIntersectCount = InterCountLastSide
           END IF
         ELSE
-          CYCLE
+          CYCLE SideLoop
         END IF
       END IF
       ThroughSide = .FALSE.
@@ -648,7 +648,7 @@ DO WHILE (.NOT.PartisDone)
         END IF
       END IF
     END IF  ! Mortar or regular side
-  END DO  SideLoop
+  END DO SideLoop
   IF (NrOfThroughSides.GT.0) THEN
     IF (oldElemIsMortar) THEN
       TrackInfo%LastSide = SideID

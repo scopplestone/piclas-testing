@@ -950,7 +950,7 @@ INTEGER :: iNode,NonUniqueNodeID
 REAL    :: norm,PartDistDepo(4)
 !===================================================================================================================================
 ! Loop over the four corner nodes
-DO iNode = 1, 4
+NODELOOP: DO iNode = 1, 4
   ! Get the non-unique node index
   NonUniqueNodeID = NonUniqueGlobalSideIDToNonUniqueGlobalNodeID(iNode,NonUniqueGlobalSideID)
   ! IPWRITE(*,*) 'NonUniqueNodeID:', NonUniqueNodeID
@@ -966,9 +966,9 @@ DO iNode = 1, 4
   ELSE
     PartDistDepo(:) = 0.
     PartDistDepo(iNode) = 1.0
-    EXIT
+    EXIT NODELOOP
   END IF ! norm.GT.0.
-END DO ! iNode = 1, 4
+END DO NODELOOP ! iNode = 1, 4
 
 ! Get index of maximum location
 NodeIndex = MAXLOC(PartDistDepo,DIM=1)

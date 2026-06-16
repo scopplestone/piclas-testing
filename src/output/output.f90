@@ -33,7 +33,8 @@ END INTERFACE
 INTERFACE
   FUNCTION get_inifile_size(filename) BIND(C)
       USE ISO_C_BINDING, ONLY: C_CHAR,C_INT
-      CHARACTER(KIND=C_CHAR) :: filename(*)
+     ! allow(C071)
+      CHARACTER(KIND=C_CHAR),INTENT(IN) :: filename(*)
       INTEGER(KIND=C_INT)    :: get_inifile_size
   END FUNCTION get_inifile_size
 END INTERFACE
@@ -41,9 +42,12 @@ END INTERFACE
 INTERFACE
   SUBROUTINE insert_userblock(filename,filename2,inifilename) BIND(C)
       USE ISO_C_BINDING, ONLY: C_CHAR
-      CHARACTER(KIND=C_CHAR) :: filename(*)
-      CHARACTER(KIND=C_CHAR) :: filename2(*)
-      CHARACTER(KIND=C_CHAR) :: inifilename(*)
+     ! allow(C071)
+      CHARACTER(KIND=C_CHAR),INTENT(IN) :: filename(*)
+     ! allow(C071)
+      CHARACTER(KIND=C_CHAR),INTENT(IN) :: filename2(*)
+     ! allow(C071)
+      CHARACTER(KIND=C_CHAR),INTENT(IN) :: inifilename(*)
   END SUBROUTINE insert_userblock
 END INTERFACE
 

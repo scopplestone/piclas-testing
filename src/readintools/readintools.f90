@@ -199,7 +199,7 @@ CLASS(link), POINTER         :: current
 
 ! iterate over all options and compare names
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,I0,A)') ' Following ',this%count_unread(),' Parameters are defined in INI but not called!'
+SWRITE(UNIT_stdOut,"(A,I0,A)") ' Following ',this%count_unread(),' Parameters are defined in INI but not called!'
 current => this%firstLink
 DO WHILE (associated(current))
   ! compare name
@@ -1025,8 +1025,8 @@ USE MOD_StringTools ,ONLY: STRICMP
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-LOGICAL,INTENT(IN)   :: markdown  !< marker whether markdown format is used for output
-CHARACTER(LEN=255)   :: name      !< for this parameter help is printed. If empty print all.
+LOGICAL,INTENT(IN)              :: markdown  !< marker whether markdown format is used for output
+CHARACTER(LEN=255),INTENT(IN)   :: name      !< for this parameter help is printed. If empty print all.
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CLASS(link), POINTER   :: current
@@ -1209,7 +1209,7 @@ USE MOD_Options
 ! INPUT / OUTPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)          :: name     !< parameter name
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: proposal !< reference value
-CLASS(*)                             :: value    !< parameter value
+CLASS(*),INTENT(INOUT)               :: value    !< parameter value
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CLASS(link),POINTER          :: current
@@ -1655,7 +1655,7 @@ USE MOD_Options
 CHARACTER(LEN=*),INTENT(IN)          :: name      !< parameter name
 INTEGER,INTENT(IN)                   :: no        !< size of array
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: proposal  !< reference value
-CLASS(*)                             :: value(no) !< parameter value
+CLASS(*),INTENT(IN)                  :: value(no) !< parameter value
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CLASS(link),POINTER          :: current

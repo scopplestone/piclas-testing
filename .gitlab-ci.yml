@@ -2070,6 +2070,7 @@ github_test_appimage:
     - cd piclas-testing
     - source /var/lib/gitlab-runner/.bashrc
     - echo "Downloading '$[[ inputs.DO_TEST_APPIMAGE ]]' artifacts from piclas-testing via 'gh run download -n $[[ inputs.DO_TEST_APPIMAGE ]]'"
+    - gh --version
     - gh run download -n $[[ inputs.DO_TEST_APPIMAGE ]]
     - ls -l
     - module li
