@@ -73,10 +73,6 @@ INTERFACE Abort
   MODULE PROCEDURE AbortProg
 END INTERFACE Abort
 
-INTERFACE CollectiveStop
-  MODULE PROCEDURE CollectiveStop
-END INTERFACE CollectiveStop
-
 INTERFACE PrintWarning
   MODULE PROCEDURE PrintWarning
 END INTERFACE PrintWarning
@@ -469,7 +465,11 @@ CALL FLUSH(UNIT_stdOut)
 CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 CALL MPI_FINALIZE(iError)
 #endif
-ERROR STOP 1
+! Display stack trace on MPIRoot during CollectiveStop only when compiling in Debug mode
+#if USE_DEBUG
+IF (MPIRoot) ERROR STOP 1
+#endif /*USE_DEBUG*/
+STOP
 END SUBROUTINE CollectiveStop
 
 
