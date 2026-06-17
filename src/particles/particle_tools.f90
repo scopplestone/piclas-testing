@@ -1840,7 +1840,7 @@ END DO
 
 !Loop over all cells and neighbouring cells to merge them
 ElemLoop: DO iElem = 1, nElems
-  IF(VirtMergedCells(iElem)%isMerged) CYCLE
+  IF(VirtMergedCells(iElem)%isMerged) CYCLE ElemLoop
   nPart = PEM%pNumber(iElem)
   IF (nPart.LE.MinPartNumCellMerge) THEN
     GlobalElemID = iElem + offSetElem
@@ -1851,7 +1851,7 @@ ElemLoop: DO iElem = 1, nElems
       GlobNbElem = GetGlobalElemID(ElemToElemInfo(ElemToElemMapping(1,CNElemID)+iNbElem))
       LocNBElem = GlobNbElem-offSetElem
       CNNbElem = GetCNElemID(GlobNbElem)
-      IF ((LocNBElem.LT.1).OR.(LocNBElem.GT.nElems)) CYCLE
+      IF ((LocNBElem.LT.1).OR.(LocNBElem.GT.nElems)) CYCLE NBElemLoop
       IF(VirtMergedCells(LocNBElem)%isMerged.AND.AllowBackMerge) THEN
         IF(VirtualCellMergeSpread.GT.1) THEN
           IF (VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN

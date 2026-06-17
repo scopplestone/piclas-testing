@@ -368,18 +368,18 @@ USE MOD_Globals_Vars       ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars      ,ONLY: Species
 USE MOD_Mesh_Vars          ,ONLY: ElemBaryNGeo
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
-INTEGER,INTENT(IN)               :: FractNbr
-INTEGER,INTENT(IN)               :: iInit
-INTEGER                          :: Element
+INTEGER,INTENT(IN) :: FractNbr
+INTEGER,INTENT(IN) :: iInit
+INTEGER,INTENT(IN) :: Element
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                 :: Vec3D(3)
+REAL,INTENT(OUT)   :: Vec3D(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                             :: RandVal(3), Velo1, Velo2, Velosq, v_drift(3)
-REAL                             :: T  ! temperature
-REAL                             :: p  ! pressure
-REAL                             :: p0 ! base pressure
+REAL               :: RandVal(3), Velo1, Velo2, Velosq, v_drift(3)
+REAL               :: T  ! temperature
+REAL               :: p  ! pressure
+REAL               :: p0 ! base pressure
 !===================================================================================================================================
 
 ! V0 = Ma*c_s

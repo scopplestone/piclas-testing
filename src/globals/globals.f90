@@ -73,10 +73,6 @@ INTERFACE Abort
   MODULE PROCEDURE AbortProg
 END INTERFACE Abort
 
-INTERFACE CollectiveStop
-  MODULE PROCEDURE CollectiveStop
-END INTERFACE CollectiveStop
-
 INTERFACE PrintWarning
   MODULE PROCEDURE PrintWarning
 END INTERFACE PrintWarning
@@ -120,10 +116,10 @@ END INTERFACE
 
 INTERFACE
   SUBROUTINE processmemusage(memUsed,memAvail,memTotal) BIND(C, name='processmemusage')
-    USE ISO_C_BINDING,   ONLY : c_double
-    real(c_double) :: memUsed
-    real(c_double) :: memAvail
-    real(c_double) :: memTotal
+    USE ISO_C_BINDING, ONLY: c_double
+    REAL(c_double),INTENT(OUT) :: memUsed
+    REAL(c_double),INTENT(OUT) :: memAvail
+    REAL(c_double),INTENT(OUT) :: memTotal
   END SUBROUTINE processmemusage
 END INTERFACE
 
@@ -405,7 +401,7 @@ END SUBROUTINE AbortProg
 SUBROUTINE PrintWarning(msg)
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-CHARACTER(LEN=*) :: msg
+CHARACTER(LEN=*),INTENT(IN) :: msg
 !===================================================================================================================================
 IF (myRank.EQ.0) THEN
   WRITE(UNIT_stdOut,*) '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
@@ -439,13 +435,13 @@ SUBROUTINE CollectiveStop(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,I
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-CHARACTER(LEN=*)                  :: SourceFile      !< Source file where error has occurred
-INTEGER                           :: SourceLine      !< Line in source file
-CHARACTER(LEN=*)                  :: CompDate        !< Compilation date
-CHARACTER(LEN=*)                  :: CompTime        !< Compilation time
-CHARACTER(LEN=*)                  :: ErrorMessage    !< Error message
-INTEGER,OPTIONAL                  :: IntInfo         !< Error info (integer)
-REAL,OPTIONAL                     :: RealInfo        !< Error info (real)
+CHARACTER(LEN=*),INTENT(IN) :: SourceFile      !< Source file where error has occurred
+INTEGER,INTENT(IN)          :: SourceLine      !< Line in source file
+CHARACTER(LEN=*),INTENT(IN) :: CompDate        !< Compilation date
+CHARACTER(LEN=*),INTENT(IN) :: CompTime        !< Compilation time
+CHARACTER(LEN=*),INTENT(IN) :: ErrorMessage    !< Error message
+INTEGER,INTENT(IN),OPTIONAL :: IntInfo         !< Error info (integer)
+REAL,INTENT(IN),OPTIONAL    :: RealInfo        !< Error info (real)
 !   There is no way back!
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -469,7 +465,11 @@ CALL FLUSH(UNIT_stdOut)
 CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 CALL MPI_FINALIZE(iError)
 #endif
-ERROR STOP 1
+! Display stack trace on MPIRoot during CollectiveStop only when compiling in Debug mode
+#if USE_DEBUG
+IF (MPIRoot) ERROR STOP 1
+#endif /*USE_DEBUG*/
+STOP
 END SUBROUTINE CollectiveStop
 
 
