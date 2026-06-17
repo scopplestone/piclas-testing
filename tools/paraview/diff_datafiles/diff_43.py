@@ -11,7 +11,6 @@ ExtraXml = ''
 Properties = dict()
 
 def RequestData():
-  import paraview
 
   for key in inputs[0].PointData.keys() :
      in1 = inputs[0].PointData[key]
@@ -19,5 +18,4 @@ def RequestData():
      output.PointData.append(in1 - in2, "diff(%s)" % key)
 
 def RequestInformation():
-  from paraview import util
   pdi = self.GetInput()

@@ -11,17 +11,18 @@
 # You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 #==================================================================================================================================
 
-import numpy as np
-import h5py
-import glob
 import argparse
-import random
+import glob
 import os
+import random
 import re
-import subprocess as sp
 import shutil
+import subprocess as sp
 import sys
 import textwrap
+
+import h5py
+import numpy as np
 import scipy.optimize
 
 # Constants
@@ -200,24 +201,24 @@ def CreateTitle():
 
 
   print('=' * TitleLength)
-  print('')
+  print()
   print(' '*int((TitleLength-117)/2) + ' _______           _______  _______  _        _______  ______   _______ _________ _______  _        _______  _______ ')
-  print(' '*int((TitleLength-117)/2) + '(  ____ \|\     /|(  ___  )(  ____ \| \    /\(  ____ \(  __  \ (  ____ )\__   __/(  ____ \( \      (  ___  )(  ____ \\')
-  print(' '*int((TitleLength-117)/2) + '| (    \/| )   ( || (   ) || (    \/|  \  / /| (    \/| (  \  )| (    )|   ) (   | (    \/| (      | (   ) || (    \/')
+  print(' '*int((TitleLength-117)/2) + '(  ____ \\|\\     /|(  ___  )(  ____ \\| \\    /\\(  ____ \\(  __  \\ (  ____ )\\__   __/(  ____ \\( \\      (  ___  )(  ____ \\')
+  print(' '*int((TitleLength-117)/2) + r'| (    \/| )   ( || (   ) || (    \/|  \  / /| (    \/| (  \  )| (    )|   ) (   | (    \/| (      | (   ) || (    \/')
   print(' '*int((TitleLength-117)/2) + '| (_____ | (___) || |   | || |      |  (_/ / | (__    | |   ) || (____)|   | |   | |      | |      | (___) || (_____ ')
   print(' '*int((TitleLength-117)/2) + '(_____  )|  ___  || |   | || |      |   _ (  |  __)   | |   | ||  _____)   | |   | |      | |      |  ___  |(_____  )')
-  print(' '*int((TitleLength-117)/2) + '      ) || (   ) || |   | || |      |  ( \ \ | (      | |   ) || (         | |   | |      | |      | (   ) |      ) |')
-  print(' '*int((TitleLength-117)/2) + '/\____) || )   ( || (___) || (____/\|  /  \ \| (____/\| (__/  )| )      ___) (___| (____/\| (____/\| )   ( |/\____) |')
-  print(' '*int((TitleLength-117)/2) + '\_______)|/     \|(_______)(_______/|_/    \/(_______/(______/ |/       \_______/(_______/(_______/|/     \|\_______)')
+  print(' '*int((TitleLength-117)/2) + r'      ) || (   ) || |   | || |      |  ( \ \ | (      | |   ) || (         | |   | |      | |      | (   ) |      ) |')
+  print(' '*int((TitleLength-117)/2) + r'/\____) || )   ( || (___) || (____/\|  /  \ \| (____/\| (__/  )| )      ___) (___| (____/\| (____/\| )   ( |/\____) |')
+  print(' '*int((TitleLength-117)/2) + r'\_______)|/     \|(_______)(_______/|_/    \/(_______/(______/ |/       \_______/(_______/(_______/|/     \|\_______)')
 
 
-  print('')
-  print('')
+  print()
+  print()
   print('=' * TitleLength)
   for i in range(TitleHeight):
     print(Title[i])
   print('=' * TitleLength)
-  print('')
+  print()
 
 def TitleCharsShocked(i):
   switcher={
@@ -266,7 +267,7 @@ def ReadShocktubeIni(InputFile):
   SimulationParameter={}
   ShockSimulationParameter={}
   with open(InputFile) as f :
-    for line in f.readlines() :   # iterate over all lines of the file
+    for line in f :   # iterate over all lines of the file
         line = re.sub(r"\s+", "", line)        # remove all whitespaces ("\s" is the whitespac symbol)
         line = re.sub(r"\\s", " ", line)       # add new whitespaces for all occurrances of "\s" in the string ("\s" is NOT the whitespace symbol here)
         if line.startswith('!') : continue     # skip lines starting with a comment
@@ -541,7 +542,7 @@ def InitRestart(RestartFolder):
   global RestartStanding, DoRestart, Iteration, Mesh
 
   DoRestart = True
-  print("")
+  print()
   print("Read specified iteration %s for restart" % RestartFolder)
 
   if not os.path.exists(RestartFolder) :
@@ -565,7 +566,7 @@ def InitRestart(RestartFolder):
 
   RestartParameter={}
   with open("%s/parameter.ini" % Path.CurrentSimDir) as f :
-    for line in f.readlines() :   # iterate over all lines of the file
+    for line in f :   # iterate over all lines of the file
         line = re.sub(r"\s+", "", line)        # remove all whitespaces ("\s" is the whitespac symbol)
         line = re.sub(r"\\s", " ", line)       # add new whitespaces for all occurrances of "\s" in the string ("\s" is NOT the whitespace symbol here)
         if line.startswith('!') : continue     # skip lines starting with a comment
@@ -667,7 +668,7 @@ def InitRestart(RestartFolder):
         SimulationParameter[('Part-Species'+str(iSpec)+'-Surfaceflux1-TempElec').lower()] = RestartParameter[('Part-Species'+str(iSpec)+'-Surfaceflux1-TempElec').lower()]
 
 
-    print("")
+    print()
 
 def InitPiclasParameters():
   """
@@ -764,8 +765,7 @@ def WriteParameterIni():
         output.append(line)
       else:
         # Last section with parameter --> write section to file
-        for ii in range(len(output)):
-          f.write(output[ii])
+        f.writelines(output[ii] for ii in range(len(output)))
         output=[]
         output.append(line)
 
@@ -1486,7 +1486,7 @@ def GetEquilibriumCondition2():
 
   Output = []
   Output.append('x,iElem,')
-  for iElem in range(0,Mesh.nElems()):
+  for iElem in range(Mesh.nElems()):
     Output.append('%f,%i,'%(Barycenters[iElem],iElem))
 
   listcoeffs=[]
@@ -1593,8 +1593,7 @@ def GetEquilibriumCondition2():
           EquiCon[Simulation.ElectronSpecies+2] = EquiCon[Simulation.ElectronSpecies+2] + EquiCon[iSpec+2]
 
   with open('EquiOutputVandermonde.txt','w') as f:
-    for line in Output:
-      f.write(line+'\n')
+    f.writelines(line+'\n' for line in Output)
 
   print('Equilibrium Condition:')
   for i in range(len(VarNames)):

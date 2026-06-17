@@ -21,9 +21,8 @@ Properties = dict(
 
 def RequestData():
   import math
+
   import numpy
-  import paraview
-  import vtk.numpy_interface.dataset_adapter
   import vtk.numpy_interface.algorithms
   # -- this will import vtkMultiProcessController and vtkMPI4PyCommunicator
 
@@ -56,7 +55,7 @@ def RequestData():
   nPartsIn=0
   nXmin=0
   nXmax=0
-  for i in range(0, nParts):
+  for i in range(nParts):
     coord = pdi.GetPoint(i)
     pos   = coord[iDirect]
     # use iVelocity=3 for the magnitude of the velocity vector
@@ -109,8 +108,8 @@ def RequestData():
   array.SetNumberOfTuples(ncells)
   pdo.GetCellData().AddArray(array)
   ipos=0
-  for j in range(0,NumberOfVeloBins):
-     for i in range(0,NumberOfSpaceBins):
+  for j in range(NumberOfVeloBins):
+     for i in range(NumberOfSpaceBins):
       # caution: transpoesed index because of storage
       array.SetValue(ipos,PDF[i,j]/float(nPartsIn))
       ipos=ipos+1

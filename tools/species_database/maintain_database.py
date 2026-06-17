@@ -1,13 +1,14 @@
-import re
 import argparse
+import re
 from pathlib import Path
-from general_functions import *
-from edit_species import *
-from edit_crosssections import *
-from edit_reactions import *
-from edit_surfchem import *
-from edit_diffusion_coefficients import *
+
 from config import *
+from edit_crosssections import *
+from edit_diffusion_coefficients import *
+from edit_reactions import *
+from edit_species import *
+from edit_surfchem import *
+from general_functions import *
 
 ###################################################################################################
 # - Program starts here
@@ -158,7 +159,7 @@ if user_input == "1":
                 for attr_name, attr_value in atct_data_for_instance.items():
                     print("Adding attribute " + attr_name + " with value " + str(attr_value))
                     species_class.attributes[attr_name] = attr_value
-            except Exception as e:
+            except Exception:
                 # pass since missing data is added via user input anyway
                 pass
 
@@ -204,14 +205,7 @@ elif user_input == "2":
 # CROSS SECTION DATA
 ###################################################################################################
 
-elif user_input == "3":
-    print("Not implemented yet")
-
-###################################################################################################
-# SURFACE CHEMISTRY
-###################################################################################################
-
-elif user_input == "4":
+elif user_input == "3" or user_input == "4":
     print("Not implemented yet")
 
 ###################################################################################################

@@ -1,16 +1,17 @@
-import requests
-import pandas as pd
 import io
-import re
-import numpy as np
 import os
-from tabulate import tabulate
-from datetime import date
-from requests_html import HTMLSession
-from bs4 import BeautifulSoup
-from general_functions import *
+import re
 from collections import defaultdict
+from datetime import date
+
+import numpy as np
+import pandas as pd
+import requests
+from bs4 import BeautifulSoup
 from config import *
+from general_functions import *
+from requests_html import HTMLSession
+from tabulate import tabulate
 
 # General workflow:
 # Different species are handled by different classes - Atom, DiatomicMolecule, PolyatomicMolecule
@@ -365,13 +366,13 @@ class PolyatomicMolecule:
 ######################################################################################################################################################################################################
 
 def get_interaction_id(species_name):
-    if sum((1 for c in species_name.replace('Ion', '') if c.isupper())) == 1 and (not bool(re.search('\\d+', re.sub('Ion\\d+', '', species_name)))):
+    if sum(1 for c in species_name.replace('Ion', '') if c.isupper()) == 1 and (not bool(re.search('\\d+', re.sub('Ion\\d+', '', species_name)))):
         if not bool(re.search('[A-Za-z]*\\d', re.sub('Ion\\d+', '', species_name))):
             if 'Ion' in species_name:
                 interactionID = 10
             elif 'Ion' not in species_name:
                 interactionID = 1
-    elif bool(re.search('\\d+', re.sub('Ion\\d+', '', species_name))) or sum((1 for c in species_name.replace('Ion', '') if c.isupper())) != 1:
+    elif bool(re.search('\\d+', re.sub('Ion\\d+', '', species_name))) or sum(1 for c in species_name.replace('Ion', '') if c.isupper()) != 1:
         if 'Ion' in species_name:
             interactionID = 20
         elif 'Ion' not in species_name:
@@ -642,11 +643,10 @@ def write_instance_to_database(instance):
             if not isinstance(instance, Atom):
                 temp_rot = np.array(hdf_unified_data["Species"][instance.name]['RotationalLevel'])
                 temp_vib = np.array(hdf_unified_data["Species"][instance.name]['VibrationalLevel'])
-        except Exception as e:
+        except Exception:
             # catch for missing datasets
             temp_rot = None
             temp_vib = None
-            pass
         temp_elec = np.array(hdf_unified_data["Species"][instance.name]['ElectronicLevel'])
         # delete species from database
         del hdf_unified_data["Species"][instance.name]
@@ -766,7 +766,7 @@ def get_data_from_NIST(CURRENT_SPECIES, ION_LEVEL):
     except Exception as e:
         # check if species is not found because it is fully ionized in database
         if "FullyIonized" in hdf_unified_data["Species"][CURRENT_SPECIES].attrs:
-            return int(-1), current_species_NIST
+            return (-1), current_species_NIST
         # Print an error message if there's an exception
         print(red('Error'), "converting data from \n", blue(URL_request), " for ", green(CURRENT_SPECIES), "might not be available on requested URL. Tried to access data with ", green(current_species_NIST), "Please check this combination on the URL. \nError:", e ,"\n")
         # get user input to determine which dataset should be saved
@@ -779,7 +779,7 @@ def get_data_from_NIST(CURRENT_SPECIES, ION_LEVEL):
             first_row_data = {'J': '0', 'Levelcm-1': '0', 'Term': 'Limit'}
             data = data.append(first_row_data, ignore_index=True)
         elif user_input_create == '2':
-            return int(-1), current_species_NIST
+            return (-1), current_species_NIST
 
 # converting electronic data in useful format
 def convert_electronic_data(DATA):
@@ -896,7 +896,6 @@ def print_diffs(new_data, ref_data, level_type='Electronic'):
         else:
             # print error message if not expected error occurs
             print(e)
-    return
 
 ######################################################################################################################################################################################################
 #   functions for getting data from the ATcT

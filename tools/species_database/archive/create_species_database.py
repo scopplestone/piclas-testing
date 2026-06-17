@@ -1,12 +1,11 @@
-from cmath import log
-from matplotlib.rcsetup import validate_bool
-import numpy as np
-import h5py
-from argparse import ArgumentParser
-from datetime import date
 import re
 import sys
-from functions_database import custom_sort_reactants, custom_sort_products
+from argparse import ArgumentParser
+from datetime import date
+
+import h5py
+import numpy as np
+from functions_database import custom_sort_products, custom_sort_reactants
 
 parser = ArgumentParser(prog='create_species_database')
 parser.add_argument("-p", "--parameter", dest="ini_filename",
@@ -284,9 +283,9 @@ for key in ReacName_dict:
 
   # Bring the reaction equation in the correct order
   ReactionNameSplit = re.split('_', ReactionName)
-  checkeduct_list = re.split('\+', ReactionNameSplit[0])
+  checkeduct_list = re.split(r'\+', ReactionNameSplit[0])
   checkeduct_list_sorted = custom_sort_reactants(checkeduct_list)
-  checkproduct_list = re.split('\+',ReactionNameSplit[1])
+  checkproduct_list = re.split(r'\+',ReactionNameSplit[1])
   checkproduct_list_sorted = custom_sort_products(checkproduct_list)
 
 # Sorting of the species in the reaction equation and create the new name for the reaction
@@ -348,7 +347,7 @@ for key in ReacName_dict:
           AddNewReaction = True
     # Loop over  iterations of the reaction name and check if the model is already defined
       while ReacNameTest in hdf_reac_group.keys():
-        ReacNameTest = re.sub('#\d+', '', ReactionName)
+        ReacNameTest = re.sub(r'#\d+', '', ReactionName)
         Count = Count + 1
         ReacNameTest = ReacNameTest + '#' + str(Count)
         if ReacNameTest in hdf_reac_group.keys():
@@ -376,7 +375,7 @@ for key in ReacName_dict:
             hdf_reac_group.move(ReactionName, ReacNameCopy)
             reac_dict[key] = ReacNameCopy
             # Create the new name and add the reaction to the database
-          ReactionName = re.sub('#\d+', '', ReactionName)
+          ReactionName = re.sub(r'#\d+', '', ReactionName)
           Count = Count + 1
           ReactionName = ReactionName + '#' + str(Count)
         reac_dict[key] = ReactionName
@@ -526,9 +525,11 @@ Rtol = 0.003
 relative_path = '../../SpeciesDatabase.h5'
 ###################################################################################################
 
-import h5py
 import re
+
+import h5py
 import numpy as np
+
 
 def create_dataset(hdf_unified_data, chem_model_list, non_reac_species_list, reference_list):
     # array_of_strings is used for the single reactions to combine chemisty models and Full_Chem_Model_List is for saving the Models for the attribute of the reactions group

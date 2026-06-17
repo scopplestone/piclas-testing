@@ -21,17 +21,17 @@
 __author__ = "Jose Fonseca et al"
 
 
-import sys
+import collections
+import fnmatch
+import json
+import locale
 import math
+import optparse
 import os.path
 import re
+import sys
 import textwrap
-import optparse
 import xml.parsers.expat
-import collections
-import locale
-import json
-import fnmatch
 
 # Python 2.x/3.x compatibility
 if sys.version_info[0] >= 3:
@@ -100,7 +100,7 @@ class UndefinedEvent(Exception):
         return 'unspecified event %s' % self.event.name
 
 
-class Event(object):
+class Event:
     """Describe a kind of event, and its basic operations."""
 
     def __init__(self, name, null, aggregator, formatter = str):
@@ -152,7 +152,7 @@ TOTAL_TIME_RATIO = Event("Total time ratio", 0.0, fail, percentage)
 totalMethod = 'callratios'
 
 
-class Object(object):
+class Object:
     """Base class for all objects in profile which can store events."""
 
     def __init__(self, events=None):

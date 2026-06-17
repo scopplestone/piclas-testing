@@ -1,8 +1,9 @@
-import numpy as np
-from timeit import default_timer as timer
 import argparse
 import re
 import shutil
+from timeit import default_timer as timer
+
+import numpy as np
 
 # import h5 I/O routines
 try :

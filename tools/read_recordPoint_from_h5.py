@@ -1,10 +1,11 @@
-import time
-import os
 import datetime
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.pyplot import plot, draw, show
 import math
+import os
+import time
+
+import matplotlib.pyplot as plt
+from matplotlib.pyplot import draw, show
+
 
 class bcolors :
     """color and font style definitions for changing output appearance"""
@@ -102,7 +103,7 @@ def createPlot(title,NbrOfAttributes,VarNames,NbrOfRP,t,data):
                 colplt, = col.plot(t, data[:,iRP,iVar], linestyle=ls, label='RP$_{%s}$ (%s)' % (iRP, s) )
                 legend.append(colplt)
             # Display title
-            col.set_title(f'%s' % VarNames[iVar-1])
+            col.set_title('%s' % VarNames[iVar-1])
             # Display legend
             col.legend(handles=legend)
 
@@ -195,7 +196,7 @@ def ReadFileAndCreatePlot(statefile):
 
     end = time.time()
     elapsed = end-start
-    rounded = "{:.2f}".format(round(elapsed, 2))
+    rounded = f"{round(elapsed, 2):.2f}"
     s = "----- Required time for %s: %s sec [%s] for %s" % (statefile,rounded,str(datetime.timedelta(seconds=int(elapsed))),filesize)
     print(s)
 

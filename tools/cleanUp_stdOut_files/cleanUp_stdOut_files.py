@@ -1,11 +1,12 @@
-import numpy as np
-from timeit import default_timer as timer
 import argparse
-import re
-import os
 import grp
+import os
 import pwd
+import re
 import subprocess
+from timeit import default_timer as timer
+
+import numpy as np
 
 # Bind raw_input to input in Python 2
 try:
@@ -62,7 +63,7 @@ def get_owner_and_group(stdfile):
 
         user = pwd.getpwuid(uid)[0]
         group = grp.getgrgid(gid)[0]
-    except Exception as e:
+    except Exception:
         return None, None
 
     return user, uid, group, gid
@@ -253,11 +254,10 @@ def CleanDoPrintStatusLine(stdfile, args):
     # 1. Search for carriage-return characters
 
     changedLines=0
-    with open(stdfile, "r") as input:
-        with open(stdfile_new, "w") as output_new:
-            for line in input:
-                # Remove carriage-return
-                output_new.write(line.rstrip()+"\n")
+    with open(stdfile, "r") as input, open(stdfile_new, "w") as output_new:
+        for line in input:
+            # Remove carriage-return
+            output_new.write(line.rstrip()+"\n")
 
     with open(stdfile_new) as output_new:
         lines = output_new.readlines()
@@ -269,10 +269,7 @@ def CleanDoPrintStatusLine(stdfile, args):
     with open(stdfile_new, "w") as output_new:
         for line in lines:
             n+=1
-            if all(c in line.strip("\n") for c in arr):
-                # Ignore this line and increase the counter by 1
-                changedLines+=1
-            elif all(c in line.strip("\n") for c in arr_ray):
+            if all(c in line.strip("\n") for c in arr) or all(c in line.strip("\n") for c in arr_ray):
                 # Ignore this line and increase the counter by 1
                 changedLines+=1
             else:
@@ -302,36 +299,34 @@ def CleanLostParticles(stdfile, args):
     n=0
     nLostParts=0
     meshFound=False
-    with open(stdfile, "r") as input:
-        with open(stdfile_lost, "w") as output_lost:
-            with open(stdfile_new, "w") as output_new:
-                for line in input:
-                    n+=1
-                    first = getFirst(line)
+    with open(stdfile, "r") as input, open(stdfile_lost, "w") as output_lost, open(stdfile_new, "w") as output_new:
+        for line in input:
+            n+=1
+            first = getFirst(line)
 
-                    if 'Error in Particle TriaTracking! Particle Number' in line.strip("\n"):
-                        nLostParts+=1
-                        if first in killList:
-                            print("Error: the rank is already in the list. The lines might overlap. Resolve this in \nLine : %s" % n)
-                            exit(1)
-                        killList.update( {first : 1} )
-                        output_lost.write(line)
-                    elif first in killList:
-                        output_lost.write(line)
-                        killList[first] += 1
-                        if killList[first] == 5:
-                            del killList[first]
-                    else:
-                        output_new.write(line)
-                        if not meshFound:
-                            # Check for MeshFile, as it is required for the .h5 file that is written when lost particles are found
-                            if 'MeshFile' in line.strip("\n"):
-                                meshFound=True
-                                myline=line.replace(" ", "")
-                                tmp=myline.split('|')
-                                for x in tmp:
-                                    if x.endswith('.h5'):
-                                        MeshFile=x
+            if 'Error in Particle TriaTracking! Particle Number' in line.strip("\n"):
+                nLostParts+=1
+                if first in killList:
+                    print("Error: the rank is already in the list. The lines might overlap. Resolve this in \nLine : %s" % n)
+                    exit(1)
+                killList.update( {first : 1} )
+                output_lost.write(line)
+            elif first in killList:
+                output_lost.write(line)
+                killList[first] += 1
+                if killList[first] == 5:
+                    del killList[first]
+            else:
+                output_new.write(line)
+                if not meshFound:
+                    # Check for MeshFile, as it is required for the .h5 file that is written when lost particles are found
+                    if 'MeshFile' in line.strip("\n"):
+                        meshFound=True
+                        myline=line.replace(" ", "")
+                        tmp=myline.split('|')
+                        for x in tmp:
+                            if x.endswith('.h5'):
+                                MeshFile=x
 
                 # print(red("Lost %s particles" % nLostParts))
 
@@ -423,7 +418,6 @@ def CleanLostParticles(stdfile, args):
         # 2.6. Write as C-continuous array via np.ascontiguousarray()
         if not data.any() :
             print(" %s has dimension %s. Skipping" % (data_set, data.shape))
-            pass
         else :
             dset.write_direct(np.ascontiguousarray(data))
 
@@ -609,7 +603,7 @@ for stdfile in args.files :
 InitialDataRead = True
 NbrOfFiles = len(args.files)
 
-print(f'     Lines  Size [MB]   Path')
+print('     Lines  Size [MB]   Path')
 for stdfile in args.files :
     with open(stdfile, "rb") as f:
         num_lines = sum(1 for _ in f)

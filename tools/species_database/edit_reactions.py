@@ -1,8 +1,10 @@
-from general_functions import *
-from datetime import date
 import re
+from datetime import date
+
 import numpy as np
 from config import *
+from general_functions import *
+
 
 def remove_from_list(List, *args_to_remove):
     NewList = []
@@ -21,7 +23,7 @@ def display_reaction(CURRENT_REACTION):
                 print('\nChemistry Model %s: '%(i+1), AttrValue[i,0].decode('utf-8'))
                 if AttrValue.shape[1] != 1:
                     print('Non-Reactive species: ', AttrValue[i,1].decode('utf-8'))
-            print('')
+            print()
 
         elif AttrName in ['Products','Reactants','ReactionModel']:
             if len(AttrValue) == 1:

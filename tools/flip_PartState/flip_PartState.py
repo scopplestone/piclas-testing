@@ -1,8 +1,8 @@
-import numpy as np
-from timeit import default_timer as timer
 import argparse
-import re
-import shutil
+from timeit import default_timer as timer
+
+import numpy as np
+
 
 def ChangeFileVersion(statefile) :
     # Open h5 file and read container info
@@ -92,7 +92,6 @@ def FlipDataset(statefile,data_set) :
     # 3. Write as C-continuous array via np.ascontiguousarray()
     if not b1.any() :
         print(" %s has dimension %s. Skipping" % (data_set,b1.shape))
-        pass
     else :
         dset.write_direct(np.ascontiguousarray(b1))
 

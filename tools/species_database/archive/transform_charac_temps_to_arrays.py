@@ -1,8 +1,9 @@
-import h5py
 import re
+import sys
+
+import h5py
 import numpy as np
 
-import sys
 sys.path.append('../')
 from edit_species import *
 from general_functions import *

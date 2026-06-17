@@ -1,9 +1,7 @@
-import numpy as np
-from timeit import default_timer as timer
 import argparse
-import re
-import shutil
 import os
+from timeit import default_timer as timer
+
 
 class bcolors :
     """color and font style definitions for changing output appearance"""
@@ -126,7 +124,7 @@ except Exception as e:
 # 0. remove dataset container in target file (if it exists)
 try:
     del f2[args.dataset]
-except Exception as e:
+except Exception:
     #print(e)
     #print("Dataset does not exist in target file (%s). Copying." % e)
     pass

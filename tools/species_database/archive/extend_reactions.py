@@ -18,11 +18,12 @@ Rtol = 0.003
 relative_path = '../../SpeciesDatabase.h5'
 ###################################################################################################
 
-import h5py
 import re
-import numpy as np
 
+import h5py
+import numpy as np
 from config import datatype_h5
+
 
 def create_dataset(hdf_unified_data, chem_model_list, non_reac_species_list, reference_list):
     # array_of_strings is used for the single reactions to combine chemisty models and Full_Chem_Model_List is for saving the Models for the attribute of the reactions group

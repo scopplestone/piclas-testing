@@ -1,4 +1,3 @@
-import re
 
 class myColors:
     """ Add different colors and styles (ANSI code) to strings """

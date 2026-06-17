@@ -14,6 +14,7 @@
 import argparse
 import subprocess
 
+
 # extract userblock from HDF5 state file
 def get_userblock(filename,userblock) :
     linesread = 0

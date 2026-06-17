@@ -1,13 +1,13 @@
+import collections
+import glob
 import json
 import os
-import collections
+import readline
+import select
 import shutil
+import subprocess
 import sys
 from timeit import default_timer as timer
-import subprocess
-import select
-import readline
-import glob
 
 # Bind raw_input to input in Python 2
 try:
@@ -64,7 +64,7 @@ def yellow(text) :
     return myColors.yellow+text+myColors.endc
 
 
-class ExternalCommand() :
+class ExternalCommand :
     def __init__(self) :
         self.stdout = []
         self.stderr = []
@@ -193,7 +193,7 @@ def AddBool(Config, Key, Bool) :
         Config[Key] = False
 
 
-class SetupConfiguration():
+class SetupConfiguration:
     def __init__(self):
         self.config = collections.OrderedDict()
         self.ReadConfig()
@@ -283,7 +283,7 @@ def isOnlyDir(text):
 
 
 
-class tabCompleter(object):
+class tabCompleter:
     """
     A tab completer that can either complete from
     the filesystem or from a list.
@@ -379,17 +379,17 @@ def getInput(Configuration,question,variable,error,typeOfInput,sanityCheck=None)
         if Configuration.config.get(variable, None) is None:# or Configuration.config.get(variable, None) == '':
             userInput = input(question)
 
-            if userInput == '' and variable is not "pyhope":
+            if userInput == '' and variable != "pyhope":
                 print(red(error))
                 continue
         else:
             userInput = input(question+green("Auto-select [%s]: " % str(Configuration.config[variable])))
 
         # Try to convert the new input or changed variable
-        if userInput is not '':
+        if userInput != '':
             try:
                 Configuration.config[variable] = convert(typeOfInput,userInput)
-            except Exception as e:
+            except Exception:
                 print(red(error))
                 continue
 
@@ -788,7 +788,7 @@ if Configuration.config.get("pyhope", None) is not None :
         cmd=[Configuration.config["pyhope"], 'hopr.ini']
         try:
             Executable.execute_cmd(cmd, cwd)
-        except Exception as e:
+        except Exception:
             print()
             print(red("Failed to run the executable [%s]" % Configuration.config["pyhope"]))
             print(red("You can try and run the command by hand in this directory via: %s %s" % (Configuration.config["pyhope"], 'hopr.ini')))

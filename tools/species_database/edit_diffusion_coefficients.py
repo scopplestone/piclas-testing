@@ -1,14 +1,15 @@
+import argparse
+import io
 import logging
 import os
-import io
-import pandas as pd
-import argparse
-import h5py
-import numpy as np
 import re
 
-from general_functions import *
+import h5py
+import numpy as np
+import pandas as pd
 from config import datatype_h5
+from general_functions import *
+
 
 def check_for_bolsig(file):
     with open(file, "r") as f:

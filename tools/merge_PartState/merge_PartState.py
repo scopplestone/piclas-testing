@@ -1,8 +1,10 @@
-import numpy as np
-from timeit import default_timer as timer
 import argparse
 import re
 import shutil
+from timeit import default_timer as timer
+
+import numpy as np
+
 
 class bcolors :
     """color and font style definitions for changing output appearance"""

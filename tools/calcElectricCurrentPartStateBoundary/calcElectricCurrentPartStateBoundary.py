@@ -1,12 +1,9 @@
-import numpy as np
-import math
-from timeit import default_timer as timer
 import argparse
-import re
-import shutil
 import os.path
-import configparser
 import types
+from timeit import default_timer as timer
+
+import numpy as np
 
 # Bind raw_input to input in Python 2
 try:
@@ -14,7 +11,6 @@ try:
     import ConfigParser as ConfPars
 except NameError:
     import configparser as ConfPars
-    pass
 
 def CreateConfig(parameterFile):
     if os.path.exists(parameterFile):
@@ -47,7 +43,7 @@ def CreateConfig(parameterFile):
 
         with open(parameterFile+".new", "w") as output_new: 
             output_new.write("[Section1]\n")
-            for x in config.keys():
+            for x in config:
                 if type(config[x]) == tuple:
                     #print(x.ljust(40) +" = " + ", ".join(str(y) for y in config[x]))
                     output_new.write(x.ljust(40) +" = " + ", ".join(str(y) for y in config[x])+"\n")
