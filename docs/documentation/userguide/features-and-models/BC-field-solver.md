@@ -86,6 +86,7 @@ as detailed in the following table.
 |    (/50,0/)    | Dirichlet | {ref}`sec:bias-voltage-for-dc` (0: this number has no meaning)                                                                 |
 |    (/51,1/)    | Dirichlet | {ref}`sec:bias-voltage-for-ac` (1: use RefState Nbr 1, see {ref}`sec:ref-state-bcs`)                                           |
 |    (/52,1/)    | Dirichlet | {ref}`sec:bias-voltage-for-ac-and-cpp` (1: use RefState Nbr 1, see {ref}`sec:ref-state-bcs`) and {ref}`sec:fixed-coupled-power`|
+|    (/53,1/)    | Dirichlet | Alternating voltage with fixed bias voltage ($A\sin(\omega t) + C$) (for details see {ref}`sec:fixed-bias-voltage-for-ac`)     |
 |    (/60,1/)    | Dirichlet | {ref}`sec:fixed-coupled-power` for $\Phi=A\cos(\omega t)$ (1: use RefState Nbr 1, see {ref}`sec:ref-state-bcs`)                |
 
 (sec:ref-state-bcs)=
@@ -206,7 +207,7 @@ The boundary is activated by setting one or more EPC
     BoundaryType = (/8,2/)  ! 8: activate EPC, 2: Index of the EPC group to which this BC belongs (2nd group)
 
 The resulting current $I$ and voltage $U$ are automatically written to *FieldAnalyze.csv*, e.g., "007-EPC-Current-BCState-001" and
-"008-EPC-Voltage-BCState-001". 
+"008-EPC-Voltage-BCState-001".
 
 (sec:fixed-coupled-power)=
 ### Power control
@@ -301,7 +302,7 @@ where the defined species information must consider all relevant charged particl
 (sec:bias-voltage-for-ac)=
 ### Bias Voltage AC
 If an AC potential boundary is coupled with a bias potential, the `BoundaryType` has to be changed as compared with the previous
-section 
+section
 
     BoundaryName = BC_left  ! BC name in the mesh.h5 file
     BoundaryType = (/51,1/) ! Dirichlet with 0V initial BC
@@ -312,7 +313,7 @@ Furthermore, a RefState must be defined, which specifies the parameters for the 
 (sec:bias-voltage-for-ac-and-cpp)=
 ### Bias Voltage AC and Fixed coupled power
 If an **AC potential boundary** is coupled with a **bias potential** and an **automatic adjustment of the AC amplitude** to ensure
-that a fixed power to the system is achieved, the `BoundaryType` has to be changed as compared with the previous section 
+that a fixed power to the system is achieved, the `BoundaryType` has to be changed as compared with the previous section
 
     BoundaryName = BC_left  ! BC name in the mesh.h5 file
     BoundaryType = (/52,1/) ! Dirichlet with 0V initial BC
@@ -320,6 +321,16 @@ that a fixed power to the system is achieved, the `BoundaryType` has to be chang
 where a RefState must be defined, which specifies the parameters for the $cos(\omega t)$ function, for details, see
 {ref}`sec:ref-state-bcs`. Note that this BC is only implemented with zero crossing.
 For details on the power coupling, see {ref}`sec:fixed-coupled-power`.
+
+(sec:fixed-bias-voltage-for-ac)=
+### Fixed/constant bias voltage and AC
+To couple an alternating voltage with a fixed/constant bias voltage $C$, the function $A\sin(2\pi f t)+C$ can be enabled by
+
+    BoundaryName = BC_left  ! BC name in the mesh.h5 file
+    BoundaryType = (/53,1/)
+    RefState     = (/200., 13.56E6, -100.0/)
+
+Within the `RefState` input, the phase shift (third variable) has been replaced with the constant $C$, representing a bias voltage. Note that the general form has been changed from a cosine to a sine function, as opposed to the definition above. An example is provided in `regressioncheck/CHE_poisson/BC_RF_FixedBiasVoltage`.
 
 (sec:dielectric-materials)=
 ## Dielectric Materials
