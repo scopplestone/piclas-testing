@@ -8,16 +8,16 @@ NumberOfInputs = 1
 OutputDataType = 'vtkImageData'
 ExtraXml = ''
 
-Properties = dict(
-  NumberOfVeloBins  = 250,
-  NumberOfSpaceBins = 250,
-  iDirect           = 0,
-  xMin              = 0.,
-  xMax              = 150.,
-  iVelocity         = 0,
-  minVelo           = -3E8,
-  maxVelo           = 3E8
-  )
+Properties = {
+  'NumberOfVeloBins': 250,
+  'NumberOfSpaceBins': 250,
+  'iDirect': 0,
+  'xMin': 0.,
+  'xMax': 150.,
+  'iVelocity': 0,
+  'minVelo': -3E8,
+  'maxVelo': 3E8
+  }
 
 def RequestData():
   import math
@@ -71,7 +71,7 @@ def RequestData():
     if(xMin>pos):
       nXmin=nXmin+1
     elif(xMax<pos):
-      nMax=nXmax+1
+      nXmax+1
     else:
       # particle in x-range
       if(minVelo>velo):
@@ -116,5 +116,5 @@ def RequestData():
 
 def RequestInformation():
   from paraview import util
-  pdi = self.GetInput()
+  self.GetInput()
   util.SetOutputWholeExtent(self, [0,NumberOfSpaceBins,0,NumberOfVeloBins,0,0])

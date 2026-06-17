@@ -8,10 +8,10 @@ NumberOfInputs = 1
 #OutputDataType = 'vtkPointsData'
 ExtraXml = ''
 
-Properties = dict(
-  WhichField=0,
-  Trafo=0
-  )
+Properties = {
+  'WhichField': 0,
+  'Trafo': 0
+  }
 
 def RequestData():
   import math
@@ -49,13 +49,13 @@ def RequestData():
   newField.SetNumberOfComponents(3)
   if Trafo == 0:
       # cylindrical coord
-      VarNameOut=''.join([VarName,'_CC'])
+      VarNameOut=f'{VarName}_CC'
       newField.SetComponentName(0,'r')
       newField.SetComponentName(1,'theta')
       newField.SetComponentName(2,'z')
   else:
       # spherical coord
-      VarNameOut=''.join([VarName,'_SC'])
+      VarNameOut=f'{VarName}_SC'
       newField.SetComponentName(0,'r')
       newField.SetComponentName(1,'theta')
       newField.SetComponentName(2,'phi')
@@ -97,4 +97,4 @@ def RequestData():
   pdo.GetPointData().AddArray(newField)
 
 def RequestInformation():
-  pdi = self.GetInput()
+  self.GetInput()

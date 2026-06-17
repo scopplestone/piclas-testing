@@ -29,9 +29,7 @@ args   = parser.parse_args()
 # -------------------------------------------------------------------------------------
 dmdFile = open(args.dmdFile, "r")
 dmdData = dmdFile.readlines()
-values  = []
-for line in dmdData[12:]:
-    values.append(line.split())
+values = [line.split() for line in dmdData[12:]]
 
 
 alphaDMD  = [[float(i[0]) for i in values],[float(i[1]) for i in values]]
@@ -86,8 +84,8 @@ for label, x, y in zip(labels, [i/(2*np.pi) for i in lambdaDMDimag], lambdaDMDre
         label,
         xy=(x, y), xytext=(0, -20),
         textcoords='offset points', ha='center', va='top',
-        bbox      =dict(boxstyle  ='round,pad=0.5', fc='yellow', alpha=0.1),
-        arrowprops=dict(arrowstyle='->', connectionstyle='arc3,rad=0'),
+        bbox      ={'boxstyle': 'round,pad=0.5', 'fc': 'yellow', 'alpha': 0.1},
+        arrowprops={'arrowstyle': '->', 'connectionstyle': 'arc3,rad=0'},
         fontsize=6)
 
 plt.xlabel(r'$\omega_i/2\pi$',fontsize=18)
@@ -105,9 +103,8 @@ def computeNRoomFreqs(n,c,geo):
                 freqtmp=c/2.*np.sqrt((i/geo.x)**2.+((j+1)/(2*geo.y))**2.+(k/geo.z)**2.)
                 freq.append([freqtmp,i,j+1,k])
 
-    freq=sorted(freq, key=lambda x : x[0])
+    return sorted(freq, key=lambda x : x[0])
 
-    return freq
 
 # # def computeNRossiterModes(n,c,geo):
     # # return freq

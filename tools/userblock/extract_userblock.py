@@ -13,6 +13,7 @@
 
 import argparse
 import subprocess
+import sys
 
 
 # extract userblock from HDF5 state file
@@ -29,7 +30,7 @@ def get_userblock(filename,userblock) :
 
       if linesread == 1 and not line.startswith(b'{[(') :
         print(f'Error: HDF5 state file {filename} contains no userblock.')
-        exit(1)
+        sys.exit(1)
 
       if line.startswith(b'{[( END USERBLOCK )]}') :
         break
@@ -38,8 +39,7 @@ def get_userblock(filename,userblock) :
       for i in range(len(line)) :
           c = line[i]
           if c == 0 : continue
-          if c == 137 : 
-              if line[i+1:i+4] == b'HDF' : HDFfound = True
+          if c == 137 and line[i+1:i+4] == b'HDF' : HDFfound = True
       if HDFfound :
         break
 
@@ -57,7 +57,7 @@ def get_userblock(filename,userblock) :
         fc.write(userblock_compressed)
         fc.close()
         try:
-          p = subprocess.call("tar -xJf " + filenametar,shell=True)
+          subprocess.call("tar -xJf " + filenametar,shell=True)
         except:
           print('Error while extracting userblock data.')
           raise

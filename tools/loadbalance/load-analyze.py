@@ -40,7 +40,7 @@ PartsInElem=np.zeros(nElems)
 PartsInElem = PartInt[1,:] - PartInt[0,:]
 print(' ElemWeight ....')
 node = 'ElemWeight'
-if node in file.keys():
+if node in file:
     print(' Reading ElemWeight...')
     ElemWeight = file['ElemWeight']
 else:
