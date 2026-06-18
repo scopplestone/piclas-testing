@@ -148,10 +148,10 @@ class MoleculeHelper:
         """
         if not create_new:
             if level_type.lower() == 'rotational':
-                level_type == 'Rotational'
+                level_type = 'Rotational'
                 levels_database = instance.RotationalLevels
             elif level_type.lower() == 'vibrational':
-                level_type == 'Vibrational'
+                level_type = 'Vibrational'
                 levels_database = instance.VibrationalLevels
             else:
                 level_type = 'Electronic'

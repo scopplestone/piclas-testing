@@ -80,21 +80,21 @@ def print_all_parts(userblock) :
         # try if line contains a part identifier: {[( IDENTIFIER )]}
         try :
             if not line.startswith("{[(") : continue
-            identifier = line.split("{[(")[1].split(")]}")[0] 
+            identifier = line.split("{[(")[1].split(")]}")[0]
             if "END USERBLOCK" in identifier : break
             # print identifier
             print(identifier)
-        except :
+        except :  # noqa: S112
             continue
 
 def get_part(userblock,part) :
-    ret = "" 
+    ret = ""
     output = False
     for line in userblock.split('\n') :
         # try if line contains a part identifier: {[( IDENTIFIER )]}
         try :
             if line.startswith("{[(") :
-                identifier = line.split("{[(")[1].split(")]}")[0] 
+                identifier = line.split("{[(")[1].split(")]}")[0]
                 # if identifier is found -> start output
                 if part in identifier :
                     output = True
@@ -103,7 +103,7 @@ def get_part(userblock,part) :
                     # we found another identifier -> stop output
                     if output : break
                 if "END USERBLOCK" in identifier : break
-        except :
+        except :  # noqa: S112
             continue
         if output : ret = ret + line + "\n"
     return ret
@@ -130,7 +130,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    userblock = get_userblock(args.filename,'') 
+    userblock = get_userblock(args.filename,'')
     if args.show :
         print_all_parts(userblock)
     if args.part :
