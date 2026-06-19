@@ -140,7 +140,6 @@ USE MOD_ReadInTools
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, CollInf
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species, SpeciesDatabase
-USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcXiVib
 USE MOD_MCC_Vars                ,ONLY: NbrOfPhotonXsecReactions
@@ -242,7 +241,6 @@ IF(ChemReac%NumDeleteProducts.GT.0) THEN
   ChemReac%DeleteProductsList = GETINTARRAY('Particles-Chemistry-DeleteProductsList', ChemReac%NumDeleteProducts)
 END IF
 
-ChemEnergySum = 0.
 CALL PrintOption('Number of considered reaction paths (including dissociation and recombination)','INFO',IntOpt=ChemReac%NumOfReact)
 !----------------------------------------------------------------------------------------------------------------------------------
 ALLOCATE(ChemReac%NumReac(ChemReac%NumOfReact))

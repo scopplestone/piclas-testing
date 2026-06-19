@@ -664,7 +664,6 @@ USE MOD_MCC_Vars                ,ONLY: ReacToPhotoReac,NbrOfPhotonXsecReactions,
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, usevMPF
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
 USE MOD_part_tools              ,ONLY: GetParticleWeight, DiceUnitVector,CalcEVib_particle, RotInitPolyRoutineFuncPTR
 USE MOD_Part_Tools              ,ONLY: GetNextFreePosition, CalcEElec_particle
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
@@ -832,13 +831,6 @@ IF((Species(EductReac(1))%InterID.EQ.2).OR.(Species(EductReac(1))%InterID.EQ.20)
 IF (DSMC%ElectronicModel.GT.0) THEN
   IF((Species(EductReac(1))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(1))%FullyIonized)) &
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartIntEn(ReactInx(1))%EElec(1)*Weight(1)
-END IF
-
-IF(usevMPF) THEN
-  ! Weighting factor already included in the weights
-  ChemEnergySum = ChemEnergySum + EForm*SumWeightProd/NumProd
-ELSE
-  ChemEnergySum = ChemEnergySum + EForm*Species(EductReac(1))%MacroParticleFactor*SumWeightProd/NumProd
 END IF
 
 ! Saving the velocity of the background particle as the centre of mass velocity
