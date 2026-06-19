@@ -13,6 +13,7 @@
 
 import argparse
 import glob
+import math
 import os
 import random
 import re
@@ -1065,7 +1066,7 @@ def ReadDSMCHOData():
       continue
     # Read NumDens and Temperature Data and sort them by position
     DSMCHOFile = h5py.File(DSMCHOFiles[iFile], 'r')
-    times[iFile] = DSMCHOFile.attrs['Time']
+    times[iFile] = np.squeeze(DSMCHOFile.attrs['Time'])
     if iFile==int(nFiles/2):
       for iName in range(len(DSMCHOFile.attrs['VarNamesAdd'])):
         VarName = DSMCHOFile.attrs['VarNamesAdd'][iName]
@@ -1372,6 +1373,9 @@ def PrepareSimulation():
   Solution.TooFewValues=False
 
   # Output Simparameter:
+  for name, val in [('tend', Simulation.tend), ('dt', Simulation.dt), ('CurrentVelo', Iteration.CurrentVelo)]:
+    if math.isnan(val):
+        raise ValueError(f'{name} is NaN — cannot prepare simulation')
 
   print(f'tend:                     {Simulation.tend:e}')
   print(f'dt:                       {Simulation.dt:e}')
