@@ -262,6 +262,8 @@ before_script:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 stages:
   - lint
+  - download
+  - tools
   - build
   - build_weekly
   - reggie_checkin_short
@@ -669,7 +671,7 @@ ruff:
     - $RUFF check --extend-ignore=E201,E202,E203,E221,E222,E225,E231,E271,E272"$ADDIGNORE" --line-length=132 --preview docs tools --statistics
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "build": Build on check-in
+# Stage "Download": install python venv, pyhope and reggie
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 
 venv_create:
@@ -678,7 +680,7 @@ venv_create:
     - key: "venv"
       paths: [venv]
       policy: pull-push
-  stage: build
+  stage: download
   script:
     - deactivate || true
     - rm -rf venv
@@ -702,7 +704,7 @@ pyhope_download:
         - pyhope
         - reggie
       policy: pull-push
-  stage: build
+  stage: download
   script:
     - pwd
     - pip --version
@@ -734,7 +736,7 @@ reggie_download:
         - reggie
       policy: pull-push
     - *coverage_cache
-  stage: build
+  stage: download
   script:
     # Check if the "reggie" directory contains a ".git" directory
     # Check if the .day file exists under "reggie/.day" and move it here if that is the case
@@ -759,6 +761,29 @@ reggie_download:
     # Output reggie commit hash for checking if the correct reggie version is used
     - if [ -f "reggie/.git/refs/heads/master" ]; then cat reggie/.git/refs/heads/master ; fi
   timeout: 5 minutes
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "tools": Test the scripts in the tools directory
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+createCylinderHOPR.py:
+  <<: *default_param
+  stage: tools
+  dependencies: []
+  needs: [pyhope_download]
+  cache:
+    - *venv_cache
+  script:
+    - |
+      set +o pipefail  # the pipeline only fails if the last command fails (default bash behavior)
+      cd tools/createCylinderHOPR
+      # prepare the config file
+      echo '{"ik": 1,"ir": 2,"iz": 1,"lz": 1.0,"mode": 3,"periodic": 0,"pyhope": "pyhope","r1": 0.5,"r2": 1.0}' > .createCylinderHOPR.json
+      # yes '' keeps sending empty strings, so every input() call gets an empty response automatically
+      yes '' | python createCylinderHOPR.py  # this fails because yes exits 1 (broken pipe). Therefore, set +o pipefail to ignore that
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "build": Build on check-in
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 
 build:
   extends: .default_build_param
@@ -1591,7 +1616,7 @@ WEK_Raytracing_debug_Leapfrog:
       when: never
     - if: $[[ inputs.DO_WEEKLY ]] == true
 
-WEK_Raytracing_debug_Leapfrog:
+WEK_NIG_Raytracing_debug_Leapfrog:
   <<: *defaults_poisson_weekly
   stage: reggie_weekly
   script:

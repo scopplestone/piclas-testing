@@ -126,7 +126,7 @@ class ExternalCommand :
                 # Read up to a 1 KB chunk of data
                 out_s = os.read(pipeOut_r, 1024)
                 if not isinstance(out_s, str):
-                    out_s = out_s.decode("utf-8")
+                    out_s = out_s.decode("utf-8", errors="ignore")   # silently drops bad bytes
                 bufOut = bufOut + out_s
                 tmp = bufOut.split('\n')
                 for line in tmp[:-1] :
@@ -520,7 +520,8 @@ DEFVAR=(REAL):   f1 = 1.0    ! stretching factor in radial direction (a larger v
 ! OUTPUT
 !================================================================================================================================= !
 ProjectName        = Cylinder3_Ngeo3
-Debugvisu          = T                          ! Visualize mesh and boundary conditions (tecplot ascii)
+DebugVisu          = F
+DebugMesh          = T
 checkElemJacobians = T
 
 !================================================================================================================================= !
@@ -755,7 +756,7 @@ f.write(r"""
 !================================================================================================================================= !
 ! MESH POST DEFORM
 !================================================================================================================================= !
-MeshPostDeform=1                            ! deforms [-1,1]^2 to a cylinder with radius Postdeform_R0
+MeshPostDeform=cylinder                            ! deforms [-1,1]^2 to a cylinder with radius Postdeform_R0
 PostDeform_R0=s0                           ! here domain is [-4,4]^2 mapped to a cylinder with radius 0.25*4 = 1
 
 """)
@@ -772,15 +773,17 @@ print( )
 
 # Run pyhope
 if Configuration.config.get("pyhope", None) is not None :
-    if os.path.exists(Configuration.config["pyhope"]):
+    if os.path.exists(Configuration.config["pyhope"]) or shutil.which('pyhope'):
         input("Hit [enter] to run pyhope (or [Ctrl+c] to abort): ")
         cmd=[Configuration.config["pyhope"], 'hopr.ini']
         try:
             Executable.execute_cmd(cmd, cwd)
-        except Exception:
+        except Exception as e:
             print()
+            print(e)
             print(red("Failed to run the executable [{}]".format(Configuration.config["pyhope"])))
             print(red("You can try and run the command by hand in this directory via: {} {}".format(Configuration.config["pyhope"], 'hopr.ini')))
+            sys.exit(1)
     else:
         print(red("Error: pyhope executable not found under [{}]".format(Configuration.config["pyhope"])))
         sys.exit(1)
