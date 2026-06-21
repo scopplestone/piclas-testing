@@ -650,10 +650,10 @@ USE MOD_Globals_Vars          ,ONLY: RelativisticLimit
 USE MOD_Particle_Vars         ,ONLY: Species, PartSpecies, VarTimeStep
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, BGGas, ChemReac, DSMC, PartIntEn, CollInf
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
-USE MOD_Particle_Vars         ,ONLY: Species
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_part_tools            ,ONLY: CalcEVib_particle, CalcEElec_particle, RotInitPolyRoutineFuncPTR
 USE MOD_MCC_XSec              ,ONLY: InterpolateCrossSection
+USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -778,7 +778,7 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     END IF
     ! Reservoir simulation: Calculation of reaction rate coefficient
     IF (DSMC%ReservoirSimu.AND..NOT.DSMC%ReservoirRateStatistic) THEN
-      ChemReac%NumReac(ReacTest) = ChemReac%NumReac(ReacTest) + ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath)
+      ChemReac%NumReac(ReacTest) = ChemReac%NumReac(ReacTest) + ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) * GetParticleWeight(PartIndex)
       ChemReac%ReacCount(ReacTest) = ChemReac%ReacCount(ReacTest) + 1
     END IF
   END IF

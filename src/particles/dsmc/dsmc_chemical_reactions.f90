@@ -282,7 +282,7 @@ END IF
 ! ReactionProb should not be gt 1 to avoid meaningless high weighting of a single reaction
 IF (ReactionProb.GT.1) ReactionProb = 1.0
 IF (DSMC%ReservoirSimu.AND..NOT.DSMC%ReservoirRateStatistic) THEN
-  ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb
+  ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb * SumWeightEduct / NumWeightEduct
   ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
 END IF
 
@@ -411,16 +411,6 @@ IF(EductReac(3).NE.0) THEN
   END IF
 END IF
 
-! Do not perform the reaction in case the reaction is to be calculated at a constant gas composition (DSMC%ReservoirSimuRate = T)
-IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) THEN
-  ! Count the number of reactions to determine the actual reaction rate
-  IF (DSMC%ReservoirRateStatistic) THEN
-    ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1
-  END IF
-  ! Leave the routine again
-  RETURN
-END IF
-
 Xi_elec = 0.
 EZeroTempToExec = 0.
 
@@ -469,6 +459,14 @@ END IF
 DO iPart = 1, NumEduct
   Weight(iPart) = GetParticleWeight(ReactInx(iPart))
 END DO
+
+! Do not perform the reaction in case the reaction is to be calculated at a constant gas composition (DSMC%ReservoirSimuRate = T)
+IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) THEN
+  ! Count the number of reactions to determine the actual reaction rate
+  IF (DSMC%ReservoirRateStatistic) ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + SUM(Weight(:)) / NumEduct
+  ! Leave the routine again
+  RETURN
+END IF
 
 ! Set the particle weights of the products (they are equal to the weights of the reactants except in the case of a recombination)
 IF ((usevMPF).AND.(TRIM(ChemReac%ReactType(iReac)).EQ.'R')) THEN

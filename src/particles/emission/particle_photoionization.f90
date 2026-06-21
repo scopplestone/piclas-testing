@@ -695,16 +695,6 @@ LOGICAL                       :: IonizationReaction
 EductReac(1:3) = ChemReac%Reactants(iReac,1:3)
 ProductReac(1:4) = ChemReac%Products(iReac,1:4)
 
-! Do not perform the reaction in case the reaction is to be calculated at a constant gas composition (DSMC%ReservoirSimuRate = T)
-IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) THEN
-  ! Count the number of reactions to determine the actual reaction rate
-  IF (DSMC%ReservoirRateStatistic) THEN
-    ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1
-  END IF
-  ! Leave the routine again
-  RETURN
-END IF
-
 Weight = 0.
 NumProd = 2; SumWeightProd = 0.
 
@@ -717,6 +707,14 @@ ELSE IF (PartSpecies(Coll_pData(iPair)%iPart_p2).EQ.ChemReac%Reactants(iReac,1))
   ReactInx(1) = Coll_pData(iPair)%iPart_p2
 ELSE
   CALL abort(__STAMP__,'ERROR in PhotoIonization_InsertProducts: Pair does not correspond to the reactants!')
+END IF
+
+! Do not perform the reaction in case the reaction is to be calculated at a constant gas composition (DSMC%ReservoirSimuRate = T)
+IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) THEN
+  ! Count the number of reactions to determine the actual reaction rate
+  IF (DSMC%ReservoirRateStatistic) ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + GetParticleWeight(ReactInx(1))
+  ! Leave the routine again
+  RETURN
 END IF
 
 ! Set the particle weights to the same as the background species
