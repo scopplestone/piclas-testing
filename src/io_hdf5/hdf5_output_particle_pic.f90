@@ -35,7 +35,7 @@ PUBLIC :: WriteElectroMagneticPICFieldToHDF5
 
 CONTAINS
 
-SUBROUTINE WriteNodeSourceExtToHDF5(OutputTime)
+SUBROUTINE WriteNodeSourceExtToHDF5(FileName,OutputTime)
 !===================================================================================================================================
 ! Write NodeSourceExt (external charge density) field to HDF5 file
 !===================================================================================================================================
@@ -62,14 +62,15 @@ USE MOD_HDF5_Output_ElemData,ONLY: WriteAdditionalElemData
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)     :: OutputTime
+CHARACTER(LEN=255),INTENT(IN)   :: FileName
+REAL,INTENT(IN)                 :: OutputTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER,PARAMETER              :: nVarOut=1
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-CHARACTER(LEN=255)             :: FileName,DataSetName
+CHARACTER(LEN=255)             :: FileNameTmp, DataSetName
 INTEGER                        :: iElem,iMax,CNElemID
 REAL                           :: NodeSourceExtEqui(1:nVarOut,0:1,0:1,0:1),sNodeVol(1:8)
 INTEGER                        :: NodeID(1:8)
@@ -172,24 +173,24 @@ iMax=1 ! write to state file
 DO i = 1, iMax
   IF(i.EQ.1)THEN
     ! Write field to _State_.h5 file (or restart)
-    FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
+    FileNameTmp = FileName
     DataSetName='DG_SourceExt'
   ELSE
     ! Generate skeleton for the file with all relevant data on a single processor (MPIRoot)
     ! Write field to separate file for debugging purposes
-    CALL GenerateFileSkeleton('NodeSourceExtGlobal',nVarOut,StrVarNames,TRIM(MeshFile),OutputTime,FileNameOut=FileName)
+    CALL GenerateFileSkeleton('NodeSourceExtGlobal',nVarOut,StrVarNames,TRIM(MeshFile),OutputTime,FileNameOut=FileNameTmp)
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
     IF(MPIRoot)THEN
-      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
+      CALL OpenDataFile(FileNameTmp,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
       CALL WriteAttributeToHDF5(File_ID,'VarNamesNodeSourceExtGlobal',nVarOut,StrArray=StrVarNames)
       CALL CloseDataFile()
     END IF ! MPIRoot
     DataSetName='DG_Solution'
 
     ! Write 'Nloc' array to the .h5 file, which is required for 2D DG_Solution conversion in piclas2vtk
-    CALL WriteAdditionalElemData(FileName,ElementOutNloc)
+    CALL WriteAdditionalElemData(FileNameTmp,ElementOutNloc)
   END IF ! i.EQ.2
 
   ! Associate construct for integer KIND=8 possibility
@@ -197,7 +198,7 @@ DO i = 1, iMax
             nDofsMapping    => INT(nDofsMapping,IK)      ,&
             nDOFOutput      => INT(nDOFOutput,IK)        ,&
             offsetDOF       => INT(offsetDOF,IK)         )
-    CALL GatheredWriteArray(FileName,create=.FALSE.,&
+    CALL GatheredWriteArray(FileNameTmp,create=.FALSE.,&
                           DataSetName = TRIM(DataSetName) , rank = 2                , &
                           nValGlobal  = (/nVarOut         , nDofsMapping/)          , &
                           nVal        = (/nVarOut         , nDOFOutput/)            , &
@@ -212,7 +213,7 @@ SDEALLOCATE(StrVarNames)
 END SUBROUTINE WriteNodeSourceExtToHDF5
 
 
-SUBROUTINE WriteSurfNodeSourceToHDF5(OutputTime)
+SUBROUTINE WriteSurfNodeSourceToHDF5(FileName,OutputTime)
 !===================================================================================================================================
 ! Write SurfNodeSource(external charge density) field to HDF5 file
 !===================================================================================================================================
@@ -235,14 +236,14 @@ USE MOD_PICDepo_Vars        ,ONLY: SurfNodeSource,nDepoSurfNodesTotal,nDepoSurfS
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)     :: OutputTime
+CHARACTER(LEN=255),INTENT(IN)   :: FileName
+REAL,INTENT(IN)                 :: OutputTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER,PARAMETER              :: nVarOut=2
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),PARAMETER   :: DataSetName='SurfNodeSource'
 INTEGER                        :: firstNode,lastNode
 !===================================================================================================================================
@@ -254,9 +255,6 @@ IF(iter.NE.0)THEN
   IF(DoDeposition) CALL ExchangeSurfNodeSourceMPI()
 #endif /*USE_MPI*/
 END IF ! iter.NE.0
-
-! Write field to _State_.h5 file (or restart)
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
 
 IF(MPIRoot)THEN
   ALLOCATE(StrVarNames(1:nVarOut))
