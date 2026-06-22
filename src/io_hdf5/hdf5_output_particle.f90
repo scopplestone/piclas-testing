@@ -1179,6 +1179,8 @@ END IF
 locnPart =   0
 
 SELECT CASE(ParticleWeighting%CloneMode)
+CASE(0)
+  RETURN
 CASE(1)
   tempDelay = ParticleWeighting%CloneInputDelay - 1
 CASE(2)
