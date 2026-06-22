@@ -1352,6 +1352,9 @@ ELSE !CollisMode.GT.0
   IF(DSMC%ReservoirSimu.AND.DSMC%UseNearestNeighbour.AND.(DoRestart.OR.(NINT(TEnd/ManualTimeStep).GT.1))) THEN
     CALL abort(__STAMP__,'Particles-DSMC-UseNearestNeighbour = T not allowed for RESERVOIR simulations, if you simulate more than one time step!')
   END IF
+  IF(DSMC%UseNearestNeighbour.AND.ParticleWeighting%PerformCloning) THEN
+    IF(ParticleWeighting%CloneMode.EQ.0) CALL CollectiveStop(__STAMP__,'Particles-DSMC-UseNearestNeighbour = T not allowed for CloneMode = 0!')
+  END IF
   IF(DSMC%UseOctree) THEN
     DO iSpec = 1, nSpecies
       DO iInit = 1, Species(iSpec)%NumberOfInits
