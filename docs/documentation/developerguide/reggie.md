@@ -4,12 +4,12 @@ The purpose of regression testing is summarized by the following [Wikipedia quot
 
 > *Regression testing (rarely non-regression testing) is re-running functional and non-functional tests to ensure that previously developed and tested software still performs after a change.*
 
-## reggie2.0 Tool
+## reggie Tool
 
 PICLas is continuously tested by utilizing a Python based regression testing environment, which is
-run by a [Gitlab Runner](https://docs.gitlab.com/runner/). Therefore, the tool *reggie2.0* is used, which is found under
-[https://github.com/piclas-framework/reggie2.0](https://github.com/piclas-framework/reggie2.0).
-Additionally, the different [Analyze routines](https://github.com/piclas-framework/reggie2.0#analyze-routines-for-analyzeini)
+run by a [Gitlab Runner](https://docs.gitlab.com/runner/). Therefore, the tool *reggie* is used, which is found under
+[https://github.com/reggie-framework/reggie](https://github.com/reggie-framework/reggie).
+Additionally, the different [Analyze routines](https://github.com/reggie-framework/reggie#analyze-routines-for-analyzeini)
 defined in the *analysis.ini* files that can be applied and the general structure of a regression test is described there.
 Different tests are executed on check-in, during nightly or weekly testing. These tests are defined
 in the file *.gitlab-ci.yml* that is located in the top level repository directory of PICLas.
@@ -18,17 +18,17 @@ of the different tests for PICLas are given [here](https://github.com/piclas-fra
 The automatic execution by a [Gitlab Runner](https://docs.gitlab.com/runner/) can be performed on any machine that is connected to the
 internet and in the following sections, the setup of such a machine is described.
 
-## Local execution of reggie2.0
+## Local execution of reggie
 To quickly test regression checks locally, either to reproduce an error that has occurred during a GitLab pipeline or to test newly
-developed code, the [reggie2.0](https://github.com/piclas-framework/reggie2.0) tool can be executed without the need to install a
+developed code, the [reggie](https://github.com/reggie-framework/reggie) tool can be executed without the need to install a
 [Gitlab Runner](https://docs.gitlab.com/runner/).
 
-1. Install reggie from GitHub as described [here](https://github.com/piclas-framework/reggie2.0?tab=readme-ov-file#installation) and
+1. Install reggie from GitHub as described [here](https://github.com/reggie-framework/reggie?tab=readme-ov-file#installation) and
    run the tool with `--help` to get an overview of the available options
 
        reggie --help
 
-1. Build the required executable, e.g., *piclas*, either automatically using the [reggie2.0](https://github.com/piclas-framework/reggie2.0)
+1. Build the required executable, e.g., *piclas*, either automatically using the *reggie*
    tool or configure cmake and compile the executable by hand.
 
    Building the executable automatically requires a directory under *regressioncheck* that contains a *builds.ini* file from which
@@ -72,7 +72,7 @@ developed code, the [reggie2.0](https://github.com/piclas-framework/reggie2.0) t
    **pyhope** needs to be pre-installed on the system and an installation guide can be found on
    [GitHub - PyHOPE](https://github.com/hopr-framework/PyHOPE).
 
-1. Run the [reggie2.0](https://github.com/piclas-framework/reggie2.0) tool either a) automatic mode or b) pre-compiled mode:
+1. Run the *reggie* tool either a) automatic mode or b) pre-compiled mode:
 
    This file is used to compile one or more *piclas* executables and the directories that accompany the *builds.ini* file will be used
    for testing. Note that not all executables might be used for those directories, as they might be excluded via the
@@ -80,14 +80,14 @@ developed code, the [reggie2.0](https://github.com/piclas-framework/reggie2.0) t
 
    To run the automatic compilation and testing procedure, simply navigate the terminal to a location outside of the
    *regressioncheck* directory (which is found in the *piclas* repository).
-   Switch to the *home* directory and run the [reggie2.0](https://github.com/piclas-framework/reggie2.0) tool there via
+   Switch to the *home* directory and run the *reggie* tool there via
 
        cd ~
        reggie /path/to/piclas/regressioncheck/NIG_DSMC
 
    to start compiling and executing the resulting code.
    All output is placed under a new directory *output_dir* within the current directory.
-   Never run the [reggie2.0](https://github.com/piclas-framework/reggie2.0) tool from within the */path/to/piclas/regressioncheck/*
+   Never run the *reggie* tool from within the */path/to/piclas/regressioncheck/*
    //as the directory tree structure is copied from there and the source path and target path cannot be the same!
    This procedure will run all the example directories under *NIG_DSMC*.
 
@@ -98,7 +98,7 @@ developed code, the [reggie2.0](https://github.com/piclas-framework/reggie2.0) t
        Ambipolar_Diffusion_SF  MCC_BGG_Elec_XSec_Sampling  RotPeriodicBCMultiInterPlane  VirtualCellMerge
 
    To run the pre-compiled executable, navigate to the corresponding *build* directory and run the
-   [reggie2.0](https://github.com/piclas-framework/reggie2.0) tool there
+   *reggie* tool there
 
        cd ~/piclas/build
        reggie -e ./bin/piclas ../regressioncheck/NIG_DSMC/Ambipolar_Diffusion
@@ -107,7 +107,7 @@ developed code, the [reggie2.0](https://github.com/piclas-framework/reggie2.0) t
 
 1. The *analysis.ini* file within the *Ambipolar_Diffusion* directory lists the analysis that is performed after the successful
    execution of *piclas*.
-   An overview of the available analysis functions can be found [here](https://github.com/piclas-framework/reggie2.0?tab=readme-ov-file#analyze-routines-for-analyzeini).
+   An overview of the available analysis functions can be found [here](https://github.com/reggie-framework/reggie?tab=readme-ov-file#analyze-routines-for-analyzeini).
    Also, look into the existing *regressioncheck* examples to get an idea how to construct a new *regressioncheck* setup or modify
    an existing one.
 
@@ -190,7 +190,7 @@ name: tab:pipeline_inputs
 | DO_NIGHTLY                    | longer tests, executed every day                                                                                                         |
 | DO_WEEKLY                     | very long tests, executed once a week                                                                                                    |
 | DO_CODE_COVERAGE              | Generate coverage data of piclas for all jobs in current pipeline                                                                        |
-| DO_REGGIE_COVERAGE            | Generate coverage data of reggie2.0 itself for all jobs in current pipeline                                                              |
+| DO_REGGIE_COVERAGE            | Generate coverage data of reggie itself for all jobs in current pipeline                                                              |
 | DO_NODE_SPLIT                 | MPI: virtual CPU splitting for multi-node testing, where a specific number of cores/threads are grouped in separate nodes (default is 2) |
 | DO_CORE_SPLIT                 | MPI: virtual CPU splitting for multi-node testing, where each core/thread resembles a separate node                                      |
 | DO_MPICH                      | MPI: Force compilation using MPICH instead of OpenMPI                                                                                    |
@@ -234,9 +234,9 @@ For example, create a build directory and compile the Poisson solver with the Le
     cmake .. -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_USE_PETSC=ON -DPICLAS_CODE_COVERAGE=ON
     make -j
 
-To enable code coverage when using reggie locally, use the `-o` option. More information can be found in the [reggie documentation](https://github.com/reggie-framework/reggie2.0).
+To enable code coverage when using reggie locally, use the `-o` option. More information can be found in the [reggie documentation](https://github.com/reggie-framework/reggie).
 Note that due to the module names, e.g., "__mod_dsmc_MOD_dsmc_main", gcovr must be run with `--include-internal-functions`, otherwise all functions will be excluded.
-This can be done with the additional reggie2.0 flag `--gcovr_extra`, e.g. `--gcovr_extra \'--include-internal-functions\'`.
+This can be done with the additional reggie flag `--gcovr_extra`, e.g. `--gcovr_extra \'--include-internal-functions\'`.
 
 To run the regression test and create the code coverage data for piclas
 
@@ -252,13 +252,13 @@ View the report with any browser
 
 #### Combining single reports
 
-In some cases, it might be helpful to combine single reports of different reggie runs. This can be done using [gcovr](https://github.com/gcovr/gcovr), which is the same tool that reggie2.0 uses itself. For this case, `.json` files are used. Separate reports can be combined with
+In some cases, it might be helpful to combine single reports of different reggie runs. This can be done using [gcovr](https://github.com/gcovr/gcovr), which is the same tool that reggie uses itself. For this case, `.json` files are used. Separate reports can be combined with
 ```
 gcovr --root <root_dir> --add-tracefile <json_file1> --add-tracefile <json_file2> --html-nested report_name.html
 ```
-where `--add-tracefile` takes wildcard arguments as well. The `--html-nested` option generates the same output format as reggie2.0 on GitLab, which is nicely structured analogous to the src directory. `--root` specifies the root directory containing the source files and `report_name.html` the output file.
+where `--add-tracefile` takes wildcard arguments as well. The `--html-nested` option generates the same output format as reggie on GitLab, which is nicely structured analogous to the src directory. `--root` specifies the root directory containing the source files and `report_name.html` the output file.
 
-Note that `<root_dir>` must be the same directory as the one used for the gcovr call that originally created the single report files. E.g. all single reports are created with `--root ~/some_dir`, then the `<root_dir>` for combining the reports must also be `--root ~/some_dir`. Reggie2.0 usually tries to append `src` to the found root directory to exclude UnitTests in the coverage information for piclas. Therefore combining reports generated by reggie2.0 for piclas would be done with
+Note that `<root_dir>` must be the same directory as the one used for the gcovr call that originally created the single report files. E.g. all single reports are created with `--root ~/some_dir`, then the `<root_dir>` for combining the reports must also be `--root ~/some_dir`. Reggie usually tries to append `src` to the found root directory to exclude UnitTests in the coverage information for piclas. Therefore combining reports generated by reggie for piclas would be done with
 ```
 gcovr --root /path/to/piclas/src --add-tracefile Coverage/*.json --html-nested report_name.html
 ```
@@ -338,7 +338,7 @@ name: tab:gitlab_ci_local_inputs
 
 ## Regression Test *Gitlab Runner* Setup for self-hosted Servers
 This section describes the necessary steps to install a [Gitlab Runner](https://docs.gitlab.com/runner/) on a Ubuntu system to run *Gitlab Build Pipelines*.
-In a first step, the required software packages for PICLas and [reggie2.0](https://github.com/piclas-framework/reggie2.0) are installed on a new system.
+In a first step, the required software packages for PICLas and [reggie](https://github.com/reggie-framework/reggie) are installed on a new system.
 In a second step, the *gitlab-runner* program is installed and the setup of runner is described.
 
 ### Prerequisites: Installation of Software on Clean Ubuntu Setup (18.04)

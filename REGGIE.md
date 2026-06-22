@@ -1,6 +1,6 @@
 # PICLas Regression Testing
 
-PICLas utilizes the Reggie2.0 toolbox for regression testing. A detailed documentation on its usage is available [at this repository](https://gitlab.com/reggie2.0/reggie2.0/blob/master/README.md). A list detailing the test cases and which features are tested is given below.
+PICLas utilizes the reggie toolbox for regression testing. A detailed documentation on its usage is available [at this repository](https://github.com/reggie-framework/reggie). A list detailing the test cases and which features are tested is given below.
 
 # List of Cases
 
