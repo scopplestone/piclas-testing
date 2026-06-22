@@ -6,17 +6,23 @@ _display_changes () {
   echo -e "Changes performed by this script that convert a HOPR .ini file into a PyHOPE .ini file:"
   OUTPUT="HOPR .ini:PyHOPE .ini:Description\n"
   OUTPUT=${OUTPUT}"────────────:────────────:────────────\n"
-  OUTPUT=${OUTPUT}"DebugVisu=T:DebugVisu=F:changed functionality now envokes the interactive gmsh GUI\n"
+  OUTPUT=${OUTPUT}"zLength:MeshExtrudeLength:renamed variable\n"
+  OUTPUT=${OUTPUT}"nElemsZ:MeshExtrudeElems:renamed variable\n"
+  OUTPUT=${OUTPUT}"sfc_type:MeshSortingSFC:renamed variable\n"
   OUTPUT=${OUTPUT}"generateFEMconnectivity:doFEMConnect:renamed variable\n"
   OUTPUT=${OUTPUT}"SplitToHex:doSplitToHex:renamed variable\n"
+  OUTPUT=${OUTPUT}"DebugVisu=T:DebugVisu=F:changed functionality now envokes the interactive gmsh GUI\n"
   OUTPUT=${OUTPUT}"MeshPostDeform=1:MeshPostDeform=cylinder:changed variable datatype from integer to string\n"
   OUTPUT=${OUTPUT}"MeshPostDeform=2:MeshPostDeform=sphere:changed variable datatype from integer to string\n"
+  OUTPUT=${OUTPUT}"lowerZ_BC:MeshExtrudeBCIndexBot:changed variable datatype from int array e.g. (/3,0,0,0/) to scalar int e.g. 3\n"
+  OUTPUT=${OUTPUT}"upperZ_BC:MeshExtrudeBCIndexTop:changed variable datatype from int array e.g. (/3,0,0,0/) to scalar int e.g. 3\n"
+  OUTPUT=${OUTPUT}"Mode=2:Mode=external:changed variable value from 2 to 3 or 'external'\n"
+  OUTPUT=${OUTPUT}"Mode=5:Mode=external:changed variable value from 5 to 3 or 'external'\n"
+  OUTPUT=${OUTPUT}"Mode=11:Mode=internal:changed variable value from 11 to 1 or 'external'\n"
   OUTPUT=${OUTPUT}"postscalemesh:[REMOVED]:variable no longer exists in pyhope\n"
   OUTPUT=${OUTPUT}"meshTemplate:[REMOVED]:variable no longer exists in pyhope\n"
   OUTPUT=${OUTPUT}"SpaceQuandt:[REMOVED]:variable no longer exists in pyhope\n"
   OUTPUT=${OUTPUT}"MeshDim:[REMOVED]:variable no longer exists in pyhope\n"
-  OUTPUT=${OUTPUT}"lowerZ_BC:[REMOVED]:variable no longer exists in pyhope\n"
-  OUTPUT=${OUTPUT}"upperZ_BC:[REMOVED]:variable no longer exists in pyhope\n"
   OUTPUT=${OUTPUT}"logging:[REMOVED]:variable no longer exists in pyhope\n"
   OUTPUT=${OUTPUT}"ConformConnect:[REMOVED]:variable no longer exists in pyhope\n"
   OUTPUT=${OUTPUT}"useCurveds:[REMOVED]:variable no longer exists in pyhope\n"
@@ -24,12 +30,6 @@ _display_changes () {
   OUTPUT=${OUTPUT}"nVV:[REMOVED]:variable no longer exists in pyhope\n"
   OUTPUT=${OUTPUT}"jacobianTolerance:[REMOVED]:variable no longer exists in pyhope\n"
   OUTPUT=${OUTPUT}"DebugVisuLevel:[REMOVED]:variable no longer exists in pyhope\n"
-  OUTPUT=${OUTPUT}"Mode=2:Mode=external:changed variable value from 2 to 3 or 'external'\n"
-  OUTPUT=${OUTPUT}"Mode=5:Mode=external:changed variable value from 5 to 3 or 'external'\n"
-  OUTPUT=${OUTPUT}"Mode=11:Mode=internal:changed variable value from 11 to 1 or 'external'\n"
-  OUTPUT=${OUTPUT}"zLength:MeshExtrudeLength:renamed variable\n"
-  OUTPUT=${OUTPUT}"nElemsZ:MeshExtrudeElems:renamed variable\n"
-  OUTPUT=${OUTPUT}"sfc_type:MeshSortingSFC:renamed variable\n"
   # stripping ANSI codes before measuring with sed 's/\x1b\[[0-9;]*m//g'
   MAXCOL=$(echo -e "${OUTPUT}" | column -s : -t -o$'      ' | sed 's/\x1b\[[0-9;]*m//g' | awk '{ if (length > max) max = length } END { print max }')
   MAXCOLPLUS=$((MAXCOL + 2))
@@ -70,7 +70,7 @@ if test -t 1; then # if terminal
 fi
 
 # Check if there are any files to process
-NbrOfHoprFiles=$(find ./ -type f -name "hopr.ini" | wc -l)
+NbrOfHoprFiles=$(find ./ -type f -name "hopr*.ini" | wc -l)
 NbrOfExternalsFiles=$(find ./ -type f -name "externals.ini" | wc -l)
 
 # Output info on the number of found files
@@ -101,8 +101,6 @@ if [[ ${NbrOfHoprFiles} -gt 0 ]]; then
   # - meshTemplate
   # - SpaceQuandt
   # - MeshDim
-  # - lowerZ_BC
-  # - upperZ_BC
   # - logging
   # - ConformConnect
   # - useCurveds
@@ -111,7 +109,7 @@ if [[ ${NbrOfHoprFiles} -gt 0 ]]; then
   # - jacobianTolerance
   # - DebugVisuLevel
   # -
-  find ./ -type f -name "hopr*.ini" -exec sed -i '/postscalemesh\|meshTemplate\|SpaceQuandt\|MeshDim\|lowerZ_BC\|upperZ_BC\|logging\|ConformConnect\|useCurveds\|nFineHexa\|nVV\|jacobianTolerance\|DebugVisuLevel/Id' {} \;
+  find ./ -type f -name "hopr*.ini" -exec sed -i '/postscalemesh\|meshTemplate\|SpaceQuandt\|MeshDim\|logging\|ConformConnect\|useCurveds\|nFineHexa\|nVV\|jacobianTolerance\|DebugVisuLevel/Id' {} \;
 
   # Rename all mesh modes with external meshes (2, 5) to "Mode = external"
   find ./ -type f -name "hopr*.ini" -exec sed -i '/Mode.*=\s*[25].*/s/[25].*/external/' {} \;
@@ -131,6 +129,12 @@ if [[ ${NbrOfHoprFiles} -gt 0 ]]; then
   # Rename mesh SplitToHexsfc_type" to "doSplitToHex"
   # The \(do\)* matches zero or more existing do prefixes and discards them, then always writes exactly one do in the replacement. Running it multiple times will always result in doSplitToHex.
   find ./ -type f -name "hopr*.ini" -exec sed -i 's/\(do\)*SplitToHex/doSplitToHex/g' {} \;
+
+  # Rename mesh "lowerZ_BC" to "MeshExtrudeBCIndexBot"
+  find ./ -type f -name "hopr*.ini" -exec sed -i 's/lowerZ_BC = (\/\([0-9]\+\),0,0,0\/)/MeshExtrudeBCIndexBot = \1 ! Changed from (\/\1,0,0,0\/): Insert the correct BC index here (it must also be existent in external input mesh files when used)/g' {} \;
+
+  # Rename mesh "upperZ_BC" to "MeshExtrudeBCIndexTop"
+  find ./ -type f -name "hopr*.ini" -exec sed -i 's/upperZ_BC = (\/\([0-9]\+\),0,0,0\/)/MeshExtrudeBCIndexTop = \1 ! Changed from (\/\1,0,0,0\/): Insert the correct BC index here (it must also be existent in external input mesh files when used)/g' {} \;
 fi
 
 # Process externals.ini files
