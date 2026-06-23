@@ -72,7 +72,7 @@ USE MOD_Particle_Vars               ,ONLY: UseRotRefSubCycling
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM,InterPlanePartNumber, InterPlanePartIndx
 USE MOD_DSMC_Symmetry               ,ONLY: AdjustParticleWeight, SetInClones
 USE MOD_part_tools                  ,ONLY: ParticleOnProc
-USE MOD_DSMC_Vars                   ,ONLY: ParticleWeighting, BGGas
+USE MOD_DSMC_Vars                   ,ONLY: ParticleWeighting
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -83,7 +83,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                          :: i, InterPartID
 !===================================================================================================================================
-IF(ParticleWeighting%PerformCloning.AND.(BGGas%NumberOfSpecies.EQ.0)) CALL SetInClones()
+IF(ParticleWeighting%PerformCloning) CALL SetInClones()
 
 InterPlanePartNumber = 0
 ! 1) Loop over all particles that are still inside
