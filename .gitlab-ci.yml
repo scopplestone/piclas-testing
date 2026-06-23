@@ -781,6 +781,57 @@ createCylinderHOPR.py:
       # yes '' keeps sending empty strings, so every input() call gets an empty response automatically
       yes '' | python createCylinderHOPR.py  # this fails because yes exits 1 (broken pipe). Therefore, set +o pipefail to ignore that
 
+updatePiclasVersion.sh:
+  <<: *default_param
+  stage: tools
+  dependencies: []
+  needs: [pyhope_download]
+  cache:
+    - *venv_cache
+  script:
+    - rm -rf tools-testing/updatePiclasVersion || true
+    - mkdir -p tools-testing/updatePiclasVersion
+    - cp --parents ./src/globals/globals_vars.f90 tools-testing/updatePiclasVersion
+    - cp --parents .github/workflows/cmake-ninja.yml tools-testing/updatePiclasVersion
+    - cp CMakeLists.txt fpm.toml tools-testing/updatePiclasVersion
+    - cd tools-testing/updatePiclasVersion
+    - ../../tools/updatePiclasVersion.sh 1.0.0
+    - diff CMakeLists.txt ../../CMakeLists.txt > diff.log || true  # diff returns exit code 1 when files differ
+    - diff fpm.toml ../../fpm.toml >> diff.log || true  # diff returns exit code 1 when files differ
+    - diff ./src/globals/globals_vars.f90 ../.././src/globals/globals_vars.f90 >> diff.log || true  # diff returns exit code 1 when files differ
+    - diff .github/workflows/cmake-ninja.yml ../../.github/workflows/cmake-ninja.yml >> diff.log || true  # diff returns exit code 1 when files differ
+    - NBROFDDIFFS=$(wc -l < diff.log)
+    - cat diff.log
+    - echo "$NBROFDDIFFS"
+    - if [[ "$NBROFDDIFFS" != 18 ]]; then echo "There should be 18 diffs."; exit 1; fi
+
+userblock:
+  <<: *default_param
+  stage: tools
+  dependencies: []
+  needs: [pyhope_download]
+  cache:
+    - *venv_cache
+  script:
+    - rm -rf tools-testing/userblock || true
+    - mkdir -p tools-testing/userblock
+    - cd tools-testing/userblock
+    - python ../../tools/userblock/extract_userblock.py ../../regressioncheck/NIG_tracking_DSMC/curved/Cylinder_State_000.00000000000000000.h5
+    - grep -oP '(?<=\{\[\( )[^)]+(?= \)\]\})' userblock.txt
+
+convertHoprToPyHopeIni.sh:
+  <<: *default_param
+  stage: tools
+  dependencies: []
+  needs: [pyhope_download]
+  cache:
+    - *venv_cache
+  script:
+    - rm -rf tools-testing/convertHoprToPyHopeIni || true
+    - mkdir -p tools-testing/convertHoprToPyHopeIni
+    - cd tools-testing/convertHoprToPyHopeIni
+    - ../../tools/convertHoprToPyHopeIni.sh --help
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "build": Build on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------

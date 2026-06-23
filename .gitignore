@@ -90,3 +90,6 @@ reggie/
 
 # gmsh mesh files
 *.msh
+
+# tools testing directory and everything in it
+tools-testing/*
