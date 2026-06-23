@@ -100,6 +100,10 @@ spec:
 variables:
   # used for pipeline name in wek_radiation
   SHARED_MEMORY: $[[ inputs.SHARED_MEMORY]]
+  # fortitude
+  FORTITUDE: "/var/lib/gitlab-runner/.local/bin/fortitude"
+  # ruff
+  RUFF: "/var/lib/gitlab-runner/.local/bin/ruff"
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Use pipeline name to indicate whether default shared memory, node split or core split is used, and whether it is a checkin, nightly or weekly pipeline
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -257,6 +261,9 @@ before_script:
 # Stages
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 stages:
+  - lint
+  - download
+  - tools
   - build
   - build_weekly
   - reggie_checkin_short
@@ -298,6 +305,27 @@ stages:
       when: never
     # In all other cases, the job is added to the pipeline, with when: on_success
     - when: on_success
+
+.default_python_param: &default_python_param
+  <<: *default_build_param
+
+.default_python: &default_python
+  <<: *default_python_param
+  allow_failure: false
+
+.defaults_python: &defaults_python
+  extends: .default_python
+  variables:
+    # The project directory will be cleaned up at the end of the build
+    FF_ENABLE_JOB_CLEANUP: true
+    # The trace force send interval for logs is dynamically adjusted based on the trace update interval
+    FF_USE_DYNAMIC_TRACE_FORCE_SEND_INTERVAL: true
+    # Fastzip is a performant archiver for cache/artifact archiving and extraction
+    FF_USE_FASTZIP: true
+    # Use fast compression for artifacts, resulting in larger archives
+    ARTIFACT_COMPRESSION_LEVEL: "fast"
+    # Use no compression for caches
+    CACHE_COMPRESSION_LEVEL: "fastest"
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Default parameters for the testing stage only (reusing the previous template)
@@ -608,7 +636,42 @@ cleanup:
     - if: $[[ inputs.DO_CODE_COVERAGE ]] == true
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "build": Build on check-in
+# Stage "lint": Run the linters
+# policy: allow failure without stopping pipeline only on feature branches
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+fortitude:
+  <<: *defaults_python
+  stage: lint
+  dependencies: []
+  script:
+    - $FORTITUDE --version
+    - $FORTITUDE check --output-format=grouped src
+    - $FORTITUDE check src --statistics --quiet
+  rules:
+    # Skip running this job for merge requests targeting the default branch
+  - if: '$CI_MERGE_REQUEST_ID && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH'
+    when: never
+    # For feature branches, allow failure without stopping the pipeline
+  - if: '$CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH'
+    allow_failure: true
+    # For master branch, do not allow failure without stopping the pipeline
+  - when: always
+    allow_failure: false
+
+ruff:
+  <<: *defaults_python
+  stage: lint
+  dependencies: []
+  script:
+    - $RUFF --version
+    # You can't ignore E999 (syntax errors) — ruff explicitly prevents it since the file can't be parsed at all, making other checks meaningless.
+    - ADDIGNORE=,F821,PLW0602,UP031,DTZ011,TRY002,BLE001,E722,SIM115,RUF012,SIM102,B018,EXE001,S110,LOG015,TRY300,PLC0206,PLR1704,F509,PLE1300,PLW0127,S102,SIM113,RET504,F841,C408,FLY002
+    - $RUFF check --extend-ignore=E201,E202,E203,E221,E222,E225,E231,E271,E272"$ADDIGNORE" --line-length=132 --preview docs tools
+    - echo "Ignoring $ADDIGNORE errors for now. Fix them in the near future."
+    - $RUFF check --extend-ignore=E201,E202,E203,E221,E222,E225,E231,E271,E272"$ADDIGNORE" --line-length=132 --preview docs tools --statistics
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "Download": install python venv, pyhope and reggie
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 
 venv_create:
@@ -617,7 +680,7 @@ venv_create:
     - key: "venv"
       paths: [venv]
       policy: pull-push
-  stage: build
+  stage: download
   script:
     - deactivate || true
     - rm -rf venv
@@ -641,7 +704,7 @@ pyhope_download:
         - pyhope
         - reggie
       policy: pull-push
-  stage: build
+  stage: download
   script:
     - pwd
     - pip --version
@@ -673,7 +736,7 @@ reggie_download:
         - reggie
       policy: pull-push
     - *coverage_cache
-  stage: build
+  stage: download
   script:
     # Check if the "reggie" directory contains a ".git" directory
     # Check if the .day file exists under "reggie/.day" and move it here if that is the case
@@ -698,6 +761,80 @@ reggie_download:
     # Output reggie commit hash for checking if the correct reggie version is used
     - if [ -f "reggie/.git/refs/heads/master" ]; then cat reggie/.git/refs/heads/master ; fi
   timeout: 5 minutes
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "tools": Test the scripts in the tools directory
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+createCylinderHOPR.py:
+  <<: *default_param
+  stage: tools
+  dependencies: []
+  needs: [pyhope_download]
+  cache:
+    - *venv_cache
+  script:
+    - |
+      set +o pipefail  # the pipeline only fails if the last command fails (default bash behavior)
+      cd tools/createCylinderHOPR
+      # prepare the config file
+      echo '{"ik": 1,"ir": 2,"iz": 1,"lz": 1.0,"mode": 3,"periodic": 0,"pyhope": "pyhope","r1": 0.5,"r2": 1.0}' > .createCylinderHOPR.json
+      # yes '' keeps sending empty strings, so every input() call gets an empty response automatically
+      yes '' | python createCylinderHOPR.py  # this fails because yes exits 1 (broken pipe). Therefore, set +o pipefail to ignore that
+
+updatePiclasVersion.sh:
+  <<: *default_param
+  stage: tools
+  dependencies: []
+  needs: [pyhope_download]
+  cache:
+    - *venv_cache
+  script:
+    - rm -rf tools-testing/updatePiclasVersion || true
+    - mkdir -p tools-testing/updatePiclasVersion
+    - cp --parents ./src/globals/globals_vars.f90 tools-testing/updatePiclasVersion
+    - cp --parents .github/workflows/cmake-ninja.yml tools-testing/updatePiclasVersion
+    - cp CMakeLists.txt fpm.toml tools-testing/updatePiclasVersion
+    - cd tools-testing/updatePiclasVersion
+    - ../../tools/updatePiclasVersion.sh 1.0.0
+    - diff CMakeLists.txt ../../CMakeLists.txt > diff.log || true  # diff returns exit code 1 when files differ
+    - diff fpm.toml ../../fpm.toml >> diff.log || true  # diff returns exit code 1 when files differ
+    - diff ./src/globals/globals_vars.f90 ../.././src/globals/globals_vars.f90 >> diff.log || true  # diff returns exit code 1 when files differ
+    - diff .github/workflows/cmake-ninja.yml ../../.github/workflows/cmake-ninja.yml >> diff.log || true  # diff returns exit code 1 when files differ
+    - NBROFDDIFFS=$(wc -l < diff.log)
+    - cat diff.log
+    - echo "$NBROFDDIFFS"
+    - if [[ "$NBROFDDIFFS" != 18 ]]; then echo "There should be 18 diffs."; exit 1; fi
+
+userblock:
+  <<: *default_param
+  stage: tools
+  dependencies: []
+  needs: [pyhope_download]
+  cache:
+    - *venv_cache
+  script:
+    - rm -rf tools-testing/userblock || true
+    - mkdir -p tools-testing/userblock
+    - cd tools-testing/userblock
+    - python ../../tools/userblock/extract_userblock.py ../../regressioncheck/NIG_tracking_DSMC/curved/Cylinder_State_000.00000000000000000.h5
+    - grep -oP '(?<=\{\[\( )[^)]+(?= \)\]\})' userblock.txt
+
+convertHoprToPyHopeIni.sh:
+  <<: *default_param
+  stage: tools
+  dependencies: []
+  needs: [pyhope_download]
+  cache:
+    - *venv_cache
+  script:
+    - rm -rf tools-testing/convertHoprToPyHopeIni || true
+    - mkdir -p tools-testing/convertHoprToPyHopeIni
+    - cd tools-testing/convertHoprToPyHopeIni
+    - ../../tools/convertHoprToPyHopeIni.sh --help
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "build": Build on check-in
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 
 build:
   extends: .default_build_param
@@ -1530,7 +1667,7 @@ WEK_Raytracing_debug_Leapfrog:
       when: never
     - if: $[[ inputs.DO_WEEKLY ]] == true
 
-WEK_Raytracing_debug_Leapfrog:
+WEK_NIG_Raytracing_debug_Leapfrog:
   <<: *defaults_poisson_weekly
   stage: reggie_weekly
   script:
