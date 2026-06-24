@@ -772,7 +772,7 @@ IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(FileName,OutputTime_
 ! ---------------------------------------------------------
 ! Write SurfNodeSource (surface charge density) field to HDF5 file
 ! ---------------------------------------------------------
-IF(Do2DSurfaceCharge) CALL WriteSurfNodeSourceToHDF5(FileName,OutputTime_loc)
+IF(Do2DSurfaceCharge) CALL WriteSurfNodeSourceToHDF5(FileName)
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 ! ---------------------------------------------------------
 ! Output particle emission data to be read during subsequent restarts

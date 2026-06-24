@@ -46,7 +46,6 @@ USE MOD_PreProc
 USE MOD_Dielectric_Vars    ,ONLY: NodeSourceExtGlobal
 USE MOD_Mesh_Vars          ,ONLY: MeshFile,offsetElem,nElems
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
-USE MOD_Globals_Vars       ,ONLY: ProjectName
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,NodeVolume,DoDeposition
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes
@@ -213,7 +212,7 @@ SDEALLOCATE(StrVarNames)
 END SUBROUTINE WriteNodeSourceExtToHDF5
 
 
-SUBROUTINE WriteSurfNodeSourceToHDF5(FileName,OutputTime)
+SUBROUTINE WriteSurfNodeSourceToHDF5(FileName)
 !===================================================================================================================================
 ! Write SurfNodeSource(external charge density) field to HDF5 file
 !===================================================================================================================================
@@ -222,7 +221,6 @@ USE MOD_io_HDF5
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
-USE MOD_Globals_Vars       ,ONLY: ProjectName
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_TimeDisc_Vars      ,ONLY: iter
 USE MOD_Interpolation      ,ONLY: GetVandermonde
@@ -237,7 +235,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=255),INTENT(IN)   :: FileName
-REAL,INTENT(IN)                 :: OutputTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
