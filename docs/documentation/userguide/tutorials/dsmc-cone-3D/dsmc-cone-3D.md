@@ -62,9 +62,10 @@ The following commands are required to save all elements even if they are not pa
 The mesh file in the file format `.h5` used by **piclas** has to be converted using PyHOPE by supplying
 an input file `hopr.ini` using the corresponding mode:
 
-    Mode = 5
+    Mode = external
 
-As another possibility, the `SplitToHex` option can be enabled in the `hopr.ini` file instead of using the `SubdivionAlgorithm` command in Gmsh. The expected result for the 3D mesh is shown in {numref}`fig:dsmc-cone-gmsh-mesh`.
+As another possibility, the `doSplitToHex` option can be enabled in the `hopr.ini` file instead of using the `SubdivionAlgorithm` command in Gmsh.
+The expected result for the 3D mesh is shown in {numref}`fig:dsmc-cone-gmsh-mesh`.
 
 ```{figure} mesh/dsmc-cone-gmsh-mesh.jpg
 ---
