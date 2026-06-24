@@ -741,12 +741,12 @@ reggie_download:
     # Check if the "reggie" directory contains a ".git" directory
     # Check if the .day file exists under "reggie/.day" and move it here if that is the case
     # Check if the "reggie" directory exists and remove it before cloning it again
-    # Clone the "reggie2.0" repository into the "reggie" directory
+    # Clone the "reggie" repository into the "reggie" directory
     - if [ ! -d "reggie/.git" ]; then
         if [ -f "reggie/.day" ]; then mv reggie/.day .; fi ;
         if [ -d "reggie" ]; then rm -rf reggie ; fi ;
-        REGGIEBRANCH=master ;
-        git clone --single-branch --branch ${REGGIEBRANCH} git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
+        REGGIEBRANCH=main ;
+        git clone --single-branch --branch ${REGGIEBRANCH} git@github.com:reggie-framework/reggie.git reggie ;
         if [ ! -d "reggie" ]; then echo "Error. reggie directory not cloned. Exit." ; exit 1 ; fi ;
         pwd ;
         pip --version ;
@@ -759,7 +759,7 @@ reggie_download:
     # Test reggie installation
     - reggie --help
     # Output reggie commit hash for checking if the correct reggie version is used
-    - if [ -f "reggie/.git/refs/heads/master" ]; then cat reggie/.git/refs/heads/master ; fi
+    - if [ -f "reggie/.git/refs/heads/main" ]; then cat reggie/.git/refs/heads/main ; fi
   timeout: 5 minutes
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -2198,7 +2198,7 @@ github_test_appimage:
     - if [ -z '$[[ inputs.DO_TEST_APPIMAGE ]]' ]; then echo "DO_TEST_APPIMAGE is empty but should contain the artifact name"; exit; else echo "Artifact $[[ inputs.DO_TEST_APPIMAGE ]]"; fi
     - if [ -z "${CI_COMMIT_REF_NAME}" ]; then echo "CI_COMMIT_REF_NAME is empty"; exit; else echo "Cloning ${CI_COMMIT_REF_NAME}"; fi
     - if [ -d "reggie-appimage" ]; then rm -rf reggie-appimage ; fi ;
-    - git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie-appimage ;
+    - git clone git@github.com:reggie-framework/reggie.git reggie-appimage ;
     - if [ -d "reggie-appimage" ]; then cd reggie-appimage ; pip install -e . --break-system-packages ; cd .. ; fi ;
     - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
     - module pu && module load gcc/14.2.0 openmpi/4.1.6/gcc/14.2.0

@@ -1,6 +1,6 @@
 # PICLas Regression Testing
 
-PICLas utilizes the Reggie2.0 toolbox for regression testing. A detailed documentation on its usage is available [at this repository](https://gitlab.com/reggie2.0/reggie2.0/blob/master/README.md). A list detailing the test cases and which features are tested is given below.
+PICLas utilizes the reggie toolbox for regression testing. A detailed documentation on its usage is available [at this repository](https://github.com/reggie-framework/reggie). A list detailing the test cases and which features are tested is given below.
 
 # List of Cases
 
@@ -242,7 +242,7 @@ Testing more complex DSMC routines: [Link CMAKE-CONFIG](regressioncheck/NIG_DSMC
 |    5    | SurfFlux_Tria_Adaptive_ConstMassflow_Macrorestart |     Release      | Adaptive surface flux (const. pressure and massflow) with a macroscopic restart |     nProcs=4,6     |               number density, massflow and pressure               | [Link](regressioncheck/NIG_DSMC/SurfFlux_Tria_Adaptive_ConstMassflow_Macrorestart/readme.md) |
 |    5    |             SURF_PROB_DifferentProbs              |     Release      |       Probability-based surface chemistry model: Different probabilities        |     nProcs=3,6     |                 Number density of product species                 |             [Link](regressioncheck/NIG_DSMC/SURF_PROB_DifferentProbs/readme.md)              |
 |    5    |                SURF_PROB_MultiReac                |     Release      |          Probability-based surface chemistry model: Multiple reactions          |     nProcs=3,6     |                 Number density of product species                 |                [Link](regressioncheck/NIG_DSMC/SURF_PROB_MultiReac/readme.md)                |
-|    6    |           SurfFlux_Tria_Massflow_Cosine           |     Release      |              Cosine and Cosine2 distribution through surface flux               |      nProcs=4      |                       PartAnalyze: Massflow                       |           [Link](regressioncheck/NIG_DSMC/SurfFlux_Tria_Massflow_Cosine/readme.md)           |
+|    6    |           SurfFlux_Tria_Massflow_Cosine           |     Release      |       General cosine and double cosine distribution through surface flux        |      nProcs=4      |                       PartAnalyze: Massflow                       |           [Link](regressioncheck/NIG_DSMC/SurfFlux_Tria_Massflow_Cosine/readme.md)           |
 |    6    |                 VirtualCellMerge                  |     Release      |                       Merge cells for collision operator                        |      nProcs=4      |           DSMCState: Number density with absolute value           |                 [Link](regressioncheck/NIG_DSMC/VirtualCellMerge/readme.md)                  |
 |    7    |               VSS_VHS_SelfDiffusion               | Release + Debug  |                       Testing the VHS/VSS collision model                       |      nProcs=6      |                          Number Density                           |               [Link](regressioncheck/NIG_DSMC/VSS_VHS_SelfDiffusion/readme.md)               |
 

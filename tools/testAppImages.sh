@@ -27,13 +27,13 @@ for ARG in "$@"; do
     echo "  \$2                   Path to the regressioncheck directory in the piclas repository, e.g.,"
     echo "                       ~/piclas/regressioncheck (where all the regression check directories are)."
     echo "                       Do not supply a specific reggie test case."
-    echo "  \$3 (optional)        Path to the regressioncheck tool reggie.py, e.g., ~/reggie2.0/reggie.py"
+    echo "  \$3 (optional)        Path to the regressioncheck tool reggie.py, e.g., ~/reggie/reggie.py"
     echo "                       and is only required if the reggie tool is not installed via pip."
     echo "                       Supply the path if unsure if reggie has been installed via pip or not."
     echo ""
     echo "Usage example:"
     echo ""
-    echo "  ~/piclas/tools/testAppImages.sh piclas-binaries-v3.4.0.zip ~/piclas/regressioncheck [~/reggie2.0/reggie.py]"
+    echo "  ~/piclas/tools/testAppImages.sh piclas-binaries-v3.4.0.zip ~/piclas/regressioncheck [~/reggie/reggie.py]"
     echo ""
     exit 0
   fi
@@ -59,7 +59,7 @@ else
 
     # Check $3
     if [[ -n "${3}" ]]; then
-      [[ ! -f "${3}" ]] && echo -e "${RED}\$3 must point to reggie.py. Run again, e.g.,\n\n~/piclas/tools/testAppImages.sh piclas-binaries-v3.4.0.zip ~/piclas/regressioncheck ~/reggie2.0/reggie.py'${NC}" && exit 1
+      [[ ! -f "${3}" ]] && echo -e "${RED}\$3 must point to reggie.py. Run again, e.g.,\n\n~/piclas/tools/testAppImages.sh piclas-binaries-v3.4.0.zip ~/piclas/regressioncheck ~/reggie/reggie.py'${NC}" && exit 1
       reggieX () {
         python3 $1
       }
@@ -74,7 +74,7 @@ else
       fi
     else
       # Test for reggie command
-      [[ ! -x "$(command -v reggie)" ]] && echo -e "${RED}This tool requires 'reggie' as binary or the path to reggie.py supplied by \$3. Run again, e.g.,\n\n~/piclas/tools/testAppImages.sh piclas-binaries-v3.4.0.zip ~/piclas/regressioncheck ~/reggie2.0/reggie.py'${NC}" && exit 1
+      [[ ! -x "$(command -v reggie)" ]] && echo -e "${RED}This tool requires 'reggie' as binary or the path to reggie.py supplied by \$3. Run again, e.g.,\n\n~/piclas/tools/testAppImages.sh piclas-binaries-v3.4.0.zip ~/piclas/regressioncheck ~/reggie/reggie.py'${NC}" && exit 1
     fi
   fi
 fi
