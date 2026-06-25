@@ -838,7 +838,7 @@ USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfBC,SurfBCName, PartBound
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfOutputSize,SurfSpecOutputSize
 USE MOD_Particle_Boundary_Vars     ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal, CalcTorque
 USE MOD_SurfaceModel_Analyze_Vars  ,ONLY: CalcSurfOutputPerGroup
-USE MOD_Particle_Vars              ,ONLY: nSpecies
+USE MOD_Particle_Vars              ,ONLY: nSpecies,Species
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars     ,ONLY: nGlobalSurfSides
 USE MOD_MPI_Shared_Vars            ,ONLY: MPI_COMM_LEADERS_SURF
@@ -904,28 +904,32 @@ IF (mySurfRank.EQ.0) THEN
   Str2DVarNames(:) = ''
   nVarCount        = 1
   DO iSpec = 1,nSpecies
-    WRITE(SpecID,'(I3.3)') iSpec
-    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_SimPartPerIter')
+    IF(Species(iSpec)%Name.NE.'none') THEN
+      WRITE(SpecID,'(A,I3.3,A)') 'Spec',iSpec,'_'//TRIM(Species(iSpec)%Name)
+    ELSE
+      WRITE(SpecID,'(A,I3.3)')   'Spec',iSpec
+    END IF
+    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_SimPartPerIter')
     ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
     IF(CalcSurfaceImpact)THEN
       ! Add average impact energy for each species (trans, rot, vib)
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyTrans')
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyRot')
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyVib')
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyElec')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactEnergyTrans')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactEnergyRot')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactEnergyVib')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactEnergyElec')
       ! Add average impact vector for each species (x,y,z)
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactVectorX')
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactVectorY')
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactVectorZ')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactVectorX')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactVectorY')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactVectorZ')
       ! Add average impact angle for each species
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactAngle')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactAngle')
       ! Add number of impacts
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactNumber')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactNumber')
       ! Add number of impacts per second per square meter
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactFlux')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactFlux')
     END IF ! CalcSurfaceImpact
     IF (DoChemSurface) THEN
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_Coverage')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_Coverage')
     END IF ! DoChemSurface
   END DO ! iSpec=1,nSpecies
 
