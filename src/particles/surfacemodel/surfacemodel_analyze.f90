@@ -1473,7 +1473,7 @@ GroupLoop: DO iGroup=1, SurfaceGroup%nGroups
         DO q = 1,nSurfSample
           DO p = 1,nSurfSample
             IF (SurfaceGroup%SymmetryFactor(iSide).EQ.0.0) THEN
-              CALL abort(__STAMP__,'ERROR in group area calculation: SurfaceGroup%SymmetryFactor .eq. 0.0.')
+              CALL CollectiveStop(__STAMP__,'ERROR in group area calculation: SurfaceGroup%SymmetryFactor .eq. 0.0.')
             END IF
             SurfaceGroup%Area(iGroup) = SurfaceGroup%Area(iGroup) + SurfSideArea(p,q,iSide) * SurfaceGroup%SymmetryFactor(iSide)
           END DO ! q=1,nSurfSample
