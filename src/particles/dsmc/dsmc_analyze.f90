@@ -1022,33 +1022,37 @@ ALLOCATE(StrVarNames(1:nVar+nVar_quality+nVar_HeatPress+nVarMPF))
 nVarCount=0
 IF(nSpecies.GT.1) THEN
   DO iSpec=1,nSpecies
-    WRITE(SpecID,'(I3.3)') iSpec
-    StrVarNames(nVarCount+DSMC_VELOX      )='Spec'//TRIM(SpecID)//'_VeloX'
-    StrVarNames(nVarCount+DSMC_VELOY      )='Spec'//TRIM(SpecID)//'_VeloY'
-    StrVarNames(nVarCount+DSMC_VELOZ      )='Spec'//TRIM(SpecID)//'_VeloZ'
-    StrVarNames(nVarCount+DSMC_TEMPX      )='Spec'//TRIM(SpecID)//'_TempTransX'
-    StrVarNames(nVarCount+DSMC_TEMPY      )='Spec'//TRIM(SpecID)//'_TempTransY'
-    StrVarNames(nVarCount+DSMC_TEMPZ      )='Spec'//TRIM(SpecID)//'_TempTransZ'
-    StrVarNames(nVarCount+DSMC_NUMDENS    )='Spec'//TRIM(SpecID)//'_NumberDensity'
-    IF(Species(iSpec)%InterID.EQ.100)THEN
-      StrVarNames(nVarCount+DSMC_TVIB       )='Spec'//TRIM(SpecID)//'_Solid_Part_Temp'
+    IF(Species(iSpec)%Name.NE.'none') THEN
+      WRITE(SpecID,'(A,I3.3,A)') 'Spec',iSpec,'_'//TRIM(Species(iSpec)%Name)
     ELSE
-      StrVarNames(nVarCount+DSMC_TVIB       )='Spec'//TRIM(SpecID)//'_TempVib'
+      WRITE(SpecID,'(A,I3.3)')   'Spec',iSpec
     END IF
-    StrVarNames(nVarCount+DSMC_TROT       )='Spec'//TRIM(SpecID)//'_TempRot'
-    StrVarNames(nVarCount+DSMC_TELEC      )='Spec'//TRIM(SpecID)//'_TempElec'
-    StrVarNames(nVarCount+DSMC_SIMPARTNUM )='Spec'//TRIM(SpecID)//'_SimPartNum'
-    StrVarNames(nVarCount+DSMC_TEMPMEAN   )='Spec'//TRIM(SpecID)//'_TempTransMean'
+    StrVarNames(nVarCount+DSMC_VELOX      )=TRIM(SpecID)//'_VeloX'
+    StrVarNames(nVarCount+DSMC_VELOY      )=TRIM(SpecID)//'_VeloY'
+    StrVarNames(nVarCount+DSMC_VELOZ      )=TRIM(SpecID)//'_VeloZ'
+    StrVarNames(nVarCount+DSMC_TEMPX      )=TRIM(SpecID)//'_TempTransX'
+    StrVarNames(nVarCount+DSMC_TEMPY      )=TRIM(SpecID)//'_TempTransY'
+    StrVarNames(nVarCount+DSMC_TEMPZ      )=TRIM(SpecID)//'_TempTransZ'
+    StrVarNames(nVarCount+DSMC_NUMDENS    )=TRIM(SpecID)//'_NumberDensity'
+    IF(Species(iSpec)%InterID.EQ.100)THEN
+      StrVarNames(nVarCount+DSMC_TVIB       )=TRIM(SpecID)//'_Solid_Part_Temp'
+    ELSE
+      StrVarNames(nVarCount+DSMC_TVIB       )=TRIM(SpecID)//'_TempVib'
+    END IF
+    StrVarNames(nVarCount+DSMC_TROT       )=TRIM(SpecID)//'_TempRot'
+    StrVarNames(nVarCount+DSMC_TELEC      )=TRIM(SpecID)//'_TempElec'
+    StrVarNames(nVarCount+DSMC_SIMPARTNUM )=TRIM(SpecID)//'_SimPartNum'
+    StrVarNames(nVarCount+DSMC_TEMPMEAN   )=TRIM(SpecID)//'_TempTransMean'
     nVarCount=nVarCount+nVarloc
     IF(DSMC%CalcQualityFactors.AND.(CollisMode.GE.2)) THEN
       IF(DSMC%RotRelaxProb.GE.2) THEN
-        StrVarNames(nVarCount+1              )='Spec'//TRIM(SpecID)//'_DSMC_MaxRotRelaxProb'
-        StrVarNames(nVarCount+2              )='Spec'//TRIM(SpecID)//'_DSMC_MeanRotRelaxProb'
+        StrVarNames(nVarCount+1              )=TRIM(SpecID)//'_DSMC_MaxRotRelaxProb'
+        StrVarNames(nVarCount+2              )=TRIM(SpecID)//'_DSMC_MeanRotRelaxProb'
         nvarcount=nvarcount+2
       END IF
       IF((DSMC%VibRelaxProb.EQ.2)) THEN
-        StrVarNames(nVarCount+1              )='Spec'//TRIM(SpecID)//'_DSMC_MaxVibRelaxProb'
-        StrVarNames(nVarCount+2              )='Spec'//TRIM(SpecID)//'_DSMC_MeanVibRelaxProb'
+        StrVarNames(nVarCount+1              )=TRIM(SpecID)//'_DSMC_MaxVibRelaxProb'
+        StrVarNames(nVarCount+2              )=TRIM(SpecID)//'_DSMC_MeanVibRelaxProb'
         nvarcount=nvarcount+2
       END IF
     END IF
@@ -1147,15 +1151,15 @@ IF(SampleElecExcitation) THEN
       IF(.NOT.SpecXSec(iCase)%UseElecXSec) CYCLE
       ! Output of the non-election species as first and electron species as the second index, in case multiple electron species are defined
       IF(Species(iSpec)%InterID.EQ.4) THEN
-        WRITE(SpecID,'(I3.3)') jSpec
-        WRITE(SpecID2,'(I3.3)') iSpec
+        SpecID = Species(jSpec)%Name
+        SpecID2 = Species(iSpec)%Name
       ELSE
-        WRITE(SpecID,'(I3.3)') iSpec
-        WRITE(SpecID2,'(I3.3)') jSpec
+        SpecID = Species(iSpec)%Name
+        SpecID2 = Species(jSpec)%Name
       END IF
       DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
         WRITE(LevelID,'(F0.2)') SpecXSec(iCase)%ElecLevel(iLevel)%Threshold/ElementaryCharge
-        StrVarNamesElecExci(nVarCount)='Spec'//TRIM(SpecID)//'_Spec'//TRIM(SpecID2)//'_ExcitationRate_Elec_'//TRIM(LevelID)
+        StrVarNamesElecExci(nVarCount)='ExcitationRate_'//TRIM(SpecID)//'-'//TRIM(SpecID2)//'_Elec_'//TRIM(LevelID)
         nVarCount = nVarCount + 1
       END DO
     END DO

@@ -541,6 +541,8 @@ IF(.NOT.ALLOCATED(VarNameCombine))    ALLOCATE(VarNameCombine   (nVar))
 IF(.NOT.ALLOCATED(VarNameCombineLen)) ALLOCATE(VarNameCombineLen(nVar))
 VarNameCombine = 0
 DO iVar=2,nVar
+  ! Cycle over excitation levels, which might only differ after the decimal point
+  IF(StringBeginsWith(VarNameVisu(iVar),'ExcitationRate')) CYCLE
   ! Get the length of the variable name
   iLen = LEN(TRIM(VarNameVisu(iVar)))
   ! Save the strings in temporary variables
