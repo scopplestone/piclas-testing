@@ -49,6 +49,7 @@ core
 
 # hopr debug files
 sfc.dat
+*.xdmf
 
 # visualization files
 *.vtu
