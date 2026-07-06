@@ -1472,7 +1472,10 @@ GroupLoop: DO iGroup=1, SurfaceGroup%nGroups
 #endif /*USE_MPI*/
         DO q = 1,nSurfSample
           DO p = 1,nSurfSample
-            SurfaceGroup%Area(iGroup) = SurfaceGroup%Area(iGroup) + SurfSideArea(p,q,iSide)
+            IF (SurfaceGroup%SymmetryFactor(iSide).EQ.0.0) THEN
+              CALL CollectiveStop(__STAMP__,'ERROR in group area calculation: SurfaceGroup%SymmetryFactor .eq. 0.0.')
+            END IF
+            SurfaceGroup%Area(iGroup) = SurfaceGroup%Area(iGroup) + SurfSideArea(p,q,iSide) * SurfaceGroup%SymmetryFactor(iSide)
           END DO ! q=1,nSurfSample
         END DO ! p=1,nSurfSample
       END IF
@@ -1505,6 +1508,11 @@ IF(myComputeNodeRank.EQ.0) THEN
   DEALLOCATE(SendBuff)
 END IF
 #endif /*USE_MPI*/
+
+! Output of group area
+DO iGroup = 1, SurfaceGroup%nGroups
+  SWRITE(UNIT_stdOut,'(A,I0,A,ES15.7)') ' |   Area of group ', iGroup, ' is: ', SurfaceGroup%Area(iGroup)
+END DO
 
 DEALLOCATE(MinBound)
 DEALLOCATE(MaxBound)
