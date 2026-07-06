@@ -527,7 +527,7 @@ DO iSpec = 1,nSpecies
       ! --------------------------------------------------------------------------------------------------
       ! Cell-local particle emission: every processors loops over its own elements
       CASE('cell_local')
-        LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Initial cell local particle emission for species ',iSpec,' ... '
+        LBWRITE(UNIT_stdOut,'(A,I0,A)') ' | Initial cell local particle emission for species ',iSpec,' ... '
         CALL ParticleEmissionCellLocal(iSpec,iInit,NbrOfParticle)
         ! TODO: MOVE EVERYTHING INTO THE EMISSION ROUTINE
         CALL SetParticleVelocity(iSpec,iInit,NbrOfParticle)

@@ -2124,6 +2124,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared, SideIsSymSide
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
+USE MOD_ReadInTools             ,ONLY: PrintOption
 #if USE_MPI
 USE MOD_Mesh_Vars               ,ONLY: ELEM_HALOFLAG
 USE MOD_MPI_Shared
@@ -2274,7 +2275,11 @@ CALL MPI_BCAST(MeshVolume,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iERROR)
 #else
 MeshVolume = LocalVolume
 #endif /*USE_MPI*/
-
+IF(Symmetry%Axisymmetric) THEN
+  CALL PrintOption('Total 2D axisymmetric mesh volume','CALCUL.',RealOpt=MeshVolume)
+ELSE
+  CALL PrintOption('Total 2D mesh volume','CALCUL.',RealOpt=MeshVolume)
+END IF
 END SUBROUTINE InitVolumes_2D
 
 
@@ -2292,6 +2297,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume, SideIsSymSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_ReadInTools             ,ONLY: PrintOption
 #if USE_MPI
 USE MOD_Mesh_Vars               ,ONLY: ELEM_HALOFLAG
 USE MOD_MPI_Shared
@@ -2450,6 +2456,8 @@ END DO
 #if USE_MPI
 CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win ,MPI_COMM_SHARED)
 #endif
+
+CALL PrintOption('Total 1D mesh volume','CALCUL.',RealOpt=MeshVolume)
 
 END SUBROUTINE InitVolumes_1D
 

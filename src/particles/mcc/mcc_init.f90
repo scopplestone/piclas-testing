@@ -239,7 +239,7 @@ DO iSpec = 1, nSpecies
             CollXSecDataTemp(1,MaxDim+1:MaxDim+NumLevel) = SpecXSec(iCase)%BackXSecData(1,MaxDimLevel-NumLevel+1:MaxDimLevel)
             CollXSecDataTemp(2,MaxDim+1:MaxDim+NumLevel) = 0.
             CALL MOVE_ALLOC(CollXSecDataTemp,SpecXSec(iCase)%CollXSecData)
-            LBWRITE(*,*) 'Resizing CollXSecData array from ', MaxDim, ' to ', UBOUND(SpecXSec(iCase)%CollXSecData,dim=2)
+            LBWRITE(*,*) ' | Resizing CollXSecData array from ', MaxDim, ' to ', UBOUND(SpecXSec(iCase)%CollXSecData,dim=2)
             MaxDim = UBOUND(SpecXSec(iCase)%CollXSecData,dim=2)
           END IF
         END IF
@@ -322,7 +322,7 @@ DO iSpec = 1, nSpecies
             CollXSecDataTemp(1,MaxDim+1:MaxDim+NumLevel) = SpecXSec(iCase)%VibMode(MaxLevelIndex)%XSecData(1,MaxDimLevel-NumLevel+1:MaxDimLevel)
             CollXSecDataTemp(2,MaxDim+1:MaxDim+NumLevel) = 0.
             CALL MOVE_ALLOC(CollXSecDataTemp,SpecXSec(iCase)%CollXSecData)
-            LBWRITE(*,*) 'Resizing CollXSecData array from ', MaxDim, ' to ', UBOUND(SpecXSec(iCase)%CollXSecData,dim=2)
+            LBWRITE(*,*) ' | Resizing CollXSecData array from ', MaxDim, ' to ', UBOUND(SpecXSec(iCase)%CollXSecData,dim=2)
             MaxDim = UBOUND(SpecXSec(iCase)%CollXSecData,dim=2)
           END IF
         END IF
@@ -398,7 +398,7 @@ DO iSpec = 1, nSpecies
               CollXSecDataTemp(1,MaxDim+1:MaxDim+NumLevel) = SpecXSec(iCase)%ElecLevel(MaxLevelIndex)%XSecData(1,MaxDimLevel-NumLevel+1:MaxDimLevel)
               CollXSecDataTemp(2,MaxDim+1:MaxDim+NumLevel) = 0.
               CALL MOVE_ALLOC(CollXSecDataTemp,SpecXSec(iCase)%CollXSecData)
-              LBWRITE(*,*) 'Resizing CollXSecData array from ', MaxDim, ' to ', UBOUND(SpecXSec(iCase)%CollXSecData,dim=2)
+              LBWRITE(*,*) ' | Resizing CollXSecData array from ', MaxDim, ' to ', UBOUND(SpecXSec(iCase)%CollXSecData,dim=2)
               MaxDim = UBOUND(SpecXSec(iCase)%CollXSecData,dim=2)
             END IF
           END IF
@@ -647,7 +647,7 @@ DO iCase = 1, CollInf%NumCase
         CollXSecDataTemp(1,MaxDim+1:MaxDim+NumLevel) = SpecXSec(iCase)%ReactionPath(MaxLevelIndex)%XSecData(1,MaxDimLevel-NumLevel+1:MaxDimLevel)
         CollXSecDataTemp(2,MaxDim+1:MaxDim+NumLevel) = 0.
         CALL MOVE_ALLOC(CollXSecDataTemp,SpecXSec(iCase)%CollXSecData)
-        LBWRITE(*,*) 'Resizing CollXSecData array from ', MaxDim, ' to ', UBOUND(SpecXSec(iCase)%CollXSecData,dim=2), &
+        LBWRITE(*,*) ' | Resizing CollXSecData array from ', MaxDim, ' to ', UBOUND(SpecXSec(iCase)%CollXSecData,dim=2), &
                         'due to reaction #', ChemReac%CollCaseInfo(iCase)%ReactionIndex(MaxLevelIndex)
         MaxDim = UBOUND(SpecXSec(iCase)%CollXSecData,dim=2)
       END IF
