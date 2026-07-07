@@ -505,9 +505,9 @@ END IF
 IF(UseCircuitModel) THEN
   IF(MPIRoot)THEN
     CALL ExactFunc(-1,(/0.,0.,0./),CMBC%VoltageRF(1:1),t=time,iRefState=CMBC%RefState)
-    src = CMBC%Capacitance*(CMBC%VoltageRF(1)-CMBC%Voltage)
-    IPWRITE(*,*) 'C=',CMBC%Capacitance, 'Phi_rf=',CMBC%VoltageRF(1),'Phi_a=',CMBC%Voltage,'C*(Phi_rf-Phi_a)=',src,"Q=",CMBC%Charge
-    PetscCallA(VecSetValues(PETScRHS,1,[nGlobalPETScDOFs-1],[(src + CMBC%Charge)/eps0],INSERT_VALUES,ierr))
+    src = ( CMBC%Charge + CMBC%Capacitance*CMBC%VoltageRF(1) ) / eps0
+    ! IPWRITE(*,*) 'hdg_linear.f90      C=',CMBC%Capacitance, 'Phi_rf=',CMBC%VoltageRF(1),'Phi_a=',CMBC%Voltage,'( C*Phi_rf + Q ) / eps0=',src,"Q=",CMBC%Charge
+    PetscCallA(VecSetValues(PETScRHS,1,[nGlobalPETScDOFs-1],[src],INSERT_VALUES,ierr))
   END IF ! MPIRoot
 END IF ! UseCircuitModel
 #endif /*defined(PARTICLES*/
@@ -643,7 +643,7 @@ IF(UseCircuitModel) THEN
   END DO
   ! MPIRoot sets global value for BC and I/O
   IF(MPIRoot) CMBC%Voltage = lambda_pointer(nLocalPETScDOFs)
-  IPWRITE(*,*) 'CMBC%Voltage:', CMBC%Voltage
+  ! IPWRITE(*,*) 'hdg_linear.f90      CMBC%Voltage:', CMBC%Voltage
 END IF ! UseCircuitModel
 #endif /*defined(PARTICLES*/
 

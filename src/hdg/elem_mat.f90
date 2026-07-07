@@ -386,6 +386,7 @@ USE MOD_Interpolation_Vars ,ONLY: N_Inter
 USE MOD_Mesh_Vars          ,ONLY: offSetElem
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: nGlobalMortarSides
+USE MOD_Globals_Vars       ,ONLY: eps0
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -560,6 +561,12 @@ DO BCsideID=1,nCircuitModelBCsides
     END IF
   END DO
 END DO
+
+! Add diagonal contribution of C/eps0
+IF(MPIRoot.AND.nCircuitModelBCsides.GE.1)THEN
+  iIndices(1) = nGlobalPETScDOFs - 1
+  PetscCallA(MatSetValues(PETScSystemMatrix,1,[iIndices(1:1)],1,[iIndices(1:1)],[CMBC%Capacitance/eps0],ADD_VALUES,ierr))
+END IF
 
 PetscCallA(MatAssemblyBegin(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))
 PetscCallA(MatAssemblyEnd(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))

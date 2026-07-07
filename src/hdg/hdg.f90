@@ -485,6 +485,7 @@ DO SideID=1,nBCSides
   CASE(40) ! Circuit Model
     nCircuitModelBCsides=nCircuitModelBCsides+1
     CircuitModelBC(nCircuitModelBCsides)=SideID
+    MaskedSide(SideID)=2
   CASE DEFAULT ! unknown BCType
     CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
   END SELECT ! BCType
