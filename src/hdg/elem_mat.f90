@@ -541,7 +541,7 @@ DO BCsideID=1,nCircuitModelBCsides
     END DO
 
     IF(MaskedSide(iSideID).EQ.2) THEN
-      ! From Conductor to Conductor: 1x1 matrix
+      ! From CMBC to CMBC: 1x1 matrix
       Smatloc(1,1) = SUM(Smatloc(:,1))
 
       iIndices(1:1) = nGlobalPETScDOFs-1
@@ -550,7 +550,7 @@ DO BCsideID=1,nCircuitModelBCsides
     ELSEIF(MaskedSide(iSideID).GT.0) THEN
       CYCLE
     ELSE
-      ! From Conductor to normal side: iNdof x 1 matrix
+      ! From CMBC to normal side: iNdof x 1 matrix
       iNloc=N_SurfMesh(iSideID)%NSide
       iNdof=nGP_face(iNloc)
       CALL ChangeBasis2D(1, NElem, iNloc, TRANSPOSE(PREF_VDM(iNloc,NElem)%Vdm), Smatloc(1:nGP_face(NElem),1), Smatloc(1:iNdof,1))

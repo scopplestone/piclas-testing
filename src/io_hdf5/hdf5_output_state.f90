@@ -92,20 +92,22 @@ USE MOD_Prolong_FV             ,ONLY: ProlongToOutput
 USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution
 USE MOD_TimeDisc_Vars          ,ONLY: dt,time,dt_Min
 USE MOD_Equation_Vars_FV       ,ONLY: DVMnSpecies, DVMnMacro, DVMnInnerE, DVMColl, DVMnSpecTot
-#endif
+#endif /*discrete_velocity*/
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: UseFPC,FPC,UseEPC,EPC
 #if PP_nVar==1
 #elif PP_nVar==3
 USE MOD_Equation_Vars          ,ONLY: B
-#else
+#else /*not PP_nVar==1*/
 USE MOD_Equation_Vars          ,ONLY: E,B
 #endif /*PP_nVar*/
 USE MOD_Analyze_Vars           ,ONLY: CalcElectricTimeDerivative
 #ifdef PARTICLES
 USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,BiasVoltage,BVDataLength
+#if USE_PETSC
 USE MOD_HDG_Vars               ,ONLY: UseCircuitModel,CMBC,CMBCDataLength
 USE MOD_HDG_Readin             ,ONLY: UpdateChargeOnCMBC
+#endif /*USE_PETSC*/
 USE MOD_PICInterpolation_Vars  ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
 USE MOD_Analyze_Vars           ,ONLY: AverageElectricPotential
 USE MOD_Mesh_Vars              ,ONLY: N_VolMesh
@@ -116,7 +118,7 @@ USE MOD_Particle_Analyze_Tools ,ONLY: CalculateElectronIonDensityCell,CalculateE
 USE MOD_HDF5_Output_Particles_HDG  ,ONLY: AddBRElectronFluidToPartSource
 USE MOD_HDG_Vars               ,ONLY: CoupledPowerPotential,UseCoupledPowerPotential,CPPDataLength
 #endif /*PARTICLES*/
-#else
+#else /*not USE_HDG*/
 #endif /*USE_HDG*/
 #if !(PP_TimeDiscMethod==700)
 USE MOD_DG_vars                ,ONLY: N_DG_Mapping,nDofsMapping

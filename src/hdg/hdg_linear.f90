@@ -505,8 +505,9 @@ END IF
 IF(UseCircuitModel) THEN
   IF(MPIRoot)THEN
     CALL ExactFunc(-1,(/0.,0.,0./),CMBC%VoltageRF(1:1),t=time,iRefState=CMBC%RefState)
-    ! IPWRITE(*,*) 'C=',CMBC%Capacitance, 'Phi_rf=',CMBC%VoltageRF(1),'Phi_a=',CMBC%Voltage,'C*(Phi_rf-Phi_a)=',CMBC%Capacitance*(CMBC%VoltageRF(1)-CMBC%Voltage),"Q=",CMBC%Charge
-    PetscCallA(VecSetValues(PETScRHS,1,[nGlobalPETScDOFs-1],[(CMBC%Capacitance*(CMBC%VoltageRF(1)-CMBC%Voltage) + CMBC%Charge)/eps0],INSERT_VALUES,ierr))
+    src = CMBC%Capacitance*(CMBC%VoltageRF(1)-CMBC%Voltage)
+    IPWRITE(*,*) 'C=',CMBC%Capacitance, 'Phi_rf=',CMBC%VoltageRF(1),'Phi_a=',CMBC%Voltage,'C*(Phi_rf-Phi_a)=',src,"Q=",CMBC%Charge
+    PetscCallA(VecSetValues(PETScRHS,1,[nGlobalPETScDOFs-1],[(src + CMBC%Charge)/eps0],INSERT_VALUES,ierr))
   END IF ! MPIRoot
 END IF ! UseCircuitModel
 #endif /*defined(PARTICLES*/
@@ -632,16 +633,17 @@ END IF ! UseFPC
 ! Fill circuit model lambda
 IF(UseCircuitModel) THEN
   CMBC%Voltage = 0. ! Nullify just to be safe
-  DO BCsideID=1,nCircuitModelBCsides
-    SideID       = CircuitModelBC(BCSideID)
-    Nloc         = N_SurfMesh(SideID)%NSide
-    BCState      = BoundaryType(BC(SideID),BC_STATE)
+  DO BCsideID = 1,nCircuitModelBCsides
+    SideID  = CircuitModelBC(BCSideID)
+    Nloc    = N_SurfMesh(SideID)%NSide
+    BCState = BoundaryType(BC(SideID),BC_STATE)
     DO i=1,nGP_face(Nloc)
       HDG_Surf_N(SideID)%lambda(1,i) = lambda_pointer(nLocalPETScDOFs)
     END DO
   END DO
   ! MPIRoot sets global value for BC and I/O
   IF(MPIRoot) CMBC%Voltage = lambda_pointer(nLocalPETScDOFs)
+  IPWRITE(*,*) 'CMBC%Voltage:', CMBC%Voltage
 END IF ! UseCircuitModel
 #endif /*defined(PARTICLES*/
 

@@ -33,8 +33,8 @@ PUBLIC :: SynchronizeBV
 #endif /*USE_MPI */
 #if defined(PARTICLES)
 PUBLIC :: ReadBVDataFromH5
-PUBLIC :: ReadCMBCDataFromH5
 #if USE_PETSC
+PUBLIC :: ReadCMBCDataFromH5
 PUBLIC :: UpdateChargeOnCMBC
 #endif /*USE_PETSC*/
 #endif /*defined(PARTICLES)*/
@@ -102,6 +102,31 @@ CALL SynchronizeBV()
 END SUBROUTINE ReadBVDataFromH5
 
 
+#if USE_MPI
+!===================================================================================================================================
+!> Communicate the bias voltage values from MPIRoot to sub-communicator processes
+!===================================================================================================================================
+SUBROUTINE SynchronizeBV()
+! MODULES
+USE mpi_f08
+USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
+USE MOD_HDG_Vars ,ONLY: BiasVoltage,BVDataLength
+! insert modules here
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(BiasVoltage%COMM%UNICATOR.NE.MPI_COMM_NULL)THEN
+  ! Broadcast from root to other processors on the sub-communicator
+  CALL MPI_BCAST(BiasVoltage%BVData, BVDataLength, MPI_DOUBLE_PRECISION, 0, BiasVoltage%COMM%UNICATOR, IERROR)
+END IF
+END SUBROUTINE SynchronizeBV
+#endif /*USE_MPI*/
+
+
+#if USE_PETSC
 !===================================================================================================================================
 !> Read the Circuit Model BC (CMBC) data from a .h5 state file.
 !> 1. The MPI root process reads the info and checks data consistency
@@ -156,31 +181,6 @@ END IF ! MPIRoot
 END SUBROUTINE ReadCMBCDataFromH5
 
 
-#if USE_MPI
-!===================================================================================================================================
-!> Communicate the bias voltage values from MPIRoot to sub-communicator processes
-!===================================================================================================================================
-SUBROUTINE SynchronizeBV()
-! MODULES
-USE mpi_f08
-USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
-USE MOD_HDG_Vars ,ONLY: BiasVoltage,BVDataLength
-! insert modules here
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT / OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-IF(BiasVoltage%COMM%UNICATOR.NE.MPI_COMM_NULL)THEN
-  ! Broadcast from root to other processors on the sub-communicator
-  CALL MPI_BCAST(BiasVoltage%BVData, BVDataLength, MPI_DOUBLE_PRECISION, 0, BiasVoltage%COMM%UNICATOR, IERROR)
-END IF
-END SUBROUTINE SynchronizeBV
-#endif /*USE_MPI*/
-
-
-#if USE_PETSC
 !===================================================================================================================================
 !> Communicate the Circuit Model accumulated charge values to MPIRoot: Updates CMBC%Charge and nullifies CMBC%ChargeProc
 !===================================================================================================================================

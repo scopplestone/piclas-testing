@@ -657,6 +657,8 @@ DO SideID=1,nBCSides
     ! Sum up all contributions of surface area to the FEM vertices of each side
     CALL Buildpq2iNode(SideID,SubSideAreaEquiN1)
     IF(.NOT.DoRestart) CALL CalculateSurfNodeArea(SideID)
+  CASE(40) ! Circuit model boundary condition
+    ! Skip
 #else
   CASE DEFAULT ! unknown BCType
     CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
