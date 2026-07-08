@@ -875,6 +875,12 @@ CASE(800,801,900,901,1000,1100) ! Dielectric slab on electrode (left) with plasm
       END ASSOCIATE
     END ASSOCIATE
   END ASSOCIATE
+CASE(10001)
+#if !(USE_PETSC) || !defined(PARTICLES) || !defined(CODE_ANALYZE)
+  CALL abort(__STAMP__,'ExactFunc=10001 requires LIBS_USE_PETSC=ON and PARTICLES=ON and PICLAS_CODE_ANALYZE=ON')
+#else
+  CALL EvaluateCMBC1D(x(1),resu(1))
+#endif /*!(USE_PETSC) || !defined(PARTICLES) || !defined(CODE_ANALYZE)*/
 CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified!', IntInfoOpt=ExactFunction)
 END SELECT ! ExactFunction
@@ -1109,6 +1115,30 @@ END DO ! iLocSide = 1, 6
 END FUNCTION ElemHasDirichletBC
 #endif /*defined(PARTICLES) && defined(CODE_ANALYZE)*/
 #endif /* donotcompilethis */
+
+#if USE_PETSC && defined(PARTICLES) && defined(CODE_ANALYZE)
+!===================================================================================================================================
+!> Calculate the analytical solution for a 1D problem for the circuit model BC (CMBC)
+!===================================================================================================================================
+SUBROUTINE EvaluateCMBC1D(x,phi)
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars ,ONLY: eps0
+USE MOD_HDG_Vars     ,ONLY: CMBC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+REAL,INTENT(IN)  :: x   ! x-coordinate (x,y,z)
+REAL,INTENT(OUT) :: phi ! electric potential
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+ASSOCIATE(L => 1.0, A => 1.0)
+  phi = (x/L)*((CMBC%Capacitance*CMBC%VoltageRF(1)+CMBC%Charge)/(CMBC%Capacitance+eps0*A/L))
+END ASSOCIATE
+END SUBROUTINE EvaluateCMBC1D
+#endif /*USE_PETSC && defined(PARTICLES) && defined(CODE_ANALYZE)*/
 
 
 FUNCTION shapefunc(r)
