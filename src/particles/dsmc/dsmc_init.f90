@@ -717,8 +717,8 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
     IF ((CollInf%omega(iSpec,jSpec).LT.0.0) .OR. (CollInf%omega(iSpec,jSpec).GT.0.5)) THEN
       CALL Abort(__STAMP__,'ERROR: Check set parameter Part-Collision'//TRIM(hilf)//'-omega, which must be between 0 and 0.5 (CAUTION: omega_PICLas = omega_Bird1994 - 0.5)!')
     END IF
-    IF ((CollInf%alphaVSS(iSpec,jSpec).LT.1) .OR. (CollInf%alphaVSS(iSpec,jSpec).GT.2)) THEN
-      CALL Abort(__STAMP__,'ERROR: Check set parameter Part-Collision'//TRIM(hilf)//'-alphaVSS must not be lower 1 or greater 2')
+    IF ((CollInf%alphaVSS(iSpec,jSpec).LT.0.0) .OR. (CollInf%alphaVSS(iSpec,jSpec).GT.2.0)) THEN
+      CALL Abort(__STAMP__,'ERROR: Check set parameter Part-Collision'//TRIM(hilf)//'-alphaVSS must not be lower 0 or greater 2')
     END IF ! alphaVSS parameter check
   END DO ! iColl=nColl
 
