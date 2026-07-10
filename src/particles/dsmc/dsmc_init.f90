@@ -2042,6 +2042,7 @@ SUBROUTINE FinalizeDSMC()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_DSMC_Vars
+USE MOD_DSMC_Symmetry,      ONLY: AdjustParticleWeight
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -2174,6 +2175,9 @@ SDEALLOCATE(LinearWeighting%ScalePoint)
 SDEALLOCATE(LinearWeighting%VarMPF)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(AmbiPolarSFMapping)
+
+SNULLIFY(AdjustParticleWeight)
+
 END SUBROUTINE FinalizeDSMC
 
 

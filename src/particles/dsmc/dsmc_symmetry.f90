@@ -29,7 +29,7 @@ ABSTRACT INTERFACE
   END SUBROUTINE
 END INTERFACE
 
-!> Pointer defining the particle tracking routine based on the symmetry order
+!> Pointer defining the particle weighting routine
 PROCEDURE(AdjustParticleWeightInterface),POINTER :: AdjustParticleWeight => NULL()
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -43,7 +43,7 @@ PUBLIC :: InitAdjustParticleWeight, AdjustParticleWeight, SetInClones, DSMC_Trea
 CONTAINS
 
 !==================================================================================================================================!
-!> Initialize AdjustParticleWeight depending on whether a background gas is used or not
+!> Initialize AdjustParticleWeight depending on the selected clone mode: 0 = instant, 1/2 = delayed
 !==================================================================================================================================!
 SUBROUTINE InitAdjustParticleWeight()
 ! MODULES
@@ -82,7 +82,6 @@ USE MOD_Particle_Vars           ,ONLY: PartMPF, PartSpecies, PartState, Species,
 USE MOD_TimeDisc_Vars           ,ONLY: iter
 USE MOD_part_operations         ,ONLY: RemoveParticle
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF
-USE Ziggurat
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -215,7 +214,6 @@ SUBROUTINE SetInClones()
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, PartIntEn, useDSMC, CollisMode, DSMC, ParticleWeighting
-USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PolyatomMolDSMC, SamplingActive
 USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, Species
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
@@ -271,13 +269,7 @@ DO iPart = 1, ParticleWeighting%ClonePartNum(DelayCounter)
   PDM%ParticleInside(PositionNbr) = .TRUE.
   PDM%IsNewPart(PositionNbr) = .TRUE.
   PDM%dtFracPush(PositionNbr) = .FALSE.
-  PartState(1:5,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartState(1:5)
-  IF (DoRadialWeighting) THEN
-    ! Creating a relative velocity in the z-direction
-    PartState(6,PositionNbr) = -ClonedParticles(iPart,DelayCounter)%PartState(6)
-  ELSE
-    PartState(6,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartState(6)
-  END IF
+  PartState(1:6,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartState(1:6)
   PartSpecies(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Species
   SpecID = PartSpecies(PositionNbr)
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
@@ -303,13 +295,7 @@ DO iPart = 1, ParticleWeighting%ClonePartNum(DelayCounter)
     IF ((DSMC%DoAmbipolarDiff).AND.(Species(ClonedParticles(iPart,DelayCounter)%Species)%ChargeIC.GT.0.0)) THEN
       IF(ALLOCATED(PartIntEn(PositionNbr)%ElecVelo)) DEALLOCATE(PartIntEn(PositionNbr)%ElecVelo)
       ALLOCATE(PartIntEn(PositionNbr)%ElecVelo(1:3))
-      PartIntEn(PositionNbr)%ElecVelo(1:2) = ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(1:2)
-      IF(DoRadialWeighting) THEN
-        ! Creating a relative velocity in the z-direction
-        PartIntEn(PositionNbr)%ElecVelo(3) = -ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(3)
-      ELSE
-        PartIntEn(PositionNbr)%ElecVelo(3) = ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(3)
-      END IF
+      PartIntEn(PositionNbr)%ElecVelo(1:3) = ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(1:3)
     END IF
     IF(SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%SpecToPolyArray
@@ -619,18 +605,19 @@ ParticleWeighting%CloneVecLength = NewSize
 
 END SUBROUTINE ReduceClonedParticlesType
 
+
 SUBROUTINE AdjustParticleWeightCloneInstant(iPart,iElem)
 !===================================================================================================================================
 !> Routine for the treatment of particles with radial/linear weighting (weighting factor is increasing linearly with
 !> increasing y/along user-defined vector) without delayed insertion, specifically for simulations with background gas
-!> 1.) Determine the new particle weight and decide whether to clone or to delete the particle
+!> 1.) Determine the new particle weight and the number of clones (multiple clones per particle are possible)
 !> 2a.) Particle cloning, if the local weighting factor is smaller than the previous
 !> 2b.) Particle deletion, if the local weighting factor is greater than the previous
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
-USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting, DSMC, PartIntEn, useDSMC, CollisMode
+USE MOD_DSMC_Vars               ,ONLY: DSMC, PartIntEn, useDSMC, CollisMode
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PolyatomMolDSMC, SamplingActive
 USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartMPF, PartSpecies, PartState, Species, LastPartPos
@@ -639,7 +626,6 @@ USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 USE MOD_part_operations         ,ONLY: RemoveParticle
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF, GetNextFreePosition
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn
-USE Ziggurat
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -649,15 +635,14 @@ INTEGER, INTENT(IN)             :: iPart, iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: SpecID, iPolyatMole, locElemID, ClonePartID
+INTEGER                         :: SpecID, iPolyatMole, locElemID, ClonePartID, iClone, nClones
 REAL                            :: DeleteProb, iRan, NewMPF, CloneProb, OldMPF
-LOGICAL                         :: DoCloning
 !===================================================================================================================================
-DoCloning = .FALSE.
 DeleteProb = 0.
+nClones = 0
 SpecID = PartSpecies(iPart)
 
-! 1.) Determine the new particle weight and decide whether to clone or to delete the particle
+! 1.) Determine the new particle weight and the number of clones
 IF(DoRadialWeighting) THEN
   IF (.NOT.(PartMPF(iPart).GT.Species(SpecID)%MacroParticleFactor)) RETURN
   NewMPF = CalcRadWeightMPF(PartState(2,iPart),SpecID,iPart)
@@ -666,19 +651,15 @@ ELSE
 END IF
 OldMPF = PartMPF(iPart)
 CloneProb = (OldMPF/NewMPF)-INT(OldMPF/NewMPF)
-CALL RANDOM_NUMBER(iRan)
-IF((CloneProb.GT.iRan).AND.(NewMPF.LT.OldMPF)) THEN
-  DoCloning = .TRUE.
-  IF(INT(OldMPF/NewMPF).GT.1) THEN
-    IPWRITE(*,*) 'New weighting factor:', NewMPF, 'Old weighting factor:', OldMPF
-    CALL Abort(__STAMP__,&
-      'ERROR in particle weighting: More than one clone per particle is not allowed! Reduce the time step or'//&
-        ' the radial/linear weighting factor! Cloning probability is:',RealInfoOpt=CloneProb)
-  END IF
+IF(NewMPF.LT.OldMPF) THEN
+  ! Insert INT(OldMPF/NewMPF)-1 clones and an additional one with the probability of the remaining fraction
+  nClones = INT(OldMPF/NewMPF) - 1
+  CALL RANDOM_NUMBER(iRan)
+  IF(CloneProb.GT.iRan) nClones = nClones + 1
 END IF
 PartMPF(iPart) = NewMPF
 
-IF(DoCloning) THEN
+DO iClone = 1, nClones
   ClonePartID = GetNextFreePosition()
   ! Copy particle parameters
   PDM%ParticleInside(ClonePartID) = .TRUE.
@@ -716,11 +697,9 @@ IF(DoCloning) THEN
       PartIntEn(ClonePartID)%QVib(:) = PartIntEn(iPart)%QVib(:)
     END IF
   END IF
-  ! Set the global element number with the offset
+  ! Set the global/local element number, last particle position and the weighting factor PartMPF
   PEM%GlobalElemID(ClonePartID) = PEM%GlobalElemID(iPart)
-  ! Set the LastGlobalElemID index to zero to skip the clones during the first tracking after their insertion, otherwise tracking
-  ! these clones can cause problems in 2D, which relies on the relative distance moved (zero in this case)
-  PEM%LastGlobalElemID(ClonePartID) = 0
+  PEM%LastGlobalElemID(ClonePartID) = 0 !PEM%LastGlobalElemID(iPart)
   locElemID = PEM%LocalElemID(ClonePartID)
   LastPartPos(1:3,ClonePartID) = PartState(1:3,ClonePartID)
   PartMPF(ClonePartID) = PartMPF(iPart)
@@ -730,26 +709,16 @@ IF(DoCloning) THEN
     IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(locElemID,5) = DSMC%QualityFacSamp(locElemID,5) + 1
   END IF
   IF(CalcPartBalance) nPartIn(PartSpecies(ClonePartID))=nPartIn(PartSpecies(ClonePartID)) + 1
-ELSE
+END DO
+
 ! ######## Particle Delete #######################################################################################################
 ! 2b.) Particle deletion, if the local weighting factor is greater than the previous (particle travelling upwards)
-  IF(NewMPF.GT.OldMPF) THEN
-    ! Start deleting particles after the clone delay has passed and particles are also inserted
-    DeleteProb = 1. - CloneProb
-    IF (DeleteProb.GT.0.5) THEN
-      IPWRITE(*,*) 'New weighting factor:', NewMPF, 'Old weighting factor:', OldMPF
-      CALL abort(__STAMP__,&
-        'ERROR in Radial Weighting of 2D/Axisymmetric: The deletion probability is higher than 0.5! Reduce the time step or'//&
-        ' the radial weighting factor! Deletion probability is:',RealInfoOpt=DeleteProb)
-    END IF
-    CALL RANDOM_NUMBER(iRan)
-    IF(DeleteProb.GT.iRan) THEN
-      CALL RemoveParticle(iPart)
-    END IF
-  END IF
+IF(NewMPF.GT.OldMPF) THEN
+  DeleteProb = 1. - CloneProb
+  CALL RANDOM_NUMBER(iRan)
+  IF(DeleteProb.GT.iRan) CALL RemoveParticle(iPart)
 END IF
 
 END SUBROUTINE AdjustParticleWeightCloneInstant
-
 
 END MODULE MOD_DSMC_Symmetry

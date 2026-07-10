@@ -779,6 +779,7 @@ LOGICAL, INTENT(IN), OPTIONAL :: DoMPIUpdateNextFreePos
 ! LOCAL VARIABLES
 INTEGER                       :: iProc, iPos, nRecv, PartID,jPos, iPart, ElemID, SpecID
 INTEGER                       :: MessageSize, nRecvParticles
+INTEGER, ALLOCATABLE          :: RecvPartID(:)
 ! Polyatomic Molecules
 INTEGER                       :: iPolyatMole, pos_poly, MsgLengthPoly, MsgLengthElec, pos_elec, pos_ambi, MsgLengthAmbi
 INTEGER                       :: MsgLengthRotVib, pos_rotvib, MsgLengthElectronic, pos_electronic, MsgLengthSolid, pos_solid
@@ -1044,11 +1045,18 @@ END DO
 #endif
 
 IF(ParticleWeighting%PerformCloning) THEN
+  ! Store the received particle indices first: instant cloning (CloneMode=0) advances PDM%CurrentNextFreePosition when inserting
+  ! clones through GetNextFreePosition(), which would shift the offset-based lookup during the loop
+  ALLOCATE(RecvPartID(1:nRecv))
+  DO iPart = 1,nRecv
+    RecvPartID(iPart) = GetNextFreePosition(iPart-PartMPIExchange%nMPIParticles)
+  END DO
   ! Checking whether received particles have to be cloned or deleted
-  DO iPart = 1,nrecv
-    PartID = GetNextFreePosition(iPart-PartMPIExchange%nMPIParticles)
+  DO iPart = 1,nRecv
+    PartID = RecvPartID(iPart)
     IF(ParticleOnProc(PartID)) CALL AdjustParticleWeight(PartID,PEM%GlobalElemID(PartID))
   END DO
+  DEALLOCATE(RecvPartID)
 END IF
 PartMPIExchange%nMPIParticles = 0
 ! deallocate send,receive buffer
