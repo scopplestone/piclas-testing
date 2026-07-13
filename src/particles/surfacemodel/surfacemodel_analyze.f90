@@ -1349,7 +1349,7 @@ SUBROUTINE InitSurfaceGroupOutput()
 USE MOD_Globals
 USE MOD_Globals_Vars              ,ONLY: PI
 USE MOD_Preproc
-USE MOD_ReadInTools               ,ONLY: GETINT
+USE MOD_ReadInTools               ,ONLY: GETINT, PrintOption
 USE MOD_SurfaceModel_Analyze_Vars
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, nPartBound, nSurfSample, SurfSideArea
 #if USE_MPI
@@ -1511,7 +1511,8 @@ END IF
 
 ! Output of group area
 DO iGroup = 1, SurfaceGroup%nGroups
-  SWRITE(UNIT_stdOut,'(A,I0,A,ES15.7)') ' |   Area of group ', iGroup, ' is: ', SurfaceGroup%Area(iGroup)
+  WRITE(UNIT=hilf,FMT='(A,I0)') 'Area [m2] of group ', iGroup
+  CALL PrintOption(TRIM(hilf),'CALCUL.',RealOpt=SurfaceGroup%Area(iGroup))
 END DO
 
 DEALLOCATE(MinBound)
