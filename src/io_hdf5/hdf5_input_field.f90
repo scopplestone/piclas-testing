@@ -71,12 +71,13 @@ CHARACTER(LEN=64)               :: dsetname,AttributeName
 INTEGER                         :: err
 INTEGER                         :: NbrOfRows,NbrOfColumns,iDir,j
 INTEGER(HSIZE_T), DIMENSION(2)  :: dims,sizeMax
-INTEGER(HID_T)                  :: file_id_loc                       ! File identifier
-INTEGER(HID_T)                  :: dset_id_loc                       ! Dataset identifier
-INTEGER(HID_T)                  :: filespace                         ! filespace identifier
+INTEGER(HID_T)                  :: file_id_loc                       !< File identifier
+INTEGER(HID_T)                  :: dset_id_loc                       !< Dataset identifier
+INTEGER(HID_T)                  :: filespace                         !< filespace identifier
 LOGICAL                         :: DatasetFound,AttributeFound,NaNDetected
 REAL                            :: delta,deltaOld,epsComp
-INTEGER                         :: iDirMax, index
+INTEGER                         :: iDirMax,index
+INTEGER                         :: i !< Count total number of checked data points (note that the last line is always skipped)
 !===================================================================================================================================
 ! Defaults
 ExternalFieldDim     = 1 ! default is 1D
@@ -162,6 +163,7 @@ END IF ! ExternalFieldDim.EQ.2
 
 ! Loop x, y and z-coordinate and check deltas between points
 NaNDetected=.FALSE.
+i=0
 DO iDir = 1, iDirMax
   ! Check for NaNs and nullify all properties except the coordinates of a data point
   DO j = 1, NbrOfColumns
@@ -175,14 +177,23 @@ DO iDir = 1, iDirMax
   ExternalFieldMin(iDir) = MINVAL(ExternalField(iDir,:))
   ExternalFieldMax(iDir) = MAXVAL(ExternalField(iDir,:))
   deltaOld = -1.0
-  DO j = 1, NbrOfColumns-1
+  DO j = 1, NbrOfColumns-1  ! Loop only until  NbrOfColumns-1 because of the comparison between Ext...(iDir,j+1) nad Ext...(iDir,j)
+    i = i+1
     delta = ExternalField(iDir,j+1)-ExternalField(iDir,j)
-    epsComp = ExternalField(iDir,j+1) * epsMach
-    !write(*,*) delta
+    epsComp = ABS(ExternalField(iDir,j+1) * epsMach)
+
+    ! Make sure that the provided input data is equisitant in the direction of its coordinates
+    ! Check if the previous Δx (deltaOld) is greater than the next coordinate value time the machine precision (epsComp) AND
+    !       if the current Δx (delta) is greater than the next coordinate value time the machine precision (epsComp)
+    ! Then check if these values are almost euqal relative to 1e-5 (arbitary tolerance)
     IF((deltaOld.GT.epsComp).AND.(delta.GT.epsComp))THEN
       IF(.NOT.ALMOSTEQUALRELATIVE(delta,deltaOld,1e-5)) THEN
-        SWRITE (*,*) "ExternalField(iDir,j+1),ExternalField(iDir,j)", ExternalField(iDir,j+1),ExternalField(iDir,j)
-        SWRITE (*,*) "iDir,j,delta,deltaOld =", iDir,j,delta,deltaOld
+        SWRITE (*,*) i, "ExternalField(iDir,j+1)       = ",ExternalField(iDir,j+1),"ExternalField(iDir,j)", ExternalField(iDir,j)&
+                                                          ,"ExternalField(iDir,j-1)", ExternalField(iDir,j-1)
+        SWRITE (*,*) i, "NbrOfRows,NbrOfColumns,iDir,j =", NbrOfRows,NbrOfColumns,iDir,j
+        SWRITE (*,*) i, "delta,deltaOld,epsComp        =", delta,deltaOld,epsComp
+        SWRITE (*,*) i, 'deltaOld.GT.epsComp:', deltaOld.GT.epsComp,   'delta.GT.epsComp:', delta.GT.epsComp
+        SWRITE (*,*) i, "j = ",j," runs from 1 to NbrOfColumns-1 =", NbrOfColumns-1
         CALL abort(__STAMP__,'ERROR in ReadExternalFieldFromHDF5: provided input is not equidistant.')
       END IF
     END IF ! deltaOld.GT.0.
