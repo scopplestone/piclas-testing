@@ -777,8 +777,9 @@ LOGICAL, INTENT(IN), OPTIONAL :: DoMPIUpdateNextFreePos
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iProc, iPos, nRecv, PartID,jPos, iPart, ElemID, SpecID
+INTEGER                       :: iProc, iPos, PartID,jPos, iPart, ElemID, SpecID
 INTEGER                       :: MessageSize, nRecvParticles
+INTEGER, ALLOCATABLE          :: RecvPartID(:)
 ! Polyatomic Molecules
 INTEGER                       :: iPolyatMole, pos_poly, MsgLengthPoly, MsgLengthElec, pos_elec, pos_ambi, MsgLengthAmbi
 INTEGER                       :: MsgLengthRotVib, pos_rotvib, MsgLengthElectronic, pos_electronic, MsgLengthSolid, pos_solid
@@ -805,7 +806,6 @@ DO iProc=0,nExchangeProcessors-1
 #endif /*defined(MEASURE_MPI_WAIT)*/
 END DO ! iProc
 
-nRecv=0
 DO iProc=0,nExchangeProcessors-1
   ! skip proc if no particles are to be received
   IF(SUM(PartMPIExchange%nPartsRecv(:,iProc)).EQ.0) CYCLE
@@ -884,8 +884,7 @@ DO iProc=0,nExchangeProcessors-1
   !>> nPart2 2 Pos=1..17,18..34
   DO iPos=0,MessageSize-1-MsgLengthPoly - MsgLengthElec - MsgLengthAmbi-MsgLengthRotVib-MsgLengthElectronic-MsgLengthSolid,PartCommSize
     ! find free position in particle array
-    nRecv  = nRecv+1
-    PartID = GetNextFreePosition(nRecv)
+    PartID = GetNextFreePosition()
 
     !>> particle position in physical space
     PartState(1:6,PartID)    = PartRecvBuf(iProc)%content(1+iPos: 6+iPos)
@@ -993,9 +992,11 @@ DO iProc=0,nExchangeProcessors-1
         END IF
       END IF
     END IF
-
     ! Set Flag for received parts in order to localize them later
     PDM%ParticleInside(PartID) = .TRUE.
+    ! Particle weighting: insert clones either instantly or store for later insertion
+    IF(ParticleWeighting%PerformCloning) CALL AdjustParticleWeight(PartID,PEM%GlobalElemID(PartID))
+
     !>> LastGlobalElemID only know to previous proc
     PEM%LastGlobalElemID(PartID) = -888
     IF (PRESENT(DoMPIUpdateNextFreePos)) THEN
@@ -1029,28 +1030,8 @@ DO iProc=0,nExchangeProcessors-1
   END DO
 END DO ! iProc
 
-IF(PartMPIExchange%nMPIParticles.GT.0) THEN
-  PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
-  PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(0))
-END IF
-#ifdef CODE_ANALYZE
-IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL Abort(__STAMP__,'PDM%ParticleVeclength exceeds PDM%maxParticleNumber, Difference:',IntInfoOpt=PDM%ParticleVeclength-PDM%maxParticleNumber)
-DO PartID=PDM%ParticleVecLength+1,PDM%maxParticleNumber
-  IF (PDM%ParticleInside(PartID)) THEN
-    IPWRITE(*,*) PartID,PDM%ParticleVecLength,PDM%maxParticleNumber
-    CALL Abort(__STAMP__,'ERROR in MPIParticleRecv: Particle outside PDM%ParticleVeclength',IntInfoOpt=PartID)
-  END IF
-END DO
-#endif
-
-IF(ParticleWeighting%PerformCloning) THEN
-  ! Checking whether received particles have to be cloned or deleted
-  DO iPart = 1,nrecv
-    PartID = GetNextFreePosition(iPart-PartMPIExchange%nMPIParticles)
-    IF(ParticleOnProc(PartID)) CALL AdjustParticleWeight(PartID,PEM%GlobalElemID(PartID))
-  END DO
-END IF
 PartMPIExchange%nMPIParticles = 0
+
 ! deallocate send,receive buffer
 DO iProc=0,nExchangeProcessors-1
   SDEALLOCATE(PartRecvBuf(iProc)%content)

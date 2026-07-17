@@ -82,6 +82,14 @@ REAL                        :: tLBStart
 
 IF(ParticleWeighting%UseSubdivision) ParticleWeighting%PartInsSide = 0
 
+#if USE_MPI
+! Adaptive BC, Type=4 (Const. massflow): sum-up the global number of particles that exited through the BC in the previous time step.
+! A single collective over the whole array outside the species/surface-flux loop. The full communicator is required: particles can be
+! counted via halo tracking on procs that do not own the surface flux side.
+IF(ALLOCATED(AdaptBCPartNumOut)) CALL MPI_ALLREDUCE(MPI_IN_PLACE,AdaptBCPartNumOut,SIZE(AdaptBCPartNumOut),MPI_DOUBLE_PRECISION,&
+                                                    MPI_SUM,MPI_COMM_PICLAS,IERROR)
+#endif /*USE_MPI*/
+
 DO iSpec=1,nSpecies
   IF(useDSMC) THEN
     IF (DSMC%DoAmbipolarDiff) THEN
@@ -94,11 +102,8 @@ DO iSpec=1,nSpecies
     currentBC = SF%BC
     NbrOfParticle = 0 ! calculated within (sub)side-Loops!
     iPartTotal=0
-    ! Adaptive BC, Type = 4 (Const. massflow): Sum-up the global number of particles exiting through BC and calculate new weights
+    ! Adaptive BC, Type = 4 (Const. massflow): global number of particles exiting through BC is summed above the loop; calc. weights
     IF(SF%AdaptiveType.EQ.4) THEN
-#if USE_MPI
-      CALL MPI_ALLREDUCE(MPI_IN_PLACE,AdaptBCPartNumOut(iSpec,iSF),1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,IERROR)
-#endif
       IF(.NOT.ALMOSTEQUAL(SF%AdaptiveMassflow,0.)) CALL CalcConstMassflowWeight(iSpec,iSF)
     END IF
     ! Calc Particles for insertion in standard case

@@ -101,7 +101,7 @@ USE MOD_Particle_Surfaces_Vars    ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod
 USE MOD_Particle_Vars             ,ONLY: nSpecies,UseVarTimeStep,VarTimeStep
 USE MOD_Symmetry_Vars             ,ONLY: Symmetry
-USE MOD_ReadInTools               ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
+USE MOD_ReadInTools               ,ONLY: GETINT,GETLOGICAL,GETINTARRAY,PrintOption
 USE MOD_Particle_Mesh_Tools       ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea
 USE MOD_Interpolation             ,ONLY: GetNodesAndWeights
 #if USE_MPI
@@ -501,8 +501,8 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 IF (mySurfRank.EQ.0) THEN
 #endif
-  LBWRITE(UNIT_StdOut,'(A,I8)')       ' | Number of sampling sides:           '    , nGlobalSurfSides
-  LBWRITE(UNIT_StdOut,'(A,ES10.4E2)') ' | Surface-Area:                         ', Area
+  CALL PrintOption('Number of sampling sides','INFO',IntOpt=nGlobalSurfSides)
+  CALL PrintOption('Total surface area','CALCUL.',RealOpt=Area)
   LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING DONE'
 #if USE_MPI
 END IF

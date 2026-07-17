@@ -791,15 +791,15 @@ IF(.NOT.DoMacroscopicRestart) THEN
 
           ! Store the particle info
           IF(CountNbrOfLostParts)THEN
+            ! Increase the array size by 1 if needed for dummy index of virtual particle
+            IF(PDM%ParticleVecLength+1.GT.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber(1)
             CurrentPartNum = PDM%ParticleVecLength+1
-
             ! Set properties of the "virtual" particle (only for using the routine StoreLostParticleProperties to store this info
             ! in the .h5 container)
             PartState(1:6,CurrentPartNum)        = RecBuff(1:6,iPart)
             PartSpecies(CurrentPartNum)          = INT(RecBuff(7,iPart))
             PEM%LastGlobalElemID(CurrentPartNum) = 0 ! Initialize with invalid value
             IF(usevMPF) PartMPF(CurrentPartNum)  = RecBuff(8,iPart) ! only required when using vMPF
-
             CALL StoreLostParticleProperties(CurrentPartNum, PEM%GlobalElemID(CurrentPartNum), &
                                              UsePartState_opt=.TRUE., PartMissingType_opt=CompleteIndexOfFoundParticles(iPart))
             CALL RemoveParticle(CurrentPartNum)
