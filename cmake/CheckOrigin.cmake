@@ -12,42 +12,25 @@ GET_FILENAME_COMPONENT(SOURCE_REALPATH "${CMAKE_CURRENT_SOURCE_DIR}" REALPATH)
 IF(NOT GIT_COMMON_ERR EQUAL 0 OR NOT "${GIT_TOPLEVEL}" STREQUAL "${SOURCE_REALPATH}")
   MESSAGE(STATUS "Not a git repository, skipping git hook setup")
 ELSE()
-  # Find the common .git directory. Using --git-common-dir (instead of --git-dir) ensures
-  # the hooks are installed where git actually runs them, also for linked worktrees where
-  # the per-worktree git dir differs from the shared one. It may be returned as a relative
-  # path (in a regular checkout), so resolve it against the source dir.
-  EXECUTE_PROCESS(COMMAND git rev-parse --git-common-dir WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} OUTPUT_VARIABLE GIT_DIR OUTPUT_STRIP_TRAILING_WHITESPACE)
-  GET_FILENAME_COMPONENT(GIT_DIR "${GIT_DIR}" REALPATH BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-  MESSAGE(STATUS "Resolved .git directory: ${GIT_DIR}")
-
   # Check where the code originates
   EXECUTE_PROCESS(COMMAND git ls-remote --get-url WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} OUTPUT_VARIABLE GIT_ORIGIN OUTPUT_STRIP_TRAILING_WHITESPACE)
   MESSAGE(STATUS "Checking git origin: " ${GIT_ORIGIN})
 
-  # Setup git hooks
-  SET(PRECOMMIT_FILE ".githooks/pre-commit")
-
   # Perform checks only if origin points to boltzplatz.eu, other origins can't commit
   IF("${GIT_ORIGIN}" MATCHES "piclas.boltzplatz.eu")
-    # Check if the pre-commit hooks exits
-    IF (NOT EXISTS ${GIT_DIR}/hooks/pre-commit)
-      # Create otherwise
-      FILE(MAKE_DIRECTORY ${GIT_DIR}/hooks)
-      EXECUTE_PROCESS(COMMAND ln -s ${CMAKE_CURRENT_SOURCE_DIR}/${PRECOMMIT_FILE} ${GIT_DIR}/hooks/pre-commit)
-    ELSE()
-      # Check if the hook is the correct symlink and warn otherwise
-      EXECUTE_PROCESS(COMMAND readlink ${GIT_DIR}/hooks/pre-commit OUTPUT_VARIABLE PRECOMMIT_LINK OUTPUT_STRIP_TRAILING_WHITESPACE)
-      IF (NOT ${PRECOMMIT_LINK} MATCHES "${CMAKE_CURRENT_SOURCE_DIR}/${PRECOMMIT_FILE}")
-        MESSAGE (WARNING "Custom git pre-commit hook detected. Please ensure to call ${PRECOMMIT_FILE} manually.")
-      ENDIF()
-    ENDIF()
-
-    # Check if the hook actually gets loaded
+    # Install the tracked git hooks by pointing core.hooksPath at the version-controlled
+    # .githooks directory. A relative path is resolved against each working tree's root, so
+    # this works for regular clones and linked worktrees alike (each runs its own hooks) and
+    # avoids a shared symlink into a single working tree that would dangle once it is removed.
+    SET(HOOKS_DIR ".githooks")
     EXECUTE_PROCESS(COMMAND git config --get core.hooksPath OUTPUT_VARIABLE HOOKSPATH OUTPUT_STRIP_TRAILING_WHITESPACE WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-    IF (DEFINED HOOKSPATH  AND NOT "${HOOKSPATH}" STREQUAL "" AND NOT "${HOOKSPATH}" STREQUAL ".git/hooks")
-      # STRING(ASCII 27 ESCAPE)
-      # MESSAGE (STATUS "${ESCAPE}[34mCustom hooks path detected. Please ensure to call ${PRECOMMIT_FILE} manually.${ESCAPE}[0m")
-      MESSAGE (WARNING "Custom git hooks path detected. Please ensure to call ${PRECOMMIT_FILE} manually.")
+    IF ("${HOOKSPATH}" STREQUAL "" OR "${HOOKSPATH}" STREQUAL ".git/hooks")
+      # Not configured (or still git's default): point it at the tracked hooks
+      EXECUTE_PROCESS(COMMAND git config core.hooksPath ${HOOKS_DIR} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+      MESSAGE(STATUS "Set git core.hooksPath to ${HOOKS_DIR}")
+    ELSEIF (NOT "${HOOKSPATH}" STREQUAL "${HOOKS_DIR}")
+      # A different, user-defined hooks path is set: do not overwrite it, just warn
+      MESSAGE (WARNING "Custom git hooks path '${HOOKSPATH}' detected. Please ensure to call ${HOOKS_DIR}/pre-commit manually.")
     ENDIF()
   ENDIF()
 ENDIF()
