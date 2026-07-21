@@ -94,3 +94,6 @@ reggie/
 
 # tools testing directory and everything in it
 tools-testing/*
+
+# ignore nested worktrees
+.worktrees
