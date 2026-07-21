@@ -1084,18 +1084,26 @@ build_DVM_plasma:
 
 build_no_git:
   tags: [withmodules-concurrent]
-  stage: build_weekly
+  stage: build
   cache:
     <<: *venv_cache
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME without git"
-    - git clone --depth=1 --branch=$CI_COMMIT_REF_NAME git@piclas.boltzplatz.eu:piclas/piclas.git piclas-no-git
-    - rm -rf piclas-no-git/.git* ; cd piclas-no-git ; ls -la
+    # Clone into a temporary directory OUTSIDE the runner's checkout. Otherwise 'git rev-parse'
+    # walks up the directory tree, finds the parent repository's .git and the no-git code path
+    # is never exercised (the test would pass even if the no-git handling is broken).
+    - NOGIT_DIR=$(mktemp -d)
+    - git clone --depth=1 --branch=$CI_COMMIT_REF_NAME git@piclas.boltzplatz.eu:piclas/piclas.git $NOGIT_DIR/piclas-no-git
+    - rm -rf $NOGIT_DIR/piclas-no-git/.git* ; cd $NOGIT_DIR/piclas-no-git ; ls -la
+    # Guarantee the no-git code path is exercised: there must be no git repository reachable up
+    # the tree, otherwise 'git rev-parse' would pick one up and the test would silently pass even
+    # if the no-git handling is broken. With this guaranteed, a successful configure+build below
+    # is the assertion (a hard failure on a missing .git would fail the job).
+    - if git rev-parse --show-toplevel 2>/dev/null ; then echo "ERROR - found a parent git repository, no-git test environment is not clean" ; exit 1 ; fi
     - mkdir build_ ; cd build_ ;
     - cmake .. -DLIBS_BUILD_HDF5=OFF
     - $GENERATOR -j $NCORES all
-  rules:
-    - if: $[[ inputs.DO_WEEKLY ]] == true
+    - rm -rf $NOGIT_DIR
 
 build_outside_repository:
   tags: [withmodules-concurrent]
