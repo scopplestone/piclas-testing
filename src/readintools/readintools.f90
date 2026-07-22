@@ -1655,7 +1655,7 @@ USE MOD_Options
 CHARACTER(LEN=*),INTENT(IN)          :: name      !< parameter name
 INTEGER,INTENT(IN)                   :: no        !< size of array
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: proposal  !< reference value
-CLASS(*),INTENT(IN)                  :: value(no) !< parameter value
+CLASS(*),INTENT(INOUT)               :: value(no) !< parameter value
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CLASS(link),POINTER          :: current
