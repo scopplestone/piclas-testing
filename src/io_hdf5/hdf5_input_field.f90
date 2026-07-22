@@ -179,7 +179,7 @@ DO iDir = 1, iDirMax
   deltaOld = -1.0
   DO j = 1, NbrOfColumns-1  ! Loop only until  NbrOfColumns-1 because of the comparison between Ext...(iDir,j+1) nad Ext...(iDir,j)
     i = i+1
-    delta = ExternalField(iDir,j+1)-ExternalField(iDir,j)
+    delta = ABS(ExternalField(iDir,j+1)-ExternalField(iDir,j))
     epsComp = ABS(ExternalField(iDir,j+1) * epsMach)
 
     ! Make sure that the provided input data is equisitant in the direction of its coordinates
