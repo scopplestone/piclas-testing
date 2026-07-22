@@ -160,7 +160,8 @@ PETSCVERSION=3.24.3
 # CMake version. Leave commented out to use default
 # CMAKEVERSION=3.31.1
 # CMAKEVERSION=4.1.2
-CMAKEVERSION=4.2.0
+# CMAKEVERSION=4.2.0
+CMAKEVERSION=4.3.3
 if [[ -n ${CMAKEVERSION} ]]; then  CMAKEVERSION="cmake/${CMAKEVERSION}"; else CMAKEVERSION='cmake'; fi;
 
 # Activate DEBUGGING MODE with ON/OFF
