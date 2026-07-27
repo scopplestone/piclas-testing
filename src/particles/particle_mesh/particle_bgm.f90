@@ -2541,6 +2541,8 @@ INTEGER                        :: NbSideID
 INTEGER                        :: iMortar
 !===================================================================================================================================
 
+SideIsExchangeSide = .FALSE.
+
 IF ((SideInfo_Shared(SIDE_NBELEMTYPE,SideID).EQ.2).OR.&
    ! BC side + element on local proc (do not count multiple times) + skip inner BCs (they would otherwise be counted twice)
    ((SideInfo_Shared(SIDE_BCID,SideID).GT.0).AND.(ElementOnProc(SideInfo_Shared(SIDE_ELEMID,SideID)).AND.(SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.0)))) THEN
