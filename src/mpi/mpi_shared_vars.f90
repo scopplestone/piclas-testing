@@ -37,6 +37,7 @@ INTEGER            :: myComputeNodeRank                     !> Rank of current p
 INTEGER            :: myLeaderGroupRank                     !> Rank of compute-node root in compute-node-root comm
 INTEGER            :: nComputeNodeProcessors                !> Number of procs on current compute-node
 INTEGER            :: nLeaderGroupProcs                     !> Number of nodes
+INTEGER,ALLOCATABLE:: GlobalRankToNodeRank(:)               !> Compute-node (leader group) rank of each global rank (0:nProcessors_Global-1)
 #if ! (CORE_SPLIT==0)
 ! When core-level splitting is used, it is not clear how many cores are on the same physical compute node.
 INTEGER            :: NbrOfPhysicalNodes                    !> Number of physical nodes (as opposed to virtual nodes) on which the simulation is executed
