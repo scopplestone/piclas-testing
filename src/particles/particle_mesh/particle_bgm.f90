@@ -1354,9 +1354,9 @@ IF(GEO%InitFIBGM) THEN
     ! Temporary array
     ALLOCATE(FIBGM_Sort(MAXVAL(FIBGM_nElems)))
 
-    DO kBGM = BGMCellZmin,BGMCellZmax
-      DO jBGM = BGMCellYmin,BGMCellYmax
-        DO iBGM = BGMCellXmin,BGMCellXmax
+    DO kBGM = BGMkmin,BGMkmax
+      DO jBGM = BGMjmin,BGMjmax
+        DO iBGM = BGMimin,BGMimax
           IF(FIBGM_nElems(iBGM,jBGM,kBGM).GT.1) THEN
             ASSOCIATE(FIBGM_ElemLoc => FIBGM_Element(FIBGM_offsetElem(iBGM,jBGM,kBGM)+1:&
                                                      FIBGM_offsetElem(iBGM,jBGM,kBGM)+  &
@@ -1375,7 +1375,7 @@ IF(GEO%InitFIBGM) THEN
 
   CALL BARRIER_AND_SYNC(FIBGM_Element_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
-END IF
+END IF ! GEO%InitFIBGM
 
 #if USE_MPI
 ! Locally sum up Number of all elements on current compute-node (including halo region)
