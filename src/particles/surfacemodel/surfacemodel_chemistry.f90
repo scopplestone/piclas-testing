@@ -571,10 +571,6 @@ INTEGER               :: iSide, iSpec, iBC, SideID
 !===================================================================================================================================
 
 IF(.NOT.SurfTotalSideOnNode) RETURN
-! ChemWallProp and ChemSampWall are already allocated
-#if USE_LOADBALANCE
-IF (PerformLoadBalance) RETURN
-#endif
 
 ALLOCATE(ChemSampWall(1:nSpecies+1,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
 ChemSampWall = 0.0

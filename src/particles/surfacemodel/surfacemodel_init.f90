@@ -255,28 +255,16 @@ SDEALLOCATE(SurfChem%SurfaceFluxBC)
 IF(SurfTotalSideOnNode) THEN
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
   IF(DoChemSurface) THEN
-#if USE_LOADBALANCE
-    IF (.NOT.PerformLoadBalance) THEN
-#endif
-      CALL UNLOCK_AND_FREE(ChemWallProp_Shared_Win)
-      CALL UNLOCK_AND_FREE(ChemSampWall_Shared_Win)
-      ADEALLOCATE(ChemSampWall_Shared)
-      ADEALLOCATE(ChemWallProp_Shared)
-#if USE_LOADBALANCE
-    END IF
-#endif
+    CALL UNLOCK_AND_FREE(ChemWallProp_Shared_Win)
+    CALL UNLOCK_AND_FREE(ChemSampWall_Shared_Win)
+    ADEALLOCATE(ChemSampWall_Shared)
+    ADEALLOCATE(ChemWallProp_Shared)
   END IF
 END IF
 #endif
-#if USE_LOADBALANCE
-  IF (.NOT.PerformLoadBalance) THEN
-#endif
-  SDEALLOCATE(ChemDesorpWall)
-  SDEALLOCATE(ChemSampWall)
-  ADEALLOCATE(ChemWallProp)
-#if USE_LOADBALANCE
-  END IF
-#endif
+SDEALLOCATE(ChemDesorpWall)
+SDEALLOCATE(ChemSampWall)
+ADEALLOCATE(ChemWallProp)
 SDEALLOCATE(SurfModEmissionEnergy)
 SDEALLOCATE(SurfModEmissionYield)
 SDEALLOCATE(StickingCoefficientData)
