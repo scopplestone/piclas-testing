@@ -208,7 +208,7 @@ before_script:
     else
       echo "Odd day number ($day). Loading MPICH";
       module purge || true;
-      module load  cmake/4.3.3  gcc/16.1.0  mpich/5.0.1/gcc/16.1.0        hdf5/1.14.6/gcc/16.1.0/mpich/5.0.1        petsc/3.23.6/gcc/16.1.0/mpich/5.0.1 || true;
+      module load  cmake/4.3.3  gcc/16.1.0  mpich/5.0.1/gcc/16.1.0        hdf5/1.14.6/gcc/16.1.0/mpich/5.0.1        petsc/3.25.1/gcc/16.1.0/mpich/5.0.1 || true;
     fi
   - if [ "$[[ inputs.DO_OPENMPI ]]" == "true" ]; then
       echo "DO_OPENMPI activated. Loading OpenMPI.";
