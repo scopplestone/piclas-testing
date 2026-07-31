@@ -325,6 +325,7 @@ if [ ! -e "${MODULEFILE}" ]; then
   ./configure PETSC_ARCH=arch-linux \
       --prefix=${PETSCINSTALLDIR} \
       --with-mpi-dir=${MPIINSTALLDIR} \
+      --with-mpi-ftn-module=mpi_f08 \
       --with-debugging=${WITHDEBUG} \
       COPTFLAGS='-O3 -march=native -mtune=native' \
       CXXOPTFLAGS='-O3 -march=native -mtune=native' \
@@ -346,6 +347,7 @@ if [ ! -e "${MODULEFILE}" ]; then
     echo -e "${RED}Failed command: [./configure PETSC_ARCH=arch-linux \\
       --prefix=${PETSCINSTALLDIR} \\
       --with-mpi-dir=${MPIINSTALLDIR} \\
+      --with-mpi-ftn-module=mpi_f08 \\
       --with-debugging=${WITHDEBUG} \\
       COPTFLAGS='-O3 -march=native -mtune=native' \\
       CXXOPTFLAGS='-O3 -march=native -mtune=native' \\
