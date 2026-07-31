@@ -686,10 +686,10 @@ venv_create:
     - rm -rf venv
     - python3 -m venv venv
     - pwd
-    - pip --version
+    - pip --version || true
     - source venv/bin/activate
-    - pip --version
     - python3 -m ensurepip
+    - pip --version
     - python3 -m pip install uv
     - uv pip install --upgrade setuptools wheel
     - uv pip install --upgrade pytest pytest-cov
