@@ -488,7 +488,6 @@ DO iPart=1,PDM%ParticleVecLength
 
     ! Get compute-node element index from particle info
     CNElemID = PEM%CNElemID(iPart)
-
     IF (SucRefPos) THEN
       alpha1=0.5*(TempPartPos(1)+1.0)
       alpha2=0.5*(TempPartPos(2)+1.0)

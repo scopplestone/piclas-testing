@@ -1020,7 +1020,7 @@ REAL                           :: SFDepoScaling
 LOGICAL                        :: ElemDone
 INTEGER                        :: ppp,globElemID
 REAL                           :: r_sf_tmp,SFAdaptiveDOFDefault,DOFMax
-INTEGER                        :: iCNElem,firstElem,lastElem,jNode,NbElemID,NeighNonUniqueNodeID, minN_PP
+INTEGER                        :: iCNElem,firstElem,lastElem,jNode,NbElemID,NeighNonUniqueNodeID,minN_PP
 CHARACTER(32)                  :: hilf2,hilf3
 #if USE_MPI
 #endif /*USE_MPI*/
