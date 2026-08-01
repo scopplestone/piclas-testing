@@ -186,8 +186,10 @@ END SUBROUTINE ReadCMBCDataFromH5
 !===================================================================================================================================
 SUBROUTINE UpdateChargeOnCMBC()
 ! MODULES
+#if USE_MPI
 USE mpi_f08
 USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION,MPIRoot
+#endif /*USE_MPI*/
 USE MOD_HDG_Vars ,ONLY: CMBC,CMBCDataLength
 ! insert modules here
 IMPLICIT NONE

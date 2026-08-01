@@ -371,7 +371,6 @@ SUBROUTINE PETScFillSystemMatrix()
 ! Use Smat to fill the PETSc System matrix
 !===================================================================================================================================
 ! MODULES
-! USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_HDG_Vars_PETSc
@@ -387,6 +386,7 @@ USE MOD_Mesh_Vars          ,ONLY: offSetElem
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: nGlobalMortarSides
 USE MOD_Globals_Vars       ,ONLY: eps0
+USE MOD_Globals            ,ONLY: MPIRoot
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
