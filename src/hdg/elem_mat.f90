@@ -521,6 +521,7 @@ DO BCsideID=1,nConductorBCsides
   END DO
 END DO
 
+#if defined(PARTICLES)
 ! Set circuit model matrix
 ! The CMBC is at the end, so we need to fill the last columns of the global matrix.
 DO BCsideID=1,nCircuitModelBCsides
@@ -567,6 +568,7 @@ IF(MPIRoot.AND.nCircuitModelBCsides.GE.1)THEN
   iIndices(1) = nGlobalPETScDOFs - 1
   PetscCallA(MatSetValues(PETScSystemMatrix,1,[iIndices(1:1)],1,[iIndices(1:1)],[CMBC%Capacitance/eps0],ADD_VALUES,ierr))
 END IF
+#endif /*defined(PARTICLES)*/
 
 PetscCallA(MatAssemblyBegin(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))
 PetscCallA(MatAssemblyEnd(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))
