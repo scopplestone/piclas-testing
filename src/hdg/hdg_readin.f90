@@ -36,6 +36,9 @@ PUBLIC :: ReadBVDataFromH5
 #if USE_PETSC
 PUBLIC :: ReadCMBCDataFromH5
 PUBLIC :: UpdateChargeOnCMBC
+#if USE_MPI && defined(CODE_ANALYZE)
+PUBLIC :: BroadcastChargeOnCMBC
+#endif /*USE_MPI && defined(CODE_ANALYZE)*/
 #endif /*USE_PETSC*/
 #endif /*defined(PARTICLES)*/
 #endif /*USE_HDG*/
@@ -219,6 +222,33 @@ CMBC%Charge = CMBC%Charge + CMBC%ChargeProc
 ! Reset the coutner
 CMBC%ChargeProc = 0.
 END SUBROUTINE UpdateChargeOnCMBC
+
+
+#if USE_MPI && defined(CODE_ANALYZE)
+!===================================================================================================================================
+!> Communicate the Circuit Model accumulated charge values from MPIRoot to ALL the other processes for analytical potential
+!> calculation. This is only required for a subsequent L2 error calculation.
+!===================================================================================================================================
+SUBROUTINE BroadcastChargeOnCMBC()
+! MODULES
+USE mpi_f08
+USE MOD_Globals       ,ONLY: IERROR,MPI_COMM_PICLAS,MPI_DOUBLE_PRECISION,myrank,unit_stdout
+USE MOD_HDG_Vars      ,ONLY: CMBC
+USE MOD_Equation_Vars ,ONLY: IniExactFunc
+! insert modules here
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(IniExactFunc.NE.10001) RETURN
+! Communicate the accumulated charged on each BC to MPIRoot
+CALL MPI_BCAST(CMBC%Charge,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iError)
+! Communicate the RF voltage
+CALL MPI_BCAST(CMBC%VoltageRF(1),1,MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iError)
+END SUBROUTINE BroadcastChargeOnCMBC
+#endif /*USE_MPI && defined(CODE_ANALYZE)*/
 #endif /*USE_PETSC*/
 #endif /*defined(PARTICLES)*/
 

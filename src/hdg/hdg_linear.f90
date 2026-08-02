@@ -506,7 +506,7 @@ IF(UseCircuitModel) THEN
   IF(MPIRoot)THEN
     CALL ExactFunc(-1,(/0.,0.,0./),CMBC%VoltageRF(1:1),t=time,iRefState=CMBC%RefState)
     src = ( CMBC%Charge + CMBC%Capacitance*CMBC%VoltageRF(1) ) / eps0
-    ! IPWRITE(*,*) 'hdg_linear.f90      C=',CMBC%Capacitance, 'Phi_rf=',CMBC%VoltageRF(1),'Phi_a=',CMBC%Voltage,'( C*Phi_rf + Q ) / eps0=',src,"Q=",CMBC%Charge
+    ! IPWRITE(*,*) 'hdg_linear.f90 ',__LINE__,'     C=',CMBC%Capacitance, 'Phi_rf=',CMBC%VoltageRF(1),'Phi_a=',CMBC%Voltage,'( C*Phi_rf + Q ) / eps0=',src,"Q=",CMBC%Charge
     PetscCallA(VecSetValues(PETScRHS,1,[nGlobalPETScDOFs-1],[src],INSERT_VALUES,ierr))
   END IF ! MPIRoot
 END IF ! UseCircuitModel

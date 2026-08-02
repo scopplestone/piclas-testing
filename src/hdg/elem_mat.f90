@@ -564,7 +564,7 @@ DO BCsideID=1,nCircuitModelBCsides
 END DO
 
 ! Add diagonal contribution of C/eps0
-IF(MPIRoot.AND.nCircuitModelBCsides.GE.1)THEN
+IF(MPIRoot.AND.UseCircuitModel)THEN
   iIndices(1) = nGlobalPETScDOFs - 1
   PetscCallA(MatSetValues(PETScSystemMatrix,1,[iIndices(1:1)],1,[iIndices(1:1)],[CMBC%Capacitance/eps0],ADD_VALUES,ierr))
 END IF
