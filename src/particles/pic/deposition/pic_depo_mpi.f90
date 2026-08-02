@@ -13,14 +13,14 @@
 #include "piclas.h"
 
 MODULE MOD_PICDepo_MPI
-#if USE_MPI
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 !===================================================================================================================================
 ! MOD PIC Depo
 !===================================================================================================================================
 IMPLICIT NONE
 PRIVATE
 
+#if USE_MPI
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 TYPE NodeDepoMapping
   INTEGER                                     :: NodeID
   TYPE (NodeDepoMapping), POINTER             :: next => NULL()
