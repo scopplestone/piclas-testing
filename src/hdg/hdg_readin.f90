@@ -232,7 +232,7 @@ END SUBROUTINE UpdateChargeOnCMBC
 SUBROUTINE BroadcastChargeOnCMBC()
 ! MODULES
 USE mpi_f08
-USE MOD_Globals       ,ONLY: IERROR,MPI_COMM_PICLAS,MPI_DOUBLE_PRECISION,myrank,unit_stdout
+USE MOD_Globals       ,ONLY: IERROR,MPI_COMM_PICLAS,MPI_DOUBLE_PRECISION
 USE MOD_HDG_Vars      ,ONLY: CMBC
 USE MOD_Equation_Vars ,ONLY: IniExactFunc
 ! insert modules here
