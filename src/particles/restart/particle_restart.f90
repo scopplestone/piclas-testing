@@ -1044,7 +1044,7 @@ IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
         ChemWallProp(iSpec,:,:,iSurfSide) = tempSurfData(iSpec,:,:,iSide)
       END DO
       ! Heat flux on the surface element
-      ChemWallProp(nSpecies+1,:,:,iSurfSide) = tempSurfData(nSpecies+1,:,:,iSide)
+      !ChemWallProp(nSpecies+1,:,:,iSurfSide) = tempSurfData(nSpecies+1,:,:,iSide)
     END DO
   ELSE
       SWRITE(*,*) 'No catalytic data found. The coverage and heat flux values will be reset.'

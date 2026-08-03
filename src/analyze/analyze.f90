@@ -621,7 +621,7 @@ USE MOD_Mesh_Vars                 ,ONLY: MeshFile
 #ifdef PARTICLES
 USE MOD_Analyze_Vars              ,ONLY: OutputErrorNormsPart
 USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,ExcitationSampleData
-USE MOD_Particle_Vars             ,ONLY: SampleElecExcitation,SamplePressTensHeatflux
+USE MOD_Particle_Vars             ,ONLY: SampleElecExcitation,SamplePressTensHeatflux, nSpecies
 USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Tools    ,ONLY: CalculatePartElemData
 USE MOD_Particle_Analyze_Output   ,ONLY: WriteParticleTrackingData
@@ -634,7 +634,7 @@ USE MOD_Particle_Tracking_vars    ,ONLY: ntracks,tTracking,tLocalization,Measure
 USE MOD_BGK_Vars                  ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_FPFlow_Vars               ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_DSMC_Vars                 ,ONLY: useDSMC
-USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, DoChemSurface, ChemWallProp
 USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides, CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,SampWallImpactEnergy,SampWallImpactVector
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallPumpCapacity,SampWallImpactAngle,SampWallImpactNumber
@@ -674,6 +674,11 @@ USE MOD_Analyze_Vars              ,ONLY: DoFieldAnalyze
 #if (USE_FV)
 USE MOD_Analyze_FV                ,ONLY: CalcError_FV
 #endif /*FV*/
+#if USE_MPI
+USE MOD_SurfaceModel_Vars         ,ONLY: ChemWallProp_Shared_Win
+USE MOD_MPI_Shared_Vars           ,ONLY: MPI_COMM_SHARED,myComputeNodeRank
+USE MOD_MPI_Shared                ,ONLY: BARRIER_AND_SYNC
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -967,6 +972,17 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
         SampWallImpactNumber(:,:,:,  iSide)=0.
       END IF ! CalcSurfaceImpact
     END DO
+#if USE_MPI
+    IF (DoChemSurface) THEN
+      ! ChemWallProp(nSpecies+1,...) accumulates the catalytic energy in [J] and is normalised by the sampling
+      ! duration in CalcSurfaceValues, so it has to be reset together with SampWallState.
+      ! Only index nSpecies+1 - the coverage in 1:nSpecies is a surface state and must persist.
+      IF (myComputeNodeRank.EQ.0) ChemWallProp(nSpecies+1,:,:,:) = 0.
+      CALL BARRIER_AND_SYNC(ChemWallProp_Shared_Win,MPI_COMM_SHARED)
+    END IF
+#else
+    IF (DoChemSurface) ChemWallProp(nSpecies+1,:,:,:) = 0.
+#endif
     iter_macsurfvalout = 0
   END IF
 END IF
