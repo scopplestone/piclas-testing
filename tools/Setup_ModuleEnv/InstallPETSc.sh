@@ -110,13 +110,13 @@ do
     # OPENMPIVERSION=4.1.6
     # OPENMPIVERSION=5.0.6
     # OPENMPIVERSION=5.0.8
-    # OPENMPIVERSION=5.0.9
+    OPENMPIVERSION=5.0.9
 
     # MPICH
     # MPICHVERSION=4.1.2
     # MPICHVERSION=4.2.1
     # MPICHVERSION=4.3.1
-    MPICHVERSION=5.0.1
+    # MPICHVERSION=5.0.1
 
     # chose which mpi you want to have installed (openmpi or mpich), default is openmpi
     if [[ -n ${MPICHVERSION} ]]; then
