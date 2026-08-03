@@ -648,6 +648,11 @@ USE MOD_Particle_Analyze_Code     ,ONLY: AnalyticParticleMovement
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod
 USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
+#if USE_MPI
+USE MOD_SurfaceModel_Vars         ,ONLY: ChemWallProp_Shared_Win
+USE MOD_MPI_Shared_Vars           ,ONLY: MPI_COMM_SHARED,myComputeNodeRank
+USE MOD_MPI_Shared                ,ONLY: BARRIER_AND_SYNC
+#endif
 #endif /*PARTICLES*/
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField_Poynting     ,ONLY: CalcPoyntingIntegral
@@ -674,11 +679,6 @@ USE MOD_Analyze_Vars              ,ONLY: DoFieldAnalyze
 #if (USE_FV)
 USE MOD_Analyze_FV                ,ONLY: CalcError_FV
 #endif /*FV*/
-#if USE_MPI
-USE MOD_SurfaceModel_Vars         ,ONLY: ChemWallProp_Shared_Win
-USE MOD_MPI_Shared_Vars           ,ONLY: MPI_COMM_SHARED,myComputeNodeRank
-USE MOD_MPI_Shared                ,ONLY: BARRIER_AND_SYNC
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
