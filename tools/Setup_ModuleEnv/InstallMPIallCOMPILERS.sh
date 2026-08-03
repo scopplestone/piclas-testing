@@ -62,6 +62,8 @@ if [[ ! -f ${TEMPLATEPATH} ]]; then
   exit
 fi
 
+PATCHESDIR=$(echo `pwd`/patches)
+
 CONFIGSUFFIX=''
 if [ "${WHICHMPI}" == "openmpi" ]; then
   # DOWNLOAD and INSTALL OPENMPI (example OpenMPI-2.1.6)
@@ -191,6 +193,12 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
         echo " " && ls -l ${TARFILE}
         echo "${RED} Failed to extract: [tar -xzf ${TARFILE}]. Broken or failed download. Try removing ${TARFILE} before processing. Exit.${NC}"
         exit
+      fi
+
+      # GCC 16 fixes for OpenMPI 5.0.9
+      if [ "${WHICHMPISHORT}" == "openmpi" ] && [ "${MPIVERSION}" == "5.0.9" ]; then
+        patch -p1 -d ${SOURCESDIR}/openmpi-${MPIVERSION} < ${PATCHESDIR}/openmpi5.0.9-brace-initialization.patch
+        patch -p1 -d ${SOURCESDIR}/openmpi-${MPIVERSION} < ${PATCHESDIR}/openmpi5.0.9-always-inline.patch
       fi
 
       if [ ! -d ${BUILDDIR} ]; then
