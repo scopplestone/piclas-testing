@@ -1085,7 +1085,7 @@ CASE('A')
 
     ! Sampling of the newly created particle
     IF (DSMC%CalcSurfaceVal.AND.(SamplingActive.OR.WriteMacroSurfaceValues)) &
-      CALL CalcWallSample(NewPartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
+      CALL CalcWallSample(NewPartID,SurfSideID,'new',SurfaceNormal_opt=n_loc, PartPosImpact_opt=NewPos)
   END IF
 
   ! Remove the impinging particle from the gas phase
@@ -1121,7 +1121,7 @@ CASE('ER')
 
     ! Sampling of the newly created particles
     IF (DSMC%CalcSurfaceVal.AND.(SamplingActive.OR.WriteMacroSurfaceValues)) &
-      CALL CalcWallSample(NewPartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
+      CALL CalcWallSample(NewPartID,SurfSideID,'new',SurfaceNormal_opt=n_loc, PartPosImpact_opt=NewPos)
   END DO
 
   IF (iReactant.NE.SurfChem%SurfSpecies) THEN
@@ -1252,7 +1252,7 @@ IF(PathTodo.GT.0) THEN
       CALL SurfaceModelEnergyAccommodation(NewPartID,locBCID,WallTemp)
       ! Sampling of newly created particles
       IF((DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) &
-        CALL CalcWallSample(NewPartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
+        CALL CalcWallSample(NewPartID,SurfSideID,'new',SurfaceNormal_opt=n_loc,PartPosImpact_opt=NewPos)
     END DO
   END IF
   ! Remove original reactant
