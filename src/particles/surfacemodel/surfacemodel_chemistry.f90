@@ -784,7 +784,7 @@ REAL               :: SumProb, ProbNone, ProbTot, ProbCum
 LOGICAL,SAVE       :: SumProbWarnDone = .FALSE.      !< issue the SUM(p)>1 warning only once per rank
 REAL,PARAMETER     :: eps  = 1e-6
 REAL,PARAMETER     :: eps2 = 1.0-eps
-REAL               :: ETrans     
+REAL               :: ETrans, CovIncrement     
 !===================================================================================================================================
 ! -----------------------------------------------------------------------------------------------------------------------------------
 ! 0.) Determine the surface parameters: coverage and number of surface molecules
@@ -904,9 +904,13 @@ DO iReac = 1, SurfChem%NumOfReact
 
     Theta = MIN(MAX(Theta,0.0),1.0)
 
-    ! Check whether free sites are left and whether the additional adsorbate still fits below the
-    ! maximum total coverage of the boundary
-    IF ((Theta.GT.0.0) .AND. ((TotalCoverage + partWeight*InvSurfMol).LE.PartBound%MaxTotalCoverage(locBCID))) THEN
+    ! The adsorbate units created per molecule enter the total coverage check as well
+    IF (SurfChemReac(iReac)%DissociativeAds) THEN
+      CovIncrement = partWeight*InvSurfMol
+    ELSE
+      CovIncrement = SurfChemReac(iReac)%DissOrder*partWeight*InvSurfMol
+    END IF
+    IF ((Theta.GT.0.0) .AND. ((TotalCoverage + CovIncrement).LE.PartBound%MaxTotalCoverage(locBCID))) THEN
       Theta = Theta**DissOrder
       ! Kisliuk model (for EqConstant=1 and MaxCoverage=1 this reduces to the Langmuir model, StickCoeff=Theta)
       StickCoeff = S_0 * (1.0 + EqConstant*(1.0/Theta - 1.0))**(-1.0)
@@ -1052,7 +1056,15 @@ CASE('A')
   ! Heat flux onto the surface created by the adsorption
   ChemSampWall(nSpecies+1,SubP,SubQ,SurfSideID) = ChemSampWall(nSpecies+1,SubP,SubQ,SurfSideID) + AdsHeat*partWeight
 
-  ChemSampWall(iAdsProd,SubP,SubQ,SurfSideID) = ChemSampWall(iAdsProd,SubP,SubQ,SurfSideID) + partWeight
+  IF (SurfChemReac(iReac)%DissociativeAds) THEN
+    ! One fragment binds to the surface, the other one is released into the gas phase below -> one unit
+    ChemSampWall(iAdsProd,SubP,SubQ,SurfSideID) = ChemSampWall(iAdsProd,SubP,SubQ,SurfSideID) + partWeight
+  ELSE
+    ! The whole molecule is bound and dissociates into DissOrder adsorbate units on the surface,
+    ! e.g. O2(gas) -> 2 O(ads) for DissOrder = 2
+    ChemSampWall(iAdsProd,SubP,SubQ,SurfSideID) = ChemSampWall(iAdsProd,SubP,SubQ,SurfSideID) &
+                                                + SurfChemReac(iReac)%DissOrder*partWeight
+  END IF
 
   ! Dissociative adsorption: the second product slot is released back into the gas phase.
   iGasProd = SurfChemReac(iReac)%GasProduct
