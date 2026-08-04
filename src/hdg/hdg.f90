@@ -150,12 +150,13 @@ REAL              :: D(0:Nmax,0:Nmax)
 INTEGER           :: nDirichletBCsidesGlobal
 #if USE_PETSC
 PetscErrorCode    :: ierr
-PetscInt          :: major,minor,subminor,release
+PetscInt          :: major,minor,patch,release
 IS                :: PETScISLocal, PETScISGlobal
 INTEGER           :: iUniqueFPCBC
 INTEGER             :: iLocalPETScDOF,iDOF
 INTEGER             :: OffsetCounter
-INTEGER,ALLOCATABLE :: localToGlobalPETScDOF(:)
+INTEGER,ALLOCATABLE :: LocalToGlobalPETScDOF(:)
+CHARACTER(100)    :: hilf,hilf2
 #if USE_MPI
 INTEGER             :: iProc,PETScDOFOffsetsMPI(nProcessors)
 #endif
@@ -163,9 +164,6 @@ INTEGER             :: iProc,PETScDOFOffsetsMPI(nProcessors)
 INTEGER           :: locSide,nMortars
 INTEGER           :: MortarSideID,iMortar
 REAL              :: StartT,EndT
-#if USE_PETSC
-CHARACTER(100)    :: hilf
-#endif /*USE_PETSC*/
 REAL              :: SurfArea
 INTEGER           :: p,q
 !===================================================================================================================================
@@ -210,7 +208,7 @@ END IF
 #if USE_DEBUG
 PETScDisplayDiagnostics = GETLOGICAL('PETScDisplayDiagnostics') ! Increase MUMPS diagnostics level: Errors, warnings, main statistics
 #endif /*USE_DEBUG*/
-PetscCallA(PetscGetVersionNumber(major,minor,subminor,release,ierr))
+PetscCallA(PetscGetVersionNumber(major,minor,patch,release,ierr))
 #ifdef PETSC_HAVE_HYPRE
 hilf = '(built with Hypre and'
 #else
@@ -221,7 +219,11 @@ hilf = TRIM(hilf)//' with Mumps)'
 #else
 hilf = TRIM(hilf)//' without Mumps)'
 #endif /*PETSC_HAVE_MUMPS*/
-LBWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') ' | Method for HDG solver: PETSc ',major,'.',minor,'.',subminor,' '//TRIM(hilf)
+! Output the cmake configuration info PETSC_VERSION_MAJOR, PETSC_VERSION_MINOR, PETSC_VERSION_PATCH to make sure they are passed
+! correctly and not empty (see where in the code these variables are used for pre-processor descision). The following line fails to
+! compile if the variable are not set appropriately
+WRITE(hilf2,'(A,I0,A,I0,A,I0,A)') " (cmake determined version ",PETSC_VERSION_MAJOR,".",PETSC_VERSION_MINOR,".",PETSC_VERSION_PATCH,")"
+LBWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)')' | Method for HDG solver: PETSc ',major,'.',minor,'.',patch,' '//TRIM(hilf)//TRIM(hilf2)
 PrecondType          = GETINT('PrecondType','1')
 #else /*without PETSC*/
 LBWRITE(UNIT_stdOut,'(A)') ' | Method for HDG solver: CG '
