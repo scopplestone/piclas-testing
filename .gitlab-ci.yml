@@ -204,21 +204,21 @@ before_script:
   - if [ "$((10#$day % 2))" == "0" ]; then
       echo "Even day number ($day). Loading OpenMPI";
       module purge || true;
-      module load  cmake/4.3.3  gcc/16.1.0  openmpi/5.0.9/gcc/16.1.0      hdf5/1.14.6/gcc/16.1.0/openmpi/5.0.9      petsc/3.25.1/gcc/16.1.0/openmpi/5.0.9 || true;
+      module load  cmake/4.3.3  gcc/16.1.0  openmpi/5.0.9/gcc/16.1.0      hdf5/2.2.0/gcc/16.1.0/openmpi/5.0.9      petsc/3.25.1/gcc/16.1.0/openmpi/5.0.9 || true;
     else
       echo "Odd day number ($day). Loading MPICH";
       module purge || true;
-      module load  cmake/4.3.3  gcc/16.1.0  mpich/5.0.1/gcc/16.1.0        hdf5/1.14.6/gcc/16.1.0/mpich/5.0.1        petsc/3.25.1/gcc/16.1.0/mpich/5.0.1 || true;
+      module load  cmake/4.3.3  gcc/16.1.0  mpich/5.0.1/gcc/16.1.0        hdf5/2.2.0/gcc/16.1.0/mpich/5.0.1        petsc/3.25.1/gcc/16.1.0/mpich/5.0.1 || true;
     fi
   - if [ "$[[ inputs.DO_OPENMPI ]]" == "true" ]; then
       echo "DO_OPENMPI activated. Loading OpenMPI.";
       module purge || true;
-      module load  cmake/4.3.3  gcc/16.1.0  openmpi/5.0.9/gcc/16.1.0      hdf5/1.14.6/gcc/16.1.0/openmpi/5.0.9      petsc/3.25.1/gcc/16.1.0/openmpi/5.0.9 || true;
+      module load  cmake/4.3.3  gcc/16.1.0  openmpi/5.0.9/gcc/16.1.0      hdf5/2.2.0/gcc/16.1.0/openmpi/5.0.9      petsc/3.25.1/gcc/16.1.0/openmpi/5.0.9 || true;
     fi
   - if [ "$[[ inputs.DO_MPICH ]]" == "true" ]; then
       echo "DO_MPICH activated. Loading MPICH.";
       module purge || true;
-      module load  cmake/4.3.3  gcc/16.1.0  mpich/5.0.1/gcc/16.1.0        hdf5/1.14.6/gcc/16.1.0/mpich/5.0.1        petsc/3.25.1/gcc/16.1.0/mpich/5.0.1 || true;
+      module load  cmake/4.3.3  gcc/16.1.0  mpich/5.0.1/gcc/16.1.0        hdf5/2.2.0/gcc/16.1.0/mpich/5.0.1        petsc/3.25.1/gcc/16.1.0/mpich/5.0.1 || true;
     fi
   - if [ "$[[ inputs.DO_MPICH_DEBUG ]]" == "true" ]; then
       echo "DO_MPICH_DEBUG activated. Loading MPICH with --with-device=ch3:sock which allows over-subscription without performance loss but cannot be used for shared memory arrays safely!";
