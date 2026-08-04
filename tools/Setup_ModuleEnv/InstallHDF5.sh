@@ -89,6 +89,8 @@ do
   then
     LOADMODULES=0
     # Set desired versions
+    CMAKEVERSION=4.3.3
+    if [[ -n ${CMAKEVERSION} ]]; then  CMAKEVERSION="cmake/${CMAKEVERSION}"; else CMAKEVERSION='cmake'; fi;
 
     # GCC
     # USECOMPILERVERSION=13.1.0
@@ -275,6 +277,8 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
 
       # Unload all possibly loaded modules and load specific modules for compilation of HDF5
       module purge
+      module load ${CMAKEVERSION}
+      module list
       if [[ -n $(module load ${COMPILERPREFIX}${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
         echo "${RED}      module ${WHICHCOMPILER}/${COMPILERVERSION} not found ${NC}"
         break
@@ -366,6 +370,8 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
 
           # Unload all possibly loaded modules and load specific modules for compilation of HDF5
           module purge
+          module load ${CMAKEVERSION}
+          module list
           if [[ -n $(module load ${COMPILERPREFIX}${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
             echo "${RED}      module ${COMPILERPREFIX}${WHICHCOMPILER}/${COMPILERVERSION} not found ${NC}"
             break
