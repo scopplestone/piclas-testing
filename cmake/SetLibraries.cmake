@@ -264,8 +264,8 @@ ELSE()
   MARK_AS_ADVANCED(FORCE HDF5_DOWNLOAD)
 
   # Set HDF5 tag / version
-  SET(HDF5_STR "1.14.5")
-  SET(HDF5_TAG "hdf5_${HDF5_STR}" CACHE STRING   "HDF5 version tag")
+  SET(HDF5_STR "2.2.0")
+  SET(HDF5_TAG "${HDF5_STR}" CACHE STRING "HDF5 version tag")
   MARK_AS_ADVANCED(FORCE HDF5_TAG)
   MESSAGE(STATUS "Setting [HDF5] download tag: ${BoldBlue}${HDF5_TAG}${ColourReset}")
 
