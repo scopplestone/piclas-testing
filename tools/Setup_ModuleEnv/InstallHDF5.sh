@@ -186,7 +186,7 @@ fi
 # Download link: https://support.hdfgroup.org/releases/hdf5/2.1.1/downloads/hdf5-2.1.1.tar.gz
 HDF5VERSION=2.2.0
 DOWNLOADPATH="https://support.hdfgroup.org/releases/hdf5/${HDF5VERSION}/downloads/hdf5-${HDF5VERSION}.tar.gz"
-CMAKEFLAGS="-DCMAKE_BUILD_TYPE=None -DHDF5_INSTALL_CMAKE_DIR=lib/cmake/hdf5 -DCMAKE_POLICY_DEFAULT_CMP0175=OLD -DBUILD_STATIC_LIBS=ON -DBUILD_SHARED_LIBS=OFF -DHDF5_BUILD_FORTRAN=ON -DHDF5_ENABLE_Z_LIB_SUPPORT=OFF -DHDF5_ENABLE_SZIP_SUPPORT=OFF"
+CMAKEFLAGS="-DCMAKE_BUILD_TYPE=None -DHDF5_INSTALL_CMAKE_DIR=lib/cmake/hdf5 -DCMAKE_POLICY_DEFAULT_CMP0175=OLD -DBUILD_STATIC_LIBS=ON -DBUILD_SHARED_LIBS=OFF -DHDF5_BUILD_FORTRAN=ON -DHDF5_ENABLE_ZLIB_SUPPORT=ON -DHDF5_ENABLE_SZIP_SUPPORT=OFF"
 # installation directory: -DCMAKE_INSTALL_PREFIX=${LIBS_HDF5_DIR}
 #            MPI support: -DHDF5_ENABLE_PARALLEL=${LIBS_USE_MPI}
 
@@ -268,8 +268,11 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
     if [[ -n ${1} ]]; then
       # Remove INSTALL module directory during re-run
       if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MODULEFILE} ]]; then
-        echo "${RED}Removing ${MODULEFILE}${NC}"
-        rm ${MODULEFILE}
+        user_inquiry "[--rerun/-r] is active. Remove the module file ${MODULEFILE}?"
+        if [[ $? -eq 0 ]]; then
+          echo "${RED}Removing ${MODULEFILE}${NC}"
+          rm ${MODULEFILE}
+        fi
       fi
     fi
     if [ ! -e "${MODULEFILE}" ]; then
@@ -310,6 +313,7 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
         echo `pwd`
 
         # cmake setup
+        echo "${GREEN} Running [cmake ${CMAKEFLAGS} -DCMAKE_INSTALL_PREFIX=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/single -DHDF5_ENABLE_PARALLEL=OFF ${SOURCESDIR}/hdf5-${HDF5VERSION}]${NC}"
         cmake ${CMAKEFLAGS} -DCMAKE_INSTALL_PREFIX=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/single -DHDF5_ENABLE_PARALLEL=OFF ${SOURCESDIR}/hdf5-${HDF5VERSION}
 
         # Compile source files with NBROFCORES threads
@@ -362,8 +366,11 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
         if [[ -n ${1} ]]; then
           # Remove INSTALL module directory during re-run
           if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MODULEFILE} ]]; then
-            echo "${RED}Removing ${MODULEFILE}${NC}"
-            rm ${MODULEFILE}
+            user_inquiry "[--rerun/-r] is active. Remove the module file ${MODULEFILE}?"
+            if [[ $? -eq 0 ]]; then
+              echo "${RED}Removing ${MODULEFILE}${NC}"
+              rm ${MODULEFILE}
+            fi
           fi
         fi
         if [ ! -e "${MODULEFILE}" ]; then
@@ -407,6 +414,7 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
             cd ${BUILDDIR}/${WHICHMPI}/${MPIVERSION}
 
             # cmake setup
+            echo "${GREEN} Running [cmake ${CMAKEFLAGS} -DCMAKE_INSTALL_PREFIX=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION} -DHDF5_ENABLE_PARALLEL=ON ${SOURCESDIR}/hdf5-${HDF5VERSION}]${NC}"
             cmake ${CMAKEFLAGS} -DCMAKE_INSTALL_PREFIX=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION} -DHDF5_ENABLE_PARALLEL=ON ${SOURCESDIR}/hdf5-${HDF5VERSION}
 
             # Compile source files with NBROFCORES threads
