@@ -771,9 +771,8 @@ END SUBROUTINE GetPorousBCInfo
 SUBROUTINE GetGroupInfo()
 ! MODULES
 USE MOD_Globals
-  USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, VarTimeStep
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: GroupOutput, SurfaceGroup, SurfaceAnalyzeStep
-USE MOD_Timedisc_Vars             ,ONLY: dt
+USE MOD_Particle_Vars             ,ONLY: UseVarTimeStep, VarTimeStep
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: GroupOutput, SurfaceGroup, SurfModelAnalyzeSampleTime
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 #endif /*USE_MPI*/
@@ -836,9 +835,9 @@ DO iGroup = 1, SurfaceGroup%nGroups
 END DO
 #endif /*USE_MPI*/
 IF(MPIRoot)THEN
-  TimeSample = dt * SurfaceAnalyzeStep
+  TimeSample = SurfModelAnalyzeSampleTime
   DO iGroup = 1, SurfaceGroup%nGroups
-    IF(SurfaceGroup%Counter(iGroup).GT.0) THEN
+    IF(SurfaceGroup%Counter(iGroup).GT.0.AND.(TimeSample.GT.0.0)) THEN
       IF(UseVarTimeStep .OR. VarTimeStep%UseSpeciesSpecific) THEN
         TimeSampleTemp = TimeSample * SurfaceGroup%VarTimeStep(iGroup) / REAL(SurfaceGroup%Counter(iGroup))
       ELSE
@@ -850,15 +849,12 @@ IF(MPIRoot)THEN
       SurfaceGroup%SampState(3,iGroup) = SurfaceGroup%SampState(3,iGroup) / TimeSampleTemp
       SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) / (TimeSampleTemp * SurfaceGroup%Area(iGroup))
     ELSE
-      SurfaceGroup%SampState = 0.0
+      SurfaceGroup%SampState(:,iGroup) = 0.0
     END IF
   END DO
   ! MPIRoot: Saving the group information to the output array
   DO iGroup = 1, SurfaceGroup%nGroups
-    GroupOutput(1,iGroup) = SurfaceGroup%SampState(1,iGroup)
-    GroupOutput(2,iGroup) = SurfaceGroup%SampState(2,iGroup)
-    GroupOutput(3,iGroup) = SurfaceGroup%SampState(3,iGroup)
-    GroupOutput(4,iGroup) = SurfaceGroup%SampState(4,iGroup)
+    GroupOutput(1:4,iGroup) = SurfaceGroup%SampState(1:4,iGroup)
   END DO
 END IF
 ! All: Reset samp array

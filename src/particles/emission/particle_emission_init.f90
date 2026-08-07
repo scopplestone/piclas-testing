@@ -219,6 +219,7 @@ DO iSpec = 1, nSpecies
   Species(iSpec)%TimeStepFactor              = GETREAL('Part-Species'//TRIM(hilf)//'-TimeStepFactor')
   IF(Species(iSpec)%TimeStepFactor.NE.1.) THEN
     VarTimeStep%UseSpeciesSpecific = .TRUE.
+    IF(UseVarTimeStep) CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step cannot be used in combination with a Part-VariableTimeStep-*!')
     IF(Species(iSpec)%TimeStepFactor.GT.1.) CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step only allows factors below 1!')
 #if (USE_HDG) && !(PP_TimeDiscMethod==500) && !(PP_TimeDiscMethod==508) && !(PP_TimeDiscMethod==509)
     CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step is only implemented with Euler, Leapfrog & Boris-Leapfrog time discretization!')
