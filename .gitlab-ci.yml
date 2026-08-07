@@ -582,6 +582,22 @@ stages:
   rules:
     - if: $[[ inputs.DO_WEEKLY ]] == true
 
+.defaults_poisson_build_PGO: &defaults_poisson_build_PGO
+  extends: .default_param
+  needs: [build_Leapfrog_PGO]
+  artifacts:
+    paths:
+      - build_Leapfrog_PGO
+  cache:
+    - *venv_cache
+    - key: "${CI_COMMIT_REF_SLUG}-BUILD-PGO"
+      paths:
+        - build_Leapfrog_PGO
+      policy: pull
+    - *coverage_cache
+  rules:
+    - if: $[[ inputs.DO_WEEKLY ]] == true
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for DSMC tests (pull only)
 .defaults_DSMC: &defaults_DSMC
@@ -1166,6 +1182,38 @@ run_build_petsc_in_piclas:
   stage: reggie_weekly
   script:
     - cd build_petsc_lib ; reggie ../regressioncheck/WEK_poisson_PETSC -e ./bin/piclas
+
+
+build_Leapfrog_PGO:
+  tags: [withmodules-concurrent]
+  needs: [reggie_download]
+  artifacts:
+    paths:
+      - build_Leapfrog_PGO
+  cache:
+    - *venv_cache
+    - key: "${CI_COMMIT_REF_SLUG}-BUILD-PGO"
+      paths:
+        - build_Leapfrog_PGO
+      policy: push
+  stage: build_weekly
+  script:
+    - mkdir -p build_Leapfrog_PGO ; cd build_Leapfrog_PGO
+    - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Profile ..
+    - echo " Preparing PGO profiling run by compiling with -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Profile"
+    - $GENERATOR -j $NCORES all
+    - reggie -e ./bin/piclas ../regressioncheck/WEK_poisson_PETSC/floating_boundary_condition_p-convergence
+    - echo " Using PGO profiling results for re-compiling with -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Release"
+    - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Release ..
+    - $GENERATOR -j $NCORES all
+  rules:
+    - if: $[[ inputs.DO_WEEKLY ]] == true
+
+run_build_Leapfrog_PGO:
+  <<: *defaults_poisson_build_PGO
+  stage: reggie_weekly
+  script:
+    - cd build_Leapfrog_PGO ; reggie  -e ./bin/piclas ../regressioncheck/WEK_poisson_PETSC/floating_boundary_condition_p-convergence
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
