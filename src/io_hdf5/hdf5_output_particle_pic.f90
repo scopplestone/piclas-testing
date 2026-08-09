@@ -13,18 +13,18 @@
 #include "piclas.h"
 
 MODULE MOD_HDF5_Output_Particles_PIC
-#if defined(PARTICLES)
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-#if !(USE_FV) || (USE_HDG)
+#if defined(PARTICLES) && (!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))) && (!(USE_FV) || (USE_HDG))
 !===================================================================================================================================
 ! Add comments please!
 !===================================================================================================================================
 ! MODULES
 USE MOD_IO_HDF5
 USE MOD_HDF5_output
+#endif /*defined(PARTICLES) && (!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))) && (!(USE_FV) || (USE_HDG))*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
+#if defined(PARTICLES) && (!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))) && (!(USE_FV) || (USE_HDG))
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
@@ -414,7 +414,5 @@ CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., Display
 
 END SUBROUTINE WriteElectroMagneticPICFieldToHDF5
 
-#endif /*!(USE_FV) || (USE_HDG)*/
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
-#endif /*defined(PARTICLES)*/
+#endif /*defined(PARTICLES) && (!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))) && (!(USE_FV) || (USE_HDG))*/
 END MODULE MOD_HDF5_Output_Particles_PIC
