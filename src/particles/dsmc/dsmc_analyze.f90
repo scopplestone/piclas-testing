@@ -47,7 +47,9 @@ USE MOD_DSMC_Vars     ,ONLY: CollInf
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL, INTENT(IN)                :: Volume,SpecPartNum(:),nPart
+REAL, INTENT(IN)                :: SpecPartNum(:)
+REAL, INTENT(IN)                :: nPart
+REAL, INTENT(IN)                :: Volume
 REAL, OPTIONAL, INTENT(IN)      :: opt_temp
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -104,8 +106,6 @@ ELSE
     END IF
   END DO
 END IF
-
-RETURN
 
 END FUNCTION CalcMeanFreePath
 
@@ -329,6 +329,7 @@ IF ((tempmass.GT.0.0).AND.(tempweighttotal.GT.0.0)) THEN
 END IF
 
 END SUBROUTINE CalcInstantTransTemp
+
 
 SUBROUTINE DSMC_data_sampling()
 !===================================================================================================================================
@@ -963,7 +964,7 @@ REAL,INTENT(IN)                :: OutputTime
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)             :: FileName
+CHARACTER(LEN=255)             :: FileName,hilf
 CHARACTER(LEN=255)             :: SpecID, LevelID, SpecID2
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNamesElecExci(:)
@@ -974,7 +975,8 @@ REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:), MacroElecExcitation(:,:)
 REAL                           :: StartT,EndT
 !===================================================================================================================================
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DSMCState',OutputTime))//'.h5'
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE DSMC TO HDF5 FILE ['//TRIM(FileName)//'] ...'
+hilf = " WRITE DSMC TO HDF5 FILE ["//TRIM(FileName)//"] ..." ! Fortitude never expands the macro SWRITE and therefore gives an error
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') TRIM(hilf)
 GETTIME(StartT)
 
 IF(nSpecies.EQ.1) THEN
