@@ -178,12 +178,10 @@ before_script:
   - if [ "$[[ inputs.DO_NINJA ]]" == "true" ]; then
       echo " Setting CMAKE_GENERATOR=Ninja to use ninja generator";
       export CMAKE_GENERATOR=Ninja;
-      export GENERATOR=ninja;
       export NCORES=0;
     else
       echo " Using default generator [Unix Makefiles] and [make] for compiling.";
       export CMAKE_GENERATOR=;
-      export GENERATOR=make;
       export NCORES=;
     fi
   - if [ "${CI_JOB_NAME}" == "reggie_download" ]; then
@@ -864,8 +862,8 @@ build:
       policy: push
   stage: build
   script:
-    - mkdir -p build ; cd build
-    - cmake -GNinja .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; ninja -j0 all
+    - cmake -GNinja -B build -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON
+    - cmake --build build -j $NCORES -t all
 
 build_maxwell_only:
   extends: .default_build_param
@@ -879,8 +877,8 @@ build_maxwell_only:
       policy: push
   stage: build
   script:
-    - mkdir -p build_maxwell_only ; cd build_maxwell_only
-    - cmake ..  -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - cmake -B build_maxwell_only  -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON
+    - cmake --build build_maxwell_only -j $NCORES -t all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
@@ -906,11 +904,10 @@ build_poisson:
       policy: push
   stage: build
   script:
-    - mkdir -p build_poisson_release_RK3 ; cd build_poisson_release_RK3
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
-    - cd ..
-    - mkdir -p build_poisson_debug_RK3 ; cd build_poisson_debug_RK3
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - cmake -B build_poisson_release_RK3 -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF
+    - cmake --build build_poisson_release_RK3 -j $NCORES -t all
+    - cmake -B build_poisson_debug_RK3 -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF
+    - cmake --build build_poisson_debug_RK3 -j $NCORES -t all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     # Check greater than 10, see https://regex101.com/ for details
     # - if [[ "$NWARN" =~ ^(1[1-9]|[2-9]+\d+|1\d\d+)$ ]]; then
@@ -918,12 +915,10 @@ build_poisson:
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
-    - cd ..
-    - mkdir -p build_poisson_release_Leapfrog ; cd build_poisson_release_Leapfrog
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
-    - cd ..
-    - mkdir -p build_poisson_debug_Leapfrog ; cd build_poisson_debug_Leapfrog
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - cmake -B build_poisson_release_Leapfrog -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF
+    - cmake --build build_poisson_release_Leapfrog -j $NCORES -t all
+    - cmake -B build_poisson_debug_Leapfrog -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF
+    - cmake --build build_poisson_debug_Leapfrog -j $NCORES -t all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [ -n "$WARN" ]; then echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; fi
     # Check greater than 10, see https://regex101.com/ for details
@@ -932,7 +927,6 @@ build_poisson:
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
-    - cd ..
 
 build_poisson_petsc:
   extends: .default_build_param
@@ -954,22 +948,18 @@ build_poisson_petsc:
       policy: push
   stage: build
   script:
-    - mkdir -p build_poisson_petsc_release_RK3 ; cd build_poisson_petsc_release_RK3
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
-    - cd ..
-    - mkdir -p build_poisson_petsc_debug_RK3 ; cd build_poisson_petsc_debug_RK3
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - cmake -B build_poisson_petsc_release_RK3 -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF
+    - cmake --build build_poisson_petsc_release_RK3 -j $NCORES -t all
+    - cmake -B build_poisson_petsc_debug_RK3 -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF
+    - cmake --build build_poisson_petsc_debug_RK3  -j $NCORES -t all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
-    - cd ..
-    - mkdir -p build_poisson_petsc_release_Leapfrog ; cd build_poisson_petsc_release_Leapfrog
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
-    - cd ..
-    - mkdir -p build_poisson_petsc_debug_Leapfrog ; cd build_poisson_petsc_debug_Leapfrog
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all
-    - cd ..
+    - cmake -B build_poisson_petsc_release_Leapfrog  -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF
+    - cmake --build build_poisson_petsc_release_Leapfrog -j $NCORES -t all
+    - cmake -B build_poisson_petsc_debug_Leapfrog -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON
+    - cmake --build build_poisson_petsc_debug_Leapfrog -j $NCORES -t all
 
 build_DSMC:
   extends: .default_build_param
@@ -991,11 +981,10 @@ build_DSMC:
       policy: push
   stage: build
   script:
-    - mkdir -p build_DSMC_release ; cd build_DSMC_release
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
-    - cd ..
-    - mkdir -p build_DSMC_debug ; cd build_DSMC_debug
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - cmake -B build_DSMC_release  -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF
+    - cmake --build build_DSMC_release  -j $NCORES -t all
+    - cmake -B build_DSMC_debug  -DCMAKE_BUILD_TYPE=Debug -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF
+    - cmake --build build_DSMC_debug  -j $NCORES -t all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
@@ -1003,12 +992,12 @@ build_DSMC:
     - if [ "$[[ inputs.DO_WEEKLY ]]" == "true" ] ; then
         cd .. ;
         mkdir -p build_DSMC_N1 ; cd build_DSMC_N1 ;
-        cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ; $GENERATOR -j $NCORES all ;
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ; cmake --build . -j $NCORES all ;
       fi
     - if [ "$[[ inputs.DO_WEEKLY ]]" == "true" ] ; then
         cd .. ;
         mkdir -p build_radiation ; cd build_radiation ;
-        cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; $GENERATOR -j $NCORES all ;
+        cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; cmake --build . -j $NCORES all ;
       fi
 
 build_drift_diffusion:
@@ -1023,8 +1012,8 @@ build_drift_diffusion:
       policy: push
   stage: build
   script:
-    - mkdir -p build_drift_diffusion ; cd build_drift_diffusion
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -DLIBS_USE_PETSC=ON; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - cmake -B build_drift_diffusion -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -DLIBS_USE_PETSC=ON
+    - cmake --build build_drift_diffusion -j $NCORES -t all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
@@ -1042,8 +1031,8 @@ build_DVM:
       policy: push
   stage: build
   script:
-    - mkdir -p build_DVM ; cd build_DVM
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=ED-DVM -DPICLAS_PARTICLES=OFF; $GENERATOR -j $NCORES all
+    - cmake -B build_DVM -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=ED-DVM -DPICLAS_PARTICLES=OFF
+    - cmake --build build_DVM -j $NCORES -t all
 
 # build_hopr:
 #   extends: .default_build_param
@@ -1054,14 +1043,14 @@ build_DVM:
 #   stage: build_weekly
 #   script:
 #     - git clone https://github.com/hopr-framework/hopr.git hopr;
-#     - cd hopr ; mkdir -p build ; cd build;
+#     - cd hopr
 #     - echo `pwd`
-#     - cmake .. -DLIBS_BUILD_HDF5=OFF
-#     - echo $GENERATOR
+#     - cmake -B build -DLIBS_BUILD_HDF5=OFF
+#     - echo cmake --build build
 #     - echo $NCORES
-#     - $GENERATOR -j $NCORES all
+#     - cmake --build build -j $NCORES -t all
 #     - ls bin/hopr
-#     #- $GENERATOR -j $NCORES all &> output.txt;
+#     #- cmake --build build -j $NCORES -t all &> output.txt;
 #     #- tail -n 20 output.txt;
 #     #- rm output.txt;
 #   rules:
@@ -1079,14 +1068,14 @@ build_DVM_plasma:
       policy: push
   stage: build
   script:
-    - mkdir -p build_DVM_plasma ; cd build_DVM_plasma
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=PLOESMA -DPICLAS_PARTICLES=OFF -DLIBS_USE_PETSC=ON; $GENERATOR -j $NCORES all
+    - cmake -B build_DVM_plasma -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=PLOESMA -DPICLAS_PARTICLES=OFF -DLIBS_USE_PETSC=ON
+    - cmake --build build_DVM_plasma -j $NCORES -t all
 
 # build_hopr_in_piclas:
 #   tags: [withmodules-concurrent]
 #   needs: [reggie_download]
 #   cache:
-#     <<: *reggie_cache
+#     <<: *reggie_c..ache
 #   stage: build_weekly
 #   script:
 #     - mkdir -p build_hopr_lib ; cd build_hopr_lib
@@ -1116,9 +1105,8 @@ build_no_git:
     # if the no-git handling is broken. With this guaranteed, a successful configure+build below
     # is the assertion (a hard failure on a missing .git would fail the job).
     - if git rev-parse --show-toplevel 2>/dev/null ; then echo "ERROR - found a parent git repository, no-git test environment is not clean" ; exit 1 ; fi
-    - mkdir build_ ; cd build_ ;
-    - cmake .. -DLIBS_BUILD_HDF5=OFF
-    - $GENERATOR -j $NCORES all
+    - cmake -B build_ -DLIBS_BUILD_HDF5=OFF
+    - cmake --build build_ -j $NCORES -t all
     - rm -rf $NOGIT_DIR
 
 build_outside_repository:
@@ -1130,10 +1118,9 @@ build_outside_repository:
     - echo " Installing branch $CI_COMMIT_REF_NAME outside the piclas directory/repository"
     - REPOPATH=$(echo `pwd`)
     - cd .. ;
-    - mkdir -p build-piclas-outside ; cd build-piclas-outside ;
-    - cmake ${REPOPATH} -DLIBS_BUILD_HDF5=OFF
-    - $GENERATOR -j $NCORES all
-    - cd .. ; rm -r build-piclas-outside ;
+    - cmake -B build-piclas-outside ${REPOPATH} -DLIBS_BUILD_HDF5=OFF
+    - cmake --build build-piclas-outside -j $NCORES -t all
+    - rm -r build-piclas-outside
   rules:
     - if: $[[ inputs.DO_WEEKLY ]] == true
 
@@ -1146,10 +1133,9 @@ build_no_git_libs:
     - echo " Installing branch $CI_COMMIT_REF_NAME without git but with external libs"
     - git clone --depth=1 --branch=$CI_COMMIT_REF_NAME git@piclas.boltzplatz.eu:piclas/piclas.git piclas-no-git-but-libs
     - rm -rf piclas-no-git-but-libs/.git* ; cd piclas-no-git-but-libs ; ls -la
-    - mkdir build_ ; cd build_
-    - cmake .. -DLIBS_BUILD_HDF5=ON -DLIBS_BUILD_MATH_LIB=ON -DLIBS_BUILD_MATH_LIB_VENDOR=OpenBLAS
+    - cmake -B build_ -DLIBS_BUILD_HDF5=ON -DLIBS_BUILD_MATH_LIB=ON -DLIBS_BUILD_MATH_LIB_VENDOR=OpenBLAS
     - echo " Compiling with -DLIBS_BUILD_HDF5=ON -DLIBS_BUILD_MATH_LIB=ON -DLIBS_BUILD_MATH_LIB_VENDOR=OpenBLAS ..."
-    - $GENERATOR -j $NCORES all &> output.txt
+    - cmake --build build_ -j $NCORES -t all &> output.txt
     - tail -n 20 output.txt
     - rm output.txt
     - ls bin/piclas
@@ -1170,10 +1156,9 @@ build_petsc_in_piclas:
       policy: push
   stage: build_weekly
   script:
-    - mkdir -p build_petsc_lib ; cd build_petsc_lib
-    - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_CODE_ANALYZE=ON -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON ..
+    - cmake -B build_petsc_lib -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_CODE_ANALYZE=ON -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON ..
     - echo " Compiling with Poisson, RK3 and self-built PETSc (-DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON) ..."
-    - $GENERATOR -j $NCORES all
+    - cmake --build build_petsc_lib -j $NCORES -t all
   rules:
     - if: $[[ inputs.DO_WEEKLY ]] == true
 
@@ -1198,14 +1183,13 @@ build_Leapfrog_PGO:
       policy: push
   stage: build_weekly
   script:
-    - mkdir -p build_Leapfrog_PGO ; cd build_Leapfrog_PGO
-    - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Profile ..
+    - cmake -B build_Leapfrog_PGO -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Profile ..
     - echo " Preparing PGO profiling run by compiling with -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Profile"
-    - $GENERATOR -j $NCORES all
-    - reggie -e ./bin/piclas ../regressioncheck/WEK_poisson_PETSC/floating_boundary_condition_p-convergence
+    - cmake --build build_Leapfrog_PGO -j $NCORES -t all
+    - reggie -e ./bin/piclas ./regressioncheck/WEK_poisson_PETSC/floating_boundary_condition_p-convergence
     - echo " Using PGO profiling results for re-compiling with -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Release"
-    - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Release ..
-    - $GENERATOR -j $NCORES all
+    - cmake -B build_Leapfrog_PGO -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Release ..
+    - cmake --build build_Leapfrog_PGO -j $NCORES -t all
   rules:
     - if: $[[ inputs.DO_WEEKLY ]] == true
 
@@ -1213,7 +1197,7 @@ run_build_Leapfrog_PGO:
   <<: *defaults_poisson_build_PGO
   stage: reggie_weekly
   script:
-    - cd build_Leapfrog_PGO ; reggie  -e ./bin/piclas ../regressioncheck/WEK_poisson_PETSC/floating_boundary_condition_p-convergence
+    - cd build_Leapfrog_PGO ; reggie -e ./bin/piclas ../regressioncheck/WEK_poisson_PETSC/floating_boundary_condition_p-convergence
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
