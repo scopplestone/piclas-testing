@@ -135,9 +135,6 @@ IF(VarTimeStep%UseLinearScaling) THEN
       VarTimeStep%TimeScaleFac2DFront = GETREAL('Part-VariableTimeStep-ScaleFactor2DFront','1.0')
       VarTimeStep%TimeScaleFac2DBack = GETREAL('Part-VariableTimeStep-ScaleFactor2DBack','1.0')
     END IF
-  ELSE IF(Symmetry%Order.EQ.1) THEN
-    CALL abort(__STAMP__, &
-    'ERROR: 1D and variable timestep is not implemented yet!')
   ELSE
     VarTimeStep%StartPoint = GETREALARRAY('Part-VariableTimeStep-StartPoint',3)
     VarTimeStep%EndPoint = GETREALARRAY('Part-VariableTimeStep-EndPoint',3)
@@ -163,6 +160,12 @@ IF(VarTimeStep%UseDistribution) THEN
   ! BGK/FP: Read-in of the target maximal relaxation factor
   VarTimeStep%TargetMaxRelaxFactor = GETREAL('Part-VariableTimeStep-Distribution-TargetMaxRelaxFactor')
 END IF
+
+! Sanity check
+IF(Symmetry%Order.EQ.1) THEN
+  IF(VarTimeStep%UseDistribution.OR.VarTimeStep%UseLinearScaling) CALL abort(__STAMP__,'ERROR: 1D and variable timestep is not implemented yet!')
+END IF
+
 SWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitPartTimeStep
@@ -197,6 +200,7 @@ REAL, ALLOCATABLE                 :: DSMCQualityFactors(:,:), PartNum(:)
 REAL                              :: TimeFracTemp
 CHARACTER(LEN=255),ALLOCATABLE    :: VarNames_tmp(:)
 INTEGER                           :: nVar_HDF5, N_HDF5, nVar_MaxCollProb, nVar_MCSoverMFP, nVar_TotalPartNum, nVar_TimeStep
+INTEGER                           :: nElems_HDF5
 REAL, ALLOCATABLE                 :: ElemData_HDF5(:,:)
 #if (PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400)
 INTEGER                           :: nVar_MaxRelaxFac
@@ -208,7 +212,15 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT VARIABLE TIME STEP DISTRIBUTION...'
 
 TimeStepExists = .FALSE.
 QualityExists = .FALSE.
+! Initialize the positions of the required variables within the ElemData array: a value of zero indicates that the variable was not
+! found in the DSMC state file (checked below before the array is accessed)
 nVar_TimeStep = 0
+nVar_MaxCollProb = 0
+nVar_MCSoverMFP = 0
+nVar_TotalPartNum = 0
+#if (PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400)
+nVar_MaxRelaxFac = 0
+#endif /*PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400*/
 
 IF(DoRestart) THEN
 ! Try to get the time step factor distribution directly from state file
@@ -251,7 +263,16 @@ IF(VarTimeStep%AdaptDistribution) THEN
   ! Open DSMC state file
   CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
-  CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nGlobalElems)
+  ! Read the properties into a local variable: nGlobalElems must not be overwritten with the element number of the DSMC state file
+  CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nElems_HDF5)
+
+  ! The mesh of the DSMC state file has to be identical to the mesh of the current simulation
+  IF(nElems_HDF5.NE.nGlobalElems) THEN
+    SWRITE(*,*) 'ERROR: Number of elements in the MacroscopicRestart file: ', nElems_HDF5
+    SWRITE(*,*) 'ERROR: Number of elements in the mesh                   : ', nGlobalElems
+    CALL abort(__STAMP__,&
+    'ERROR: Number of elements in the given MacroscopicRestart file does not correspond to the mesh: '//TRIM(MacroRestartFileName))
+  END IF
 
   ! Arrays might have been allocated if a time step was found in the state file
   IF(.NOT.ALLOCATED(VarTimeStep%ElemFac)) THEN
@@ -295,6 +316,27 @@ IF(VarTimeStep%AdaptDistribution) THEN
     END IF
 #endif /*PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400*/
   END DO
+
+  ! Sanity check: the quality factors are only written to the DSMC state file if Particles-DSMC-CalcQualityFactors = T
+  IF((nVar_MaxCollProb.EQ.0).OR.(nVar_MCSoverMFP.EQ.0)) THEN
+    SWRITE(*,*) 'ERROR: Missing quality factors in the MacroscopicRestart file: ', TRIM(MacroRestartFileName)
+    CALL abort(__STAMP__,&
+    'ERROR: Adapting the time step distribution requires DSMC_MaxCollProb and DSMC_MCS_over_MFP in the given DSMC state file. '//&
+    'These are only written out with Particles-DSMC-CalcQualityFactors = T!')
+  END IF
+  IF(nVar_TotalPartNum.EQ.0) THEN
+    SWRITE(*,*) 'ERROR: Missing particle number in the MacroscopicRestart file: ', TRIM(MacroRestartFileName)
+    CALL abort(__STAMP__,&
+    'ERROR: Adapting the time step distribution requires Total_SimPartNum in the given DSMC state file!')
+  END IF
+#if (PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400)
+  IF(nVar_MaxRelaxFac.EQ.0) THEN
+    SWRITE(*,*) 'ERROR: Missing relaxation factor in the MacroscopicRestart file: ', TRIM(MacroRestartFileName)
+    CALL abort(__STAMP__,&
+    'ERROR: Adapting the time step distribution requires BGK_MaxRelaxationFactor or FP_MaxRelaxationFactor in the given DSMC '//&
+    'state file. These are only written out with Particles-DSMC-CalcQualityFactors = T!')
+  END IF
+#endif /*PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400*/
 
   ALLOCATE(ElemData_HDF5(1:nVar_HDF5,1:nGlobalElems))
   ! Associate construct for integer KIND=8 possibility
