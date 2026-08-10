@@ -677,6 +677,13 @@ IF(iGroup.NE.0) THEN
         END IF
       END IF
     END IF
+    ! Sample the time step for the correct determination of the heat flux only on impact
+    SurfaceGroup%Counter(iGroup) = SurfaceGroup%Counter(iGroup) + 1
+    IF (UseVarTimeStep) THEN
+      SurfaceGroup%VarTimeStep(iGroup) = SurfaceGroup%VarTimeStep(iGroup) + PartTimeStep(PartID)
+    ELSE IF(VarTimeStep%UseSpeciesSpecific) THEN
+      SurfaceGroup%VarTimeStep(iGroup) = SurfaceGroup%VarTimeStep(iGroup) + Species(SpecID)%TimeStepFactor
+    END IF
   CASE ('new')
     SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) - ETrans * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
     IF (useDSMC) THEN
@@ -698,15 +705,6 @@ IF(iGroup.NE.0) THEN
   CASE DEFAULT
     CALL abort(__STAMP__,'ERROR in CalcWallSample: wrong SampleType specified. Possible types -> ( old , new )')
   END SELECT
-! Sample the time step for the correct determination of the heat flux
-  SurfaceGroup%Counter(iGroup) = SurfaceGroup%Counter(iGroup) + 1
-  IF (UseVarTimeStep) THEN
-    SurfaceGroup%VarTimeStep(iGroup) = SurfaceGroup%VarTimeStep(iGroup) &
-                                                              + PartTimeStep(PartID)
-  ELSE IF(VarTimeStep%UseSpeciesSpecific) THEN
-    SurfaceGroup%VarTimeStep(iGroup) = SurfaceGroup%VarTimeStep(iGroup) &
-                                                              + Species(SpecID)%TimeStepFactor
-  END IF
 END IF
 
 END SUBROUTINE SampleSurfaceGroupProperties

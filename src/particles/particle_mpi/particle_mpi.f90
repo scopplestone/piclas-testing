@@ -777,9 +777,8 @@ LOGICAL, INTENT(IN), OPTIONAL :: DoMPIUpdateNextFreePos
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iProc, iPos, PartID,jPos, iPart, ElemID, SpecID
+INTEGER                       :: iProc, iPos, PartID,jPos, ElemID, SpecID
 INTEGER                       :: MessageSize, nRecvParticles
-INTEGER, ALLOCATABLE          :: RecvPartID(:)
 ! Polyatomic Molecules
 INTEGER                       :: iPolyatMole, pos_poly, MsgLengthPoly, MsgLengthElec, pos_elec, pos_ambi, MsgLengthAmbi
 INTEGER                       :: MsgLengthRotVib, pos_rotvib, MsgLengthElectronic, pos_electronic, MsgLengthSolid, pos_solid
