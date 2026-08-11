@@ -76,8 +76,8 @@ TYPE tSurfaceGroup
   INTEGER,ALLOCATABLE           :: SurfSide2GroupID(:)        ! Mapping from SurfSideID to GroupID
   REAL,ALLOCATABLE              :: SymmetryFactor(:)
   REAL,ALLOCATABLE              :: Area(:)
-  REAL,ALLOCATABLE              :: VarTimeStep(:)             ! Sum timestep weigthing factor for variable time step
-  INTEGER,ALLOCATABLE           :: Counter(:)                 ! Total number of wall interactions per group
+  INTEGER,ALLOCATABLE           :: Counter(:)                 ! Number of wall interactions per group (to detect groups
+                                                              ! without any impact during the sampling interval)
 END TYPE tSurfaceGroup
 
 TYPE(tSurfaceGroup)   :: SurfaceGroup

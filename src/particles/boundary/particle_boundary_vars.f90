@@ -52,7 +52,6 @@ REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: SampWallImpactAngle
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: SampWallImpactNumber
 
 ! SampWallState indices for optional variables (defined in InitParticleBoundarySampling)
-INTEGER                                 :: SWIVarTimeStep
 INTEGER                                 :: SWIStickingCoefficient
 
 LOGICAL                                 :: CalcTorque                 !> Calculate torque about x-, y-, z-axis
