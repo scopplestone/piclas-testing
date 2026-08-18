@@ -79,7 +79,7 @@ CHARACTER(LEN=*),INTENT(IN)          :: MeshFileName
 REAL,INTENT(IN)                      :: OutputTime
 LOGICAL,INTENT(IN),OPTIONAL          :: WriteUserblockIn
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: NodeType_in        !< Type of 1D points
-CHARACTER(LEN=*),INTENT(OUT),OPTIONAL:: FileNameOut
+CHARACTER(LEN=255),INTENT(OUT),OPTIONAL :: FileNameOut
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -101,7 +101,7 @@ ELSE
   FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
 END IF ! PRESENT(FileNameIn)
 IF(.NOT.MPIRoot) THEN
-  IF(PRESENT(FileNameOut)) FileNameOut = FileName
+  IF(PRESENT(FileNameOut)) FileNameOut = TRIM(FileName)
   RETURN
 END IF
 
