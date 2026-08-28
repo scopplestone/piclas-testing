@@ -394,7 +394,7 @@ IF ((.NOT.SurfChem%OverwriteCatParameters).AND.(SurfChem%CatBoundNum.GT.0)) THEN
       CALL GetDBReal('StickingCoefficient',SurfChemReac(iReac)%S_initial ,1.)
       CALL GetDBReal('EqConstant'         ,SurfChemReac(iReac)%EqConstant,1.)
       CALL GetDBReal('DissOrder'          ,SurfChemReac(iReac)%DissOrder ,DissOrderUnset)
-      ! The adsorption products are derived from Products(:) in section 6. 
+      ! The adsorption products are derived from Products(:) in section 6.
 
     CASE('D')
       CALL GetDBReal('LateralInteraction',SurfChemReac(iReac)%W_interact,0.)
@@ -611,7 +611,7 @@ DO iSpec = 1, nSpecies
 END DO
 
 CONTAINS
- 
+
 !===================================================================================================================================
 !> Read an optional REAL attribute of the current species database dataset, or fall back to a default value.
 !> Uses host association for file_id_specdb, dsetname and Attr_Exists.
@@ -646,9 +646,6 @@ USE MOD_PARTICLE_Vars           ,ONLY: nSpecies
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfTotalSideOnNode, PartBound, nSurfSample, nComputeNodeSurfTotalSides, SurfSide2GlobalSide
 USE MOD_SurfaceModel_Vars       ,ONLY: ChemSampWall, ChemDesorpWall, ChemWallProp
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
 ! USE MOD_Particle_Surfaces_Vars
 #if USE_MPI
 USE MOD_MPI_Shared
@@ -740,7 +737,7 @@ USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
 USE MOD_Globals_Vars              ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,Species,usevMPF,WriteMacroSurfaceValues,nSpecies,PartState
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
-USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, SurfSideArea, nSurfSample
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, SurfSideArea
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfChem, SurfChemReac, ChemWallProp, ChemSampWall
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, ElemMidPoint_Shared
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
@@ -784,7 +781,7 @@ REAL               :: SumProb, ProbNone, ProbTot, ProbCum
 LOGICAL,SAVE       :: SumProbWarnDone = .FALSE.      !< issue the SUM(p)>1 warning only once per rank
 REAL,PARAMETER     :: eps  = 1e-6
 REAL,PARAMETER     :: eps2 = 1.0-eps
-REAL               :: ETrans, CovIncrement     
+REAL               :: ETrans, CovIncrement
 !===================================================================================================================================
 ! -----------------------------------------------------------------------------------------------------------------------------------
 ! 0.) Determine the surface parameters: coverage and number of surface molecules
@@ -926,7 +923,7 @@ DO iReac = 1, SurfChem%NumOfReact
       CandProb(nCand) = StickCoeff
       CandSpec(nCand) = iAdsProd
       CandCov (nCand) = Coverage
-      CandBeta(nCand) = SurfChemReac(iReac)%HeatAccommodation 
+      CandBeta(nCand) = SurfChemReac(iReac)%HeatAccommodation
     END IF
 
   ! ---------------------------------------------------------------------------------------------------------------------------------

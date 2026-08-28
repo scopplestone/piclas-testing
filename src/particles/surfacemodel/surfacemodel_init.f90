@@ -224,9 +224,6 @@ SUBROUTINE FinalizeSurfaceModel()
 ! MODULES
 USE MOD_Globals
 USE MOD_SurfaceModel_Vars
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfTotalSideOnNode
 USE MOD_MPI_Shared_vars         ,ONLY: MPI_COMM_SHARED

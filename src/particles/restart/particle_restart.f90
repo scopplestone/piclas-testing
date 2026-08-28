@@ -973,7 +973,7 @@ USE MOD_PreProc
 USE MOD_HDF5_input
 USE MOD_io_hdf5
 USE MOD_Restart_Vars            ,ONLY: RestartFile
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample, nGlobalSurfSides,nComputeNodeSurfSides, offsetComputeNodeSurfSide, nComputeNodeSurfTotalSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample, nGlobalSurfSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp
 USE MOD_Particle_Vars           ,ONLY: nSpecies

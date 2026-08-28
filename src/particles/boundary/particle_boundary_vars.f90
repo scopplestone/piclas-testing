@@ -24,7 +24,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 
-LOGICAL                                 :: SurfTotalSideOnNode
+LOGICAL                                 :: SurfTotalSideOnNode = .FALSE.
 INTEGER                                 :: SurfSampSize                  !> Energy + Force + nSpecies
 INTEGER                                 :: SurfOutputSize                !> Energy + Force + nSpecies
 INTEGER                                 :: SurfSpecOutputSize            !> Energy + Force + nSpecies
