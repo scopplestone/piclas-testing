@@ -480,7 +480,7 @@ For the treatment of multiple reaction paths of the same species, a possible bia
     Surface-Reaction1-ReactHeat      = 17101.4
     Surface-Reaction1-HeatScaling    = 1202.9
 
-Depending on the reaction type, different additional parameters have to be defined. More details on the specific cases are given in the following subsections. An example input file for CO and O2 on a palladium surface can be found in the regression tests `regressioncheck/WEK_DSMC/ChannelFlow_SurfChem_AdsorpDesorp_CO_O2`.
+Depending on the reaction type, different additional parameters have to be defined. More details on the specific cases are given in the following subsections. Example input files for the adsorption and desorption of CO and O2 on a palladium surface can be found in the regression tests `regressioncheck/WEK_DSMC/SurfChem_AdsorpDesorp_CO` and `regressioncheck/WEK_DSMC/SurfChem_AdsorpDesorp_O2`.
 
 ### Adsorption
 
@@ -691,7 +691,7 @@ first slot, since the split of the molecule between surface and gas phase would 
 entry is rejected for adsorption reactions.
 
 `DissOrder` defaults to **2 for dissociative** and **1 for non-dissociative** adsorption, matching the two
-adjacent sites a dissociating molecule needs. An explicit value overrides this. 
+adjacent sites a dissociating molecule needs. An explicit value overrides this.
 
 Dissociative adsorption in which *both* fragments remain on the surface is not covered by this convention.
 
@@ -757,9 +757,9 @@ each of them enters the rate, so the units of the prefactor depend on the number
 
 ##### Eley-Rideal
 
-An Eley-Rideal `ER` reaction is a reaction which an incoming gas phase particle reacts directly with an already 
-adsorbed species upon impact, forming a product that is released into the gas phase. Since the reaction happens 
-in a single collision without the impacting particle first equilibrating with the surface, the activation barrier 
+An Eley-Rideal `ER` reaction is a reaction which an incoming gas phase particle reacts directly with an already
+adsorbed species upon impact, forming a product that is released into the gas phase. Since the reaction happens
+in a single collision without the impacting particle first equilibrating with the surface, the activation barrier
 is overcome by the translational energy the particle brings along rather than by the thermal energy of the wall.
 
 ##### Langmuir-Hinshelwood
