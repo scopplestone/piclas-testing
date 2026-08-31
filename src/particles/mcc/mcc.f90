@@ -557,7 +557,7 @@ DO iSpec = 1, nSpecies
         ! Calculation of the maximum CollProbMax of all cells for this processor
         IF(DSMC%CollProbMax .GE. DSMC%CollProbMaxProcMax) DSMC%CollProbMaxProcMax = DSMC%CollProbMax
         ! Remove the correction factor for the mean collision probability
-        IF(SpecXSec(iSpec)%UseCollXSec) THEN
+        IF(SpecXSec(iCase)%UseCollXSec) THEN
           IF(XSec_NullCollision) THEN
             CollProb = CollProb * ProbNull
           ELSE
@@ -572,7 +572,7 @@ DO iSpec = 1, nSpecies
         ! Sum of collision probabilities for the collision pair, required for the correct reaction rate
         IF(ChemReac%NumOfReact.GT.0) THEN
           IF (ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths.GT.0) THEN
-            IF(SpecXSec(iSpec)%UseCollXSec) THEN
+            IF(SpecXSec(iCase)%UseCollXSec) THEN
               ! Calculate the collision probability for the null collision probability case
               IF(XSec_NullCollision) THEN
                 CollProb = CollProb * ProbNull
