@@ -726,8 +726,8 @@ pyhope_download:
     - pip --version
     - source venv/bin/activate
     - pip --version
-    # PyHOPE needs NRG Gmsh, pre-install it (try two different mirrors for downloading the .whl file)
-    - uv pip install https://piclas.boltzplatz.eu/public-libs/python-gmsh/-/raw/master/gmsh-4.14.0.post1-py3-none-linux_x86_64.whl || uv pip install https://gitlab.iag.uni-stuttgart.de/libs/python-gmsh/-/raw/master/gmsh-4.14.0.post1-py3-none-linux_x86_64.whl
+    # PyHOPE needs NRG Gmsh, pre-install it (use GitHub assets for downloading the .whl file)
+    - uv pip install https://github.com/hopr-framework/PyHOPE/releases/latest/download/gmsh-4.15.2.post1-py3-none-linux_x86_64.whl
     # Install PyHOPE
     # - uv pip install --upgrade pyhope
     - PYHOPEBRANCH=main ;  # default: main
