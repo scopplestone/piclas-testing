@@ -598,26 +598,11 @@ stages:
   rules:
     - if: $[[ inputs.DO_WEEKLY ]] == true
 
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Defaults for DSMC tests (pull only)
 .defaults_DSMC: &defaults_DSMC
   extends: .default_param
   needs: [build_DSMC]
-  artifacts:
-    paths:
-      - build_DSMC_release
-      - build_DSMC_debug
-      - build_DSMC_N1
-      - build_radiation
   cache:
     - *venv_cache
-    - key: "${CI_COMMIT_REF_SLUG}-DSMC"
-      paths:
-        - build_DSMC_release
-        - build_DSMC_debug
-        - build_DSMC_N1
-        - build_radiation
-      policy: pull
     - *coverage_cache
 
 .defaults_DSMC_checkin: &defaults_DSMC_checkin
@@ -1822,57 +1807,27 @@ WEK_DSMC_N1:
 WEK_DSMC_Radiation:
   <<: *defaults_DSMC_weekly
   needs: [build_DSMC]
-  cache:
-    - key: "venv"
-      paths: [reggie]
-      policy: pull
-    - key: "${CI_COMMIT_REF_SLUG}-DSMC"
-      paths:
-        - build_DSMC_release
-      policy: pull
-    - key: "${CI_COMMIT_REF_SLUG}-DSMC-CS-${SHARED_MEMORY}"
-      paths:
-        - build_DSMC_release_WEK_DSMC_Radiation
-      policy: push
   stage: reggie_weekly
   script:
     # Use -s, --save   Do not remove output directories buildsXXXX in output_dir after successful run.
-    - OUTPUTSTATE=70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5;
     - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_DSMC_Radiation -e bin/piclas -s
-    - STATEFILE=$(find output_dir -name ${OUTPUTSTATE} | head -n 1)
-    - if [ -z ${STATEFILE} ]; then echo "File ${OUTPUTSTATE} was not created"; exit 1; fi
-    - cd ..
-    - cp -r build_DSMC_release build_DSMC_release_WEK_DSMC_Radiation
-
-# This reggie reguies that WEK_DSMC_Radiation is executed beforehand creating 70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5
-# and mesh_70degCone2D_Set1_noWake_mesh.h5, which are copied from the cached path to this reggie to serve as input
-WEK_Radiation:
-  <<: *defaults_DSMC_weekly
-  needs: [WEK_DSMC_Radiation]
+    - OUTPUTSTATE=70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5
+    - MESHFILE=mesh_70degCone2D_Set1_noWake_mesh.h5
+    - mkdir -p ../WEK_DSMC_Radiation_output
+    - cp $(find output_dir -name ${OUTPUTSTATE} | head -n 1) ../WEK_DSMC_Radiation_output/${OUTPUTSTATE}
+    - cp ../regressioncheck/WEK_DSMC_Radiation/${MESHFILE} ../WEK_DSMC_Radiation_output/${MESHFILE}
   artifacts:
     paths:
-      - build_DSMC_release_WEK_DSMC_Radiation
-  cache:
-    - *venv_cache
-    - key: "${CI_COMMIT_REF_SLUG}-DSMC"
-      paths: [build_radiation]
-      policy: pull
-    - key: "${CI_COMMIT_REF_SLUG}-DSMC-CS-${SHARED_MEMORY}"
-      paths:
-        - build_DSMC_release_WEK_DSMC_Radiation
-      policy: pull-push
+      - WEK_DSMC_Radiation_output
+
+# This reggie requires 70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5 from WEK_DSMC_Radiation
+WEK_Radiation:
+  <<: *defaults_DSMC_weekly
+  needs: [build_DSMC, WEK_DSMC_Radiation]
   stage: reggie_weekly
   script:
-    - REGGIEDIR=../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot; BUILDDIR=build_DSMC_release_WEK_DSMC_Radiation; INPUTSTATE=70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5;
-    - cd build_radiation
-    - STATEFILE=$(find ../${BUILDDIR}/output_dir -name ${INPUTSTATE} | head -n 1)
-    - if [ -z ${STATEFILE} ]; then echo "File ${INPUTSTATE} not found"; exit 1; fi
-    - cp  ${STATEFILE} ${REGGIEDIR}/.
-    - cp $(find ../${BUILDDIR}/output_dir -name "mesh_70degCone2D_Set1_noWake_mesh.h5" | head -n 1) ${REGGIEDIR}/.
-    - rm -rf ../${BUILDDIR}/output_dir
-    - reggie -e ./bin/piclas ${REGGIEDIR}
-  rules:
-    - if: $[[ inputs.DO_WEEKLY ]] == true
+    - cp WEK_DSMC_Radiation_output/* regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot/
+    - cd build_radiation ;  reggie ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot -e ./bin/piclas
 
 WEK_Reservoir:
   <<: *defaults_DSMC_weekly
