@@ -292,7 +292,10 @@ stages:
   artifacts:
     name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
     expire_in: 1 day
-    when: on_failure
+    when: always
+  cache:
+    - *venv_cache
+    - *coverage_cache
   rules:
     # If the pipeline is for an appimage test run, the job is not added to the pipeline.
     - if: '"$[[ inputs.DO_TEST_APPIMAGE ]]" != ""'
@@ -305,23 +308,11 @@ stages:
       when: never
     # In all other cases, the job is added to the pipeline, with when: on_success
     - when: on_success
-
-.default_python_param: &default_python_param
-  <<: *default_build_param
-
-.default_python: &default_python
-  <<: *default_python_param
-  allow_failure: false
-
-.defaults_python: &defaults_python
-  extends: .default_python
   variables:
     # The project directory will be cleaned up at the end of the build
     FF_ENABLE_JOB_CLEANUP: true
     # The trace force send interval for logs is dynamically adjusted based on the trace update interval
     FF_USE_DYNAMIC_TRACE_FORCE_SEND_INTERVAL: true
-    # Fastzip is a performant archiver for cache/artifact archiving and extraction
-    FF_USE_FASTZIP: true
     # Use fast compression for artifacts, resulting in larger archives
     ARTIFACT_COMPRESSION_LEVEL: "fast"
     # Use no compression for caches
@@ -601,9 +592,6 @@ stages:
 .defaults_DSMC: &defaults_DSMC
   extends: .default_param
   needs: [build_DSMC]
-  cache:
-    - *venv_cache
-    - *coverage_cache
 
 .defaults_DSMC_checkin: &defaults_DSMC_checkin
   <<: *defaults_DSMC
@@ -641,7 +629,7 @@ cleanup:
 # policy: allow failure without stopping pipeline only on feature branches
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 fortitude:
-  <<: *defaults_python
+  <<: *default_build_param
   stage: lint
   dependencies: []
   script:
@@ -660,7 +648,7 @@ fortitude:
     allow_failure: false
 
 ruff:
-  <<: *defaults_python
+  <<: *default_build_param
   stage: lint
   dependencies: []
   script:
@@ -965,15 +953,6 @@ build_DSMC:
       - build_DSMC_debug
       - build_DSMC_N1
       - build_radiation
-  cache:
-    - *venv_cache
-    - key: "${CI_COMMIT_REF_SLUG}-DSMC"
-      paths:
-        - build_DSMC_release
-        - build_DSMC_debug
-        - build_DSMC_N1
-        - build_radiation
-      policy: push
   stage: build
   script:
     - mkdir -p build_DSMC_release ; cd build_DSMC_release
@@ -995,6 +974,9 @@ build_DSMC:
         mkdir -p build_radiation ; cd build_radiation ;
         cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; $GENERATOR -j $NCORES all ;
       fi
+    - cd ..
+    # Reduce size of artifacts by a factor 10x
+    - ./tools/strip-build-dir.sh build_*
 
 build_drift_diffusion:
   extends: .default_build_param
