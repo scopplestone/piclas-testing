@@ -264,8 +264,8 @@ ELSE()
   MARK_AS_ADVANCED(FORCE HDF5_DOWNLOAD)
 
   # Set HDF5 tag / version
-  SET(HDF5_STR "1.14.5")
-  SET(HDF5_TAG "hdf5_${HDF5_STR}" CACHE STRING   "HDF5 version tag")
+  SET(HDF5_STR "2.2.0")
+  SET(HDF5_TAG "${HDF5_STR}" CACHE STRING "HDF5 version tag")
   MARK_AS_ADVANCED(FORCE HDF5_TAG)
   MESSAGE(STATUS "Setting [HDF5] download tag: ${BoldBlue}${HDF5_TAG}${ColourReset}")
 
@@ -321,7 +321,7 @@ ELSE()
       CMAKE_GENERATOR    "Unix Makefiles"
       BUILD_COMMAND      make -j${N}
       # Set the CMake arguments for HDF5
-      CMAKE_ARGS         -DCMAKE_BUILD_TYPE=None -DCMAKE_INSTALL_PREFIX=${LIBS_HDF5_DIR} -DHDF5_INSTALL_CMAKE_DIR=lib/cmake/hdf5 -DCMAKE_POLICY_DEFAULT_CMP0175=OLD -DBUILD_STATIC_LIBS=ON -DBUILD_SHARED_LIBS=OFF -DHDF5_BUILD_FORTRAN=ON -DHDF5_ENABLE_Z_LIB_SUPPORT=OFF -DHDF5_ENABLE_SZIP_SUPPORT=OFF -DHDF5_ENABLE_PARALLEL=${LIBS_USE_MPI}
+      CMAKE_ARGS         -DCMAKE_BUILD_TYPE=None -DCMAKE_INSTALL_PREFIX=${LIBS_HDF5_DIR} -DHDF5_INSTALL_CMAKE_DIR=lib/cmake/hdf5 -DCMAKE_POLICY_DEFAULT_CMP0175=OLD -DBUILD_STATIC_LIBS=ON -DBUILD_SHARED_LIBS=OFF -DHDF5_BUILD_FORTRAN=ON -DHDF5_ENABLE_ZLIB_SUPPORT=ON -DHDF5_ENABLE_SZIP_SUPPORT=OFF -DHDF5_ENABLE_PARALLEL=${LIBS_USE_MPI}
       # Set the build byproducts
       # WARNING: The order of the following libraries matters! They need to be listed from the most dependent to the least dependent.
       BUILD_BYPRODUCTS ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.a ${LIBS_HDF5_DIR}/lib/libhdf5_f90cstub.a ${LIBS_HDF5_DIR}/lib/libhdf5_hl_fortran.a ${LIBS_HDF5_DIR}/lib/libhdf5_hl_f90cstub.a ${LIBS_HDF5_DIR}/lib/libhdf5_hl.a ${LIBS_HDF5_DIR}/lib/libhdf5.a ${LIBS_HDF5_DIR}/lib/libhdf5_tools.a ${LIBS_HDF5_DIR}/bin/h5diff
@@ -697,7 +697,7 @@ ENDIF()
 
 IF(LIBS_USE_PETSC)
   IF (LIBS_BUILD_PETSC)
-    SET(LIBS_BUILD_PETSC_VERSION "3.22.5" CACHE STRING "PETSc self-built version tag")
+    SET(LIBS_BUILD_PETSC_VERSION "3.25.1" CACHE STRING "PETSc self-built version tag")
     MARK_AS_ADVANCED(CLEAR LIBS_BUILD_PETSC_VERSION)
   ELSE()
     UNSET(LIBS_BUILD_PETSC_VERSION CACHE)
@@ -731,6 +731,31 @@ IF(LIBS_USE_PETSC)
       SET(PETSC_CMAKEPOLICY "3.5")
     ENDIF()
 
+    # Fixes for GCC 15 and 16: Tested with PETSc version 3.22.5
+    IF(${LIBS_BUILD_PETSC_VERSION} VERSION_LESS "3.24.0")
+      IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+        IF(${CMAKE_Fortran_COMPILER_VERSION} VERSION_LESS "15.0.0")
+          SET(HYPRE_COMPILER_FLAGS )
+          SET(SCALAPACK_COMPILER_FLAGS )
+        ELSE()
+          # Fix "Error running make; make install on HYPRE" for 3.22.5 with GCC 15 and 16
+          # GCC 15 changed the default C language standard from -std=gnu17 to -std=gnu23, and C23 added bool as a proper keyword — meaning older code that tries
+          # to define bool via typedef now fails. This is exactly what HYPRE's older source does.
+          # Set --download-hypre-configure-arguments=CFLAGS=-std=gnu17       for configure
+          #     --download-hypre-cmake-arguments=-DCMAKE_C_FLAGS=-std=gnu17  for CMAKE
+          SET(HYPRE_COMPILER_FLAGS -std=gnu17)
+          # Fix "Error running make; make install on ScaLAPACK" for 3.22.5 with GCC 15 and 16: https://github.com/Reference-ScaLAPACK/scalapack/issues/129
+          # "GCC-15 upped the default for -std= to gnu23 (more or less c23) from gnu18, which resulted in this error. The solution I found was to use -std=gnu90."
+          # Set --download-scalapack-cmake-arguments=-DCMAKE_C_FLAGS=-std=gnu90
+          SET(SCALAPACK_COMPILER_FLAGS -std=gnu90)
+        ENDIF()
+      ENDIF()
+    ELSE()
+      # Fix MPI Error: Name ‘mpi_comm_dup_fn’ at (1) is an ambiguous reference: PETSc internally uses use mpi (the old MPI Fortran module),
+      # and when piclas uses mpi_f08, the compiler sees two conflicting sets of interfaces for the same MPI symbols (e.g. MPI_COMM_DUP_FN) causing the ambiguous reference error.
+      SET(PETSC_MPI_COMPILER_FLAGS --with-mpi-ftn-module=mpi_f08)
+    ENDIF()
+
     # Settings
     # --with-mpi-f90module-visibility=0       "With 0, mpi.mod will not be visible in use code (via petscsys.mod) - so mpi_f08 can now be used" (https://petsc.org/main/changes/315/)
 
@@ -753,12 +778,15 @@ IF(LIBS_USE_PETSC)
           COPTFLAGS=${PETSC_OPTIMIZATION}
           CXXOPTFLAGS=${PETSC_OPTIMIZATION}
           FOPTFLAGS=${PETSC_OPTIMIZATION}
+          ${PETSC_MPI_COMPILER_FLAGS}
           --with-shared-libraries=1
           --with-mpi-f90module-visibility=0
           --with-bison=0
           --download-hypre
+          --download-hypre-configure-arguments=CFLAGS=${HYPRE_COMPILER_FLAGS} # -std=gnu17 for non-CMake HYPRE builds
           --download-mumps
           --download-scalapack
+          --download-scalapack-cmake-arguments=-DCMAKE_C_FLAGS=${SCALAPACK_COMPILER_FLAGS} # -std=gnu90 for CMake ScaLAPACK builds
           --download-metis
           --download-parmetis     # requires metis
         # BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -j4
