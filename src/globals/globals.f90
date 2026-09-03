@@ -316,11 +316,11 @@ END SUBROUTINE ReOpenLogFile
 !
 ! END FUNCTION AlmostZero
 
+SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt&
 #if USE_MPI
-SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt,SingleOpt)
-#else
-SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt)
+                    ,SingleOpt&
 #endif
+                    )
 !===================================================================================================================================
 ! Terminate program correctly if an error has occurred (important in MPI mode!).
 !===================================================================================================================================
@@ -329,15 +329,15 @@ SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInf
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-CHARACTER(LEN=*)                  :: SourceFile      ! Source file where error has occurred
-INTEGER                           :: SourceLine      ! Line in source file
-CHARACTER(LEN=*)                  :: CompDate        ! Compilation date
-CHARACTER(LEN=*)                  :: CompTime        ! Compilation time
-CHARACTER(LEN=*)                  :: ErrorMessage    ! Error message
-INTEGER,OPTIONAL                  :: IntInfoOpt      ! Error info (integer)
-REAL,OPTIONAL                     :: RealInfoOpt     ! Error info (real)
+CHARACTER(LEN=*),INTENT(IN)                  :: SourceFile      ! Source file where error has occurred
+INTEGER,INTENT(IN)                           :: SourceLine      ! Line in source file
+CHARACTER(LEN=*),INTENT(IN)                  :: CompDate        ! Compilation date
+CHARACTER(LEN=*),INTENT(IN)                  :: CompTime        ! Compilation time
+CHARACTER(LEN=*),INTENT(IN)                  :: ErrorMessage    ! Error message
+INTEGER,INTENT(IN),OPTIONAL                  :: IntInfoOpt      ! Error info (integer)
+REAL,INTENT(IN),OPTIONAL                     :: RealInfoOpt     ! Error info (real)
 #if USE_MPI
-LOGICAL,OPTIONAL                  :: SingleOpt       ! Only MPI-Root performs check
+LOGICAL,INTENT(IN),OPTIONAL                  :: SingleOpt       ! Only MPI-Root performs check
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -469,7 +469,7 @@ CALL MPI_FINALIZE(iError)
 #if USE_DEBUG
 IF (MPIRoot) ERROR STOP 1
 #endif /*USE_DEBUG*/
-STOP
+STOP 1, QUIET=.TRUE.
 END SUBROUTINE CollectiveStop
 
 
@@ -633,7 +633,7 @@ CHARACTER(LEN=*),INTENT(IN)          :: FileName          !> e.g. './../laser.in
 CHARACTER(LEN=*),INTENT(IN)          :: ParameterName     !> e.g. 'timestep'
 CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: DelimiterSymbolIN !> e.g. '=' (default is '=')
 CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: CommentSymbolIN   !> e.g. '#' (default is '!')
-CHARACTER(LEN=*),INTENT(INOUT)       :: output            !> e.g. '0.1'
+CHARACTER(LEN=255),INTENT(INOUT)     :: output            !> e.g. '0.1'
 LOGICAL,OPTIONAL,INTENT(IN)          :: DoDisplayInfo     !> default is: TRUE
                                                           !> display DefMsg or errors if the parameter or the file is not found
 !-----------------------------------------------------------------------------------------------------------------------------------
