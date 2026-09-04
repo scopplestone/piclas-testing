@@ -657,6 +657,8 @@ DO SideID=1,nBCSides
     ! Sum up all contributions of surface area to the FEM vertices of each side
     CALL Buildpq2iNode(SideID,SubSideAreaEquiN1)
     IF(.NOT.DoRestart) CALL CalculateSurfNodeArea(SideID)
+  CASE(40) ! Circuit model boundary condition
+    ! Skip
 #else
   CASE DEFAULT ! unknown BCType
     CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
@@ -1018,7 +1020,7 @@ REAL                           :: SFDepoScaling
 LOGICAL                        :: ElemDone
 INTEGER                        :: ppp,globElemID
 REAL                           :: r_sf_tmp,SFAdaptiveDOFDefault,DOFMax
-INTEGER                        :: iCNElem,firstElem,lastElem,jNode,NbElemID,NeighNonUniqueNodeID, minN_PP
+INTEGER                        :: iCNElem,firstElem,lastElem,jNode,NbElemID,NeighNonUniqueNodeID,minN_PP
 CHARACTER(32)                  :: hilf2,hilf3
 #if USE_MPI
 #endif /*USE_MPI*/

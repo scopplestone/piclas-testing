@@ -674,6 +674,10 @@ USE MOD_Analyze_Vars              ,ONLY: DoFieldAnalyze
 #if (USE_FV)
 USE MOD_Analyze_FV                ,ONLY: CalcError_FV
 #endif /*FV*/
+#if USE_HDG && USE_MPI && USE_PETSC && defined(PARTICLES) && defined(CODE_ANALYZE)
+USE MOD_HDG_Vars                  ,ONLY: UseCircuitModel
+USE MOD_HDG_Readin                ,ONLY: BroadcastChargeOnCMBC
+#endif /*USE_HDG && USE_MPI && USE_PETSC && defined(PARTICLES) && defined(CODE_ANALYZE)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -840,6 +844,9 @@ IF(DoCalcErrorNorms) THEN
   IF(DoPerformErrorCalc)THEN
     OutputErrorNorms=.TRUE.
 #if USE_HDG
+#if USE_MPI && USE_PETSC && defined(PARTICLES) && defined(CODE_ANALYZE)
+    IF(UseCircuitModel) CALL BroadcastChargeOnCMBC
+#endif /*USE_MPI && USE_PETSC && defined(PARTICLES) && defined(CODE_ANALYZE)*/
     CALL CalcError(L_2_Error,L_Inf_Error)
 #elif !(USE_FV)
     CALL CalcError(OutputTime,L_2_Error,L_Inf_Error)

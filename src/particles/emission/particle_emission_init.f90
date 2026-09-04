@@ -278,7 +278,7 @@ DO iSpec = 1, nSpecies
         Species(iSpec)%Init(iInit)%NormalVector1IC        = (/0.,1.,0./)
       END IF
       !--- Get BaseVector2IC and normalize it
-      IF(Symmetry%Order.GE.3) THEN
+      IF(Symmetry%Order.GE.2) THEN
         Species(iSpec)%Init(iInit)%BaseVector2IC          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector2IC',3)
         Species(iSpec)%Init(iInit)%NormalVector2IC        = UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC)
       ELSE IF(Symmetry%Order.EQ.2.AND..NOT.Symmetry%Axisymmetric.AND.TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder') THEN

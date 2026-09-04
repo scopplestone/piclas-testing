@@ -75,6 +75,7 @@ CALL prms%CreateIntOption(      'BiasVoltage-NPartBoundaries' , 'Number of parti
 CALL prms%CreateIntArrayOption( 'Biasvoltage-PartBoundaries'  , 'Particle boundary index of boundaries where the total ion excess is to be calculated for bias voltage model', no=0)
 CALL prms%CreateRealOption(     'BiasVoltage-Frequency'       , 'Frequency of the sinusoidal field boundary where the bias voltage is applied (a value of 0.0 corresponds to a DC potential BC). The total particle electric current over one cycle is required to converge to zero.')
 CALL prms%CreateRealOption(     'BiasVoltage-Delta'           , 'Bias voltage difference used for adjusting the DC voltage of the corresponding BC')
+CALL prms%CreateRealOption(     'CMBC-Capacitance'      , 'Capacitance of the capacitor connected to the Circuit Model bounday condition (CMBC)')
 #endif /*defined(PARTICLES)*/
 #if USE_PETSC && USE_DEBUG
 CALL prms%CreateLogicalOption('PETScDisplayDiagnostics'  ,'Display errors, warnings and main statistics for PETSc', '.TRUE.')
@@ -135,6 +136,9 @@ USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_HDG_Init              ,ONLY: InitFPC,InitEPC
 #if defined(PARTICLES)
 USE MOD_HDG_Init              ,ONLY: InitBV
+#if USE_PETSC
+USE MOD_HDG_Init              ,ONLY: InitCMBC
+#endif /*USE_PETSC*/
 #endif /*defined(PARTICLES)*/
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 IMPLICIT NONE
@@ -144,7 +148,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i,j,k,r,iElem,SideID,Nloc,iNeumannBCsides,NSideMin,NSideMax,NSide, iSide
+INTEGER           :: i,j,k,r,iElem,SideID,Nloc,iNeumannBCsides,NSideMin,NSideMax,NSide, iSide, CMBCBounds
 INTEGER           :: BCType,BCState
 REAL              :: D(0:Nmax,0:Nmax)
 INTEGER           :: nDirichletBCsidesGlobal
@@ -159,8 +163,11 @@ INTEGER,ALLOCATABLE :: LocalToGlobalPETScDOF(:)
 CHARACTER(100)    :: hilf,hilf2
 #if USE_MPI
 INTEGER             :: iProc,PETScDOFOffsetsMPI(nProcessors)
-#endif
-#endif
+#endif /*USE_MPI*/
+#if !defined(PARTICLES)
+LOGICAL,PARAMETER :: UseCircuitModel=.FALSE. ! This flag can only be set with PARTICLES=ON
+#endif /*!defined(PARTICLES*/
+#endif /*USE_PETSC*/
 INTEGER           :: locSide,nMortars
 INTEGER           :: MortarSideID,iMortar
 REAL              :: StartT,EndT
@@ -389,6 +396,7 @@ nDirichletBCSides=0
 nNeumannBCsides  =0
 nConductorBCsides=0
 nDistriCapBCsides=0
+nCircuitModelBCsides=0
 DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
@@ -401,6 +409,8 @@ DO SideID=1,nBCSides
     nConductorBCsides=nConductorBCsides+1
   CASE(30) ! Distributed Capacitance
     nDistriCapBCsides=nDistriCapBCsides+1
+  CASE(40) ! Cicuit Model
+    nCircuitModelBCsides=nCircuitModelBCsides+1
   CASE DEFAULT ! unknown BCType
     CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
   END SELECT ! BCType
@@ -419,6 +429,13 @@ CALL InitEPC()
 ! BCType: 51,X for bias voltage + cos(wt) function boundary condition
 ! BCType: 52,X for bias voltage + cos(wt) function + coupled power adjustment (for AC and not DC in this case)
 CALL InitBV()
+
+#if USE_PETSC
+! Circuit Model BC: Initialize containers and sub-communicator
+CALL InitCMBC()
+#else
+IF(nCircuitModelBCsides.GT.0) CALL CollectiveStop(__STAMP__,'Circuit model boundary condition (CMBC) requires LIBS_USE_PETSC=ON')
+#endif /*USE_PETSC*/
 #endif /*defined(PARTICLES)*/
 
 ! 8. BCs the second...
@@ -438,6 +455,7 @@ IF(nNeumannBCsides  .GT.0)THEN
 END IF
 IF(nConductorBCsides.GT.0)ALLOCATE(ConductorBC(nConductorBCsides))
 IF(nDistriCapBCsides.GT.0)ALLOCATE(DistriCapBC(nDistriCapBCsides))
+IF(nCircuitModelBCsides.GT.0)ALLOCATE(CircuitModelBC(nCircuitModelBCsides))
 #if (PP_nVar!=1)
   IF(nDirichletBCSides.GT.0)ALLOCATE(qn_face_MagStat(PP_nVar, nGP_face(PP_N),nDirichletBCSides))
 #endif
@@ -445,6 +463,7 @@ nDirichletBCSides=0
 nNeumannBCsides  =0
 nConductorBCsides=0
 nDistriCapBCsides=0
+nCircuitModelBCsides=0
 DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
@@ -463,6 +482,10 @@ DO SideID=1,nBCSides
   CASE(30) ! Distributed Capacitance
     nDistriCapBCsides=nDistriCapBCsides+1
     DistriCapBC(nDistriCapBCsides)=SideID
+  CASE(40) ! Circuit Model
+    nCircuitModelBCsides=nCircuitModelBCsides+1
+    CircuitModelBC(nCircuitModelBCsides)=SideID
+    MaskedSide(SideID)=2
   CASE DEFAULT ! unknown BCType
     CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
   END SELECT ! BCType
@@ -669,10 +692,11 @@ DO SideID=nSides-nMPISides_YOUR+1,nSides
 END DO
 #endif
 
-! 3.1.5) Create localToGlobalPETScDOF(iLocalPETScDOF) mapping
+! 3.1.5) Create LocalToGlobalPETScDOF(iLocalPETScDOF) mapping
 ! The mapping is used to create the PETSc Scatter context to extract the local solution from the global solution vector
-ALLOCATE(localToGlobalPETScDOF(nLocalPETScDOFs+FPC%nUniqueFPCBounds))
-localToGlobalPETScDOF = 0
+CMBCBounds = MERGE(1,0,UseCircuitModel)
+ALLOCATE(LocalToGlobalPETScDOF(nLocalPETScDOFs+FPC%nUniqueFPCBounds+CMBCBounds))
+LocalToGlobalPETScDOF = 0
 iLocalPETScDOF = 0
 DO SideID=1,nSides
   IF(MaskedSide(SideID).GT.0) CYCLE
@@ -684,11 +708,20 @@ END DO
 
 ! 3.1.6) Add each FPC to the DOFs
 IF(UseFPC)THEN
+  IF(UseCircuitModel) CALL CollectiveStop(__STAMP__,'UseCircuitModel and UseFPC cannot both be true')
   DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
     LocalToGlobalPETScDOF(nLocalPETScDOFs+iUniqueFPCBC) = nGlobalPETScDOFs + iUniqueFPCBC - 1
   END DO
   nLocalPETScDOFs = nLocalPETScDOFs + FPC%nUniqueFPCBounds
   nGlobalPETScDOFs = nGlobalPETScDOFs + FPC%nUniqueFPCBounds
+END IF
+
+! 3.1.7) Add each CMBC to the DOFs
+IF(UseCircuitModel)THEN
+  IF(UseFPC) CALL CollectiveStop(__STAMP__,'UseCircuitModel and UseFPC cannot both be true')
+  LocalToGlobalPETScDOF(nLocalPETScDOFs+1) = nGlobalPETScDOFs
+  nLocalPETScDOFs = nLocalPETScDOFs + 1
+  nGlobalPETScDOFs = nGlobalPETScDOFs + 1
 END IF
 
 ! ------------------------------------------------------
@@ -727,12 +760,12 @@ PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nLocalPETScDOFs,PETScSolutionLocal,ierr)
 ! Create a PETSc Vector 0:(nLocalPETScDOFs-1)
 PetscCallA(ISCreateStride(PETSC_COMM_SELF,nLocalPETScDOFs,0,1,PETScISLocal,ierr))
 ! Create a PETSc Vector of the Global DOF IDs
-PetscCallA(ISCreateGeneral(PETSC_COMM_WORLD,nLocalPETScDOFs,localToGlobalPETScDOF,PETSC_COPY_VALUES,PETScISGlobal,ierr))
+PetscCallA(ISCreateGeneral(PETSC_COMM_WORLD,nLocalPETScDOFs,LocalToGlobalPETScDOF,PETSC_COPY_VALUES,PETScISGlobal,ierr))
 ! Create a scatter context to extract the local dofs
 PetscCallA(VecScatterCreate(PETScSolution,PETScISGlobal,PETScSolutionLocal,PETScISLocal,PETScScatter,ierr))
 
 ! (Delete local allocated vectors)
-DEALLOCATE(localToGlobalPETScDOF)
+DEALLOCATE(LocalToGlobalPETScDOF)
 ! Clean-up local PETSc objects
 PetscCallA(ISDestroy(PETScISLocal,ierr))
 PetscCallA(ISDestroy(PETScISGlobal,ierr))
@@ -1173,7 +1206,7 @@ PetscCallA(VecDestroy(PETScRHS,ierr))
 PetscCallA(PetscFinalize(ierr))
 SDEALLOCATE(SmallMortarType)
 SDEALLOCATE(OffsetGlobalPETScDOF)
-#endif
+#endif /*USE_PETSC*/
 !SDEALLOCATE(NonlinVolumeFac)
 SDEALLOCATE(DirichletBC)
 SDEALLOCATE(NeumannBC)
@@ -1219,6 +1252,7 @@ SDEALLOCATE(FPC%BCState)
 SDEALLOCATE(FPC%VoltageProc)
 SDEALLOCATE(FPC%ChargeProc)
 SDEALLOCATE(DistriCapBC)
+SDEALLOCATE(CircuitModelBC)
 #if USE_MPI
 DO iBC = 1, FPC%nUniqueFPCBounds
   IF(FPC%COMM(iBC)%UNICATOR.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(FPC%COMM(iBC)%UNICATOR,iERROR)
@@ -1253,6 +1287,10 @@ SDEALLOCATE(EPC%COMM)
 #if defined(PARTICLES)
 IF(BiasVoltage%COMM%UNICATOR.NE.MPI_COMM_NULL)  CALL MPI_COMM_FREE(BiasVoltage%COMM%UNICATOR,iERROR)
 IF(CPPCOMM%UNICATOR.NE.MPI_COMM_NULL)           CALL MPI_COMM_FREE(CPPCOMM%UNICATOR,iERROR)
+#if USE_PETSC
+! Circuit model boundary condition
+IF(CMBC%COMM%UNICATOR.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(CMBC%COMM%UNICATOR,iERROR)
+#endif /*USE_PETSC*/
 #endif /*defined(PARTICLES)*/
 #endif /*USE_MPI*/
 
