@@ -1,20 +1,3 @@
-
-#  # ----------------------------------------------------------------------------------------------------------------------------------------------------
-#  # Use pipeline name to indicate whether MPICH or OpenMPI is used in the complete pipeline execution
-#  # ----------------------------------------------------------------------------------------------------------------------------------------------------
-#  workflow:
-#    name: $PIPELINE_NAME
-#    rules:
-#      - if: '$CI_PIPELINE_CREATED_AT =~ /^\d\d\d\d-\d\d-\d[1,3,5,7,9]T.*/ || $CI_COMMIT_REF_NAME !~ /^gitlab.custom.*/'
-#        variables:
-#          PIPELINE_NAME: '🔵 MPICH: on ${CI_PIPELINE_CREATED_AT} 123 ${CI_COMMIT_REF_NAME} 123'
-#
-#      - if: '$CI_PIPELINE_CREATED_AT =~ /^\d\d\d\d-\d\d-\d[0,2,4,6,8]T.*/|| $CI_COMMIT_REF_NAME =~ /^gitlab.custom.*/'
-#        variables:
-#          PIPELINE_NAME: '🟠 OpenMPI: $(date +%d) ${CI_COMMIT_REF_NAME}'
-#
-#      - when: never
-
 # define gitlab ci/cd inputs for pipeline, these values are set at pipeline creation and cannot be changed afterwards
 spec:
   inputs:
@@ -102,8 +85,18 @@ variables:
   FORTITUDE: "/var/lib/gitlab-runner/.local/bin/fortitude"
   # ruff
   RUFF: "/var/lib/gitlab-runner/.local/bin/ruff"
+  # The project directory will be cleaned up at the end of the build
+  FF_ENABLE_JOB_CLEANUP: true
+  # The trace force send interval for logs is dynamically adjusted based on the trace update interval
+  FF_USE_DYNAMIC_TRACE_FORCE_SEND_INTERVAL: true
+  # Use fast compression for artifacts, resulting in larger archives
+  ARTIFACT_COMPRESSION_LEVEL: "fast"
+  # Use no compression for caches
+  CACHE_COMPRESSION_LEVEL: "fastest"
+
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Use pipeline name to indicate whether default shared memory, node split or core split is used, and whether it is a checkin, nightly or weekly pipeline
+# Set pipeline name to indicate whether default shared memory, node split or core split is used, and whether it is a checkin, nightly or weekly pipeline
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 workflow:
   name: $PIPELINE_NAME
@@ -147,10 +140,10 @@ workflow:
     - when: never
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Settings
+# Prepare execution environment
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Load modules on new boltzplatz reggie
 default:
+  tags: [withmodules-concurrent]
   before_script:
     - export MESHESDIR=True
     - export REGGIE_GITLAB_CI=1
@@ -273,27 +266,11 @@ stages:
   - appimage
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Templates ("hidden jobs")
-# 1. Set the tags and artifacts properties (same for every job)
-# 2. Extend parameters for the testing stages in general: allow failure and pull the cached reggie
-# 3. Extend parameters for specific testing stages: maxwell, poisson, poisson + PETSc, DSMC
-# 4. Extend parameters of each testing stage to the check-in, nightly and weekly testing
+# Templates (hidden jobs and combined per job via `extends`)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-.coverage_cache: &coverage_cache
-  # use CI_PIPELINE_ID to create a separate cache per pipeline to ensure that no old reports are still used
-  key: "${CI_PIPELINE_ID}-coverage"
-  paths: [Coverage]
-  policy: pull-push
 
-# Default parameters for the build and testing stage
-.default_build_param: &default_build_param
-  tags: [withmodules-concurrent]
-  artifacts:
-    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
-    expire_in: 1 day
-    when: always
-  cache:
-    - *coverage_cache
+# Cadence rules
+.rules_not_for_deployment:
   rules:
     # If the pipeline is for an appimage test run, the job is not added to the pipeline.
     - if: '"$[[ inputs.DO_TEST_APPIMAGE ]]" != ""'
@@ -304,203 +281,75 @@ stages:
     # If the pipeline is for pushing the master branch to GitHub
     - if: $[[ inputs.DO_DEPLOY ]] == true
       when: never
-    # In all other cases, the job is added to the pipeline, with when: on_success
-    - when: on_success
-  variables:
-    # The project directory will be cleaned up at the end of the build
-    FF_ENABLE_JOB_CLEANUP: true
-    # The trace force send interval for logs is dynamically adjusted based on the trace update interval
-    FF_USE_DYNAMIC_TRACE_FORCE_SEND_INTERVAL: true
-    # Use fast compression for artifacts, resulting in larger archives
-    ARTIFACT_COMPRESSION_LEVEL: "fast"
-    # Use no compression for caches
-    CACHE_COMPRESSION_LEVEL: "fastest"
 
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Default parameters for the testing stage only (reusing the previous template)
-.default_param: &default_param
-  <<: *default_build_param
+.rules_checkin:
+  rules:
+    - !reference [.rules_not_for_deployment, rules]
+    - if: $[[ inputs.DO_CHECKIN ]] == true
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+
+.rules_nightly:
+  rules:
+    - !reference [.rules_not_for_deployment, rules]
+    - if: $[[ inputs.DO_NIGHTLY ]] == true
+
+.rules_weekly:
+  rules:
+    - !reference [.rules_not_for_deployment, rules]
+    - if: $[[ inputs.DO_WEEKLY ]] == true
+
+# Some reggies only work with the default (physical node level) shared memory splitting, e.g. ray tracing
+.rules_nightly_single_node:
+  rules:
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
+      when: never
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
+      when: never
+    - !reference [.rules_nightly, rules]
+
+.rules_weekly_single_node:
+  rules:
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
+      when: never
+    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
+      when: never
+    - !reference [.rules_weekly, rules]
+
+# Default parameters for build steps
+.build_defaults:
+  dependencies: []
+  artifacts:
+    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
+    expire_in: 1 day
+    when: always
+  rules:
+    # Do not perform build steps if deploying
+    - !reference [.rules_not_for_deployment, rules]
+
+# Reggie execution template
+.reggie:
   allow_failure: true
-
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Defaults for the standard maxwell tests (utilizing "extends" to merge the other "artifacts" options with the specific path)
-.defaults: &defaults
-  extends: .default_param
-  needs: [build]
-
-.defaults_checkin: &defaults_checkin
-  <<: *defaults
-  rules:
-    - if: $[[ inputs.DO_CHECKIN ]] == true
-    - if: '$CI_PIPELINE_SOURCE == "push"'
-
-.defaults_nightly: &defaults_nightly
-  <<: *defaults
-  rules:
-    - if: $[[ inputs.DO_NIGHTLY ]] == true
-
-.defaults_weekly: &defaults_weekly
-  <<: *defaults
-  rules:
-    - if: $[[ inputs.DO_WEEKLY ]] == true
-
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Defaults for other maxwell tests with PICLAS_DEBUG_MEMORY=ON
-.defaults_maxwell_only: &defaults_maxwell_only
-  extends: .default_param
-  needs: [build_maxwell_only]
-  rules:
-    - if: $[[ inputs.DO_CHECKIN ]] == true
-    - if: '$CI_PIPELINE_SOURCE == "push"'
-
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Defaults for poisson tests
-.defaults_poisson: &defaults_poisson
-  extends: .default_param
-  needs: [build_poisson]
-
-.defaults_poisson_checkin: &defaults_poisson_checkin
-  <<: *defaults_poisson
-  rules:
-    - if: $[[ inputs.DO_CHECKIN ]] == true
-    - if: '$CI_PIPELINE_SOURCE == "push"'
-
-.defaults_poisson_nightly: &defaults_poisson_nightly
-  <<: *defaults_poisson
-  rules:
-    - if: $[[ inputs.DO_NIGHTLY ]] == true
-
-.defaults_poisson_weekly: &defaults_poisson_weekly
-  <<: *defaults_poisson
-  rules:
-    - if: $[[ inputs.DO_WEEKLY ]] == true
-
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Defaults for drift_diffusion tests
-.defaults_drift_diffusion: &defaults_drift_diffusion
-  extends: .default_param
-  needs: [build_drift_diffusion]
-
-.defaults_drift_diffusion_checkin: &defaults_drift_diffusion_checkin
-  <<: *defaults_drift_diffusion
-  rules:
-    - if: $[[ inputs.DO_CHECKIN ]] == true
-    - if: '$CI_PIPELINE_SOURCE == "push"'
-
-.defaults_drift_diffusion_nightly: &defaults_drift_diffusion_nightly
-  <<: *defaults_drift_diffusion
-  rules:
-    - if: $[[ inputs.DO_NIGHTLY ]] == true
-
-.defaults_drift_diffusion_weekly: &defaults_drift_diffusion_weekly
-  <<: *defaults_drift_diffusion
-  rules:
-    - if: $[[ inputs.DO_WEEKLY ]] == true
-
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Defaults for DVM tests
-.defaults_DVM: &defaults_DVM
-  extends: .default_param
-  needs: [build_DVM]
-
-.defaults_DVM_checkin: &defaults_DVM_checkin
-  <<: *defaults_DVM
-  rules:
-    - if: $[[ inputs.DO_CHECKIN ]] == true
-    - if: '$CI_PIPELINE_SOURCE == "push"'
-
-.defaults_DVM_nightly: &defaults_DVM_nightly
-  <<: *defaults_DVM
-  rules:
-    - if: $[[ inputs.DO_NIGHTLY ]] == true
-
-.defaults_DVM_weekly: &defaults_DVM_weekly
-  <<: *defaults_DVM
-  rules:
-    - if: $[[ inputs.DO_WEEKLY ]] == true
-
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Defaults for DVM plasma tests
-.defaults_DVM_plasma: &defaults_DVM_plasma
-  extends: .default_param
-  needs: [build_DVM_plasma]
-
-.defaults_DVM_plasma_checkin: &defaults_DVM_plasma_checkin
-  <<: *defaults_DVM_plasma
-  rules:
-    - if: $[[ inputs.DO_CHECKIN ]] == true
-    - if: '$CI_PIPELINE_SOURCE == "push"'
-
-.defaults_DVM_plasma_nightly: &defaults_DVM_plasma_nightly
-  <<: *defaults_DVM_plasma
-  rules:
-    - if: $[[ inputs.DO_NIGHTLY ]] == true
-
-.defaults_DVM_plasma_weekly: &defaults_DVM_plasma_weekly
-  <<: *defaults_DVM_plasma
-  rules:
-    - if: $[[ inputs.DO_WEEKLY ]] == true
-
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Defaults for poisson + PETSC tests
-.defaults_poisson_petsc: &defaults_poisson_petsc
-  extends: .default_param
-  needs: [build_poisson_petsc]
-
-.defaults_poisson_petsc_checkin: &defaults_poisson_petsc_checkin
-  <<: *defaults_poisson_petsc
-  rules:
-    - if: $[[ inputs.DO_CHECKIN ]] == true
-    - if: '$CI_PIPELINE_SOURCE == "push"'
-
-.defaults_poisson_petsc_nightly: &defaults_poisson_petsc_nightly
-  <<: *defaults_poisson_petsc
-  rules:
-    - if: $[[ inputs.DO_NIGHTLY ]] == true
-
-.defaults_poisson_petsc_weekly: &defaults_poisson_petsc_weekly
-  <<: *defaults_poisson_petsc
-  rules:
-    - if: $[[ inputs.DO_WEEKLY ]] == true
-
-.defaults_poisson_build_petsc_lib: &defaults_poisson_build_petsc_lib
-  extends: .default_param
-  needs: [build_petsc_in_piclas]
-  rules:
-    - if: $[[ inputs.DO_WEEKLY ]] == true
-
-.defaults_poisson_build_PGO: &defaults_poisson_build_PGO
-  extends: .default_param
-  needs: [build_Leapfrog_PGO]
-  rules:
-    - if: $[[ inputs.DO_WEEKLY ]] == true
-
-.defaults_DSMC: &defaults_DSMC
-  extends: .default_param
-  needs: [build_DSMC]
-
-.defaults_DSMC_checkin: &defaults_DSMC_checkin
-  <<: *defaults_DSMC
-  rules:
-    - if: $[[ inputs.DO_CHECKIN ]] == true
-    - if: '$CI_PIPELINE_SOURCE == "push"'
-
-.defaults_DSMC_nightly: &defaults_DSMC_nightly
-  <<: *defaults_DSMC
-  rules:
-    - if: $[[ inputs.DO_NIGHTLY ]] == true
-
-.defaults_DSMC_weekly: &defaults_DSMC_weekly
-  <<: *defaults_DSMC
-  rules:
-    - if: $[[ inputs.DO_WEEKLY ]] == true
+  variables:
+    REGGIE_ARGS: ""
+    # If specified, reggie will not perform a new build. Point to top-level build directory.
+    USE_BUILD: ""
+  # TODO: We should ideally be using artifacts for coverage rather than the cache
+  cache:
+    - key: "${CI_PIPELINE_ID}-coverage"
+      paths: [Coverage]
+      policy: pull-push
+  script:
+    - |
+      if [ -n "${USE_BUILD}" ]; then
+        reggie ${REGGIE_ARGS} -e "${USE_BUILD}/bin/piclas" "regressioncheck/${REGGIE_CASE}"
+      else
+        reggie ${REGGIE_ARGS} "regressioncheck/${REGGIE_CASE}"
+      fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage ".pre": always executed at the start of each pipeline
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-
 cleanup:
-  tags: [withmodules-concurrent]
   stage: .pre
   script:
     - if [ -d "Coverage" ]; then
@@ -516,7 +365,7 @@ cleanup:
 # policy: allow failure without stopping pipeline only on feature branches
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 fortitude:
-  <<: *default_build_param
+  extends: .build_defaults
   stage: lint
   dependencies: []
   script:
@@ -535,7 +384,7 @@ fortitude:
     allow_failure: false
 
 ruff:
-  <<: *default_build_param
+  extends: .build_defaults
   stage: lint
   dependencies: []
   script:
@@ -550,7 +399,7 @@ ruff:
 # Stage "tools": Test the scripts in the tools directory
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 createCylinderHOPR.py:
-  <<: *default_param
+  extends: .build_defaults
   stage: tools
   dependencies: []
   script:
@@ -563,7 +412,7 @@ createCylinderHOPR.py:
       yes '' | python createCylinderHOPR.py  # this fails because yes exits 1 (broken pipe). Therefore, set +o pipefail to ignore that
 
 updatePiclasVersion.sh:
-  <<: *default_param
+  extends: .build_defaults
   stage: tools
   dependencies: []
   script:
@@ -584,7 +433,7 @@ updatePiclasVersion.sh:
     - if [[ "$NBROFDDIFFS" != 18 ]]; then echo "There should be 18 diffs."; exit 1; fi
 
 userblock:
-  <<: *default_param
+  extends: .build_defaults
   stage: tools
   dependencies: []
   script:
@@ -595,7 +444,7 @@ userblock:
     - grep -oP '(?<=\{\[\( )[^)]+(?= \)\]\})' userblock.txt
 
 convertHoprToPyHopeIni.sh:
-  <<: *default_param
+  extends: .build_defaults
   stage: tools
   dependencies: []
   script:
@@ -607,9 +456,8 @@ convertHoprToPyHopeIni.sh:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "build": Build on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-
-build:
-  extends: .default_build_param
+build_default:
+  extends: .build_defaults
   stage: build
   artifacts:
     paths: [build]
@@ -618,7 +466,7 @@ build:
     - cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all
 
 build_maxwell_only:
-  extends: .default_build_param
+  extends: .build_defaults
   stage: build
   artifacts:
     paths: [build_maxwell_only]
@@ -631,7 +479,7 @@ build_maxwell_only:
       fi
 
 build_poisson:
-  extends: .default_build_param
+  extends: .build_defaults
   stage: build
   artifacts:
     paths:
@@ -669,7 +517,7 @@ build_poisson:
     - cd ..
 
 build_poisson_petsc:
-  extends: .default_build_param
+  extends: .build_defaults
   stage: build
   artifacts:
     paths:
@@ -696,7 +544,7 @@ build_poisson_petsc:
     - cd ..
 
 build_DSMC:
-  extends: .default_build_param
+  extends: .build_defaults
   stage: build
   artifacts:
     paths:
@@ -729,7 +577,7 @@ build_DSMC:
     - ./tools/strip-build-dir.sh build_*
 
 build_drift_diffusion:
-  extends: .default_build_param
+  extends: .build_defaults
   stage: build
   artifacts:
     paths: [build_drift_diffusion]
@@ -742,7 +590,7 @@ build_drift_diffusion:
       fi
 
 build_DVM:
-  extends: .default_build_param
+  extends: .build_defaults
   stage: build
   artifacts:
     paths: [build_DVM]
@@ -751,7 +599,7 @@ build_DVM:
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=ED-DVM -DPICLAS_PARTICLES=OFF; $GENERATOR -j $NCORES all
 
 build_DVM_plasma:
-  extends: .default_build_param
+  extends: .build_defaults
   stage: build
   artifacts:
     paths: [build_DVM_plasma]
@@ -760,7 +608,7 @@ build_DVM_plasma:
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=PLOESMA -DPICLAS_PARTICLES=OFF -DLIBS_USE_PETSC=ON; $GENERATOR -j $NCORES all
 
 build_no_git:
-  tags: [withmodules-concurrent]
+  extends: .build_defaults
   stage: build
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME without git"
@@ -781,7 +629,7 @@ build_no_git:
     - rm -rf $NOGIT_DIR
 
 build_outside_repository:
-  tags: [withmodules-concurrent]
+  extends: [.build_defaults, .rules_weekly]
   stage: build_weekly
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME outside the piclas directory/repository"
@@ -791,11 +639,9 @@ build_outside_repository:
     - cmake ${REPOPATH} -DLIBS_BUILD_HDF5=OFF
     - $GENERATOR -j $NCORES all
     - cd .. ; rm -r build-piclas-outside ;
-  rules:
-    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 build_no_git_libs:
-  tags: [withmodules-concurrent]
+  extends: [.build_defaults, .rules_weekly]
   stage: build_weekly
   script:
     - echo " Installing branch $CI_COMMIT_REF_NAME without git but with external libs"
@@ -808,11 +654,9 @@ build_no_git_libs:
     - tail -n 20 output.txt
     - rm output.txt
     - ls bin/piclas
-  rules:
-    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 build_petsc_in_piclas:
-  tags: [withmodules-concurrent]
+  extends: [.build_defaults, .rules_weekly]
   stage: build_weekly
   artifacts:
     paths:
@@ -822,19 +666,9 @@ build_petsc_in_piclas:
     - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_CODE_ANALYZE=ON -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON ..
     - echo " Compiling with Poisson, RK3 and self-built PETSc (-DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON) ..."
     - $GENERATOR -j $NCORES all
-  rules:
-    - if: $[[ inputs.DO_WEEKLY ]] == true
-
-run_build_petsc_in_piclas:
-  <<: *defaults_poisson_build_petsc_lib
-  stage: reggie_weekly
-  needs: [build_petsc_in_piclas]
-  script:
-    - cd build_petsc_lib ; reggie ../regressioncheck/WEK_poisson_PETSC -e ./bin/piclas
-
 
 build_Leapfrog_PGO:
-  tags: [withmodules-concurrent]
+  extends: [.build_defaults, .rules_weekly]
   stage: build_weekly
   artifacts:
     paths:
@@ -848,380 +682,497 @@ build_Leapfrog_PGO:
     - echo " Using PGO profiling results for re-compiling with -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Release"
     - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Release ..
     - $GENERATOR -j $NCORES all
-  rules:
-    - if: $[[ inputs.DO_WEEKLY ]] == true
 
-run_build_Leapfrog_PGO:
-  <<: *defaults_poisson_build_PGO
-  stage: reggie_weekly
-  needs: [build_Leapfrog_PGO]
+build_documentation:
+  stage: build
   script:
-    - cd build_Leapfrog_PGO ; reggie  -e ./bin/piclas ../regressioncheck/WEK_poisson_PETSC/floating_boundary_condition_p-convergence
+    - deactivate || true
+    - cd docs/documentation
+    - python3 -m pip install --exists-action=w --no-cache-dir -r requirements.txt --break-system-packages
+    - python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
+    - ls -l _build/html
+    - python3 -m sphinx -b latex -D language=en -d _build/doctrees . _build/latex
+    - ls -l _build/latex
+    - cd _build/latex
+    - latexmk -r latexmkrc -pdf -f -dvi- -ps- -jobname=piclas -interaction=nonstopmode || true
+    - ls -l
+    - ls -l piclas.pdf
+  artifacts:
+    paths:
+      - docs/documentation
+
+
+# REGGIES
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
+# CHECKIN
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+
 CHE_maxwell_run_basic:
-  <<: *defaults_checkin
+  extends: [.rules_checkin, .reggie]
   stage: reggie_checkin_short
-  script:
-    - cd build ; reggie ../regressioncheck/run_basic/maxwell -e ./bin/piclas
+  needs: [build_default]
+  variables:
+    USE_BUILD: build
+    REGGIE_CASE: run_basic/maxwell
 
 CHE_maxwell_only:
-  <<: *defaults_maxwell_only
+  extends: [.rules_checkin, .reggie]
   stage: reggie_checkin_short
-  script:
-    - cd build_maxwell_only ; reggie ../regressioncheck/CHE_maxwell/maxwell -e ./bin/piclas
+  needs: [build_maxwell_only]
+  variables:
+    USE_BUILD: build_maxwell_only
+    REGGIE_CASE: CHE_maxwell/maxwell
 
 CHE_poisson_release_RK3:
-  <<: *defaults_poisson_checkin
+  extends: [.rules_checkin, .reggie]
   stage: reggie_checkin_long
-  script:
-    - cd build_poisson_release_RK3 ; reggie ../regressioncheck/CHE_poisson -e ./bin/piclas
-
-NIG_poisson_debug_RK3:
-  <<: *defaults_poisson_nightly
-  stage: reggie_nightly_checkin
-  script:
-    - cd build_poisson_debug_RK3 ; reggie ../regressioncheck/CHE_poisson -e ./bin/piclas
+  needs: [build_poisson]
+  variables:
+    USE_BUILD: build_poisson_release_RK3
+    REGGIE_CASE: CHE_poisson
 
 CHE_poisson_petsc_release_RK3:
-  <<: *defaults_poisson_petsc_checkin
+  extends: [.rules_checkin, .reggie]
   stage: reggie_checkin_long
-  script:
-    - cd build_poisson_petsc_release_RK3 ; reggie ../regressioncheck/CHE_poisson -e ./bin/piclas
-
-NIG_poisson_petsc_debug:
-  <<: *defaults_poisson_petsc_nightly
-  stage: reggie_nightly_checkin
-  script:
-    - cd build_poisson_petsc_debug_RK3 ; reggie ../regressioncheck/CHE_poisson -e ./bin/piclas
+  needs: [build_poisson_petsc]
+  variables:
+    USE_BUILD: build_poisson_petsc_release_RK3
+    REGGIE_CASE: CHE_poisson
 
 CHE_drift_diffusion:
-  <<: *defaults_drift_diffusion_checkin
+  extends: [.rules_checkin, .reggie]
   stage: reggie_checkin_short
-  script:
-    - cd build_drift_diffusion ; reggie ../regressioncheck/CHE_drift_diffusion_explicit-FV -e ./bin/piclas
+  needs: [build_drift_diffusion]
+  variables:
+    USE_BUILD: build_drift_diffusion
+    REGGIE_CASE: CHE_drift_diffusion_explicit-FV
 
 CHE_discrete_velocity:
-  <<: *defaults_DVM_checkin
+  extends: [.rules_checkin, .reggie]
   stage: reggie_checkin_short
-  script:
-    - cd build_DVM ; reggie ../regressioncheck/CHE_DVM -e ./bin/piclas
+  needs: [build_DVM]
+  variables:
+    USE_BUILD: build_DVM
+    REGGIE_CASE: CHE_DVM
 
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_feature_checkin": Run most simple reggie features with previous builds on check-in (must be very fast)
-#                               - feature_PIC_gyrotron_variable_Bz: 1 cell layer gyrotron emission with variable B(z) field
-#                               - feature_PIC_single_particle_PML : 4^3 cart box with a particle and 1 cell layer PMLs for all directions
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
 CHE_PIC_maxwell_RK4:
-  <<: *defaults_checkin
+  extends: [.rules_checkin, .reggie]
   stage: reggie_checkin_short
-  script:
-    - cd build ; reggie ../regressioncheck/CHE_PIC_maxwell_RK4 -e ./bin/piclas
+  needs: [build_default]
+  variables:
+    USE_BUILD: build
+    REGGIE_CASE: CHE_PIC_maxwell_RK4
 
 CHE_PIC_maxwell_RK4_p_adaption:
-  <<: *defaults_checkin
+  extends: [.rules_checkin, .reggie]
   stage: reggie_checkin_short
-  script:
-    - cd build ; reggie ../regressioncheck/CHE_PIC_maxwell_RK4_p_adaption -e ./bin/piclas
+  needs: [build_default]
+  variables:
+    USE_BUILD: build
+    REGGIE_CASE: CHE_PIC_maxwell_RK4_p_adaption
 
 CHE_DSMC:
-  <<: *defaults_DSMC_checkin
+  extends: [.rules_checkin, .reggie]
   stage: reggie_checkin_long
-  script:
-    - cd build_DSMC_release ; reggie ../regressioncheck/CHE_DSMC -e ./bin/piclas
+  needs: [build_DSMC]
+  variables:
+    USE_BUILD: build_DSMC_release
+    REGGIE_CASE: CHE_DSMC
 
 CHE_BGK:
-  <<: *defaults_checkin
+  extends: [.rules_checkin, .reggie]
   stage: reggie_checkin_long
-  script:
-    - cd build ; reggie ../regressioncheck/CHE_BGK
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: CHE_BGK
 
 CHE_FPFlow:
-  <<: *defaults_checkin
+  extends: [.rules_checkin, .reggie]
   stage: reggie_checkin_long
-  script:
-    - cd build ; reggie ../regressioncheck/CHE_FPFlow
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: CHE_FPFlow
 
 CHE_poisson_p_adaption_release:
-  <<: *defaults_poisson_petsc_checkin
+  extends: [.rules_checkin, .reggie]
   stage: reggie_checkin_long
-  script:
-    - cd build_poisson_petsc_release_Leapfrog ; reggie ../regressioncheck/CHE_poisson_p_adaption -e ./bin/piclas
-
-NIG_poisson_p_adaption_debug:
-  <<: *defaults_poisson_petsc_nightly
-  stage: reggie_nightly_checkin
-  script:
-    - cd build_poisson_petsc_debug_Leapfrog ; reggie ../regressioncheck/CHE_poisson_p_adaption -e ./bin/piclas
+  needs: [build_poisson_petsc]
+  variables:
+    USE_BUILD: build_poisson_petsc_release_Leapfrog
+    REGGIE_CASE: CHE_poisson_p_adaption
 
 CHE_poisson_periodic:
-  <<: *defaults_checkin
+  extends: [.rules_checkin, .reggie]
   stage: reggie_checkin_long
-  script:
-    - cd build ; reggie ../regressioncheck/CHE_poisson_periodic
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: CHE_poisson_periodic
 
 CHE_DVM_plasma:
-  <<: *defaults_DVM_plasma_checkin
+  extends: [.rules_checkin, .reggie]
   stage: reggie_checkin_short
-  script:
-    - cd build_DVM_plasma ; reggie ../regressioncheck/CHE_DVM_plasma -e ./bin/piclas
+  needs: [build_DVM_plasma]
+  variables:
+    USE_BUILD: build_DVM_plasma
+    REGGIE_CASE: CHE_DVM_plasma
+
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_DSMC_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
+# NIGHTLY
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+
 NIG_Reservoir:
-  <<: *defaults_DSMC_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_DSMC_nightly
-  script:
-    - cd build_DSMC_release/ ; reggie ../regressioncheck/NIG_Reservoir -e bin/piclas
+  needs: [build_DSMC]
+  variables:
+    USE_BUILD: build_DSMC_release
+    REGGIE_CASE: NIG_Reservoir
 
 NIG_Reservoir_single_core:
-  <<: *defaults_DSMC_nightly
+  extends: [.rules_nightly_single_node, .reggie]
   stage: reggie_DSMC_nightly
-  script:
-    - cd build_DSMC_release/ ; reggie ../regressioncheck/NIG_Reservoir_single_core -e bin/piclas
-  rules:
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
-      when: never
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
-      when: never
-    - if: $[[ inputs.DO_NIGHTLY ]] == true
+  needs: [build_DSMC]
+  variables:
+    USE_BUILD: build_DSMC_release
+    REGGIE_CASE: NIG_Reservoir_single_core
 
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_DSMC_nightly": Build and run tracking examples on nightly
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
 NIG_Tracking:
-  <<: *defaults_DSMC_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_DSMC_nightly
-  script:
-    - cd build_DSMC_debug/ ; reggie ../regressioncheck/NIG_tracking_DSMC -e ./bin/piclas
+  needs: [build_DSMC]
+  variables:
+    USE_BUILD: build_DSMC_debug
+    REGGIE_CASE: NIG_tracking_DSMC
 
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_DSMC_nightly": Build and run DSMC examples on nightly
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
 NIG_DSMC:
-  <<: *defaults_DSMC_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_DSMC_nightly
-  script:
-    - cd build_DSMC_release/ ; reggie ../regressioncheck/NIG_DSMC -e bin/piclas
-    - cd ..
-    - cd build_DSMC_debug/ ; reggie ../regressioncheck/NIG_DSMC -e bin/piclas
+  needs: [build_DSMC]
+  variables:
+    USE_BUILD: build_DSMC_release
+    REGGIE_CASE: NIG_DSMC
 
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_tools_nightly": Build and run superB and piclas2vtk examples on nightly
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
+NIG_DSMC_debug:
+  extends: [.rules_nightly, .reggie]
+  stage: reggie_DSMC_nightly
+  needs: [build_DSMC]
+  variables:
+    USE_BUILD: build_DSMC_debug
+    REGGIE_CASE: NIG_DSMC
+
 NIG_SuperB_piclas:
-  <<: *defaults_nightly
-  needs: [build]
+  extends: [.rules_nightly, .reggie]
+  needs: [build_default]
   stage: reggie_tools_nightly
-  script:
-    - cd build ; reggie ../regressioncheck/NIG_SuperB -e ./bin/piclas
+  variables:
+    USE_BUILD: build
+    REGGIE_CASE: NIG_SuperB
 
 NIG_SuperB_standalone:
-  <<: *defaults_nightly
-  needs: [build]
+  extends: [.rules_nightly, .reggie]
+  needs: [build_default]
   stage: reggie_tools_nightly
-  script:
-    - cd build ; reggie ../regressioncheck/NIG_SuperB -e ./bin/superB
+  variables:
+    USE_BUILD: build
+    REGGIE_CASE: NIG_SuperB
 
 NIG_piclas2vtk:
-  <<: *defaults_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_tools_nightly
-  script:
-    - cd build ; reggie ../regressioncheck/NIG_piclas2vtk
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_piclas2vtk
 
 NIG_BGK:
-  <<: *defaults_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_nightly
-  script:
-    - cd build ; reggie ../regressioncheck/NIG_BGK
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_BGK
 
 NIG_dielectric:
-  <<: *defaults_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_nightly
-  script:
-    - cd build ;  reggie ../regressioncheck/NIG_dielectric
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_dielectric
 
 NIG_PIC_maxwell_RK4:
-  <<: *defaults_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_nightly
-  script:
-    - cd build ; reggie ../regressioncheck/NIG_PIC_maxwell_RK4/
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_PIC_maxwell_RK4
 
 NIG_PIC_maxwell_RK4_p_adaption_release:
-  <<: *defaults_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_nightly
-  script:
-    - cd build ; reggie ../regressioncheck/NIG_PIC_maxwell_RK4_p_adaption
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_PIC_maxwell_RK4_p_adaption
 
 NIG_PIC_maxwell_RK4_p_adaption_debug:
-  <<: *defaults_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_nightly
-  script:
-    - cd build ; reggie -t Debug ../regressioncheck/NIG_PIC_maxwell_RK4_p_adaption
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_PIC_maxwell_RK4_p_adaption
+    REGGIE_ARGS: "-t Debug"
 
 NIG_convtest_maxwell:
-  <<: *defaults_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_nightly
-  script:
-    - cd build ;  reggie ../regressioncheck/NIG_convtest_maxwell
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_convtest_maxwell
 
 NIG_convtest_t_maxwell:
-  <<: *defaults_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_nightly
-  script:
-    - cd build ;  reggie ../regressioncheck/NIG_convtest_t_maxwell
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_convtest_t_maxwell
 
 NIG_convtest_t_poisson:
-  <<: *defaults_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_nightly
-  script:
-    - cd build ;  reggie ../regressioncheck/NIG_convtest_t_poisson
-
-WEK_convtest_poisson_Release:
-  <<: *defaults_weekly
-  stage: reggie_weekly
-  script:
-    - cd build ;  reggie ../regressioncheck/WEK_convtest_poisson
-
-WEK_convtest_poisson_Debug: # This uses the same reggie as WEK_convtest_poisson but compile everything with CMAKE_BUILD_TYPE = Debug
-  <<: *defaults_weekly
-  stage: reggie_weekly
-  script:
-    - cd build ;  reggie -t Debug ../regressioncheck/WEK_convtest_poisson
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_convtest_t_poisson
 
 NIG_PIC_poisson_RK3:
-  <<: *defaults_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_nightly
-  script:
-    - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_RK3/
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_PIC_poisson_RK3
 
 WEK_PIC_poisson_Boris-Leapfrog:
-  <<: *defaults_weekly
+  extends: [.rules_weekly, .reggie]
   stage: reggie_weekly
-  script:
-    - cd build ; reggie ../regressioncheck/WEK_PIC_poisson_Boris-Leapfrog/
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: WEK_PIC_poisson_Boris-Leapfrog
 
 NIG_PIC_poisson_Leapfrog_Release:
-  <<: *defaults_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_nightly
-  script:
-    - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_Leapfrog/
-
-      # NIG_PIC_poisson_Leapfrog_not_working:
-      #   <<: *defaults_nightly
-      #   stage: reggie_nightly
-      #   script:
-      #     - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_Leapfrog_not_working/
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_PIC_poisson_Leapfrog
 
 # Some reggies only work on single node, e.g., ray tracing
 NIG_PIC_poisson_Leapfrog_single_node_Release:
-  <<: *defaults_nightly
+  extends: [.rules_nightly_single_node, .reggie]
   stage: reggie_nightly
-  script:
-    - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_Leapfrog_single_node/
-  rules:
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
-      when: never
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
-      when: never
-    - if: $[[ inputs.DO_NIGHTLY ]] == true
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_PIC_poisson_Leapfrog_single_node
 
 NIG_poisson:
-  <<: *defaults_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_nightly
-  script:
-    - cd build ; reggie ../regressioncheck/NIG_poisson/
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_poisson
 
-WEK_poisson_PETSC:
-  <<: *defaults_weekly
-  stage: reggie_weekly
-  script:
-    - cd build ; reggie ../regressioncheck/WEK_poisson_PETSC/
+NIG_poisson_debug_RK3:
+  extends: [.rules_nightly, .reggie]
+  stage: reggie_nightly_checkin
+  needs: [build_poisson]
+  variables:
+    USE_BUILD: build_poisson_debug_RK3
+    REGGIE_CASE: CHE_poisson
+
+NIG_poisson_petsc_debug:
+  extends: [.rules_nightly, .reggie]
+  needs: [build_poisson_petsc]
+  stage: reggie_nightly_checkin
+  variables:
+    USE_BUILD: build_poisson_petsc_debug_RK3
+    REGGIE_CASE: CHE_poisson
+
+NIG_poisson_p_adaption_debug:
+  extends: [.rules_nightly, .reggie]
+  needs: [build_poisson_petsc]
+  stage: reggie_nightly_checkin
+  variables:
+    USE_BUILD: build_poisson_petsc_debug_Leapfrog
+    REGGIE_CASE: CHE_poisson_p_adaption
 
 NIG_maxwell_RK4:
-  <<: *defaults_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_nightly
-  script:
-    - cd build ; reggie ../regressioncheck/NIG_maxwell_RK4/
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_maxwell_RK4
 
 NIG_PIC_poisson_plasma_wave:
-  <<: *defaults_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_nightly
-  script:
-    - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_plasma_wave/
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_PIC_poisson_plasma_wave
 
 NIG_maxwell_dipole_dielectric:
-  <<: *defaults_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_nightly
-  script:
-    - cd build ; reggie ../regressioncheck/NIG_maxwell_dipole_dielectric/
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_maxwell_dipole_dielectric
+
+NIG_Photoionization_petsc_release_Leapfrog:
+  extends: [.rules_nightly_single_node, .reggie]
+  stage: reggie_nightly
+  needs: [build_poisson_petsc]
+  variables:
+    USE_BUILD: build_poisson_petsc_release_Leapfrog
+    REGGIE_CASE: NIG_Photoionization
+
+NIG_Raytracing_release_Leapfrog:
+  extends: [.rules_nightly_single_node, .reggie]
+  stage: reggie_nightly
+  needs: [build_poisson]
+  variables:
+    USE_BUILD: build_poisson_release_Leapfrog
+    REGGIE_CASE: NIG_Raytracing
+
+NIG_Radiation:
+  extends: [.rules_nightly, .reggie]
+  stage: reggie_nightly
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_Radiation
+
+NIG_drift_diffusion:
+  extends: [.rules_nightly, .reggie]
+  stage: reggie_nightly
+  needs: [build_drift_diffusion]
+  variables:
+    REGGIE_CASE: NIG_drift_diffusion_explicit-FV
+
+NIG_DVM:
+  extends: [.rules_nightly, .reggie]
+  stage: reggie_nightly
+  needs: [build_DVM]
+  variables:
+    REGGIE_CASE: NIG_DVM
+
+NIG_convtest_DVM:
+  extends: [.rules_nightly, .reggie]
+  stage: reggie_nightly
+  needs: [build_DVM]
+  variables:
+    REGGIE_CASE: NIG_convtest_DVM
+
+NIG_DVM_plasma:
+  extends: [.rules_nightly, .reggie]
+  stage: reggie_nightly
+  needs: [build_DVM_plasma]
+  variables:
+    REGGIE_CASE: NIG_DVM_plasma
 
 NIG_LoadBalance:
-  <<: *defaults_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_nightly
-  script:
-    - cd build ; reggie ../regressioncheck/NIG_LoadBalance/
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_LoadBalance
 
 NIG_code_analyze:
-  <<: *defaults_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_nightly
-  script:
-    - cd build ; reggie ../regressioncheck/NIG_code_analyze/
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_code_analyze
 
 NIG_IntKind8:
-  <<: *defaults_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_nightly
-  script:
-    - cd build ; reggie ../regressioncheck/NIG_IntKind8/
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_IntKind8
 
 NIG_PIC_Deposition:
-  <<: *defaults_nightly
+  extends: [.rules_nightly, .reggie]
   stage: reggie_nightly
-  script:
-    - cd build ; reggie ../regressioncheck/NIG_PIC_Deposition/
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_PIC_Deposition
 
-# 2023-10-28: Deactivate RK3 for photoionization for now in order to save time when running the reggies. This features is currently only used in combination with Leapfrog anyway.
-# 2024-01-17: Moved to weekly (reactivated 4 + move to weekly, move release_Leapfrog and debug_Leapfrog from nightly to weekly to reduce time further)
-# 2026-03-26: Deactivate RK3 for photoionization, except one remaining PETSc + Release
 
-# --- weekly
-WEK_PIC_poisson_Leapfrog_Debug: # This uses the same reggie as NIG_PIC_poisson_Leapfrog but compile everything with CMAKE_BUILD_TYPE = Debug
-  <<: *defaults_weekly
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# WEEKLY
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+
+WEK_convtest_poisson:
+  extends: [.rules_weekly, .reggie]
   stage: reggie_weekly
-  script:
-    - cd build ; reggie -t Debug ../regressioncheck/NIG_PIC_poisson_Leapfrog/
-  rules:
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
-      when: never
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
-      when: never
-    - if: $[[ inputs.DO_WEEKLY ]] == true
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: WEK_convtest_poisson
+
+WEK_convtest_poisson_Debug: # This uses the same reggie as WEK_convtest_poisson but compile everything with CMAKE_BUILD_TYPE = Debug
+  extends: [.rules_weekly, .reggie]
+  stage: reggie_weekly
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: WEK_convtest_poisson
+    REGGIE_ARGS: "-t Debug"
+
+WEK_poisson_PETSC:
+  extends: [.rules_weekly, .reggie]
+  stage: reggie_weekly
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: WEK_poisson_PETSC
+
+WEK_poisson_PETSC_internal:
+  extends: [.rules_weekly, .reggie]
+  stage: reggie_weekly
+  needs: [build_petsc_in_piclas]
+  variables:
+    USE_BUILD: build_petsc_lib
+    REGGIE_CASE: WEK_poisson_PETSC
+
+WEK_poisson_PETSC_PGO:
+  extends: [.rules_weekly, .reggie]
+  stage: reggie_weekly
+  needs: [build_Leapfrog_PGO]
+  variables:
+    USE_BUILD: build_Leapfrog_PGO
+    REGGIE_CASE: WEK_poisson_PETSC/floating_boundary_condition_p-convergence
+
+WEK_PIC_poisson_Leapfrog_Debug: # This uses the same reggie as NIG_PIC_poisson_Leapfrog but compile everything with CMAKE_BUILD_TYPE = Debug
+  extends: [.rules_weekly_single_node, .reggie]
+  stage: reggie_weekly
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_PIC_poisson_Leapfrog
+    REGGIE_ARGS: "-t Debug"
 
 # Sme reggies only work on single node, e.g., ray tracing
 WEK_PIC_poisson_Leapfrog_single_node_Debug: # This uses the same reggie as NIG_PIC_poisson_Leapfrog_single_node_Release but compile everything with CMAKE_BUILD_TYPE = Debug
-  <<: *defaults_weekly
+  extends: [.rules_weekly_single_node, .reggie]
   stage: reggie_weekly
-  script:
-    - cd build ; reggie -t Debug ../regressioncheck/NIG_PIC_poisson_Leapfrog_single_node/
-  rules:
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
-      when: never
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
-      when: never
-    - if: $[[ inputs.DO_WEEKLY ]] == true
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_PIC_poisson_Leapfrog_single_node
+    REGGIE_ARGS: "-t Debug"
 
 WEK_PIC_poisson_Leapfrog:
-  <<: *defaults_weekly
+  extends: [.rules_weekly, .reggie]
   stage: reggie_weekly
-  script:
-    - cd build ; reggie ../regressioncheck/WEK_PIC_poisson_Leapfrog/
+  needs: [build_default]
   timeout: 15 minutes
+  variables:
+    REGGIE_CASE: WEK_PIC_poisson_Leapfrog
 
 # WEK_Photoionization_release_RK3:
-#   <<: *defaults_poisson_weekly
+#   extends: [.rules_weekly]
+#   needs: [build_poisson]
 #   stage: reggie_weekly
 #   script:
 #     - cd build_poisson_release_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
@@ -1233,7 +1184,8 @@ WEK_PIC_poisson_Leapfrog:
 #     - if: $[[ inputs.DO_WEEKLY ]] == true
 #
 # WEK_Photoionization_debug_RK3:
-#   <<: *defaults_poisson_weekly
+#   extends: [.rules_weekly]
+#   needs: [build_poisson]
 #   stage: reggie_weekly
 #   script:
 #     - cd build_poisson_debug_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
@@ -1245,19 +1197,16 @@ WEK_PIC_poisson_Leapfrog:
 #     - if: $[[ inputs.DO_WEEKLY ]] == true
 
 WEK_Photoionization_petsc_release_RK3:
-  <<: *defaults_poisson_petsc_weekly
+  extends: [.rules_weekly_single_node, .reggie]
+  needs: [build_poisson_petsc]
   stage: reggie_weekly
-  script:
-    - cd build_poisson_petsc_release_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
-  rules:
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
-      when: never
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
-      when: never
-    - if: $[[ inputs.DO_WEEKLY ]] == true
+  variables:
+    USE_BUILD: build_poisson_petsc_release_RK3
+    REGGIE_CASE: NIG_Photoionization
 
 # WEK_Photoionization_petsc_debug_RK3:
-#   <<: *defaults_poisson_petsc_weekly
+#   extends: [.rules_weekly]
+#   needs: [build_poisson_petsc]
 #   stage: reggie_weekly
 #   script:
 #     - cd build_poisson_petsc_debug_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
@@ -1269,178 +1218,80 @@ WEK_Photoionization_petsc_release_RK3:
 #     - if: $[[ inputs.DO_WEEKLY ]] == true
 
 WEK_Photoionization_release_Leapfrog:
-  <<: *defaults_poisson_weekly
+  extends: [.rules_weekly_single_node, .reggie]
   stage: reggie_weekly
-  script:
-    - cd build_poisson_release_Leapfrog;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
-  rules:
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
-      when: never
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
-      when: never
-    - if: $[[ inputs.DO_WEEKLY ]] == true
+  needs: [build_poisson]
+  variables:
+    USE_BUILD: build_poisson_release_Leapfrog
+    REGGIE_CASE: NIG_Photoionization
 
 WEK_Photoionization_debug_Leapfrog:
-  <<: *defaults_poisson_weekly
+  extends: [.rules_weekly_single_node, .reggie]
   stage: reggie_weekly
-  script:
-    - cd build_poisson_debug_Leapfrog;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
-  rules:
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
-      when: never
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
-      when: never
-    - if: $[[ inputs.DO_WEEKLY ]] == true
-
-NIG_Photoionization_petsc_release_Leapfrog:
-  <<: *defaults_poisson_petsc_nightly
-  stage: reggie_nightly
-  script:
-    - cd build_poisson_petsc_release_Leapfrog;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
-  rules:
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
-      when: never
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
-      when: never
-    - if: $[[ inputs.DO_NIGHTLY ]] == true
+  needs: [build_poisson]
+  variables:
+    USE_BUILD: build_poisson_debug_Leapfrog
+    REGGIE_CASE: NIG_Photoionization
 
 WEK_Photoionization_petsc_debug_Leapfrog:
-  <<: *defaults_poisson_petsc_weekly
+  extends: [.rules_weekly_single_node, .reggie]
+  needs: [build_poisson_petsc]
   stage: reggie_weekly
-  script:
-    - cd build_poisson_petsc_debug_Leapfrog;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
-  rules:
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
-      when: never
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
-      when: never
-    - if: $[[ inputs.DO_WEEKLY ]] == true
-
-# Raytracing regression tests
-NIG_Raytracing_release_Leapfrog:
-  <<: *defaults_poisson_nightly
-  stage: reggie_nightly
-  script:
-    - cd build_poisson_release_Leapfrog;  reggie ../regressioncheck/NIG_Raytracing -e ./bin/piclas
-  rules:
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
-      when: never
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
-      when: never
-    - if: $[[ inputs.DO_NIGHTLY ]] == true
+  variables:
+    USE_BUILD: build_poisson_petsc_debug_Leapfrog
+    REGGIE_CASE: NIG_Photoionization
 
 WEK_Raytracing_debug_Leapfrog:
-  <<: *defaults_poisson_weekly
+  extends: [.rules_weekly_single_node, .reggie]
   stage: reggie_weekly
-  script:
-    - cd build_poisson_debug_Leapfrog;  reggie ../regressioncheck/WEK_Raytracing -e ./bin/piclas
-  rules:
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
-      when: never
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
-      when: never
-    - if: $[[ inputs.DO_WEEKLY ]] == true
+  needs: [build_poisson]
+  variables:
+    USE_BUILD: build_poisson_debug_Leapfrog
+    REGGIE_CASE: WEK_Raytracing
 
+# This is actually being run as a weekly test
 NIG_Raytracing_debug_Leapfrog:
-  <<: *defaults_poisson_weekly
+  extends: [.rules_weekly_single_node, .reggie]
   stage: reggie_weekly
-  script:
-    - cd build_poisson_debug_Leapfrog;  reggie ../regressioncheck/NIG_Raytracing -e ./bin/piclas
-  rules:
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
-      when: never
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
-      when: never
-    - if: $[[ inputs.DO_WEEKLY ]] == true
+  needs: [build_poisson]
+  variables:
+    USE_BUILD: build_poisson_debug_Leapfrog
+    REGGIE_CASE: NIG_Raytracing
 
-NIG_Radiation:
-  <<: *defaults_nightly
-  stage: reggie_nightly
-  script:
-    - cd build ; reggie ../regressioncheck/NIG_Radiation
-
-NIG_drift_diffusion:
-  <<: *defaults_drift_diffusion_nightly
-  stage: reggie_nightly
-  script:
-    - cd build_drift_diffusion ; reggie ../regressioncheck/NIG_drift_diffusion_explicit-FV
-
-NIG_DVM:
-  <<: *defaults_DVM_nightly
-  stage: reggie_nightly
-  script:
-    - cd build_DVM ; reggie ../regressioncheck/NIG_DVM
-
-NIG_convtest_DVM:
-  <<: *defaults_DVM_nightly
-  stage: reggie_nightly
-  script:
-    - cd build_DVM ; reggie ../regressioncheck/NIG_convtest_DVM
-
-NIG_DVM_plasma:
-  <<: *defaults_DVM_plasma_nightly
-  stage: reggie_nightly
-  script:
-    - cd build_DVM_plasma ; reggie ../regressioncheck/NIG_DVM_plasma
-
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_weekly_build_all": Build and run
-#                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
-#                                    - sanitizer for maxwell/poisson (CMAKE_BUILD_TYPE=Sanitize,Profile)
-#                                    - math tools Lapack and OpenBlas with LIBS_BUILD_MATH_LIB = ON and LIBS_BUILD_MATH_LIB_VENDOR = LAPACK,OpenBLAS
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-build_all:
-  <<: *defaults_weekly
-  stage: build_weekly
-  script:
-    - cd build ;  reggie ../regressioncheck/run_basic
-
-build_sanitize:
-  <<: *defaults_nightly
-  stage: reggie_nightly_special
-  script:
-    - cd build ;  reggie ../regressioncheck/NIG_sanitize
-
-build_math_tools:
-  <<: *defaults_nightly
-  stage: reggie_nightly_special
-  script:
-    - cd build ;  reggie ../regressioncheck/NIG_math_libs
-
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_weekly": Build and run examples once a week
-#                         - feature_PIC_maxwell_plasma_wave/ : test a plasma-wave with different time-integration and maxwell's equations
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
 WEK_PIC_maxwell:
-  <<: *defaults_weekly
+  extends: [.rules_weekly, .reggie]
   stage: reggie_weekly
-  script:
-    - cd build ;  reggie ../regressioncheck/WEK_PIC_maxwell
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: WEK_PIC_maxwell
 
 WEK_PIC_poisson:
-  <<: *defaults_weekly
+  extends: [.rules_weekly, .reggie]
   stage: reggie_weekly
-  script:
-    - cd build ;  reggie ../regressioncheck/WEK_PIC_poisson
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: WEK_PIC_poisson
 
 WEK_DSMC:
-  <<: *defaults_DSMC_weekly
-  needs: [build_DSMC]
+  extends: [.rules_weekly, .reggie]
   stage: reggie_weekly
-  script:
-    - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_DSMC -e bin/piclas
+  needs: [build_DSMC]
+  variables:
+    USE_BUILD: build_DSMC_release
+    REGGIE_CASE: WEK_DSMC
 
 WEK_DSMC_N1:
-  <<: *defaults_DSMC_weekly
-  needs: [build_DSMC]
+  extends: [.rules_weekly, .reggie]
   stage: reggie_weekly
-  script:
-    - cd build_DSMC_N1 ; reggie ../regressioncheck/CHE_DSMC -e ./bin/piclas
+  needs: [build_DSMC]
+  variables:
+    USE_BUILD: build_DSMC_N1
+    REGGIE_CASE: CHE_DSMC
 
 WEK_DSMC_Radiation:
-  <<: *defaults_DSMC_weekly
-  needs: [build_DSMC]
+  extends: [.rules_weekly]
   stage: reggie_weekly
+  needs: [build_DSMC]
   script:
     # Use -s, --save   Do not remove output directories buildsXXXX in output_dir after successful run.
     - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_DSMC_Radiation -e bin/piclas -s
@@ -1455,7 +1306,7 @@ WEK_DSMC_Radiation:
 
 # This reggie requires 70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5 from WEK_DSMC_Radiation
 WEK_Radiation:
-  <<: *defaults_DSMC_weekly
+  extends: [.rules_weekly]
   needs: [build_DSMC, WEK_DSMC_Radiation]
   stage: reggie_weekly
   script:
@@ -1463,46 +1314,73 @@ WEK_Radiation:
     - cd build_radiation ;  reggie ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot -e ./bin/piclas
 
 WEK_Reservoir:
-  <<: *defaults_DSMC_weekly
+  extends: [.rules_weekly, .reggie]
   stage: reggie_weekly
-  script:
-    - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_Reservoir -e bin/piclas
+  needs: [build_DSMC]
+  variables:
+    USE_BUILD: build_DSMC_release
+    REGGIE_CASE: WEK_Reservoir
 
 WEK_Reservoir_single_core:
-  <<: *defaults_DSMC_weekly
+  extends: [.rules_weekly_single_node, .reggie]
   stage: reggie_weekly
-  script:
-    - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_Reservoir_single_core -e bin/piclas
-  rules:
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
-      when: never
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
-      when: never
-    - if: $[[ inputs.DO_WEEKLY ]] == true
+  needs: [build_DSMC]
+  variables:
+    USE_BUILD: build_DSMC_release
+    REGGIE_CASE: WEK_Reservoir_single_core
 
 WEK_FPFlow:
-  <<: *defaults_weekly
+  extends: [.rules_weekly, .reggie]
   stage: reggie_weekly
-  script:
-    - cd build ;  reggie ../regressioncheck/WEK_FPFlow
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: WEK_FPFlow
 
 WEK_BGKFlow:
-  <<: *defaults_weekly
+  extends: [.rules_weekly, .reggie]
   stage: reggie_weekly
-  script:
-    - cd build ;  reggie ../regressioncheck/WEK_BGKFlow
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: WEK_BGKFlow
 
 WEK_DVM:
-  <<: *defaults_DVM_weekly
+  extends: [.rules_weekly, .reggie]
   stage: reggie_weekly
-  script:
-    - cd build_DVM ; reggie ../regressioncheck/WEK_DVM
+  needs: [build_DVM]
+  variables:
+    REGGIE_CASE: WEK_DVM
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "reggie_weekly_build_all": Build and run
+#                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
+#                                    - sanitizer for maxwell/poisson (CMAKE_BUILD_TYPE=Sanitize,Profile)
+#                                    - math tools Lapack and OpenBlas with LIBS_BUILD_MATH_LIB = ON and LIBS_BUILD_MATH_LIB_VENDOR = LAPACK,OpenBLAS
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+build_all:
+  extends: [.rules_weekly, .reggie]
+  stage: build_weekly
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: run_basic
+
+build_sanitize:
+  extends: [.rules_nightly, .reggie]
+  stage: reggie_nightly_special
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_sanitize
+
+build_math_tools:
+  extends: [.rules_nightly, .reggie]
+  stage: reggie_nightly_special
+  needs: [build_default]
+  variables:
+    REGGIE_CASE: NIG_math_libs
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage ".post": Collect coverage data
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 code_coverage:
-  extends: .defaults
   stage: .post
   script:
     - echo "Generating combined coverage report..."
@@ -1542,9 +1420,7 @@ code_coverage:
     - if: $[[ inputs.DO_CODE_COVERAGE ]] == true
 
 reggie_coverage:
-  extends: .defaults
   stage: .post
-  needs: [cleanup]
   script:
     - echo "Generating coverage report for reggie..."
     - coverage html --data-file=${COVERAGE_REGGIE_DIR}/.coverage -d ${COVERAGE_REGGIE_DIR} ;
@@ -1556,12 +1432,12 @@ reggie_coverage:
     when: on_success
   rules:
     - if: $[[ inputs.DO_REGGIE_COVERAGE ]] == true
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage ".post": Update release notes (if merging a branch into master.dev)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 update_release_notes:
   stage: .post
-  tags: [withmodules-concurrent]
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'  # do not run, when MR is created
       when: never
@@ -1758,46 +1634,29 @@ update_release_notes:
 # Stage "reggie_tutorials": Run tutorials via reggie to check their continued functionality
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 WEK_drift_diffusion:
-  <<: *defaults_drift_diffusion_weekly
+  extends: [.rules_weekly, .reggie]
   stage: reggie_tutorials
-  script:
-    - cd build_drift_diffusion ; reggie ../regressioncheck/WEK_drift_diffusion_explicit-FV
+  needs: [build_drift_diffusion]
+  variables:
+    REGGIE_CASE: WEK_drift_diffusion_explicit-FV
 
 WEK_DSMC_tutorials:
-  <<: *defaults_DSMC_weekly
+  extends: [.rules_weekly, .reggie]
   stage: reggie_tutorials
-  script:
-    - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_DSMC_tutorials -e bin/piclas
+  needs: [build_DSMC]
+  variables:
+    USE_BUILD: build_DSMC_release
+    REGGIE_CASE: WEK_DSMC_tutorials
 
 WEK_PIC_poisson_tutorials:
-  <<: *defaults_poisson_petsc_weekly
+  extends: [.rules_weekly, .reggie]
+  needs: [build_poisson_petsc]
   stage: reggie_tutorials
-  script:
-    - cd build_poisson_petsc_debug_Leapfrog ; reggie ../regressioncheck/WEK_PIC_poisson_tutorials -e bin/piclas
+  variables:
+    USE_BUILD: build_poisson_petsc_debug_Leapfrog
+    REGGIE_CASE: WEK_PIC_poisson_tutorials
 
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "build": Compile the userguide and developer guide
-# ---------------------------------------------------------------------------V
-build_documentation:
-  extends: .default_build_param
-  stage: build
-  script:
-    - deactivate || true
-    - cd docs/documentation
-    - python3 -m pip install --exists-action=w --no-cache-dir -r requirements.txt --break-system-packages
-    - python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
-    - ls -l _build/html
-    - python3 -m sphinx -b latex -D language=en -d _build/doctrees . _build/latex
-    - ls -l _build/latex
-    - cd _build/latex
-    - latexmk -r latexmkrc -pdf -f -dvi- -ps- -jobname=piclas -interaction=nonstopmode || true
-    - ls -l
-    - ls -l piclas.pdf
-  artifacts:
-    paths:
-      - docs/documentation
-
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------ ----------------------------------------------------------------------------
 # Stage "github": Push the master branch to github
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 github:
