@@ -457,6 +457,7 @@ build_default:
   script:
     - mkdir -p build ; cd build
     - cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all
+    - ./tools/strip-build-dir.sh build_*
 
 build_maxwell_only:
   extends: .build_defaults
@@ -470,6 +471,8 @@ build_maxwell_only:
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
+    - cd ..
+    - ./tools/strip-build-dir.sh build_*
 
 build_poisson:
   extends: .build_defaults
@@ -508,6 +511,7 @@ build_poisson:
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
     - cd ..
+    - ./tools/strip-build-dir.sh build_*
 
 build_poisson_petsc:
   extends: .build_defaults
@@ -535,6 +539,7 @@ build_poisson_petsc:
     - mkdir -p build_poisson_petsc_debug_Leapfrog ; cd build_poisson_petsc_debug_Leapfrog
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all
     - cd ..
+    - ./tools/strip-build-dir.sh build_*
 
 build_DSMC:
   extends: .build_defaults
@@ -566,7 +571,6 @@ build_DSMC:
         cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; $GENERATOR -j $NCORES all ;
       fi
     - cd ..
-    # Reduce size of artifacts by a factor 10x
     - ./tools/strip-build-dir.sh build_*
 
 build_drift_diffusion:
@@ -581,6 +585,8 @@ build_drift_diffusion:
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
+    - cd ..
+    - ./tools/strip-build-dir.sh build_*
 
 build_DVM:
   extends: .build_defaults
@@ -590,6 +596,8 @@ build_DVM:
   script:
     - mkdir -p build_DVM ; cd build_DVM
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=ED-DVM -DPICLAS_PARTICLES=OFF; $GENERATOR -j $NCORES all
+    - cd ..
+    - ./tools/strip-build-dir.sh build_*
 
 build_DVM_plasma:
   extends: .build_defaults
@@ -599,6 +607,8 @@ build_DVM_plasma:
   script:
     - mkdir -p build_DVM_plasma ; cd build_DVM_plasma
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=PLOESMA -DPICLAS_PARTICLES=OFF -DLIBS_USE_PETSC=ON; $GENERATOR -j $NCORES all
+    - cd ..
+    - ./tools/strip-build-dir.sh build_*
 
 build_no_git:
   extends: .build_defaults
@@ -659,6 +669,8 @@ build_petsc_in_piclas:
     - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_CODE_ANALYZE=ON -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON ..
     - echo " Compiling with Poisson, RK3 and self-built PETSc (-DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON) ..."
     - $GENERATOR -j $NCORES all
+    - cd ..
+    - ./tools/strip-build-dir.sh build_*
 
 build_Leapfrog_PGO:
   extends: [.build_defaults, .rules_weekly]
@@ -675,6 +687,8 @@ build_Leapfrog_PGO:
     - echo " Using PGO profiling results for re-compiling with -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Release"
     - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Release ..
     - $GENERATOR -j $NCORES all
+    - cd ..
+    - ./tools/strip-build-dir.sh build_*
 
 build_documentation:
   extends: [.build_defaults]
