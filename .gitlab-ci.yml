@@ -315,7 +315,6 @@ stages:
       when: never
     - !reference [.rules_weekly, rules]
 
-# Default parameters for build steps
 .build_defaults:
   dependencies: []
   artifacts:
@@ -325,6 +324,17 @@ stages:
   rules:
     # Do not perform build steps if deploying
     - !reference [.rules_not_for_deployment, rules]
+    - when: on_success
+
+.lint_defaults:
+  dependencies: []
+  rules:
+    # Do not perform lint steps if deploying
+    - !reference [.rules_not_for_deployment, rules]
+    # policy: allow linting to fail without terminating the pipeline on feature branches
+    - if: '$CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH'
+      allow_failure: true
+    - when: on_success
 
 # Reggie execution template
 .reggie:
@@ -347,7 +357,7 @@ stages:
       fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage ".pre": always executed at the start of each pipeline
+# Stage ".pre"
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 cleanup:
   stage: .pre
@@ -361,32 +371,19 @@ cleanup:
     - if: $[[ inputs.DO_REGGIE_COVERAGE ]] == true
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "lint": Run the linters
-# policy: allow failure without stopping pipeline only on feature branches
+# Stage "lint"
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 fortitude:
-  extends: .build_defaults
+  extends: .lint_defaults
   stage: lint
-  dependencies: []
   script:
     - $FORTITUDE --version
     - $FORTITUDE check --output-format=grouped src
     - $FORTITUDE check src --statistics --quiet
-  rules:
-    # Skip running this job for merge requests targeting the default branch
-  - if: '$CI_MERGE_REQUEST_ID && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH'
-    when: never
-    # For feature branches, allow failure without stopping the pipeline
-  - if: '$CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH'
-    allow_failure: true
-    # For master branch, do not allow failure without stopping the pipeline
-  - when: always
-    allow_failure: false
 
 ruff:
-  extends: .build_defaults
+  extends: .lint_defaults
   stage: lint
-  dependencies: []
   script:
     - $RUFF --version
     # You can't ignore E999 (syntax errors) — ruff explicitly prevents it since the file can't be parsed at all, making other checks meaningless.
@@ -401,7 +398,6 @@ ruff:
 createCylinderHOPR.py:
   extends: .build_defaults
   stage: tools
-  dependencies: []
   script:
     - |
       set +o pipefail  # the pipeline only fails if the last command fails (default bash behavior)
@@ -414,7 +410,6 @@ createCylinderHOPR.py:
 updatePiclasVersion.sh:
   extends: .build_defaults
   stage: tools
-  dependencies: []
   script:
     - rm -rf tools-testing/updatePiclasVersion || true
     - mkdir -p tools-testing/updatePiclasVersion
@@ -435,7 +430,6 @@ updatePiclasVersion.sh:
 userblock:
   extends: .build_defaults
   stage: tools
-  dependencies: []
   script:
     - rm -rf tools-testing/userblock || true
     - mkdir -p tools-testing/userblock
@@ -446,7 +440,6 @@ userblock:
 convertHoprToPyHopeIni.sh:
   extends: .build_defaults
   stage: tools
-  dependencies: []
   script:
     - rm -rf tools-testing/convertHoprToPyHopeIni || true
     - mkdir -p tools-testing/convertHoprToPyHopeIni
@@ -684,6 +677,7 @@ build_Leapfrog_PGO:
     - $GENERATOR -j $NCORES all
 
 build_documentation:
+  extends: [.build_defaults]
   stage: build
   script:
     - deactivate || true
@@ -862,15 +856,7 @@ NIG_DSMC_debug:
     USE_BUILD: build_DSMC_debug
     REGGIE_CASE: NIG_DSMC
 
-NIG_SuperB_piclas:
-  extends: [.rules_nightly, .reggie]
-  needs: [build_default]
-  stage: reggie_tools_nightly
-  variables:
-    USE_BUILD: build
-    REGGIE_CASE: NIG_SuperB
-
-NIG_SuperB_standalone:
+NIG_SuperB:
   extends: [.rules_nightly, .reggie]
   needs: [build_default]
   stage: reggie_tools_nightly
