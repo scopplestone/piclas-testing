@@ -990,14 +990,12 @@ build_DSMC:
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
     - if [ "$[[ inputs.DO_WEEKLY ]]" == "true" ] ; then
-        cd .. ;
-        mkdir -p build_DSMC_N1 ; cd build_DSMC_N1 ;
-        cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ; cmake --build . -j $NCORES all ;
+        cmake -B build_DSMC_N1 -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ;
+        cmake --build  build_DSMC_N1 -j $NCORES -t all ;
       fi
     - if [ "$[[ inputs.DO_WEEKLY ]]" == "true" ] ; then
-        cd .. ;
-        mkdir -p build_radiation ; cd build_radiation ;
-        cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; cmake --build . -j $NCORES all ;
+        cmake -B build_radiation -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ;
+        cmake --build  build_radiation -j $NCORES -t all ;
       fi
 
 build_drift_diffusion:
@@ -1138,7 +1136,7 @@ build_no_git_libs:
     - cmake --build build_ -j $NCORES -t all &> output.txt
     - tail -n 20 output.txt
     - rm output.txt
-    - ls bin/piclas
+    - ls build_/bin/piclas
   rules:
     - if: $[[ inputs.DO_WEEKLY ]] == true
 
@@ -1156,7 +1154,7 @@ build_petsc_in_piclas:
       policy: push
   stage: build_weekly
   script:
-    - cmake -B build_petsc_lib -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_CODE_ANALYZE=ON -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON ..
+    - cmake -B build_petsc_lib -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_CODE_ANALYZE=ON -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON
     - echo " Compiling with Poisson, RK3 and self-built PETSc (-DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON) ..."
     - cmake --build build_petsc_lib -j $NCORES -t all
   rules:
@@ -1183,12 +1181,12 @@ build_Leapfrog_PGO:
       policy: push
   stage: build_weekly
   script:
-    - cmake -B build_Leapfrog_PGO -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Profile ..
+    - cmake -B build_Leapfrog_PGO -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Profile
     - echo " Preparing PGO profiling run by compiling with -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Profile"
     - cmake --build build_Leapfrog_PGO -j $NCORES -t all
-    - reggie -e ./bin/piclas ./regressioncheck/WEK_poisson_PETSC/floating_boundary_condition_p-convergence
+    - cd build_Leapfrog_PGO && reggie -e ./bin/piclas ../regressioncheck/WEK_poisson_PETSC/floating_boundary_condition_p-convergence && cd ..
     - echo " Using PGO profiling results for re-compiling with -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Release"
-    - cmake -B build_Leapfrog_PGO -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Release ..
+    - cmake -B build_Leapfrog_PGO -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Release
     - cmake --build build_Leapfrog_PGO -j $NCORES -t all
   rules:
     - if: $[[ inputs.DO_WEEKLY ]] == true
@@ -1197,7 +1195,7 @@ run_build_Leapfrog_PGO:
   <<: *defaults_poisson_build_PGO
   stage: reggie_weekly
   script:
-    - cd build_Leapfrog_PGO ; reggie -e ./bin/piclas ../regressioncheck/WEK_poisson_PETSC/floating_boundary_condition_p-convergence
+    - cd build_Leapfrog_PGO && reggie -e ./bin/piclas ../regressioncheck/WEK_poisson_PETSC/floating_boundary_condition_p-convergence
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
