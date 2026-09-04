@@ -458,7 +458,7 @@ build_default:
     - mkdir -p build ; cd build
     - cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all
     - cd ..
-    - ./tools/strip-build-dir.sh build_*
+    - ./tools/strip-build-dir.sh build
 
 build_maxwell_only:
   extends: .build_defaults
