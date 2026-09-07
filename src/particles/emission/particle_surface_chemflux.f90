@@ -127,7 +127,7 @@ DO iSF = 1, SurfChem%CatBoundNum
         DO iShuffle = SurfChem%NumOfReact, 2, -1
           CALL RANDOM_NUMBER(RanNum)
           jShuffle = 1 + INT(RanNum*REAL(iShuffle))
-          IF (jShuffle.GT.iShuffle) jShuffle = iShuffle   
+          IF (jShuffle.GT.iShuffle) jShuffle = iShuffle
           iTmp                   = SurfReacBias(iShuffle)
           SurfReacBias(iShuffle) = SurfReacBias(jShuffle)
           SurfReacBias(jShuffle) = iTmp
@@ -199,7 +199,7 @@ DO iSF = 1, SurfChem%CatBoundNum
             Rate     = nu * AdsDens * exp(-E_act/WallTemp) ! Energy in K
             DesCount = Rate * dt * Area * (-LOG(RanNum))/ ReactantCount
 
-            IF (DesCount.GT.0.) THEN 
+            IF (DesCount.GT.0.) THEN
               DO iValReac=1, SIZE(SurfChemReac(iReac)%Reactants(:))
                 IF (SurfChemReac(iReac)%Reactants(iValReac).EQ.0) CYCLE
                 iReactant = SurfChemReac(iReac)%Reactants(iValReac)
@@ -435,6 +435,7 @@ USE MOD_Particle_SurfFlux       ,ONLY: CalcPartPosTriaSurface, DefineSideDirectV
 USE MOD_SurfaceModel_Vars       ,ONLY: ChemDesorpWall
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
 USE MOD_Particle_Boundary_Tools ,ONLY: CalcWallSample
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
@@ -603,18 +604,22 @@ DO iSpec = 1, nSpecies
         PEM%LastGlobalElemID(PartID) = globElemId
         iPartTotal    = iPartTotal + 1
         NbrOfParticle = NbrOfParticle + 1
-        IF((DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) &
-          CALL CalcWallSample(PartID,SurfSideID,'new')
-        IF(usevMPF)THEN
-          PartMPF(PartID) = SurfElemMPF
-        END IF ! usevMPF
+        IF(usevMPF) PartMPF(PartID) = SurfElemMPF
+        ! The velocity has to use the triangle the position was accepted in. It is set before the sampling and the
+        ! particle balance below, both of which evaluate PartState(4:6) and the particle weight.
+        CALL SetChemFluxVelocities(PartID,iSpec,iSF,iSampleAcc,jSampleAcc,BCSideID)
+        ! Sampling of the newly created particle
+        IF(DSMC%CalcSurfaceVal.AND.(SamplingActive.OR.WriteMacroSurfaceValues)) THEN
+          ! CalcWallSample takes the sub-surface indices from TrackInfo, which is only set during tracking
+          TrackInfo%p = SubP
+          TrackInfo%q = SubQ
+          CALL CalcWallSample(PartID,SurfSideID,'new',PartPosImpact_opt=NewPos)
+        END IF
         IF(CalcPartBalance) THEN
           ! Compute number of input particles and energy
           nPartIn(iSpec)    = nPartIn(iSpec) + 1
           PartEkinIn(iSpec) = PartEkinIn(iSpec)+CalcEkinPart(PartID)
         END IF ! CalcPartBalance
-        ! The velocity has to use the triangle the position was accepted in
-        CALL SetChemFluxVelocities(PartID,iSpec,iSF,iSampleAcc,jSampleAcc,BCSideID)
       END DO ! iPart
 
       PartsEmitted = PartsEmitted + PartInsSide
@@ -718,13 +723,13 @@ IF (myComputeNodeRank.EQ.0) THEN
       END IF
 #endif /*USE_MPI*/
 
-      ! --- Mean value per bin 
+      ! --- Mean value per bin
       DO iBin = 1, nPartBound
         IF (nSidesBin(iBin).LE.0.) CYCLE
         CovSum(1:nSpecies,iBin) = CovSum(1:nSpecies,iBin)/nSidesBin(iBin)
       END DO
 
-      ! --- 2nd pass: redistribute the coverage equally over the sides of the bin 
+      ! --- 2nd pass: redistribute the coverage equally over the sides of the bin
       DO iSurfSide = 1, nSurfSideLoc
         GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
         iPartBound   = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
