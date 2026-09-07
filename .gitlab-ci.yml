@@ -225,6 +225,7 @@ default:
     # GCOVR_ARGS: - use --include-internal-functions to include all functions starting with '__' (basically every function in piclas)
     #             - --gcov-ignore-parse-errors Skip lines with parse errors in GCOV files instead of exiting with an error
     #             - --exclude-lines-by-pattern exclude all lines that start with the regex pattern. Called multiple times for no and one or more (^\s+) leading whitespaces since reggie execution expands wildcards
+    # CODE_COVERAGE signals reggie to produce coverage artifacts, PICLAS_CODE_COVERAGE does the same for the PICLas CMake toolchain
     - if [ "$[[ inputs.DO_CODE_COVERAGE ]]" == "true" ]; then
         export CODE_COVERAGE=True;
         if [ ! -d "Coverage" ]; then mkdir Coverage ; fi ;
@@ -338,16 +339,20 @@ stages:
 
 # Reggie execution template
 .reggie:
-  allow_failure: true
   variables:
     REGGIE_ARGS: ""
     # If specified, reggie will not perform a new build. Point to top-level build directory.
     USE_BUILD: ""
-  # TODO: We should ideally be using artifacts for coverage rather than the cache
+  # TODO: We should ideally be using artifacts for coverage rather than the cache.
   cache:
     - key: "${CI_PIPELINE_ID}-coverage"
       paths: [Coverage]
       policy: pull-push
+  # These are currently unused, since we pull in Coverage artifacts via the cache.
+  artifacts:
+    paths: [Coverage]
+    expire_in: 1 day
+    when: always
   script:
     - |
       if [ -n "${USE_BUILD}" ]; then
@@ -355,6 +360,7 @@ stages:
       else
         reggie ${REGGIE_ARGS} "regressioncheck/${REGGIE_CASE}"
       fi
+  allow_failure: true
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage ".pre"
@@ -458,7 +464,7 @@ build_default:
     - mkdir -p build ; cd build
     - cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all
     - cd ..
-    - ./tools/strip-build-dir.sh build
+    - ./tools/strip-build-dir.sh --keep-coverage build
 
 build_maxwell_only:
   extends: .build_defaults
@@ -473,7 +479,7 @@ build_maxwell_only:
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
     - cd ..
-    - ./tools/strip-build-dir.sh build_*
+    - ./tools/strip-build-dir.sh --keep-coverage build_*
 
 build_poisson:
   extends: .build_defaults
@@ -512,7 +518,7 @@ build_poisson:
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
     - cd ..
-    - ./tools/strip-build-dir.sh build_*
+    - ./tools/strip-build-dir.sh --keep-coverage build_*
 
 build_poisson_petsc:
   extends: .build_defaults
@@ -540,7 +546,7 @@ build_poisson_petsc:
     - mkdir -p build_poisson_petsc_debug_Leapfrog ; cd build_poisson_petsc_debug_Leapfrog
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all
     - cd ..
-    - ./tools/strip-build-dir.sh build_*
+    - ./tools/strip-build-dir.sh --keep-coverage build_*
 
 build_DSMC:
   extends: .build_defaults
@@ -572,7 +578,7 @@ build_DSMC:
         cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; $GENERATOR -j $NCORES all ;
       fi
     - cd ..
-    - ./tools/strip-build-dir.sh build_*
+    - ./tools/strip-build-dir.sh --keep-coverage build_*
 
 build_drift_diffusion:
   extends: .build_defaults
@@ -587,7 +593,7 @@ build_drift_diffusion:
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
     - cd ..
-    - ./tools/strip-build-dir.sh build_*
+    - ./tools/strip-build-dir.sh --keep-coverage build_*
 
 build_DVM:
   extends: .build_defaults
@@ -598,7 +604,7 @@ build_DVM:
     - mkdir -p build_DVM ; cd build_DVM
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=ED-DVM -DPICLAS_PARTICLES=OFF; $GENERATOR -j $NCORES all
     - cd ..
-    - ./tools/strip-build-dir.sh build_*
+    - ./tools/strip-build-dir.sh --keep-coverage build_*
 
 build_DVM_plasma:
   extends: .build_defaults
@@ -609,7 +615,7 @@ build_DVM_plasma:
     - mkdir -p build_DVM_plasma ; cd build_DVM_plasma
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=PLOESMA -DPICLAS_PARTICLES=OFF -DLIBS_USE_PETSC=ON; $GENERATOR -j $NCORES all
     - cd ..
-    - ./tools/strip-build-dir.sh build_*
+    - ./tools/strip-build-dir.sh --keep-coverage build_*
 
 build_no_git:
   extends: .build_defaults
@@ -671,7 +677,7 @@ build_petsc_in_piclas:
     - echo " Compiling with Poisson, RK3 and self-built PETSc (-DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON) ..."
     - $GENERATOR -j $NCORES all
     - cd ..
-    - ./tools/strip-build-dir.sh build_*
+    - ./tools/strip-build-dir.sh --keep-coverage build_*
 
 build_Leapfrog_PGO:
   extends: [.build_defaults, .rules_weekly]
@@ -689,7 +695,7 @@ build_Leapfrog_PGO:
     - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Release ..
     - $GENERATOR -j $NCORES all
     - cd ..
-    - ./tools/strip-build-dir.sh build_*
+    - ./tools/strip-build-dir.sh --keep-coverage build_*
 
 build_documentation:
   extends: [.build_defaults]
@@ -1403,6 +1409,10 @@ code_coverage:
     - gcovr --root ${PWD}/src --add-tracefile "Coverage/*.json" --html-nested Coverage/html/coverage.html --merge-mode-functions=merge-use-line-min
   # regex expression the retrieve coverage percentage
   coverage: '/lines:\s+([0-9]+(?:\.[0-9]+)?)%/'
+  cache:
+    - key: "${CI_PIPELINE_ID}-coverage"
+    - paths: [Coverage]
+    - policy: pull-push
   artifacts:
     paths:
       # html for visual output
@@ -1425,6 +1435,10 @@ reggie_coverage:
   script:
     - echo "Generating coverage report for reggie..."
     - coverage html --data-file=${COVERAGE_REGGIE_DIR}/.coverage -d ${COVERAGE_REGGIE_DIR} ;
+  cache:
+    - key: "${CI_PIPELINE_ID}-coverage"
+    - paths: [Coverage]
+    - policy: pull-push
   artifacts:
     paths:
       # reggie coverage files
