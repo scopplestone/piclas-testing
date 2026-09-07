@@ -635,7 +635,7 @@ USE MOD_BGK_Vars                  ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_FPFlow_Vars               ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_DSMC_Vars                 ,ONLY: useDSMC
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, DoChemSurface, ChemWallProp
-USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides, CalcSurfaceImpact
+USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides, CalcSurfaceImpact, SurfTotalSideOnNode
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,SampWallImpactEnergy,SampWallImpactVector
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallPumpCapacity,SampWallImpactAngle,SampWallImpactNumber
 USE MOD_DSMC_Analyze              ,ONLY: DSMC_data_sampling, WriteDSMCToHDF5
@@ -979,17 +979,18 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
         SampWallImpactNumber(:,:,:,  iSide)=0.
       END IF ! CalcSurfaceImpact
     END DO
+    ! ChemWallProp(nSpecies+1,...) accumulates the catalytic energy in [J] and is normalised by the sampling
+    ! duration in CalcSurfaceValues, so it has to be reset together with SampWallState.
+    ! Only index nSpecies+1 - the coverage in 1:nSpecies is a surface state and must persist.
+    ! SurfTotalSideOnNode: nodes without surf sides never allocated ChemWallProp (and the shared window)
+    IF (DoChemSurface.AND.SurfTotalSideOnNode) THEN
 #if USE_MPI
-    IF (DoChemSurface) THEN
-      ! ChemWallProp(nSpecies+1,...) accumulates the catalytic energy in [J] and is normalised by the sampling
-      ! duration in CalcSurfaceValues, so it has to be reset together with SampWallState.
-      ! Only index nSpecies+1 - the coverage in 1:nSpecies is a surface state and must persist.
       IF (myComputeNodeRank.EQ.0) ChemWallProp(nSpecies+1,:,:,:) = 0.
       CALL BARRIER_AND_SYNC(ChemWallProp_Shared_Win,MPI_COMM_SHARED)
-    END IF
 #else
-    IF (DoChemSurface) ChemWallProp(nSpecies+1,:,:,:) = 0.
+      ChemWallProp(nSpecies+1,:,:,:) = 0.
 #endif
+    END IF
     iter_macsurfvalout = 0
   END IF
 END IF
