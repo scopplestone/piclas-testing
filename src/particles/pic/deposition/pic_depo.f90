@@ -657,6 +657,8 @@ DO SideID=1,nBCSides
     ! Sum up all contributions of surface area to the FEM vertices of each side
     CALL Buildpq2iNode(SideID,SubSideAreaEquiN1)
     IF(.NOT.DoRestart) CALL CalculateSurfNodeArea(SideID)
+  CASE(40) ! Circuit model boundary condition
+    ! Skip
 #else
   CASE DEFAULT ! unknown BCType
     CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
@@ -1013,12 +1015,12 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: UniqueNodeID,NonUniqueNodeID,iNode,NeighUniqueNodeID
+INTEGER                        :: UniqueNodeID,NonUniqueNodeID,iNode,NeighUniqueNodeID,GlobalElemID
 REAL                           :: SFDepoScaling
 LOGICAL                        :: ElemDone
 INTEGER                        :: ppp,globElemID
 REAL                           :: r_sf_tmp,SFAdaptiveDOFDefault,DOFMax
-INTEGER                        :: iCNElem,firstElem,lastElem,jNode,NbElemID,NeighNonUniqueNodeID, minN_PP
+INTEGER                        :: iCNElem,firstElem,lastElem,jNode,NbElemID,NeighNonUniqueNodeID,minN_PP
 CHARACTER(32)                  :: hilf2,hilf3
 #if USE_MPI
 #endif /*USE_MPI*/
@@ -1136,7 +1138,8 @@ DO iCNElem = firstElem,lastElem
 
   ! Because ElemVolume_Shared(CNElemID) is not available for halo elements, the bounding box volume is used as an approximate
   ! value for the element volume from which the characteristic length of the element is calculated
-  ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GetGlobalElemID(iCNElem)) ) ! 1-2: Min, Max value; 1-3: x,y,z
+  GlobalElemID = GetGlobalElemID(iCNElem)
+  ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z
     BoundingBoxVolume = (Bounds(2,1)-Bounds(1,1)) * (Bounds(2,2)-Bounds(1,2)) * (Bounds(2,3)-Bounds(1,3))
   END ASSOCIATE
   ! Check which shape function dimension is used
