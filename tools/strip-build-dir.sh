@@ -51,12 +51,19 @@ for dir in "${dirs[@]}"; do
         ;;
       *)
         if [ "$KEEP_COVERAGE" = true ]; then
-          # Delete everything except .gcno files, then prune any directories
-          # left empty as a result (depth-first, so nested empties are caught
-          # before their parents, and the entry itself is removed if it ends
-          # up holding nothing but empty directories).
-          find "$entry" -type f ! -name '*.gcno' -delete
-          find "$entry" -depth -type d -empty -delete
+          if [ -d "$entry" ]; then
+            # Delete everything except .gcno files, then prune any directories
+            # left empty as a result (depth-first, so nested empties are caught
+            # before their parents, and the entry itself is removed if it ends
+            # up holding nothing but empty directories).
+            find "$entry" -type f ! -name '*.gcno' -delete
+            find "$entry" -depth -type d -empty -delete
+          elif [ -f "$entry" ] && [[ "$name" != *.gcno ]]; then
+            # Plain files (e.g. CMakeCache.txt, Makefile) can't be walked by
+            # find, so remove them directly.
+            rm -f -- "$entry"
+          fi
+          # Other entry types (symlinks, etc.) are left alone.
         else
           rm -rf -- "$entry"
         fi
