@@ -127,6 +127,12 @@ USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTi
 USE MOD_Analyze_Vars          ,ONLY: doFieldAnalyze,CalcEpot
 USE MOD_Analyze_Vars          ,ONLY: CalcBoundaryFieldOutput,BFO
 USE MOD_Analyze_Vars          ,ONLY: nSkipAnalyze,SkipAnalyzeWindow,SkipAnalyzeSwitchTime,nSkipAnalyzeSwitch
+#if defined(PARTICLES) && USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: DoLoadBalance,UseH5IOLoadBalance
+USE MOD_Restart_Vars          ,ONLY: DoInitialAutoRestart
+USE MOD_SurfaceModel_Vars     ,ONLY: DoChemSurface
+USE MOD_Particle_Boundary_Vars,ONLY: PartBound
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 USE MOD_Interpolation_Vars    ,ONLY: InterpolationInitIsDone,Uex,NAnalyze
 USE MOD_IO_HDF5               ,ONLY: AddToElemData
 USE MOD_Mesh_Vars             ,ONLY: nElems
@@ -291,6 +297,27 @@ DoMeasureAnalyzeTime = GETLOGICAL('DoMeasureAnalyzeTime')
 ! Initialize time and counter for analyze measurement
 AnalyzeCount = 0
 AnalyzeTime  = 0.0
+
+#if defined(PARTICLES) && USE_LOADBALANCE
+! The surface coverage (ChemWallProp) and the adapted wall temperature (BoundaryWallTemp) are restored from the last state file
+! during a load balance step. With UseH5IOLoadBalance = F no state file is written for the load balance itself, so both are only
+! up to date if the regular analyze output coincides with every load balance step, which requires nSkipAnalyze = 1. Otherwise the
+! surface state is silently reset to the last written output. The same applies to the initial load balance, which never writes.
+IF (DoLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
+  IF (DoChemSurface.OR.ANY(PartBound%UseAdaptedWallTemp)) THEN
+    IF (MAX(nSkipAnalyze,nSkipAnalyzeSwitch).GT.1) THEN
+      CALL CollectiveStop(__STAMP__,'Surface chemistry and the adaptive wall temperature require nSkipAnalyze = 1 (and '//&
+                           'nSkipAnalyzeSwitch = 1) for DoLoadBalance = T with UseH5IOLoadBalance = F, otherwise the surface '//&
+                           'state is reset to the last state file during a load balance step. Set UseH5IOLoadBalance = T instead.')
+    END IF
+    IF (DoInitialAutoRestart) THEN
+      CALL CollectiveStop(__STAMP__,'Surface chemistry and the adaptive wall temperature do not support DoInitialAutoRestart = T '//&
+                           'with UseH5IOLoadBalance = F, because no state file is written for the initial load balance and '//&
+                           'the surface state is reset to the last state file. Set UseH5IOLoadBalance = T instead.')
+    END IF
+  END IF
+END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 
 AnalyzeInitIsDone = .TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'

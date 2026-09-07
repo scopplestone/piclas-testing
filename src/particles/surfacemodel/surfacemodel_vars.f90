@@ -67,7 +67,7 @@ TYPE, EXTENDS(tCollCaseInfo) :: tEventProbInfo
   REAL, ALLOCATABLE                      :: ProdTransACC(:)        ! Reaction-specific thermal accommodation
 END TYPE
 
-LOGICAL                                  :: DoChemSurface          ! Call the surface catalysis routines
+LOGICAL                                  :: DoChemSurface = .FALSE.! Call the surface catalysis routines
 
 TYPE tSurfChemistry ! General surface chemistry parameter
   INTEGER                                :: NumOfReact             ! Number of catalytic reactions
@@ -120,7 +120,6 @@ TYPE tSurfReactions
   REAL                                   :: C_a                    ! Pre-exponential factor
   REAL                                   :: C_b                    ! Pre-exponential factor
   ! General Parameters
-  REAL                                   :: Rate                   ! Catalytic reaction rate [Cov/s*m^2]
   REAL                                   :: Prob                   ! Catalytic reaction probability
   REAL                                   :: Prefactor              ! Pre-exponential factor [1/s]
   REAL                                   :: ArrheniusEnergy        ! Catalytic reaction energy [K]

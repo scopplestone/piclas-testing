@@ -445,7 +445,7 @@ IF (SamplePressTensHeatflux) THEN
         IF (VirtMergedCells(iElem)%isMerged) iElem = VirtMergedCells(iElem)%MasterCell - offSetElem
       END IF
       partWeight = GetParticleWeight(iPart)
-      ! always include MPF to compute total pressure/heatflux values      
+      ! always include MPF to compute total pressure/heatflux values
       IF (.NOT.usevMPF) partWeight = partWeight * Species(iSpec)%MacroParticleFactor
       totalWeight(iElem)  = totalWeight(iElem)  + partWeight
       totalWeight2(iElem) = totalWeight2(iElem) + partWeight*partWeight
@@ -460,8 +460,7 @@ IF (SamplePressTensHeatflux) THEN
     END IF
   END DO
   DO iElem = 1, nElems
-!    IPWRITE(*,*) totalWeight(iElem) 
-    ! Pressure tensor 
+    ! Pressure tensor
     IF (totalWeight(iElem).GT.0.) THEN
       IF (totalWeight(iElem) - totalWeight2(iElem)/totalWeight(iElem).GT.0.) THEN
         DSMC_SolutionPressTens(1:3,iElem) = DSMC_SolutionPressTens(1:3,iElem) + presstens(1:3,iElem) * totalWeight(iElem) &
