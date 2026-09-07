@@ -1018,14 +1018,12 @@ CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
 ! Only the surface leaders read the array
 IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
 #endif
-  CALL DatasetExists(File_ID,'BoundaryGlobalSideIndx',CatDataExists)
-  IF (.NOT.CatDataExists) THEN
-    CALL Abort(__STAMP__,&
-      'ERROR during Restart: CatalyticData was found in the restart file but not the GlobalSideIndx array!')
-  END IF
-
   CALL DatasetExists(File_ID,'CatalyticData',CatDataExists)
   IF (CatDataExists) THEN !Else branch necessary for following BARRIER_AND_SYNC
+    ! The index array is only required if the catalytic data itself is present
+    CALL DatasetExists(File_ID,'BoundaryGlobalSideIndx',CatDataExists)
+    IF (.NOT.CatDataExists) CALL Abort(__STAMP__,'ERROR during Restart: CatalyticData found in restart file but not GlobalSideIndx array!')
+
     ALLOCATE(tmpGlobalSideInx(nGlobalSurfSides),tempSurfData(1:nVarSurf,nSurfSample,nSurfSample,nGlobalSurfSides))
 
     ASSOCIATE (nVarSurf             => INT(nVarSurf,IK), &
@@ -1047,7 +1045,7 @@ IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
       !ChemWallProp(nSpecies+1,:,:,iSurfSide) = tempSurfData(nSpecies+1,:,:,iSide)
     END DO
   ELSE
-      SWRITE(*,*) 'No catalytic data found. The coverage and heat flux values will be reset.'
+    SWRITE(*,*) 'No catalytic data found. The coverage and heat flux values will be reset.'
   END IF
 #if USE_MPI
 END IF
