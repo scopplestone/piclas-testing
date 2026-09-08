@@ -17,6 +17,7 @@ MODULE MOD_Particle_Emission_Vars
 !> Variables and types for the particle emission, used directly in MOD_Particle_Vars as types are part of the Species type
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i4,i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -63,9 +64,9 @@ TYPE tInit                                                                   ! P
                                                                          !               1 = emission rate in 1/s,
                                                                          !               2 = emission rate 1/iteration
   REAL                               :: ParticleNumber                   ! Initial, Emission in [1/s] or [1/Iteration]
-  INTEGER(KIND=8)                    :: InsertedParticle                 ! Number of all already inserted Particles
-  INTEGER(KIND=8)                    :: InsertedParticleSurplus          ! accumulated "negative" number of inserted Particles
-  INTEGER(KIND=4)                    :: InsertedParticleMisMatch=0       ! error in number of inserted particles of last step
+  INTEGER(KIND=i8)                   :: InsertedParticle                 ! Number of all already inserted Particles
+  INTEGER(KIND=i8)                   :: InsertedParticleSurplus          ! accumulated "negative" number of inserted Particles
+  INTEGER(KIND=i4)                   :: InsertedParticleMisMatch=0       ! error in number of inserted particles of last step
 #if USE_MPI
   INTEGER                            :: InitComm                         ! number of init-communicator
 #endif /*USE_MPI*/
@@ -114,9 +115,10 @@ LOGICAL              :: UseNeutralization           ! Flag for counting the char
 CHARACTER(255)       :: NeutralizationSource        ! Name of the boundary for calculating the particle balance
 INTEGER              :: nNeutralizationElems        ! Number of elements used for neutralization source (if required)
 LOGICAL, ALLOCATABLE :: isNeutralizationElem(:)     ! Flag each element if it is a neutralization element
-INTEGER, ALLOCATABLE :: NeutralizationBalanceElem(:)! Number of particles to be emitted within each neutralization element
-INTEGER              :: NeutralizationBalance       ! Counter for charged particles (processor local): Add +1 for electrons and -1 for ions
-INTEGER              :: NeutralizationBalanceGlobal ! Counter for charged particles (global): Add +1 for electrons and -1 for ions
+REAL, ALLOCATABLE    :: NeutralizationBalanceElem(:)! Number of particles to be emitted within each neutralization element
+REAL                 :: NeutralizationBalance       ! Counter for charged particles (processor local): Add +1 for electrons and -1 for ions
+REAL                 :: NeutralizationBalanceGlobal ! Counter for charged particles (global): Add +1 for electrons and -1 for ions
+REAL                 :: NeutralizationBalanceCurrent ! Electric current (positive) for emitted electrons. Note that the sampling time is only considered in the when the data is written to .csv
 
 ! Bulk electron temperature
 REAL              :: BulkElectronTemp            ! Bulk electron temperature for SEE model by Morozov2004

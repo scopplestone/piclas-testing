@@ -43,7 +43,7 @@ SUBROUTINE DSMC_main(DoElement)
 USE MOD_Globals
 USE MOD_DSMC_BGGas            ,ONLY: BGGas_InsertParticles, DSMC_pairing_bggas, BGGas_DeleteParticles
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode, ElecRelaxPart
+USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf, BGGas, CollisMode, ElecRelaxPart
 USE MOD_DSMC_Analyze          ,ONLY: SummarizeQualityFactors, DSMCMacroSampling
 USE MOD_DSMC_Relaxation       ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
 USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Species, PartSpecies, UseGranularSpecies
@@ -59,7 +59,7 @@ USE MOD_MCC                   ,ONLY: MonteCarloCollision
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,OPTIONAL  :: DoElement(nElems)
+LOGICAL,INTENT(IN),OPTIONAL  :: DoElement(nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -69,9 +69,6 @@ INTEGER           :: iElem, nPart, nPartTemp, iLoop, iPart
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
-
-! Reset the number of particles created during the DSMC loop
-DSMCSumOfFormedParticles = 0
 
 DSMC%MaxMCSoverMFP = 0.0
 DSMC%ParticleCalcCollCounter = 0 ! Counts Particle Collision Calculations
@@ -109,8 +106,14 @@ IF (CollisMode.NE.0) THEN
     END IF
     IF (nPart.LT.1) CYCLE
     IF(DSMC%CalcQualityFactors) THEN
-      DSMC%CollProbMax = 0.0; DSMC%CollProbSum = 0.0;DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
-      DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
+      DSMC%CollProbMax = 0.0
+      DSMC%CollProbSum = 0.0
+      DSMC%CollProbMean = 0.0
+      DSMC%CollProbMeanCount = 0
+      DSMC%CollSepDist = 0.0
+      DSMC%CollSepCount = 0
+      DSMC%MeanFreePath = 0.0
+      DSMC%MCSoverMFP = 0.0
       IF(DSMC%RotRelaxProb.GT.2) DSMC%CalcRotProb = 0.
       DSMC%CalcVibProb = 0.
     END IF

@@ -23,7 +23,6 @@ include, periodic, Dirichlet, Silver-Mueller, perfectly conducting, symmetry and
 | :------------: | :-------: | :------------------------------------------------------------------------------------------------------------------------ |
 |    (/1,1/)     | periodic  | 1: positive direction of the 1st periodicity vector                                                                       |
 |    (/1,-1/)    | periodic  | -1: negative (opposite) direction of the 1st periodicity vector                                                           |
-|                |           |                                                                                                                           |
 |    (/2,2/)     | Dirichlet | 2: Coaxial waveguide                                                                                                      |
 |    (/2,22/)    | Dirichlet | 22: Coaxial waveguide BC (boundary condition or exact flux)                                                               |
 |    (/2,3/)     | Dirichlet | 3: Resonator                                                                                                              |
@@ -40,17 +39,13 @@ include, periodic, Dirichlet, Silver-Mueller, perfectly conducting, symmetry and
 |    (/2,16/)    | Dirichlet | 16: Gaussian pulse which is initialized in the domain and used as a boundary condition for t>0                            |
 |    (/2,50/)    | Dirichlet | 50: Initialization and BC Gyrotron - including derivatives                                                                |
 |    (/2,51/)    | Dirichlet | 51: Initialization and BC Gyrotron - including derivatives (nothing is set for z>eps)                                     |
-|                |           |                                                                                                                           |
 |    (/3,0/)     |    SM     | 1st order absorbing BC (Silver-Mueller) - Munz et al. 2000 / Computer Physics Communication 130, 83-117 with fix          |
 |                |           | of div. correction field for low B-fields that only set the correction fields when ABS(B)>1e-10                           |
 |    (/5,0/)     |    SM     | 1st order absorbing BC (Silver-Mueller) - Munz et al. 2000 / Computer Physics Communication 130, 83-117                   |
 |    (/6,0/)     |    SM     | 1st order absorbing BC (Silver-Mueller) - Munz et al. 2000 / Computer Physics Communication 130, 83-117 with fix          |
 |                |           | of div. correction field for low B-fields that only set the correction fields when B is significantly large compared to E |
-|                |           |                                                                                                                           |
 |    (/4,0/)     |    PEC    | Perfectly electric conducting surface (Munz, Omnes, Schneider 2000, pp. 97-98)                                            |
-|                |           |                                                                                                                           |
 |    (/10,0/)    | Symmetry  | Symmetry BC (perfect MAGNETIC conductor, PMC)                                                                             |
-|                |           |                                                                                                                           |
 |    (/20,0/)    |    Ref    | Use state that is read from .h5 file and interpolated to the BC                                                           |
 
 Dielectric -> type 100?
@@ -65,7 +60,6 @@ as detailed in the following table.
 | :------------: | :-------: | :----------------------------------------------------------------------------------------------------------------------------- |
 |    (/1,1/)     | periodic  | 1: positive direction of the 1st periodicity vector                                                                            |
 |    (/1,-1/)    | periodic  | -1: negative (opposite) direction of the 1st periodicity vector                                                                |
-|                |           |                                                                                                                                |
 |    (/2,0/)     | Dirichlet | 0: Phi=0                                                                                                                       |
 |    (/2,2/)     | Dirichlet | 2: Automatic adjustment for Phi to meet const. input power, see {ref}`sec:fixed-coupled-power`                                 |
 |   (/2,1001/)   | Dirichlet | 1001: linear potential y-z via Phi = 2340y + 2340z                                                                             |
@@ -80,27 +74,20 @@ as detailed in the following table.
 |   (/2,400/)    | Dirichlet | 400: Point Source in Dielectric Region with                                                                                    |
 |                |           | epsR_1  = 1  for x $<$ 0 (vacuum)                                                                                              |
 |                |           | epsR_2 != 1 for x $>$ 0 (dielectric region)                                                                                    |
-|                |           |                                                                                                                                |
 |    (/4,0/)     | Dirichlet | zero-potential (Phi=0)                                                                                                         |
-|                |           |                                                                                                                                |
 |    (/5,1/)     | Dirichlet | 1: use RefState Nbr 1 and $\cos(\omega t)$ function (for details see {ref}`sec:ref-state-bcs`)                                 |
-|                |           |                                                                                                                                |
 |    (/6,1/)     | Dirichlet | 1: use RefState Nbr 1 and $\cos(\omega t)+1$ function that does not switch sign (for details see {ref}`sec:ref-state-bcs`)     |
-|                |           |                                                                                                                                |
 |    (/7,1/)     | Dirichlet | 1: use LinState Nbr 1, linear function for Phi, see {ref}`sec:linear-potential`                                                |
-|                |           |                                                                                                                                |
 |    (/8,1/)     | Dirichlet | 8: Assign BC to EPC group nbr. 1 (different BCs can be assigned the same EPC), see {ref}`sec:electric-potential-condition`     |
-|                |           |                                                                                                                                |
 |    (/10,0/)    |  Neumann  | zero-gradient (dPhi/dn=0)                                                                                                      |
-|                |           |                                                                                                                                |
 |    (/11,0/)    |  Neumann  | q*n=1                                                                                                                          |
-|                |           |                                                                                                                                |
 |    (/20,1/)    |    FPC    | 1: Assign BC to FPC group nbr. 1 (different BCs can be assigned the same FPC), see {ref}`sec:floating-boundary-condition`      |
-|                |           |                                                                                                                                |
+|    (/30,0/)    |   DCBC    | {ref}`sec:distributed-capacitance-boundary-condition` (0: this number has no meaning)                                          |
+|    (/40,1/)    |   CMBC    | {ref}`sec:circuit-model-boundary-condition` (1: use RefState Nbr 1, see {ref}`sec:ref-state-bcs`)                              |
 |    (/50,0/)    | Dirichlet | {ref}`sec:bias-voltage-for-dc` (0: this number has no meaning)                                                                 |
 |    (/51,1/)    | Dirichlet | {ref}`sec:bias-voltage-for-ac` (1: use RefState Nbr 1, see {ref}`sec:ref-state-bcs`)                                           |
 |    (/52,1/)    | Dirichlet | {ref}`sec:bias-voltage-for-ac-and-cpp` (1: use RefState Nbr 1, see {ref}`sec:ref-state-bcs`) and {ref}`sec:fixed-coupled-power`|
-|                |           |                                                                                                                                |
+|    (/53,1/)    | Dirichlet | Alternating voltage with fixed bias voltage ($A\sin(\omega t) + C$) (for details see {ref}`sec:fixed-bias-voltage-for-ac`)     |
 |    (/60,1/)    | Dirichlet | {ref}`sec:fixed-coupled-power` for $\Phi=A\cos(\omega t)$ (1: use RefState Nbr 1, see {ref}`sec:ref-state-bcs`)                |
 
 (sec:ref-state-bcs)=
@@ -120,14 +107,14 @@ function (a frequency of 0 results in a fixed potential over time) and phase shi
 
 This yields the three parameters used in the cosine function
 
-$$\Phi(t)=A\cos (2\pi f t + \psi)$$
+$$\Phi(t)=A\cos (2\pi f t + \psi)~,$$
 
 where *A=-0.18011* is the amplitude, *t* is the time, *f=1* is the frequency and *psi=0* is the phase shift.
 
 Similar to boundary type *5* is type *6*, which simply uses a cosine function that always has the same sign, depending on the
 amplitude *A*
 
-$$\Phi(t)=\frac{A}{2}(\cos (2\pi f t + \psi)+1)$$
+$$\Phi(t)=\frac{A}{2}(\cos (2\pi f t + \psi)+1)~,$$
 
 (sec:linear-potential)=
 ### Linear potential function
@@ -168,8 +155,22 @@ following example
 
 (sec:floating-boundary-condition)=
 ### Floating boundary condition (FPC)
-A floating boundary condition (FPC) can be used to model a perfect electric conducting surface. The surface can carry a charge $Q$,
-which might change over time. however, the requirement is that the surface yields a closed surface integral in 3D (or 2D with
+A floating boundary condition (FPC) as desribed in {cite}`Chen2021` can be used to model a perfect electric conducting surface with the fundamental jump condition
+
+$$\vec{n}\cdot\left(\vec{D_2}-\vec{D_1}\right) = \sigma~,$$
+
+where $\vec{D_2}-\vec{D_1}$ is the jump in the electric displacement field is projected onto the normal direction $\vec{n}$ and is equal to the surface charge $\sigma$.
+This equation can be integrated over the surface area $S$, giving
+
+$$\oiint_S\vec{n}\cdot\left(\vec{D_2}-\vec{D_1}\right)dS = \oiint_S\sigma dS = Q~,$$
+
+where surface may carry a charge $Q$, which might change over time.
+Because the surface is perfectly conducting, the electric field inside the conductor vanishes $\vec{D_1}=0$, which simplifies to
+
+$$\oiint_S\vec{n}\cdot\vec{D}dS = Q~,$$
+
+with the unknown displacement field is $\vec{D}=\vec{D}_2$
+However, the requirement is that the surface yields a closed surface integral in 3D (or 2D with
 periodic/symmetric boundaries in the 3rd dimension). One or more FPCs can be set via
 
     BoundaryName = BC_FPC_1 ! BC name in the mesh.h5 file
@@ -183,13 +184,85 @@ automatically, e.g., "007-FPC-Charge-BCState-001" and "008-FPC-Voltage-BCState-0
 If the particle boundary condition is set to *open* (or *species-swap*), then each impacting charged particle that is removed there,
 will be added to the accumulated charge on that FPC.
 
+(sec:distributed-capacitance-boundary-condition)=
+### Distributed capacitance boundary condition (DCBC)
+Thick layers of dielectric materials, which are resolved by mesh elements can directly be modelled as described in Section {ref}`sec:dielectric-materials`.
+Thin layers of dielectric materials (on top of electrodes that represent a Dirichlet BC) can be modelled via the distributed capacitance boundary
+condition (DCBC), which is activated in the field solver by setting
+
+    BoundaryName = BC_DISTRIBTUED_CAPACITANCE  ! Any BC name that is given in the mesh.h5 file can be used
+    BoundaryType = (/30,0/)                    ! BCType=30 for DCBC and the BCState=0 has no meaning or function here
+
+and solves the following equation on the boundary faces
+
+$$\vec{n}\cdot\left(\vec{D_2}-\vec{D_1}\right) = \sigma~,$$
+
+where the thin dielectric layer model is incorporated into $\vec{D_2}=\varepsilon_0\varepsilon_r\frac{\Phi-\Phi_0}{d}$ as one part
+of the jump and the remaining unknown displacement field is $\vec{D}_1=\vec{D}$, which gives
+
+$$-\vec{n}\cdot\vec{D}=\frac{\varepsilon_0\varepsilon_r}{d}\left(\Phi_0-\Phi\right)+\sigma~,$$
+
+where $d$ is the dielectric layer thickness, $\varepsilon_r$ the relative permittivity of the surface, $\Phi_0$
+is the electric potential at the surface of the electrode, $\Phi$ and $\vec{D}=-\varepsilon_0\nabla\Phi$
+are the unknown electric potential and displacement field, respectively, and $\sigma$ is the pointwise
+surface charge density in C/m$^2$ between the dielectric surface and the plasma region.
+These parameters are defined for each particle surface and are described in section {ref}`sec:distributed-capacitance-boundary-condition-for-particles`.
+
+(sec:circuit-model-boundary-condition)=
+### Circuit model boundary condition (CMBC)
+Electrodes that are connected to an AC power supply and a capacitor can be modelled via a circuit model boundary condition that is
+applied to the electrode, referred to as anode in the following.
+An equation derived from the electric current balance on the anode surface, which is given in {cite}`Hara2023`, reads as follows
+
+$$\Phi_a = \Phi_{rf}+\frac{1}{C}\left( \int_0^tJ_p(\tau)d\tau - \oiint_S\vec{n}\cdot\vec{D}dS \right)~,$$
+
+where $\Phi_a$ is the unknown electric potential at the anode,
+$\Phi_{rf}$ is the electric potential generated by the AC power supply,
+$C$ is the capacitance of the capacitor,
+$J_p=\oiint_S \vec{n}\cdot\vec{j}dS$ is the current density integrated over the surface area $S$ of the anode,
+ and $\vec{D}=-\varepsilon_0\nabla\Phi$ is the unknown displacement field, which is created by the surface charge
+$-\vec{n}\cdot\vec{D}=\sigma$ accumulating on the anode surface, which is the pointwise
+surface charge density in C/m$^2$ between the anode surface and the plasma region.
+
+The equation can be re-arranged into a similar expression as for the FPC
+
+$$ \oiint_S\vec{n}\cdot\vec{D}dS = C\left(\Phi_{rf} - \Phi\right) + \int_0^tJ_p(\tau)d\tau =  C\left(\Phi_{rf} - \Phi\right) + Q~,$$
+
+with the unknown electric potential $\Phi=\Phi_a$ and the charge $Q$ accumulated on the electrode
+or re-written into a similar expression as for the DCBC
+
+$$ \vec{n}\cdot\vec{D} = \frac{d}{dS}C\left(\Phi_{rf} - \Phi\right) + \sigma~,$$
+
+The boundary condition for the field solver is activated by setting
+
+    BoundaryName = BC_CIRCUIT_MODEL ! Any BC name that is given in the mesh.h5 file can be used
+    BoundaryType = (/40,1/)         ! BCType=40 for CMBC and the BCState=1 defines the number of the RefState
+
+Additionally, a reference state boundary state (*RefState*) has to be defined for the AC power supply properties, see {ref}`sec:ref-state-bcs`
+
+    RefState = (/-100.0, 1.0, 0.0/) ! RefState Nbr 1: Voltage, Frequency and Phase shift
+
+and the constant capacitance for the capacitor
+
+    CMBC-Capacitance = 5e-9 ! 5nF capacitor
+
+Using this boundary condition automatically activates integral field analysis ouptut to FieldAnalyze.csv
+
+|Property |  Symbol/Equation |
+| :----------------- | :----------------------- |
+| AC power supply voltage   | $\Phi_{rf}$           |
+| Anode voltage   | $\Phi_{a}$               |
+| Capacitor voltage   | $\Phi_{c}=\Phi_{a}-\Phi_{rf}$               |
+| Integrated surface charge (from plasma and wire) | $\oiint_S\vec{n}\cdot\vec{D}dS=C\left(\Phi_{rf} - \Phi\right) + Q$               |
+| Total charge deposited on anode from plasma | $Q=\int_0^tJ_p(\tau)d\tau$ |
+
 (sec:electric-potential-condition)=
 ### Electric potential condition (EPC)
 Grounded surfaces with a specific resistance between the ground and the surface can be modelled as equipotential surfaces, where
 charged particles are removed and their charge is accumulated over each time step and a voltage is calculated from from the
 resistance of the surface and the resulting electric current via
 
-$$U=RI=-R\frac{dQ}{dt}$$
+$$U=RI=-R\frac{dQ}{dt}~,$$
 
 where $U$ is the voltage different to ground (0V), $R$ is the resistance assigned to the surface, $I$ is the electric current and
 $dQ$ the amount of charge that is removed in each time step $dt$.
@@ -297,7 +370,7 @@ where the defined species information must consider all relevant charged particl
 (sec:bias-voltage-for-ac)=
 ### Bias Voltage AC
 If an AC potential boundary is coupled with a bias potential, the `BoundaryType` has to be changed as compared with the previous
-section 
+section
 
     BoundaryName = BC_left  ! BC name in the mesh.h5 file
     BoundaryType = (/51,1/) ! Dirichlet with 0V initial BC
@@ -308,7 +381,7 @@ Furthermore, a RefState must be defined, which specifies the parameters for the 
 (sec:bias-voltage-for-ac-and-cpp)=
 ### Bias Voltage AC and Fixed coupled power
 If an **AC potential boundary** is coupled with a **bias potential** and an **automatic adjustment of the AC amplitude** to ensure
-that a fixed power to the system is achieved, the `BoundaryType` has to be changed as compared with the previous section 
+that a fixed power to the system is achieved, the `BoundaryType` has to be changed as compared with the previous section
 
     BoundaryName = BC_left  ! BC name in the mesh.h5 file
     BoundaryType = (/52,1/) ! Dirichlet with 0V initial BC
@@ -317,8 +390,21 @@ where a RefState must be defined, which specifies the parameters for the $cos(\o
 {ref}`sec:ref-state-bcs`. Note that this BC is only implemented with zero crossing.
 For details on the power coupling, see {ref}`sec:fixed-coupled-power`.
 
-## Dielectric Materials
+(sec:fixed-bias-voltage-for-ac)=
+### Fixed/constant bias voltage and AC
+To couple an alternating voltage with a fixed/constant bias voltage $C$, the function $A\sin(2\pi f t)+C$ can be enabled by
 
+    BoundaryName = BC_left  ! BC name in the mesh.h5 file
+    BoundaryType = (/53,1/)
+    RefState     = (/200., 13.56E6, -100.0/)
+
+Within the `RefState` input, the phase shift (third variable) has been replaced with the constant $C$, representing a bias voltage. Note that the general form has been changed from a cosine to a sine function, as opposed to the definition above. An example is provided in `regressioncheck/CHE_poisson/BC_RF_FixedBiasVoltage`.
+
+(sec:dielectric-materials)=
+## Dielectric Materials
+Thin layers of dielectric materials (on top of electrodes that represent a Dirichlet BC) can be modelled via the distributed
+capacitance boundary condition (DCBC), see Section {ref}`sec:distributed-capacitance-boundary-condition`.
+Thick layers of dielectric materials, which are resolved by mesh elements, are described in this section.
 Dielectric material properties can be considered by defining regions (or specific elements)
 in the computational domain, where permittivity and permeability constants for linear isotropic
 non-lossy dielectrics are used. The interfaces between dielectrics and vacuum regions must be separated

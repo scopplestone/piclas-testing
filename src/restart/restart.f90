@@ -320,7 +320,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                               :: StartT,EndT
 #if USE_HDG
-INTEGER(KIND=8)                    :: iter
+INTEGER(KIND=i8)                   :: iter
 #endif /*USE_HDG*/
 !===================================================================================================================================
 IF(DoRestart)THEN

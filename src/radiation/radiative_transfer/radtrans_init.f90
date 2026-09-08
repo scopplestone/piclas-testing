@@ -589,9 +589,9 @@ ELSE
     TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
     localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
     ! Side is not one of the 6 local sides
-    IF (localSideID.LE.0) CYCLE
+    IF (localSideID.LE.0) CYCLE SideLoop
     IF(Symmetry%Axisymmetric) THEN
-      IF (SideIsSymSide(TempSideID)) CYCLE
+      IF (SideIsSymSide(TempSideID)) CYCLE SideLoop
       ThroughSide = .FALSE.
       CALL PhotonIntersectionWithSide2DDir(localSideID,ElemID,ThroughSide, RadObservationPoint%StartPoint(1:3),RadObservationPoint%ViewDirection(1:3))
       IF (ThroughSide) THEN
@@ -682,9 +682,9 @@ SideLoop: DO iLocSide=1,nlocSides
   TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
   localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
   ! Side is not one of the 6 local sides
-  IF (localSideID.LE.0) CYCLE
+  IF (localSideID.LE.0) CYCLE SideLoop
   IF(Symmetry%Axisymmetric) THEN
-    IF (SideIsSymSide(TempSideID)) CYCLE
+    IF (SideIsSymSide(TempSideID)) CYCLE SideLoop
     IF (SideInfo_Shared(SIDE_BCID,TempSideID).GT.0) THEN
       BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,TempSideID)))
       IF (BCType.EQ.PartBound%SymmetryAxis) IsSymElem = .TRUE.
@@ -776,8 +776,8 @@ INTEGER, INTENT(IN)             :: n
     PRIME = -1
     write ( *, '(a)' ) ' '
     write ( *, '(a)' ) 'PRIME - Fatal error!'
-    write ( *, '(a,i8)' ) '  Illegal prime index N = ', n
-    write ( *, '(a,i8)' ) '  N should be between 1 and PRIME_MAX =', prime_max
+    write ( *, '(a,I8)' ) '  Illegal prime index N = ', n
+    write ( *, '(a,I8)' ) '  N should be between 1 and PRIME_MAX =', prime_max
     stop 1
   END IF
 

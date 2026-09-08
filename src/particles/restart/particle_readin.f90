@@ -45,8 +45,7 @@ USE MOD_Mesh_Vars              ,ONLY: OffsetElem
 ! DSMC
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC,DSMC,PolyatomMolDSMC,SpecDSMC,ParticleWeighting
 ! Particles
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5,ReadNodeSourceExtFromHDF5
+USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,nSpecies,Species
 ! Restart
 USE MOD_Restart_Vars           ,ONLY: RestartFile,RestartNullifySolution,DoMacroscopicRestart
@@ -79,6 +78,9 @@ USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
 USE MOD_Particle_Vars          ,ONLY: PartDataSize,PartIntSize,PartDataVarNames
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+USE MOD_HDF5_Input_Particles   ,ONLY: ReadNodeSourceExtFromHDF5,ReadSurfNodeSourceFromHDF5
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
+USE MOD_Particle_Boundary_Vars ,ONLY: Do2DSurfaceCharge
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,RelaxDeposition,PS_N
 USE MOD_Restart_Vars           ,ONLY: InterpolateSolution,N_Restart
 USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
@@ -268,8 +270,8 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
             disp_send    => INT(MPIoffsetElemSend) ,&
             counts_recv  => INT(MPInElemRecv     ) ,&
             disp_recv    => INT(MPIoffsetElemRecv))
-      ! Communicate PartSource over MPI
-      MPI_LENGTH       = (PP_N+1)**3
+      ! Communicate NodeSourceExtEquiLB over MPI. The array stores the 8 corner nodes (0:1,0:1,0:1) per element
+      MPI_LENGTH       = N_variables*8
       MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
       MPI_TYPE         = MPI_DOUBLE_PRECISION
       CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
@@ -582,12 +584,21 @@ ELSE
       END IF
     END DO
   END IF
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+  ! ------------------------------------------------
+  ! SurfNodeSource (surface charge source terms): Only root opens and reads the data
+  ! ------------------------------------------------
+  IF(Do2DSurfaceCharge) CALL ReadSurfNodeSourceFromHDF5()
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
   ! ------------------------------------------------
   ! NodeSourceExt (external/additional charge source terms)
   ! ------------------------------------------------
   IF(DoDielectricSurfaceCharge) CALL ReadNodeSourceExtFromHDF5()
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+
 
   ! ------------------------------------------------
   ! PartInt

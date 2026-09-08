@@ -13,28 +13,29 @@
 #include "piclas.h"
 
 MODULE MOD_HDF5_Output_Particles_PIC
-#if defined(PARTICLES)
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-#if !(USE_FV) || (USE_HDG)
+#if defined(PARTICLES) && (!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))) && (!(USE_FV) || (USE_HDG))
 !===================================================================================================================================
 ! Add comments please!
 !===================================================================================================================================
 ! MODULES
 USE MOD_IO_HDF5
 USE MOD_HDF5_output
+#endif /*defined(PARTICLES) && (!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))) && (!(USE_FV) || (USE_HDG))*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
+#if defined(PARTICLES) && (!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))) && (!(USE_FV) || (USE_HDG))
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: WriteNodeSourceExtToHDF5
+PUBLIC :: WriteSurfNodeSourceToHDF5
 PUBLIC :: WriteElectroMagneticPICFieldToHDF5
 !===================================================================================================================================
 
 CONTAINS
 
-SUBROUTINE WriteNodeSourceExtToHDF5(OutputTime)
+SUBROUTINE WriteNodeSourceExtToHDF5(FileName,OutputTime)
 !===================================================================================================================================
 ! Write NodeSourceExt (external charge density) field to HDF5 file
 !===================================================================================================================================
@@ -45,7 +46,6 @@ USE MOD_PreProc
 USE MOD_Dielectric_Vars    ,ONLY: NodeSourceExtGlobal
 USE MOD_Mesh_Vars          ,ONLY: MeshFile,offsetElem,nElems
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
-USE MOD_Globals_Vars       ,ONLY: ProjectName
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,NodeVolume,DoDeposition
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes
@@ -54,21 +54,22 @@ USE MOD_Interpolation_Vars ,ONLY: NodeType,NodeTypeVISU,Nmin,Nmax
 USE MOD_Interpolation      ,ONLY: GetVandermonde
 USE MOD_DG_vars            ,ONLY: N_DG_Mapping,nDofsMapping
 #if USE_MPI
-USE MOD_PICDepo            ,ONLY: ExchangeNodeSourceExtTmp
+USE MOD_PICDepo_MPI        ,ONLY: ExchangeNodeSourceExtMPI
 #endif /*USE_MPI*/
 USE MOD_HDF5_Output_ElemData,ONLY: WriteAdditionalElemData
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)     :: OutputTime
+CHARACTER(LEN=255),INTENT(IN)   :: FileName
+REAL,INTENT(IN)                 :: OutputTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER,PARAMETER              :: nVarOut=1
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-CHARACTER(LEN=255)             :: FileName,DataSetName
+CHARACTER(LEN=255)             :: FileNameTmp, DataSetName
 INTEGER                        :: iElem,iMax,CNElemID
 REAL                           :: NodeSourceExtEqui(1:nVarOut,0:1,0:1,0:1),sNodeVol(1:8)
 INTEGER                        :: NodeID(1:8)
@@ -116,9 +117,9 @@ ALLOCATE(U_N_2D_local(1:nVarOut,1:nDOFOutput))
 IF(iter.NE.0)THEN
 
 #if USE_MPI
-! Communicate the NodeSourceExtTmp values of the last boundary interaction before the state is written to .h5
+! Communicate the NodeSourceExtMPI values of the last boundary interaction before the state is written to .h5
 ! Only call when deposition is active (otherwise this routine only writes the old array from the restart file to keep the data)
-IF(DoDeposition) CALL ExchangeNodeSourceExtTmp()
+IF(DoDeposition) CALL ExchangeNodeSourceExtMPI()
 #endif /*USE_MPI*/
 
 end if ! iter.NE.0
@@ -171,24 +172,24 @@ iMax=1 ! write to state file
 DO i = 1, iMax
   IF(i.EQ.1)THEN
     ! Write field to _State_.h5 file (or restart)
-    FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime))//'.h5'
+    FileNameTmp = FileName
     DataSetName='DG_SourceExt'
   ELSE
     ! Generate skeleton for the file with all relevant data on a single processor (MPIRoot)
     ! Write field to separate file for debugging purposes
-    CALL GenerateFileSkeleton('NodeSourceExtGlobal',nVarOut,StrVarNames,TRIM(MeshFile),OutputTime,FileNameOut=FileName)
+    CALL GenerateFileSkeleton('NodeSourceExtGlobal',nVarOut,StrVarNames,TRIM(MeshFile),OutputTime,FileNameOut=FileNameTmp)
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
     IF(MPIRoot)THEN
-      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
+      CALL OpenDataFile(FileNameTmp,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
       CALL WriteAttributeToHDF5(File_ID,'VarNamesNodeSourceExtGlobal',nVarOut,StrArray=StrVarNames)
       CALL CloseDataFile()
     END IF ! MPIRoot
     DataSetName='DG_Solution'
 
     ! Write 'Nloc' array to the .h5 file, which is required for 2D DG_Solution conversion in piclas2vtk
-    CALL WriteAdditionalElemData(FileName,ElementOutNloc)
+    CALL WriteAdditionalElemData(FileNameTmp,ElementOutNloc)
   END IF ! i.EQ.2
 
   ! Associate construct for integer KIND=8 possibility
@@ -196,7 +197,7 @@ DO i = 1, iMax
             nDofsMapping    => INT(nDofsMapping,IK)      ,&
             nDOFOutput      => INT(nDOFOutput,IK)        ,&
             offsetDOF       => INT(offsetDOF,IK)         )
-    CALL GatheredWriteArray(FileName,create=.FALSE.,&
+    CALL GatheredWriteArray(FileNameTmp,create=.FALSE.,&
                           DataSetName = TRIM(DataSetName) , rank = 2                , &
                           nValGlobal  = (/nVarOut         , nDofsMapping/)          , &
                           nVal        = (/nVarOut         , nDOFOutput/)            , &
@@ -209,6 +210,87 @@ END DO ! i = 1, 2
 SDEALLOCATE(NodeSourceExtGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WriteNodeSourceExtToHDF5
+
+
+SUBROUTINE WriteSurfNodeSourceToHDF5(FileName)
+!===================================================================================================================================
+! Write SurfNodeSource(external charge density) field to HDF5 file
+!===================================================================================================================================
+! MODULES
+USE MOD_io_HDF5
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_TimeDisc_Vars      ,ONLY: iter
+USE MOD_Interpolation      ,ONLY: GetVandermonde
+#if USE_MPI
+USE MOD_PICDepo_MPI        ,ONLY: ExchangeSurfNodeSourceMPI
+USE MOD_PICDepo_Vars       ,ONLY: DoDeposition
+#endif /*USE_MPI*/
+USE MOD_HDF5_Output_ElemData,ONLY: WriteAdditionalElemData
+USE MOD_PICDepo_Vars        ,ONLY: SurfNodeSource,nDepoSurfNodesTotal,nDepoSurfSides,SurfNodeArea
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)   :: FileName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER,PARAMETER              :: nVarOut=2
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
+CHARACTER(LEN=255),PARAMETER   :: DataSetName='SurfNodeSource'
+INTEGER                        :: firstNode,lastNode
+!===================================================================================================================================
+! Skip MPI communication in the first step as nothing has been deposited yet
+IF(iter.NE.0)THEN
+#if USE_MPI
+  ! Communicate the NodeSourceExtMPI values of the last boundary interaction before the state is written to .h5
+  ! Only call when deposition is active (otherwise this routine only writes the old array from the restart file to keep the data)
+  IF(DoDeposition) CALL ExchangeSurfNodeSourceMPI()
+#endif /*USE_MPI*/
+END IF ! iter.NE.0
+
+IF(MPIRoot)THEN
+  ALLOCATE(StrVarNames(1:nVarOut))
+  StrVarNames(1)='SurfaceChargeDensity'
+  StrVarNames(2)='SurfaceArea'
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesSurfNodeSource',nVarOut,StrArray      = StrVarNames)
+  CALL WriteAttributeToHDF5(File_ID,'nDepoSurfSides'        ,1      ,IntegerScalar = nDepoSurfSides)
+  ! #if USE_MPI
+  ! firstNode = INT(REAL( myrank   )*REAL(nDepoSurfNodesTotal)/REAL(nProcessors))+1
+  ! lastNode  = INT(REAL((myrank+1))*REAL(nDepoSurfNodesTotal)/REAL(nProcessors))
+  ! #else
+  firstNode = 1
+  lastNode  = nDepoSurfNodesTotal
+  ! #endif /*USE_MPI*/
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE(nVarOut         => INT(nVarOut,IK)            ,&
+            nDofsMapping    => INT(nDepoSurfNodesTotal,IK),&
+            nDOFOutput      => INT(nDepoSurfNodesTotal,IK),&
+            offsetDOF       => INT(0,IK)         )
+    ! CALL GatheredWriteArray(FileName,create=.FALSE.,&
+    !                       DataSetName = TRIM(DataSetName) , rank = 1 , &
+    !                       nValGlobal  = (/nDofsMapping/)  , &
+    !                       nVal        = (/nDOFOutput/)    , &
+    !                       offset      = (/offsetDOF/)     , &
+    !                       collective  = .TRUE. , RealArray = SurfNodeSource)
+    CALL WriteArrayToHDF5(DataSetName = TRIM(DataSetName)      , &
+                          rank        = 2                      , &
+                          nValGlobal  = (/nVarOut, nDofsMapping/) , &
+                          nVal        = (/nVarOut, nDOFOutput  /) , &
+                          offset      = (/0_IK   , offsetDOF   /) , &
+                          collective  = .FALSE.  , RealArray = &
+                          TRANSPOSE(RESHAPE((/SurfNodeSource,SurfNodeArea/),(/nDofsMapping,nVarOut/))))
+    CALL CloseDataFile()
+  END ASSOCIATE
+END IF ! MPIRoot
+
+END SUBROUTINE WriteSurfNodeSourceToHDF5
 
 
 !===================================================================================================================================
@@ -332,7 +414,5 @@ CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., Display
 
 END SUBROUTINE WriteElectroMagneticPICFieldToHDF5
 
-#endif /*!(USE_FV) || (USE_HDG)*/
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
-#endif /*defined(PARTICLES)*/
+#endif /*defined(PARTICLES) && (!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))) && (!(USE_FV) || (USE_HDG))*/
 END MODULE MOD_HDF5_Output_Particles_PIC

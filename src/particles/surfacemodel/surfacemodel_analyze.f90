@@ -14,6 +14,7 @@
 
 MODULE MOD_SurfaceModel_Analyze
 ! IMPLICIT VARIABLE HANDLING
+USE MOD_Globals_Vars, ONLY: i8
 IMPLICIT NONE
 #ifdef PARTICLES
 PRIVATE
@@ -27,6 +28,7 @@ PUBLIC:: AnalyzeSurface
 PUBLIC:: DefineParametersSurfModelAnalyze
 PUBLIC:: FinalizeSurfaceModelAnalyze
 !===================================================================================================================================
+
 CONTAINS
 
 !==================================================================================================================================
@@ -159,12 +161,14 @@ SUBROUTINE AnalyzeSurface(Time)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_SurfaceModel_Analyze_Vars
 USE MOD_Restart_Vars              ,ONLY: DoRestart
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, PorousBC
 USE MOD_Particle_Vars             ,ONLY: nSpecies,UseNeutralization,NeutralizationBalanceGlobal,Species,VarTimeStep
+USE MOD_Particle_Vars             ,ONLY: NeutralizationBalanceCurrent
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 #endif /*USE_MPI*/
@@ -281,6 +285,7 @@ IF(MPIRoot)THEN
 #endif /*USE_HDG*/
       IF(UseNeutralization)THEN ! Ion thruster neutralization current (virtual cathode electrons)
         CALL WriteDataHeaderInfo(unit_index,'NeutralizationParticles',OutputCounter)
+        CALL WriteDataHeaderInfo(unit_index,'NeutralizationCurrent',OutputCounter)
       END IF ! UseNeutralization
       IF(CalcCurrentSEE)THEN
         DO iSEE = 1, SEE%NPartBoundaries
@@ -473,7 +478,18 @@ IF(MPIRoot)THEN
     END DO ! iPartBound = 1, BPO%NPartBoundaries
   END IF ! CalcBoundaryParticleOutput
 
-  IF(UseNeutralization) CALL WriteDataInfo(unit_index,RealScalar=REAL(NeutralizationBalanceGlobal))
+  IF(UseNeutralization) THEN
+    ! Output MPF counter
+    CALL WriteDataInfo(unit_index,RealScalar=REAL(NeutralizationBalanceGlobal))
+    ! Output emission current
+    IF(ABS(SurfModelAnalyzeSampleTime).LE.0.0)THEN
+      CALL WriteDataInfo(unit_index,RealScalar=0.0)
+    ELSE
+      CALL WriteDataInfo(unit_index,RealScalar=ElementaryCharge*NeutralizationBalanceCurrent/SurfModelAnalyzeSampleTime)
+    END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
+    ! Reset MPIRoot counters after writing the data to the file
+    NeutralizationBalanceCurrent = 0.
+  END IF
 
   IF(CalcCurrentSEE)THEN
     DO iPartBound = 1, SEE%NPartBoundaries
@@ -583,7 +599,7 @@ INTEGER           ,INTENT(IN),OPTIONAL :: IntegerScalar
 CHARACTER(LEN=*)  ,INTENT(IN),OPTIONAL :: StrScalar
 REAL              ,INTENT(IN),OPTIONAL :: RealArray(:)
 INTEGER           ,INTENT(IN),OPTIONAL :: IntegerArray(:)
-INTEGER(KIND=8)   ,INTENT(IN),OPTIONAL :: IntegerK8Array(:)
+INTEGER(KIND=i8)  ,INTENT(IN),OPTIONAL :: IntegerK8Array(:)
 CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: StrArray(:)
 LOGICAL           ,INTENT(IN),OPTIONAL :: LogicalScalar
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -755,9 +771,7 @@ END SUBROUTINE GetPorousBCInfo
 SUBROUTINE GetGroupInfo()
 ! MODULES
 USE MOD_Globals
-  USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, VarTimeStep
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: GroupOutput, SurfaceGroup, SurfaceAnalyzeStep
-USE MOD_Timedisc_Vars             ,ONLY: dt
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: GroupOutput, SurfaceGroup, SurfModelAnalyzeSampleTime
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 #endif /*USE_MPI*/
@@ -769,13 +783,16 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: iGroup, counter
+INTEGER            :: iGroup
+#if USE_MPI
+INTEGER            :: counter
 REAL,ALLOCATABLE   :: SendBuff(:)
-REAL               :: TimeSample, TimeSampleTemp
+#endif /*USE_MPI*/
+REAL               :: TimeSample
 !===================================================================================================================================
 
 #if USE_MPI
-ALLOCATE(SendBuff(6*SurfaceGroup%nGroups))
+ALLOCATE(SendBuff(5*SurfaceGroup%nGroups))
 SendBuff = 0.0
 counter = 0
 ! All: Build up Send buffer with sampled group information
@@ -789,15 +806,13 @@ DO iGroup = 1, SurfaceGroup%nGroups
   counter = counter + 1
   SendBuff(counter) = SurfaceGroup%SampState(4,iGroup) ! heat flux
   counter = counter + 1
-  SendBuff(counter) = SurfaceGroup%VarTimeStep(iGroup) ! needed for UseVarTimeStep or VarTimeStep%UseSpeciesSpecific
-  counter = counter + 1
   SendBuff(counter) = REAL(SurfaceGroup%Counter(iGroup))
 END DO
 ! All: Sum up and send sampled group information to MPIRoot
 IF(MPIRoot)THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,SendBuff,6*SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,SendBuff,5*SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
 ELSE
-  CALL MPI_REDUCE(SendBuff,SendBuff,6*SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+  CALL MPI_REDUCE(SendBuff,SendBuff,5*SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
 END IF
 ! MPIRoot: Save group information
 counter = 0
@@ -811,40 +826,31 @@ DO iGroup = 1, SurfaceGroup%nGroups
   counter = counter + 1
   SurfaceGroup%SampState(4,iGroup) = SendBuff(counter)
   counter = counter + 1
-  SurfaceGroup%VarTimeStep(iGroup) = SendBuff(counter)
-  counter = counter + 1
   SurfaceGroup%Counter(iGroup) = INT(SendBuff(counter))
 END DO
 #endif /*USE_MPI*/
 IF(MPIRoot)THEN
-  TimeSample = dt * SurfaceAnalyzeStep
+  ! No correction of the sample time required for a variable time step: the time step factor of each particle is already excluded
+  ! from the sampled weight in CalcWallSample()
+  TimeSample = SurfModelAnalyzeSampleTime
   DO iGroup = 1, SurfaceGroup%nGroups
-    IF(SurfaceGroup%Counter(iGroup).GT.0) THEN
-      IF(UseVarTimeStep .OR. VarTimeStep%UseSpeciesSpecific) THEN
-        TimeSampleTemp = TimeSample * SurfaceGroup%VarTimeStep(iGroup) / REAL(SurfaceGroup%Counter(iGroup))
-      ELSE
-        TimeSampleTemp = TimeSample
-      END IF
+    IF(SurfaceGroup%Counter(iGroup).GT.0.AND.(TimeSample.GT.0.0)) THEN
       ! MPIRoot: Perform the time-averaged calculation of the group information
-      SurfaceGroup%SampState(1,iGroup) = SurfaceGroup%SampState(1,iGroup) / TimeSampleTemp
-      SurfaceGroup%SampState(2,iGroup) = SurfaceGroup%SampState(2,iGroup) / TimeSampleTemp
-      SurfaceGroup%SampState(3,iGroup) = SurfaceGroup%SampState(3,iGroup) / TimeSampleTemp
-      SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) / (TimeSampleTemp * SurfaceGroup%Area(iGroup))
+      SurfaceGroup%SampState(1,iGroup) = SurfaceGroup%SampState(1,iGroup) / TimeSample
+      SurfaceGroup%SampState(2,iGroup) = SurfaceGroup%SampState(2,iGroup) / TimeSample
+      SurfaceGroup%SampState(3,iGroup) = SurfaceGroup%SampState(3,iGroup) / TimeSample
+      SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) / (TimeSample * SurfaceGroup%Area(iGroup))
     ELSE
-      SurfaceGroup%SampState = 0.0
+      SurfaceGroup%SampState(:,iGroup) = 0.0
     END IF
   END DO
   ! MPIRoot: Saving the group information to the output array
   DO iGroup = 1, SurfaceGroup%nGroups
-    GroupOutput(1,iGroup) = SurfaceGroup%SampState(1,iGroup)
-    GroupOutput(2,iGroup) = SurfaceGroup%SampState(2,iGroup)
-    GroupOutput(3,iGroup) = SurfaceGroup%SampState(3,iGroup)
-    GroupOutput(4,iGroup) = SurfaceGroup%SampState(4,iGroup)
+    GroupOutput(1:4,iGroup) = SurfaceGroup%SampState(1:4,iGroup)
   END DO
 END IF
 ! All: Reset samp array
 SurfaceGroup%SampState = 0.0
-SurfaceGroup%VarTimeStep = 0.0
 SurfaceGroup%Counter = 0
 
 END SUBROUTINE GetGroupInfo
@@ -1330,7 +1336,7 @@ SUBROUTINE InitSurfaceGroupOutput()
 USE MOD_Globals
 USE MOD_Globals_Vars              ,ONLY: PI
 USE MOD_Preproc
-USE MOD_ReadInTools               ,ONLY: GETINT
+USE MOD_ReadInTools               ,ONLY: GETINT, PrintOption
 USE MOD_SurfaceModel_Analyze_Vars
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, nPartBound, nSurfSample, SurfSideArea
 #if USE_MPI
@@ -1358,8 +1364,10 @@ INTEGER,ALLOCATABLE :: MinBound(:), MaxBound(:)
 INTEGER,ALLOCATABLE :: GroupIDToBCID(:)
 INTEGER             :: firstSide, lastSide, RotAxisDir, ElemID, CNElemID
 INTEGER             :: iSide, LocSideID, iGroup, SideID, iPartBound, q, p
+#if USE_MPI
 INTEGER             :: counter
 REAL,ALLOCATABLE    :: SendBuff(:)
+#endif /*USE_MPI*/
 !===================================================================================================================================
 ALLOCATE(GroupOutput(4,SurfaceGroup%nGroups))
 GroupOutput = 0.0
@@ -1384,8 +1392,6 @@ ALLOCATE(SurfaceGroup%SampState(4,SurfaceGroup%nGroups))
 SurfaceGroup%SampState = 0.0
 ALLOCATE(SurfaceGroup%Area(SurfaceGroup%nGroups))
 SurfaceGroup%Area = 0.0
-ALLOCATE(SurfaceGroup%VarTimeStep(SurfaceGroup%nGroups))
-SurfaceGroup%VarTimeStep = 0.0
 ALLOCATE(SurfaceGroup%Counter(SurfaceGroup%nGroups))
 SurfaceGroup%Counter = 0
 RotAxisDir = PartBound%RotPeriodicAxis
@@ -1451,7 +1457,10 @@ GroupLoop: DO iGroup=1, SurfaceGroup%nGroups
 #endif /*USE_MPI*/
         DO q = 1,nSurfSample
           DO p = 1,nSurfSample
-            SurfaceGroup%Area(iGroup) = SurfaceGroup%Area(iGroup) + SurfSideArea(p,q,iSide)
+            IF (SurfaceGroup%SymmetryFactor(iSide).EQ.0.0) THEN
+              CALL CollectiveStop(__STAMP__,'ERROR in group area calculation: SurfaceGroup%SymmetryFactor .eq. 0.0.')
+            END IF
+            SurfaceGroup%Area(iGroup) = SurfaceGroup%Area(iGroup) + SurfSideArea(p,q,iSide) * SurfaceGroup%SymmetryFactor(iSide)
           END DO ! q=1,nSurfSample
         END DO ! p=1,nSurfSample
       END IF
@@ -1484,6 +1493,12 @@ IF(myComputeNodeRank.EQ.0) THEN
   DEALLOCATE(SendBuff)
 END IF
 #endif /*USE_MPI*/
+
+! Output of group area
+DO iGroup = 1, SurfaceGroup%nGroups
+  WRITE(UNIT=hilf,FMT='(A,I0)') 'Area [m2] of group ', iGroup
+  CALL PrintOption(TRIM(hilf),'CALCUL.',RealOpt=SurfaceGroup%Area(iGroup))
+END DO
 
 DEALLOCATE(MinBound)
 DEALLOCATE(MaxBound)
@@ -1541,7 +1556,6 @@ IF(CalcSurfOutputPerGroup) THEN
   SDEALLOCATE(SurfaceGroup%SurfSide2GroupID)
   SDEALLOCATE(SurfaceGroup%SampState)
   SDEALLOCATE(SurfaceGroup%Area)
-  SDEALLOCATE(SurfaceGroup%VarTimeStep)
   SDEALLOCATE(SurfaceGroup%Counter)
 END IF
 

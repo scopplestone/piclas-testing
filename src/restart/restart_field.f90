@@ -42,7 +42,6 @@ USE MOD_Globals
 USE MOD_PreProc
 #if USE_FV
 USE MOD_FV_Vars                ,ONLY: U_FV
-USE MOD_Restart_Vars           ,ONLY: N_Restart_FV
 #endif /*USE_FV*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
@@ -84,7 +83,7 @@ USE MOD_HDG_Vars               ,ONLY: UseEPC
 #if defined(PARTICLES)
 USE MOD_Equation_Tools         ,ONLY: SynchronizeCPP
 USE MOD_HDG_Readin             ,ONLY: SynchronizeBV
-USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,UseCoupledPowerPotential
+USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,UseCoupledPowerPotential!,UseCircuitModel
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 USE MOD_Mesh_Vars              ,ONLY: SideToNonUniqueGlobalSide
 USE MOD_LoadBalance_Vars       ,ONLY: MPInSideSend,MPInSideRecv,MPIoffsetSideSend,MPIoffsetSideRecv
@@ -116,6 +115,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSen
 #endif /*#if (defined(PARTICLES) && (USE_HDG)) || !(USE_HDG) || USE_FV*/
 #endif /*USE_LOADBALANCE*/
 #ifdef discrete_velocity /*DVM*/
+USE MOD_Restart_Vars           ,ONLY: N_Restart_FV
 USE MOD_DistFunc               ,ONLY: GradDistribution
 USE MOD_Equation_Vars_FV       ,ONLY: DVMSpecData, DVMnSpecies, DVMnMacro, DVMnSpecTot
 #endif /*DVM*/
@@ -133,10 +133,8 @@ INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp
 LOGICAL                            :: DG_SolutionExists
 #ifdef discrete_velocity
 REAL                               :: Udvm(DVMnMacro)
-#endif /*discrete_velocity*/
-#if (USE_FV)
 REAL,ALLOCATABLE                   :: Ureco_FV(:,:,:,:,:)
-#endif /*USE_FV*/
+#endif /*discrete_velocity*/
 #if USE_HDG
 LOGICAL                            :: DG_SolutionLambdaExists,DG_SolutionPhiFExists
 INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID,NSideMin,iVar
@@ -224,6 +222,11 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   ! FPC: The MPI root process distributes the information among the sub-communicator processes for each FPC
   !      (before and after load balancing, the root process is always part of each sub-communicator group)
   IF(UseFPC) CALL SynchronizeChargeOnFPC()
+#if defined(PARTICLES)
+  ! CMBC: The MPI root process distributes the information among the sub-communicator processes for the CMBC
+  !      (before and after load balancing, the root process is always part of each sub-communicator group)
+  ! IF(UseCircuitModel) CALL SynchronizeChargeOnCMBC()
+#endif /*defined(PARTICLES)*/
 #endif /*USE_PETSC*/
   ! EPC: The MPI root process distributes the information among the sub-communicator processes for each EPC
   !      (before and after load balancing, the root process is always part of each sub-communicator group)
@@ -415,7 +418,6 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   ! RecomputeEFieldHDG() -> PostProcessGradientHDG(), which requires U_N(iElem)%U and HDG_Surf_N(iSide)%lambda
   CALL RecomputeEFieldHDG() ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
 
-#if defined(PARTICLES)
   IF(DoVirtualDielectricLayer)THEN
     DO iElem = 1, nElems
       Nloc = N_DG_Mapping(2,iElem+offSetElem)
@@ -432,8 +434,6 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
     ! Recompute initial value of PhiF on the surface from PhiF in the volume which has been exchanged via MPI here
     CALL CalculatePhiAndEFieldFromCurrentsVDL(.FALSE.)
   END IF ! DoVirtualDielectricLayer
-#endif /*defined(PARTICLES)*/
-
 #else /*! defined(PARTICLES)*/
   ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
    CALL abort(__STAMP__,'TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else')
@@ -687,7 +687,7 @@ ELSE ! Normal restart
               IF(MortarType(1,iSide).EQ.0)THEN
                 ! check all my big mortar sides and find the one to which the small virtual is connected
                 ! check all yellow (big mortar) sides
-                Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+                Check2: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
                   nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
                   ! loop over all blue sides (small mortar master)
                   DO iMortar=1,nMortars
@@ -700,10 +700,10 @@ ELSE ! Normal restart
                       IF(iLocSide_master.EQ.-1)THEN
                         CALL abort(__STAMP__,'This big mortar side must be master')
                       END IF !iLocSide.NE.-1
-                      EXIT Check1
+                      EXIT Check2
                     END IF ! iSide.EQ.SideID
                   END DO !iMortar
-                END DO Check1 !MortarSideID
+                END DO Check2 !MortarSideID
               END IF ! MortarType(1,iSide).EQ.0
 
               ! Read lambda from h5 on Nres

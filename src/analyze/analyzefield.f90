@@ -28,7 +28,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 !----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC:: AnalyzeField
+PUBLIC :: AnalyzeField
 !===================================================================================================================================
 
 CONTAINS
@@ -55,9 +55,14 @@ USE MOD_Restart_Vars          ,ONLY: DoRestart
 USE MOD_Dielectric_Vars       ,ONLY: DoDielectric
 #if USE_HDG
 USE MOD_AnalyzeField_HDG      ,ONLY: CalculateAverageElectricPotential,CalculateElectricDisplacementCurrentSurface
+USE MOD_AnalyzeField_HDG      ,ONLY: CalculateElectricPotentialExtrema
 USE MOD_HDG_Vars              ,ONLY: HDGNorm,iterationTotal,RunTimeTotal,UseFPC,FPC,UseEPC,EPC
 USE MOD_Analyze_Vars          ,ONLY: AverageElectricPotential,CalcAverageElectricPotential,EDC,CalcElectricTimeDerivative
+USE MOD_Analyze_Vars          ,ONLY: EPE,CalcElectricPotentialExtrema
 USE MOD_TimeDisc_Vars         ,ONLY: dt
+#if defined(PARTICLES) && USE_PETSC
+USE MOD_HDG_Vars              ,ONLY: UseCircuitModel,CMBC
+#endif /*defined(PARTICLES) && USE_PETSC*/
 #endif /*USE_HDG*/
 #ifdef PARTICLES
 USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolation
@@ -90,7 +95,7 @@ INTEGER,PARAMETER  :: helpInt=0
 #endif /*PP_nVar=8*/
 #if USE_HDG
 INTEGER,PARAMETER  :: helpInt2=4
-INTEGER            :: iEDCBC,iUniqueFPCBC,iUniqueEPCBC
+INTEGER            :: iEDCBC,iEPEBC,iUniqueFPCBC,iUniqueEPCBC
 #else
 INTEGER,PARAMETER  :: helpInt2=0
 #endif /*USE_HDG*/
@@ -149,10 +154,18 @@ IF(MPIROOT)THEN
       IF(CalcAverageElectricPotential) nOutputVarTotal = nOutputVarTotal + 1
       !-- Electric displacement current
       IF(CalcElectricTimeDerivative) nOutputVarTotal = nOutputVarTotal + EDC%NBoundaries
+      !-- Electric potential extrema (EPE)
+      IF(CalcElectricPotentialExtrema) nOutputVarTotal = nOutputVarTotal + 2*EPE%NBoundaries
       !-- Floating boundary condition
       IF(UseFPC) nOutputVarTotal = nOutputVarTotal + 2*FPC%nUniqueFPCBounds ! Charge and Voltage on each FPC
       !-- Electric potential condition
       IF(UseEPC) nOutputVarTotal = nOutputVarTotal + 2*EPC%nUniqueEPCBounds ! Current and Voltage on each EPC
+#if defined(PARTICLES) && USE_PETSC
+      !-- Electric potential condition
+      ! CMBC: 1) AC power supply voltage 2) Anode voltage 3) Capacitor voltage 4) Integrated surface charge (from plasma and wire)
+      !       5) Total charge deposited on anode from plasma
+      IF(UseCircuitModel) nOutputVarTotal = nOutputVarTotal + 5
+#endif /*defined(PARTICLES) && USE_PETSC*/
 #endif /*USE_HDG*/
 #if (PP_nVar==8)
       IF(.NOT.CalcEpot) nOutputVarTotal = nOutputVarTotal - 5
@@ -202,6 +215,18 @@ IF(MPIROOT)THEN
         END DO ! iEDCBC = 1, EDC%NBoundaries
       END IF
 
+      !-- Electric potential extrema (EPE)
+      IF(CalcElectricPotentialExtrema)THEN
+        DO iEPEBC = 1, EPE%NBoundaries
+          nOutputVarTotal = nOutputVarTotal + 1
+          WRITE(StrVarNameTmp,'(A,I0.3,A)') 'ElecPotMin-',iEPEBC,'-'//TRIM(BoundaryName(EPE%FieldBoundaries(iEPEBC)))
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+          nOutputVarTotal = nOutputVarTotal + 1
+          WRITE(StrVarNameTmp,'(A,I0.3,A)') 'ElecPotMax-',iEPEBC,'-'//TRIM(BoundaryName(EPE%FieldBoundaries(iEPEBC)))
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+        END DO ! iEPEBC = 1, EPE%NBoundaries
+      END IF
+
       !-- Floating boundary condition
       IF(UseFPC)THEN
         DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
@@ -225,6 +250,22 @@ IF(MPIROOT)THEN
           WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
         END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
       END IF
+
+#if defined(PARTICLES) && USE_PETSC
+      !-- Circuit model boundary condition (CMBC)
+      IF(UseCircuitModel)THEN
+        nOutputVarTotal = nOutputVarTotal + 1
+        WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-CMBC-RF-Voltage"'
+        nOutputVarTotal = nOutputVarTotal + 1
+        WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-CMBC-Anode-Voltage"'
+        nOutputVarTotal = nOutputVarTotal + 1
+        WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-CMBC-Capacitor-Voltage"'
+        nOutputVarTotal = nOutputVarTotal + 1
+        WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-CMBC-IntSurfCharge"'
+        nOutputVarTotal = nOutputVarTotal + 1
+        WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-CMBC-DepoChargeQ"'
+      END IF
+#endif /*defined(PARTICLES) && USE_PETSC*/
 #endif /*USE_HDG*/
 
       ! Add BoundaryFieldOutput for each boundary that is required
@@ -290,6 +331,7 @@ END IF ! .NOT.DoInterpolation
 #endif /*PARTICLES*/
 #if USE_HDG
 IF(CalcElectricTimeDerivative) CALL CalculateElectricDisplacementCurrentSurface()
+IF(CalcElectricPotentialExtrema) CALL CalculateElectricPotentialExtrema()
 #endif /*USE_HDG*/
 
 IF(MPIROOT)THEN
@@ -334,6 +376,14 @@ IF(MPIROOT)THEN
     END DO ! iEDCBC = 1, EDC%NBoundaries
   END IF
 
+  !-- Electric potential extrema
+  IF(CalcElectricPotentialExtrema)THEN
+    DO iEPEBC = 1, EPE%NBoundaries
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',EPE%Minimum(iEPEBC)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',EPE%Maximum(iEPEBC)
+    END DO ! iEPEBC = 1, EPE%NBoundaries
+  END IF
+
   !-- Floating boundary condition
   IF(UseFPC)THEN
     DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
@@ -349,6 +399,17 @@ IF(MPIROOT)THEN
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',EPC%Voltage(iUniqueEPCBC)
     END DO !iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
   END IF
+
+#if defined(PARTICLES) && USE_PETSC
+  !-- Circuit model boundary condition (CMBC)
+  IF(UseCircuitModel)THEN
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',CMBC%VoltageRF(1)
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',CMBC%Voltage
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',CMBC%Voltage-CMBC%VoltageRF(1)
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',CMBC%Capacitance*(CMBC%VoltageRF(1)-CMBC%Voltage) + CMBC%Charge
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',CMBC%Charge
+  END IF
+#endif /*defined(PARTICLES) && USE_PETSC*/
 #endif /*USE_HDG*/
   ! ! Add BoundaryFieldOutput for each boundary that is required
   IF(CalcBoundaryFieldOutput)THEN

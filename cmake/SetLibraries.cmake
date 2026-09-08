@@ -2,7 +2,7 @@
 # Set download locations depending on git origin
 # =========================================================================
 SET(LIBS_DLPATH "https://piclas.boltzplatz.eu/piclas/")
-# Origin pointing to IAG
+# Origin pointing to PICLas gitlab
 IF("${GIT_ORIGIN}" MATCHES "piclas.boltzplatz.eu" AND "${GIT_ORIGIN}" MATCHES "^git@")
   SET(LIBS_DLPATH "git@piclas.boltzplatz.eu:piclas/")
 ENDIF()
@@ -81,7 +81,7 @@ IF(LIBS_USE_MPI)
     # MESSAGE(FATAL_ERROR "Cannot detect supported MPI type or version. Valid options are Cray MPICH, IntelMPI, MPICH, and OpenMPI supporting MPI version 3.x")
   ENDIF()
 
-  MESSAGE(STATUS "Compiling with [${LIBS_MPI_NAME}] (v${MPI_C_LIBRARY_VERSION})")
+  MESSAGE(STATUS "Compiling with [${LIBS_MPI_NAME}] (${BoldBlue}v${MPI_C_LIBRARY_VERSION}${ColourReset})")
   ADD_COMPILE_DEFINITIONS(USE_MPI=1)
 
   # LUMI needs even more help here
@@ -133,29 +133,17 @@ IF(NOT "${HDF5_COMPILER}" STREQUAL "" AND NOT "${HDF5_COMPILER}" STREQUAL "HDF5_
   SET(ENV{PATH} "${HDF5_PARENT_DIR}:$ENV{PATH}")
 ENDIF()
 
-# Hide all the HDF5 libs paths
-MARK_AS_ADVANCED(FORCE HDF5_DIR)
-MARK_AS_ADVANCED(FORCE HDF5_C_INCLUDE_DIR)
-MARK_AS_ADVANCED(FORCE HDF5_DIFF_EXECUTABLE)
-MARK_AS_ADVANCED(FORCE HDF5_Fortran_INCLUDE_DIR)
-MARK_AS_ADVANCED(FORCE HDF5_C_LIBRARY_dl)
-MARK_AS_ADVANCED(FORCE HDF5_C_LIBRARY_hdf5)
-MARK_AS_ADVANCED(FORCE HDF5_C_LIBRARY_m)
-MARK_AS_ADVANCED(FORCE HDF5_C_LIBRARY_sz)
-MARK_AS_ADVANCED(FORCE HDF5_C_LIBRARY_z)
-MARK_AS_ADVANCED(FORCE HDF5_Fortran_LIBRARY_dl)
-MARK_AS_ADVANCED(FORCE HDF5_Fortran_LIBRARY_hdf5)
-MARK_AS_ADVANCED(FORCE HDF5_Fortran_LIBRARY_hdf5_fortran)
-MARK_AS_ADVANCED(FORCE HDF5_Fortran_LIBRARY_m)
-MARK_AS_ADVANCED(FORCE HDF5_Fortran_LIBRARY_sz)
-MARK_AS_ADVANCED(FORCE HDF5_Fortran_LIBRARY_z)
-MARK_AS_ADVANCED(FORCE HDF5_hdf5_LIBRARY_hdf5)
-MARK_AS_ADVANCED(FORCE HDF5_hdf5_LIBRARY_RELEASE)
-MARK_AS_ADVANCED(FORCE HDF5_Fortran_LIBRARY_hdf5_fortran)
-MARK_AS_ADVANCED(FORCE HDF5_Fortran_LIBRARY_hdf5_fortran_RELEASE)
-
 IF (NOT LIBS_BUILD_HDF5)
-  FIND_PACKAGE(HDF5 QUIET COMPONENTS C Fortran)
+  # ParaView requires the HL libs but we cannot change the search later
+  SET(HDF5_COMPONENTS C Fortran)
+  FIND_PACKAGE(HDF5 QUIET COMPONENTS ${HDF5_COMPONENTS})
+
+  # Could not find the static version, look for the shared library
+  IF(NOT HDF5_FOUND)
+    UNSET(HDF5_USE_STATIC_LIBRARIES)
+    # ParaView requires the HL libs but we cannot change the search later
+    FIND_PACKAGE(HDF5 QUIET COMPONENTS ${HDF5_COMPONENTS})
+  ENDIF()
 
   IF (HDF5_FOUND)
     MESSAGE (STATUS "[HDF5] found in system libraries [${HDF5_DIR}]")
@@ -177,7 +165,19 @@ IF(NOT LIBS_BUILD_HDF5)
   UNSET(HDF5_DIFF_EXECUTABLE)
 
   # If library is specifically requested, it is required
-  FIND_PACKAGE(HDF5 REQUIRED COMPONENTS C Fortran)
+  # > ParaView requires the HL libs but we cannot change the search later
+  FIND_PACKAGE(HDF5 REQUIRED COMPONENTS ${HDF5_COMPONENTS})
+
+  # If fortran module files cannot be found in the HDF5_INCLUDE_DIR set by FIND_PACKAGE(HDF5), obtain the correct path from the target properties (supposedly HDF5_INCLUDE_DIR_FORTRAN)
+  # > NOTE: Depending on HDF5 config (flag HDF5_INSTALL_MOD_FORTRAN) and version, mod-files can be located in include/ or mod/, or subdirectories
+  FIND_FILE(PATH_MODFILES h5a.mod ${HDF5_INCLUDE_DIR})
+  IF(NOT PATH_MODFILES)
+    IF(HDF5_USE_STATIC_LIBRARIES)
+      GET_TARGET_PROPERTY(HDF5_INCLUDE_DIR hdf5_fortran-static INTERFACE_INCLUDE_DIRECTORIES)
+    ELSE()
+      GET_TARGET_PROPERTY(HDF5_INCLUDE_DIR hdf5_fortran-shared INTERFACE_INCLUDE_DIRECTORIES)
+    ENDIF()
+  ENDIF()
 
   # Check if HDF5 is parallel
   # > HDF5_IS_PARALLEL is set by FIND_PACKAGE(HDF5)
@@ -211,6 +211,34 @@ IF(NOT LIBS_BUILD_HDF5)
     ENDIF()
   ENDIF()
 
+  # If HDF5 Fortran library is not set, get it from the Fortran target
+  UNSET(GREP_RESULT)
+  IF("${HDF5_C_LIBRARY_hdf5_c}" STREQUAL "")
+    GET_PROPERTY(HDF5_C_LIBRARY_hdf5_c TARGET hdf5::hdf5 PROPERTY LOCATION)
+  ENDIF()
+
+  IF(NOT "${HDF5_C_LIBRARY_hdf5_c}" STREQUAL "")
+    IF(APPLE)
+      EXECUTE_PROCESS(COMMAND nm -gU      ${HDF5_C_LIBRARY_hdf5_c} COMMAND grep inflate OUTPUT_VARIABLE HDF5_USES_ZLIB RESULT_VARIABLE GREP_RESULT OUTPUT_STRIP_TRAILING_WHITESPACE)
+    ELSE()
+      EXECUTE_PROCESS(COMMAND readelf -Ws ${HDF5_C_LIBRARY_hdf5_c} COMMAND grep inflate OUTPUT_VARIABLE HDF5_USES_ZLIB RESULT_VARIABLE GREP_RESULT OUTPUT_STRIP_TRAILING_WHITESPACE)
+    ENDIF()
+  ELSE()
+    SET(GREP_RESULT 1)
+  ENDIF()
+
+  IF(GREP_RESULT EQUAL 0)
+    # HDF5 is linked against zlib, find it here
+    SET(ZLIB_USE_STATIC_LIBS "ON")
+    FIND_PACKAGE(ZLIB QUIET)
+
+    # Could not find the static version, look for the shared library
+    IF(NOT ZLIB_FOUND)
+      UNSET(ZLIB_USE_STATIC_LIBS)
+      FIND_PACKAGE(ZLIB REQUIRED)
+    ENDIF()
+  ENDIF()
+
   # Set build status to system
   SET(HDF5_BUILD_STATUS "system")
 ELSE()
@@ -236,13 +264,13 @@ ELSE()
   MARK_AS_ADVANCED(FORCE HDF5_DOWNLOAD)
 
   # Set HDF5 tag / version
-  SET(HDF5_STR "1.14.5")
-  SET(HDF5_TAG "hdf5_${HDF5_STR}" CACHE STRING   "HDF5 version tag")
+  SET(HDF5_STR "2.2.0")
+  SET(HDF5_TAG "${HDF5_STR}" CACHE STRING "HDF5 version tag")
   MARK_AS_ADVANCED(FORCE HDF5_TAG)
-  MESSAGE(STATUS "Setting [HDF5] download tag:  ${HDF5_TAG}")
+  MESSAGE(STATUS "Setting [HDF5] download tag: ${BoldBlue}${HDF5_TAG}${ColourReset}")
 
   # Set HDF5 build dir
-  SET(LIBS_HDF5_DIR ${LIBS_EXTERNAL_LIB_DIR}/HDF5/build)
+  SET(LIBS_HDF5_DIR ${LIBS_EXTERNAL_LIB_DIR}/HDF5)
 
   # Check if HDF5 was already built
   UNSET(HDF5_FOUND)
@@ -261,15 +289,17 @@ ELSE()
 
   IF(HDF5_FOUND)
     # If re-running CMake, it might wrongly pick-up the system HDF5
-    IF(NOT EXISTS ${LIBS_HDF5_DIR}/lib/libhdf5.so)
+    IF(NOT EXISTS ${LIBS_HDF5_DIR}/lib/libhdf5.a)
       UNSET(HDF5_FOUND)
       SET(HDF5_VERSION     ${HDF5_STR})
     ENDIF()
 
     # CMake might fail to set the HDF5 paths
     IF(HDF5_FOUND AND "${HDF5_LIBRARIES}" STREQUAL "")
-      SET(HDF5_LIBRARIES         ${LIBS_HDF5_DIR}/lib/libhdf5.so ${LIBS_HDF5_DIR}/lib/libhdf5.a ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.so ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.a)
-      SET(HDF5_Fortran_LIBRARIES ${LIBS_HDF5_DIR}/lib/libhdf5.so ${LIBS_HDF5_DIR}/lib/libhdf5.a ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.so ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.a)
+      SET(HDF5_INCLUDE_DIR       ${LIBS_HDF5_DIR}/include)
+      # WARNING: The order of the following libraries matters! They need to be listed from the most dependent to the least dependent.
+    SET(HDF5_LIBRARIES         ${LIBS_HDF5_DIR}/lib/libhdf5_hl.a ${LIBS_HDF5_DIR}/lib/libhdf5.a ${LIBS_HDF5_DIR}/lib/libhdf5_tools.a)
+    SET(HDF5_Fortran_LIBRARIES ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.a ${LIBS_HDF5_DIR}/lib/libhdf5_f90cstub.a ${LIBS_HDF5_DIR}/lib/libhdf5_hl_fortran.a ${LIBS_HDF5_DIR}/lib/libhdf5_hl_f90cstub.a ${LIBS_HDF5_DIR}/lib/libhdf5_hl.a ${LIBS_HDF5_DIR}/lib/libhdf5.a ${LIBS_HDF5_DIR}/lib/libhdf5_tools.a)
     ENDIF()
   ENDIF()
 
@@ -284,30 +314,32 @@ ELSE()
       GIT_REPOSITORY     ${HDF5_DOWNLOAD}
       GIT_TAG            ${HDF5_TAG}
       GIT_PROGRESS       TRUE
-      ${${GITSHALLOW}}
+      GIT_SHALLOW        ON
       PREFIX             ${LIBS_HDF5_DIR}
-      INSTALL_DIR        ${LIBS_HDF5_DIR}
       UPDATE_COMMAND     ""
       # HDF5 explicitely needs "make" to configure
       CMAKE_GENERATOR    "Unix Makefiles"
       BUILD_COMMAND      make -j${N}
       # Set the CMake arguments for HDF5
-      CMAKE_ARGS         -DCMAKE_BUILD_TYPE=None -DCMAKE_INSTALL_PREFIX=${LIBS_HDF5_DIR} -DHDF5_INSTALL_CMAKE_DIR=lib/cmake/hdf5 -DCMAKE_POLICY_DEFAULT_CMP0175=OLD -DBUILD_STATIC_LIBS=ON -DHDF5_BUILD_FORTRAN=ON -DHDF5_ENABLE_Z_LIB_SUPPORT=OFF -DHDF5_ENABLE_SZIP_SUPPORT=OFF -DHDF5_ENABLE_PARALLEL=${LIBS_USE_MPI}
+      CMAKE_ARGS         -DCMAKE_BUILD_TYPE=None -DCMAKE_INSTALL_PREFIX=${LIBS_HDF5_DIR} -DHDF5_INSTALL_CMAKE_DIR=lib/cmake/hdf5 -DCMAKE_POLICY_DEFAULT_CMP0175=OLD -DBUILD_STATIC_LIBS=ON -DBUILD_SHARED_LIBS=OFF -DHDF5_BUILD_FORTRAN=ON -DHDF5_ENABLE_ZLIB_SUPPORT=ON -DHDF5_ENABLE_SZIP_SUPPORT=OFF -DHDF5_ENABLE_PARALLEL=${LIBS_USE_MPI}
       # Set the build byproducts
-      INSTALL_BYPRODUCTS ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.a ${LIBS_HDF5_DIR}/lib/libhdf5.a ${LIBS_HDF5_DIR}/lib/libhdf5.so ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.so ${LIBS_HDF5_DIR}/bin/h5diff
+      # WARNING: The order of the following libraries matters! They need to be listed from the most dependent to the least dependent.
+      BUILD_BYPRODUCTS ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.a ${LIBS_HDF5_DIR}/lib/libhdf5_f90cstub.a ${LIBS_HDF5_DIR}/lib/libhdf5_hl_fortran.a ${LIBS_HDF5_DIR}/lib/libhdf5_hl_f90cstub.a ${LIBS_HDF5_DIR}/lib/libhdf5_hl.a ${LIBS_HDF5_DIR}/lib/libhdf5.a ${LIBS_HDF5_DIR}/lib/libhdf5_tools.a ${LIBS_HDF5_DIR}/bin/h5diff
     )
 
     # Add CMake HDF5 to the list of self-built externals
-    LIST(APPEND SELFBUILTEXTERNALS HDF5)
+    LIST(PREPEND SELFBUILTEXTERNALS HDF5)
 
     # Set HDF5 version and MPI support
     SET(HDF5_VERSION ${HDF5_STR})
 
     # Set HDF5 paths
+    # > NOTE: For self-built HDF5, we use a specific version, of which we know the installation directory of the fortran module files
     SET(HDF5_INCLUDE_DIR       ${LIBS_HDF5_DIR}/include)
     SET(HDF5_DIFF_EXECUTABLE   ${LIBS_HDF5_DIR}/bin/h5diff)
-    SET(HDF5_LIBRARIES         ${LIBS_HDF5_DIR}/lib/libhdf5.so ${LIBS_HDF5_DIR}/lib/libhdf5.a ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.so ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.a)
-    SET(HDF5_Fortran_LIBRARIES ${LIBS_HDF5_DIR}/lib/libhdf5.so ${LIBS_HDF5_DIR}/lib/libhdf5.a ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.so ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.a)
+    # WARNING: The order of the following libraries matters! They need to be listed from the most dependent to the least dependent.
+    SET(HDF5_LIBRARIES         ${LIBS_HDF5_DIR}/lib/libhdf5_hl.a ${LIBS_HDF5_DIR}/lib/libhdf5.a ${LIBS_HDF5_DIR}/lib/libhdf5_tools.a)
+    SET(HDF5_Fortran_LIBRARIES ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.a ${LIBS_HDF5_DIR}/lib/libhdf5_f90cstub.a ${LIBS_HDF5_DIR}/lib/libhdf5_hl_fortran.a ${LIBS_HDF5_DIR}/lib/libhdf5_hl_f90cstub.a ${LIBS_HDF5_DIR}/lib/libhdf5_hl.a ${LIBS_HDF5_DIR}/lib/libhdf5.a ${LIBS_HDF5_DIR}/lib/libhdf5_tools.a)
   ENDIF()
 
   # Set build status to self-built
@@ -320,22 +352,44 @@ IF(HDF5_VERSION VERSION_EQUAL "1.14")
   LIST(FILTER HDF5_INCLUDE_DIR EXCLUDE REGEX "src/H5FDsubfiling")
 ENDIF()
 
-# Actually add the HDF5 paths (system/self-built) to the linking paths
+# Actually add the HDF5 paths (system/self-built) to the linking paths, including the library containing dlopen/dlclose (usually -ldl on UNIX machines)
 # > INFO: We could also use the HDF5::HDF5/hdf5::hdf5/hdf5::hdf5_fortran targets here but they are not set before compiling self-built HDF5
 INCLUDE_DIRECTORIES(BEFORE ${HDF5_INCLUDE_DIR})
-LIST(PREPEND linkedlibs ${HDF5_LIBRARIES} )
+LIST(PREPEND linkedlibs ${HDF5_Fortran_LIBRARIES} ${CMAKE_DL_LIBS})
 IF(${HDF5_IS_PARALLEL})
-  MESSAGE(STATUS "Compiling with ${HDF5_BUILD_STATUS} [HDF5] (v${HDF5_VERSION}) with parallel support ${HDF5_MPI_VERSION}")
+  MESSAGE(STATUS "Compiling with ${HDF5_BUILD_STATUS} [HDF5] (${BoldBlue}v${HDF5_VERSION}${ColourReset}) with parallel support ${HDF5_MPI_VERSION}")
 ELSE()
-  MESSAGE(STATUS "Compiling with ${HDF5_BUILD_STATUS} [HDF5] (v${HDF5_VERSION}) without parallel support")
+  MESSAGE(STATUS "Compiling with ${HDF5_BUILD_STATUS} [HDF5] (${BoldBlue}v${HDF5_VERSION}${ColourReset}) without parallel support")
 ENDIF()
 
-# Restore the original PATH
-SET(ENV{PATH} "${ORIGINAL_PATH_ENV}")
+# Hide all the HDF5 libs paths
+MARK_AS_ADVANCED(FORCE HDF5_DIR)
+MARK_AS_ADVANCED(FORCE HDF5_C_INCLUDE_DIR)
+MARK_AS_ADVANCED(FORCE HDF5_DIFF_EXECUTABLE)
+MARK_AS_ADVANCED(FORCE HDF5_Fortran_INCLUDE_DIR)
+MARK_AS_ADVANCED(FORCE HDF5_C_LIBRARY_dl)
+MARK_AS_ADVANCED(FORCE HDF5_C_LIBRARY_hdf5)
+MARK_AS_ADVANCED(FORCE HDF5_C_LIBRARY_m)
+MARK_AS_ADVANCED(FORCE HDF5_C_LIBRARY_sz)
+MARK_AS_ADVANCED(FORCE HDF5_C_LIBRARY_z)
+MARK_AS_ADVANCED(FORCE HDF5_Fortran_LIBRARY_dl)
+MARK_AS_ADVANCED(FORCE HDF5_Fortran_LIBRARY_hdf5)
+MARK_AS_ADVANCED(FORCE HDF5_Fortran_LIBRARY_hdf5_fortran)
+MARK_AS_ADVANCED(FORCE HDF5_Fortran_LIBRARY_m)
+MARK_AS_ADVANCED(FORCE HDF5_Fortran_LIBRARY_sz)
+MARK_AS_ADVANCED(FORCE HDF5_Fortran_LIBRARY_z)
+MARK_AS_ADVANCED(FORCE HDF5_hdf5_LIBRARY_hdf5)
+MARK_AS_ADVANCED(FORCE HDF5_hdf5_LIBRARY_RELEASE)
+MARK_AS_ADVANCED(FORCE HDF5_Fortran_LIBRARY_hdf5_fortran)
+MARK_AS_ADVANCED(FORCE HDF5_Fortran_LIBRARY_hdf5_fortran_RELEASE)
 
+# Restore the original PATH - only if it has been modified above, i.e. ORIGINAL_PATH_ENV is actually defined
+IF(NOT "${HDF5_COMPILER}" STREQUAL "" AND NOT "${HDF5_COMPILER}" STREQUAL "HDF5_COMPILER-NOTFOUND")
+  SET(ENV{PATH} "${ORIGINAL_PATH_ENV}")
+ENDIF()
 
 # =========================================================================
-# Math libary
+# Math library
 # =========================================================================
 # Try to find system LAPACK/OpenBLAS
 IF (NOT LIBS_BUILD_MATH_LIB)
@@ -432,7 +486,7 @@ ELSE()
         GIT_REPOSITORY ${MATH_LIB_DOWNLOAD}
         GIT_TAG ${MATH_LIB_TAG}
         GIT_PROGRESS TRUE
-        ${${GITSHALLOW}}
+        GIT_SHALLOW ON
         PREFIX ${LIBS_MATH_DIR}
         UPDATE_COMMAND ""
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_PREFIX=${LIBS_MATH_DIR} -DBLAS++=OFF -DLAPACK++=OFF -DBUILD_SHARED_LIBS=ON -DCBLAS=OFF -DLAPACKE=OFF -DBUILD_TESTING=OFF
@@ -449,7 +503,7 @@ ELSE()
         GIT_REPOSITORY ${MATH_LIB_DOWNLOAD}
         GIT_TAG ${MATH_LIB_TAG}
         GIT_PROGRESS TRUE
-        ${${GITSHALLOW}}
+        GIT_SHALLOW ON
         PREFIX ${LIBS_MATH_DIR}
         UPDATE_COMMAND ""
         CONFIGURE_COMMAND ""
@@ -524,7 +578,7 @@ IF(LIBS_BUILD_HOPR)
     GIT_REPOSITORY ${HOPR_DOWNLOAD}
     GIT_TAG ${HOPR_TAG}
     GIT_PROGRESS FALSE
-    ${GITSHALLOW}
+    GIT_SHALLOW ON
     PREFIX ${LIBS_HOPR_DIR}
     # Avoids rebuilding during PICLas recompilation if HOPR has already been built in share folder
     UPDATE_DISCONNECTED true
@@ -622,7 +676,7 @@ ENDIF()
 #   SET (CMAKE_CXX_FLAGS_RELWITHDEBINFO     "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}     ${OpenMP_CXX_FLAGS}")
 #   SET (CMAKE_EXE_LINKER_FLAGS             "${CMAKE_EXE_LINKER_FLAGS}             ${OpenMP_EXE_LINKER_FLAGS}")
 #   ADD_COMPILE_DEFINITIONS(USE_OPENMP=1)
-#   MESSAGE(STATUS "Compiling with [OpenMP] (v${OpenMP_Fortran_VERSION})")
+#   MESSAGE(STATUS "Compiling with [OpenMP] (${BoldBlue}v${OpenMP_Fortran_VERSION}${ColourReset})")
 # ELSE()
 #   ADD_DEFINITIONS(-DUSE_OPENMP=0)
 # #  ENDIF()
@@ -643,7 +697,7 @@ ENDIF()
 
 IF(LIBS_USE_PETSC)
   IF (LIBS_BUILD_PETSC)
-    SET(LIBS_BUILD_PETSC_VERSION "3.22.5" CACHE STRING "PETSc self-built version tag")
+    SET(LIBS_BUILD_PETSC_VERSION "3.25.1" CACHE STRING "PETSc self-built version tag")
     MARK_AS_ADVANCED(CLEAR LIBS_BUILD_PETSC_VERSION)
   ELSE()
     UNSET(LIBS_BUILD_PETSC_VERSION CACHE)
@@ -677,6 +731,31 @@ IF(LIBS_USE_PETSC)
       SET(PETSC_CMAKEPOLICY "3.5")
     ENDIF()
 
+    # Fixes for GCC 15 and 16: Tested with PETSc version 3.22.5
+    IF(${LIBS_BUILD_PETSC_VERSION} VERSION_LESS "3.24.0")
+      IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+        IF(${CMAKE_Fortran_COMPILER_VERSION} VERSION_LESS "15.0.0")
+          SET(HYPRE_COMPILER_FLAGS )
+          SET(SCALAPACK_COMPILER_FLAGS )
+        ELSE()
+          # Fix "Error running make; make install on HYPRE" for 3.22.5 with GCC 15 and 16
+          # GCC 15 changed the default C language standard from -std=gnu17 to -std=gnu23, and C23 added bool as a proper keyword — meaning older code that tries
+          # to define bool via typedef now fails. This is exactly what HYPRE's older source does.
+          # Set --download-hypre-configure-arguments=CFLAGS=-std=gnu17       for configure
+          #     --download-hypre-cmake-arguments=-DCMAKE_C_FLAGS=-std=gnu17  for CMAKE
+          SET(HYPRE_COMPILER_FLAGS -std=gnu17)
+          # Fix "Error running make; make install on ScaLAPACK" for 3.22.5 with GCC 15 and 16: https://github.com/Reference-ScaLAPACK/scalapack/issues/129
+          # "GCC-15 upped the default for -std= to gnu23 (more or less c23) from gnu18, which resulted in this error. The solution I found was to use -std=gnu90."
+          # Set --download-scalapack-cmake-arguments=-DCMAKE_C_FLAGS=-std=gnu90
+          SET(SCALAPACK_COMPILER_FLAGS -std=gnu90)
+        ENDIF()
+      ENDIF()
+    ELSE()
+      # Fix MPI Error: Name ‘mpi_comm_dup_fn’ at (1) is an ambiguous reference: PETSc internally uses use mpi (the old MPI Fortran module),
+      # and when piclas uses mpi_f08, the compiler sees two conflicting sets of interfaces for the same MPI symbols (e.g. MPI_COMM_DUP_FN) causing the ambiguous reference error.
+      SET(PETSC_MPI_COMPILER_FLAGS --with-mpi-ftn-module=mpi_f08)
+    ENDIF()
+
     # Settings
     # --with-mpi-f90module-visibility=0       "With 0, mpi.mod will not be visible in use code (via petscsys.mod) - so mpi_f08 can now be used" (https://petsc.org/main/changes/315/)
 
@@ -685,7 +764,7 @@ IF(LIBS_USE_PETSC)
         GIT_REPOSITORY "https://gitlab.com/petsc/petsc.git"
         GIT_TAG "v${LIBS_BUILD_PETSC_VERSION}"
         GIT_PROGRESS TRUE
-        ${GITSHALLOW}
+        GIT_SHALLOW ON
         PREFIX ${LIBS_PETSC_DIR}
         INSTALL_DIR ${LIBS_EXTERNAL_LIB_DIR}/PETSc
         BUILD_IN_SOURCE TRUE
@@ -699,12 +778,15 @@ IF(LIBS_USE_PETSC)
           COPTFLAGS=${PETSC_OPTIMIZATION}
           CXXOPTFLAGS=${PETSC_OPTIMIZATION}
           FOPTFLAGS=${PETSC_OPTIMIZATION}
+          ${PETSC_MPI_COMPILER_FLAGS}
           --with-shared-libraries=1
           --with-mpi-f90module-visibility=0
           --with-bison=0
           --download-hypre
+          --download-hypre-configure-arguments=CFLAGS=${HYPRE_COMPILER_FLAGS} # -std=gnu17 for non-CMake HYPRE builds
           --download-mumps
           --download-scalapack
+          --download-scalapack-cmake-arguments=-DCMAKE_C_FLAGS=${SCALAPACK_COMPILER_FLAGS} # -std=gnu90 for CMake ScaLAPACK builds
           --download-metis
           --download-parmetis     # requires metis
         # BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -j4
@@ -725,7 +807,7 @@ IF(LIBS_USE_PETSC)
     ENDIF()
 
     ADD_COMPILE_DEFINITIONS(USE_PETSC=1)
-    MESSAGE(STATUS "Compiling with self-built [PETSc] (v${LIBS_BUILD_PETSC_VERSION})")
+    MESSAGE(STATUS "Compiling with self-built [PETSc] (${BoldBlue}v${LIBS_BUILD_PETSC_VERSION}${ColourReset})")
   ELSE()
     IF(PETSC_FOUND)
       # Check if PETSc version needs FIX317
@@ -739,7 +821,7 @@ IF(LIBS_USE_PETSC)
       LIST(APPEND linkedlibs ${PETSC_LINK_LIBRARIES})
 
       ADD_COMPILE_DEFINITIONS(USE_PETSC=1)
-      MESSAGE(STATUS "Compiling with system [PETSc] (v${PETSC_VERSION}) [${PETSC_LINK_LIBRARIES}]")
+      MESSAGE(STATUS "Compiling with system [PETSc] (${BoldBlue}v${PETSC_VERSION}${ColourReset}) [${PETSC_LINK_LIBRARIES}]")
     ELSE()
       MESSAGE(FATAL_ERROR "PETSc not found! Consider building PETSc with LIBS_BUILD_PETSC = ON.")
     ENDIF()

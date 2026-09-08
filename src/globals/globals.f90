@@ -20,6 +20,7 @@ MODULE MOD_Globals
 #if USE_MPI
 USE mpi_f08
 #endif /*USE_MPI*/
+USE MOD_Globals_Vars, ONLY: dp,i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -72,10 +73,6 @@ INTERFACE Abort
   MODULE PROCEDURE AbortProg
 END INTERFACE Abort
 
-INTERFACE CollectiveStop
-  MODULE PROCEDURE CollectiveStop
-END INTERFACE CollectiveStop
-
 INTERFACE PrintWarning
   MODULE PROCEDURE PrintWarning
 END INTERFACE PrintWarning
@@ -119,10 +116,10 @@ END INTERFACE
 
 INTERFACE
   SUBROUTINE processmemusage(memUsed,memAvail,memTotal) BIND(C, name='processmemusage')
-    USE ISO_C_BINDING,   ONLY : c_double
-    real(c_double) :: memUsed
-    real(c_double) :: memAvail
-    real(c_double) :: memTotal
+    USE ISO_C_BINDING, ONLY: c_double
+    REAL(c_double),INTENT(OUT) :: memUsed
+    REAL(c_double),INTENT(OUT) :: memAvail
+    REAL(c_double),INTENT(OUT) :: memTotal
   END SUBROUTINE processmemusage
 END INTERFACE
 
@@ -191,6 +188,7 @@ END INTERFACE
 PUBLIC :: setstacksizeunlimited
 PUBLIC :: processmemusage
 PUBLIC :: WarningMemusage
+PUBLIC :: CollectMemUsage
 
 !===================================================================================================================================
 CONTAINS
@@ -318,11 +316,11 @@ END SUBROUTINE ReOpenLogFile
 !
 ! END FUNCTION AlmostZero
 
+SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt&
 #if USE_MPI
-SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt,SingleOpt)
-#else
-SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt)
+                    ,SingleOpt&
 #endif
+                    )
 !===================================================================================================================================
 ! Terminate program correctly if an error has occurred (important in MPI mode!).
 !===================================================================================================================================
@@ -331,15 +329,15 @@ SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInf
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-CHARACTER(LEN=*)                  :: SourceFile      ! Source file where error has occurred
-INTEGER                           :: SourceLine      ! Line in source file
-CHARACTER(LEN=*)                  :: CompDate        ! Compilation date
-CHARACTER(LEN=*)                  :: CompTime        ! Compilation time
-CHARACTER(LEN=*)                  :: ErrorMessage    ! Error message
-INTEGER,OPTIONAL                  :: IntInfoOpt      ! Error info (integer)
-REAL,OPTIONAL                     :: RealInfoOpt     ! Error info (real)
+CHARACTER(LEN=*),INTENT(IN)                  :: SourceFile      ! Source file where error has occurred
+INTEGER,INTENT(IN)                           :: SourceLine      ! Line in source file
+CHARACTER(LEN=*),INTENT(IN)                  :: CompDate        ! Compilation date
+CHARACTER(LEN=*),INTENT(IN)                  :: CompTime        ! Compilation time
+CHARACTER(LEN=*),INTENT(IN)                  :: ErrorMessage    ! Error message
+INTEGER,INTENT(IN),OPTIONAL                  :: IntInfoOpt      ! Error info (integer)
+REAL,INTENT(IN),OPTIONAL                     :: RealInfoOpt     ! Error info (real)
 #if USE_MPI
-LOGICAL,OPTIONAL                  :: SingleOpt       ! Only MPI-Root performs check
+LOGICAL,INTENT(IN),OPTIONAL                  :: SingleOpt       ! Only MPI-Root performs check
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -403,7 +401,7 @@ END SUBROUTINE AbortProg
 SUBROUTINE PrintWarning(msg)
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-CHARACTER(LEN=*) :: msg
+CHARACTER(LEN=*),INTENT(IN) :: msg
 !===================================================================================================================================
 IF (myRank.EQ.0) THEN
   WRITE(UNIT_stdOut,*) '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
@@ -437,13 +435,13 @@ SUBROUTINE CollectiveStop(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,I
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-CHARACTER(LEN=*)                  :: SourceFile      !< Source file where error has occurred
-INTEGER                           :: SourceLine      !< Line in source file
-CHARACTER(LEN=*)                  :: CompDate        !< Compilation date
-CHARACTER(LEN=*)                  :: CompTime        !< Compilation time
-CHARACTER(LEN=*)                  :: ErrorMessage    !< Error message
-INTEGER,OPTIONAL                  :: IntInfo         !< Error info (integer)
-REAL,OPTIONAL                     :: RealInfo        !< Error info (real)
+CHARACTER(LEN=*),INTENT(IN) :: SourceFile      !< Source file where error has occurred
+INTEGER,INTENT(IN)          :: SourceLine      !< Line in source file
+CHARACTER(LEN=*),INTENT(IN) :: CompDate        !< Compilation date
+CHARACTER(LEN=*),INTENT(IN) :: CompTime        !< Compilation time
+CHARACTER(LEN=*),INTENT(IN) :: ErrorMessage    !< Error message
+INTEGER,INTENT(IN),OPTIONAL :: IntInfo         !< Error info (integer)
+REAL,INTENT(IN),OPTIONAL    :: RealInfo        !< Error info (real)
 !   There is no way back!
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -467,7 +465,11 @@ CALL FLUSH(UNIT_stdOut)
 CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 CALL MPI_FINALIZE(iError)
 #endif
-ERROR STOP 1
+! Display stack trace on MPIRoot during CollectiveStop only when compiling in Debug mode
+#if USE_DEBUG
+IF (MPIRoot) ERROR STOP 1
+#endif /*USE_DEBUG*/
+STOP 1, QUIET=.TRUE.
 END SUBROUTINE CollectiveStop
 
 
@@ -631,7 +633,7 @@ CHARACTER(LEN=*),INTENT(IN)          :: FileName          !> e.g. './../laser.in
 CHARACTER(LEN=*),INTENT(IN)          :: ParameterName     !> e.g. 'timestep'
 CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: DelimiterSymbolIN !> e.g. '=' (default is '=')
 CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: CommentSymbolIN   !> e.g. '#' (default is '!')
-CHARACTER(LEN=*),INTENT(INOUT)       :: output            !> e.g. '0.1'
+CHARACTER(LEN=255),INTENT(INOUT)     :: output            !> e.g. '0.1'
 LOGICAL,OPTIONAL,INTENT(IN)          :: DoDisplayInfo     !> default is: TRUE
                                                           !> display DefMsg or errors if the parameter or the file is not found
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1372,7 +1374,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL               :: iRan
-REAL(KIND=8)       :: X
+REAL(KIND=dp)      :: X
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
@@ -1541,11 +1543,7 @@ SUBROUTINE WarningMemusage(Mode,Threshold)
 ! MODULES
 USE MOD_Globals_Vars    ,ONLY: memory
 #if USE_MPI
-USE MOD_MPI_Shared_Vars ,ONLY: myComputeNodeRank,myLeaderGroupRank
-USE MOD_MPI_Shared_Vars ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_SHARED
-#if defined(MEASURE_MPI_WAIT)
-USE MOD_MPI_Vars        ,ONLY: MPIW8TimeMM,MPIW8CountMM
-#endif /*defined(MEASURE_MPI_WAIT)*/
+USE MOD_MPI_Shared_Vars ,ONLY: myComputeNodeRank
 #endif /*USE_MPI*/
 !USE MOD_StringTools     ,ONLY: set_formatting,clear_formatting
 IMPLICIT NONE
@@ -1555,21 +1553,86 @@ INTEGER,INTENT(IN)  :: Mode                     !< Select which memory is to be 
 REAL,INTENT(IN)     :: Threshold                !< Threshold for the display of a warning between 0 and 100 [%]
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(32) :: hilf,hilf2,hilf3
-#if USE_MPI
-REAL                       :: ProcMemoryUsed    ! Used memory on a single proc
-REAL                       :: NodeMemoryUsed    ! Sum of used memory across one compute node
-#endif /*USE_MPI*/
-REAL                       :: MemUsagePercent
-#if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)               :: CounterStart,CounterEnd
-REAL(KIND=8)                  :: Rate
-#endif /*defined(MEASURE_MPI_WAIT)*/
+CHARACTER(32)  :: hilf,hilf2,hilf3,hilf4
+CHARACTER(100) :: MemInfo
+REAL           :: MemUsagePercent
 !===================================================================================================================================
 IF((Mode.NE.0.).AND.(Mode.NE.1)) CALL abort(__STAMP__,'ERROR in WarningMemusage: Mode must be 0 or 1')
 IF((Threshold.GT.100.0).OR.(Threshold.LE.0.0)) CALL abort(__STAMP__,'ERROR in WarningMemusage: Threshold must be in the range 0 < X <= 100')
 
-CALL ProcessMemUsage(memory(1),memory(2),memory(3)) ! memUsed,memAvail,memTotal
+! Get memory info
+CALL CollectMemUsage(Mode=Mode)
+
+! --------------------------------------------------
+! Only MPI root or compute-node roots output(s) the warning
+! --------------------------------------------------
+#if USE_MPI
+IF(Mode.EQ.0) THEN
+  ! Only MPIRoot continunes here
+  IF(.NOT.MPIRoot) RETURN
+  MemInfo = '(global memory)'
+ELSE IF(Mode.EQ.1) THEN
+  ! Only the compute-node roots continunes here
+  IF(.NOT.myComputeNodeRank.EQ.0) RETURN
+  MemInfo = '(node-memory)'
+END IF
+#else
+MemInfo = '(single-core)'
+#endif /*USE_MPI*/
+
+! Sanity checks
+IF(ABS(memory(3)).LE.0.) CALL abort(__STAMP__,'ERROR in WarningMemusage: Could not retrieve '//TRIM(MemInfo)//' available memory')
+! Convert KiB to GiB
+memory(1:3)=memory(1:3)/1048576. ! ḿemory(1:3)/(1024*1024)
+! Check if X% of the total memory available is reached
+MemUsagePercent = (memory(1)/memory(3))*100.0
+IF(MemUsagePercent.GT.Threshold)THEN
+  WRITE(UNIT=hilf ,FMT='(F16.1)') memory(1)
+  WRITE(UNIT=hilf2,FMT='(F16.1)') memory(3)
+  WRITE(UNIT=hilf3,FMT='(F5.1)') MemUsagePercent
+  WRITE(UNIT=hilf4,FMT='(F5.1)') Threshold
+  IPWRITE(UNIT_stdOut,'(I0,A)') &
+    " WARNING: Allocated memory ["//TRIM(ADJUSTL(hilf))//"] GB above threshold of "//TRIM(ADJUSTL(hilf4))//"% which is "&
+    //TRIM(ADJUSTL(hilf3))//"% of the available memory ["//TRIM(ADJUSTL(hilf2))//"] GB "//TRIM(ADJUSTL(MemInfo))
+END IF
+
+END SUBROUTINE WarningMemusage
+
+
+!===================================================================================================================================
+!> Get process memory usage on each separate process and either sum up the memory over all nodes or keep the data node-sise. The
+!> latter is required when checking if there is a strong imbalance between the nodes and one or more nodes are reaching the maximum
+!> available memory
+!===================================================================================================================================
+SUBROUTINE CollectMemUsage(Mode)
+! MODULES
+USE MOD_Globals_Vars    ,ONLY: memory
+#if USE_MPI
+USE MOD_MPI_Shared_Vars ,ONLY: myComputeNodeRank,myLeaderGroupRank
+USE MOD_MPI_Shared_Vars ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_SHARED
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_MPI_Vars        ,ONLY: MPIW8TimeMM,MPIW8CountMM
+#endif /*defined(MEASURE_MPI_WAIT)*/
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: Mode   !< Select which memory is to be displayed, Total = 0 or per Node = 1
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+#if USE_MPI
+REAL :: ProcMemoryUsed !< Used memory on a single proc
+REAL :: NodeMemoryUsed !< Sum of used memory across one compute node
+#else
+INTEGER :: dummy
+#endif /*USE_MPI*/
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=i8):: CounterStart,CounterEnd
+REAL(KIND=dp)   :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
+!===================================================================================================================================
+CALL ProcessMemUsage(memory(1),memory(2),memory(3)) ! Get memUsed, memAvail, memTotal
 
 ! Only CN roots communicate available and total memory info (count once per node)
 #if USE_MPI
@@ -1586,7 +1649,7 @@ IF(nProcessors.GT.1)THEN
     CALL MPI_REDUCE(ProcMemoryUsed , 0              , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_SHARED , IERROR)
   END IF
 
-  ! collect data from node roots on first root node
+  ! Collect data across all node roots and reduce the data to the first root node (MPIRoot)
   IF(Mode.EQ.0) THEN
     IF (myComputeNodeRank.EQ.0) THEN ! only leaders
       IF (myLeaderGroupRank.EQ.0) THEN ! first node leader MUST be MPIRoot
@@ -1600,36 +1663,14 @@ END IF ! nProcessors.EQ.1
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
 MPIW8TimeMM  = MPIW8TimeMM + REAL(CounterEnd-CounterStart,8)/Rate
-MPIW8CountMM = MPIW8CountMM + 1_8
+MPIW8CountMM = MPIW8CountMM + 1_i8
 #endif /*defined(MEASURE_MPI_WAIT)*/
+#else
+RETURN
+! Suppress dummy argument
+dummy = Mode
 #endif /*USE_MPI*/
 
-! --------------------------------------------------
-! Only MPI root or compute-node root outputs the warning
-! --------------------------------------------------
-#if USE_MPI
-IF(Mode.EQ.0) THEN
-  IF(.NOT.MPIRoot) RETURN
-ELSE IF(Mode.EQ.1) THEN
-  IF(.NOT.myComputeNodeRank.EQ.0) RETURN
-END IF
-#endif /*USE_MPI*/
-
-! Sanity checks
-IF(ABS(memory(3)).LE.0.) CALL abort(__STAMP__,'ERROR in WarningMemusage: Could not retrieve total available memory')
-! Convert kB to GB
-memory(1:3)=memory(1:3)/1048576.
-! Check if X% of the total memory available is reached
-MemUsagePercent = (memory(1)/memory(3))*100.0
-!MemUsagePercent = 99.32
-IF(MemUsagePercent.GT.Threshold)THEN
-  WRITE(UNIT=hilf ,FMT='(F16.1)') memory(1)
-  WRITE(UNIT=hilf2,FMT='(F16.1)') memory(3)
-  WRITE(UNIT=hilf3,FMT='(F5.1)') MemUsagePercent
-  IPWRITE(UNIT_stdOut,'(A)') "WARNING: Allocated memory ["//TRIM(ADJUSTL(hilf))//"] GB is above the set threshold and corresponds to "&
-                              //TRIM(ADJUSTL(hilf3))//"% of the available memory ["//TRIM(ADJUSTL(hilf2))//"] GB!"
-END IF
-
-END SUBROUTINE WarningMemusage
+END SUBROUTINE CollectMemUsage
 
 END MODULE MOD_Globals

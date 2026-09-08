@@ -67,7 +67,9 @@ USE MOD_Particle_Surfaces_Vars   ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars       ,ONLY: ElemBaryNGeo_Shared
 #endif /* CODE_ANALYZE */
 #if USE_HDG
+USE MOD_Particle_Boundary_Vars   ,ONLY: DoVirtualDielectricLayer
 USE MOD_Particle_Vars            ,ONLY: IsVDLSpecID,SpeciesOffsetVDL
+USE MOD_Particle_Boundary_Vars   ,ONLY: DoVirtualDielectricLayer
 #endif/*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -93,21 +95,23 @@ crossedBC    =.FALSE.
 
 #if USE_HDG
 ! Check particle index for VDL particles, which should NOT be here and kill them (regular treatment is in DepositVirtualDielectricLayerParticles)
-IF(IsVDLSpecID(iPart))THEN
-  IF(PDM%ParticleInside(iPart))THEN
-    IF(CountNbrOfLostParts)THEN
-      ! Store particle position using PartState(1:3,iPart) via UsePartState_opt=.TRUE. to show where the particles have been
-      ! moved to via the VDL displacement. Otherwise, LastPartPos(1:3,iPart) would contain the position where the particles have
-      ! impacted on the VDL boundary (the actual tracking BC. i.e. the mesh, not the virtual layer around the BC)
-      CALL StoreLostParticleProperties(iPart,ElemID,UsePartState_opt=.TRUE.,PartMissingType_opt=PartSpecies(iPart))
-      NbrOfLostParticles=NbrOfLostParticles+1
-    END IF ! CountNbrOfLostParts
-    ! Reset to original species index before removing the particle
-    PartSpecies(iPart) = ABS(PartSpecies(iPart)) - SpeciesOffsetVDL
-    CALL RemoveParticle(iPart,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
-    RETURN
-  END IF ! PDM%ParticleInside(iPart)
-END IF ! IsVDLSpecID(iPart)
+IF(DoVirtualDielectricLayer) THEN
+  IF(IsVDLSpecID(iPart))THEN
+    IF(PDM%ParticleInside(iPart))THEN
+      IF(CountNbrOfLostParts)THEN
+        ! Store particle position using PartState(1:3,iPart) via UsePartState_opt=.TRUE. to show where the particles have been
+        ! moved to via the VDL displacement. Otherwise, LastPartPos(1:3,iPart) would contain the position where the particles have
+        ! impacted on the VDL boundary (the actual tracking BC. i.e. the mesh, not the virtual layer around the BC)
+        CALL StoreLostParticleProperties(iPart,ElemID,UsePartState_opt=.TRUE.,PartMissingType_opt=PartSpecies(iPart))
+        NbrOfLostParticles=NbrOfLostParticles+1
+      END IF ! CountNbrOfLostParts
+      ! Reset to original species index before removing the particle
+      PartSpecies(iPart) = ABS(PartSpecies(iPart)) - SpeciesOffsetVDL
+      CALL RemoveParticle(iPart,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+      RETURN
+    END IF ! PDM%ParticleInside(iPart)
+  END IF ! IsVDLSpecID(iPart)
+END IF ! DoVirtualDielectricLayer
 #endif /*USE_HDG*/
 
 ! Calculate normal vector
@@ -267,7 +271,7 @@ LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + SIGN( GEO%PeriodicVectors(1:
 ! update particle position after periodic BC
 PartState(1:3,PartID) = LastPartPos(1:3,PartID) + (TrackInfo%lengthPartTrajectory-TrackInfo%alpha)*TrackInfo%PartTrajectory
 TrackInfo%lengthPartTrajectory  = TrackInfo%lengthPartTrajectory - TrackInfo%alpha
-
+TrackInfo%alpha =0.
 #ifdef CODE_ANALYZE
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
@@ -390,14 +394,14 @@ DO iNeigh=1,NumRotPeriodicNeigh(RotSideID)
   locSideLoop: DO iLocSide = 1,nLocSides
     newSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,newElemID) + iLocSide
     ! Cycle over non-BC sides
-    IF (SideInfo_Shared(SIDE_BCID,newSideID).LE.0) CYCLE
+    IF (SideInfo_Shared(SIDE_BCID,newSideID).LE.0) CYCLE locSideLoop
     BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,newSideID)))
     ! Cycle over non-rotBC sides
-    IF(BCType.NE.PartBound%RotPeriodicBC) CYCLE
+    IF(BCType.NE.PartBound%RotPeriodicBC) CYCLE locSideLoop
 
     locSideID = SideInfo_Shared(SIDE_LOCALID,newSideID)
     ! Side is not one of the 6 local sides
-    IF (locSideID.LE.0) CYCLE
+    IF (locSideID.LE.0) CYCLE locSideLoop
     ! Calculate the determinant
     DO NodeNum = 1,4
       !--- A = vector from particle to node coords
@@ -770,14 +774,14 @@ DO iSide = 1, NumInterPlaneSides
   locSideLoop: DO iLocSide = 1,nLocSides
     newSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,newElemID) + iLocSide
     ! Cycle over non-BC sides
-    IF (SideInfo_Shared(SIDE_BCID,newSideID).LE.0) CYCLE
+    IF (SideInfo_Shared(SIDE_BCID,newSideID).LE.0) CYCLE locSideLoop
     BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,newSideID)))
     ! Cycle over non-interPlaneBC sides
-    IF(BCType.NE.PartBound%RotPeriodicInterPlaneBC) CYCLE
+    IF(BCType.NE.PartBound%RotPeriodicInterPlaneBC) CYCLE locSideLoop
 
     locSideID = SideInfo_Shared(SIDE_LOCALID,newSideID)
     ! Side is not one of the 6 local sides
-    IF (locSideID.LE.0) CYCLE
+    IF (locSideID.LE.0) CYCLE locSideLoop
     ! Calculate the determinant
     DO NodeNum = 1,4
       !--- A = vector from particle to node coords

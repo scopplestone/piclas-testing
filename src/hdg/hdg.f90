@@ -20,6 +20,7 @@
 !===================================================================================================================================
 MODULE MOD_HDG
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i8
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -66,7 +67,7 @@ CALL prms%CreateIntOption(    'HDGSkip'                ,'Number of time step ite
 CALL prms%CreateIntOption(    'HDGSkipInit'            ,'Number of time step iterations until the HDG solver is called (i.e. all intermediate calls are skipped) while time < HDGSkip_t0 (if HDGSkip > 0)', '0')
 CALL prms%CreateRealOption(   'HDGSkip_t0'             ,'Time during which HDGSkipInit is used instead of HDGSkip (if HDGSkip > 0)', '0.')
 CALL prms%CreateLogicalOption('HDGDisplayConvergence'  ,'Display divergence criteria: Iterations, RunTime and Residual', '.FALSE.')
-CALL prms%CreateRealArrayOption( 'EPC-Resistance'      , 'Vector (length corresponds to the number of EPC boundaries) with the resistance for each EPC in Ohm', no=0)
+CALL prms%CreateRealArrayOption( 'EPC-Resistance'      ,'Vector (length corresponds to the number of EPC boundaries) with the resistance for each EPC in Ohm', no=0)
 CALL prms%CreateLogicalOption('HDGNSideMin'            ,'Use the minimum polynomial degree at the sides for the HDG solver', '.FALSE.')
 #if defined(PARTICLES)
 CALL prms%CreateLogicalOption(  'UseBiasVoltage'              , 'Activate usage of bias voltage adjustment (for specific boundaries only)', '.FALSE.')
@@ -74,7 +75,11 @@ CALL prms%CreateIntOption(      'BiasVoltage-NPartBoundaries' , 'Number of parti
 CALL prms%CreateIntArrayOption( 'Biasvoltage-PartBoundaries'  , 'Particle boundary index of boundaries where the total ion excess is to be calculated for bias voltage model', no=0)
 CALL prms%CreateRealOption(     'BiasVoltage-Frequency'       , 'Frequency of the sinusoidal field boundary where the bias voltage is applied (a value of 0.0 corresponds to a DC potential BC). The total particle electric current over one cycle is required to converge to zero.')
 CALL prms%CreateRealOption(     'BiasVoltage-Delta'           , 'Bias voltage difference used for adjusting the DC voltage of the corresponding BC')
+CALL prms%CreateRealOption(     'CMBC-Capacitance'      , 'Capacitance of the capacitor connected to the Circuit Model bounday condition (CMBC)')
 #endif /*defined(PARTICLES)*/
+#if USE_PETSC && USE_DEBUG
+CALL prms%CreateLogicalOption('PETScDisplayDiagnostics'  ,'Display errors, warnings and main statistics for PETSc', '.TRUE.')
+#endif /*USE_PETSC && USE_DEBUG*/
 
 ! --- BR electron fluid
 #if defined(PARTICLES)
@@ -131,6 +136,9 @@ USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_HDG_Init              ,ONLY: InitFPC,InitEPC
 #if defined(PARTICLES)
 USE MOD_HDG_Init              ,ONLY: InitBV
+#if USE_PETSC
+USE MOD_HDG_Init              ,ONLY: InitCMBC
+#endif /*USE_PETSC*/
 #endif /*defined(PARTICLES)*/
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 IMPLICIT NONE
@@ -140,28 +148,29 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i,j,k,r,iElem,SideID,Nloc,iNeumannBCsides,NSideMin,NSideMax,NSide, iSide
+INTEGER           :: i,j,k,r,iElem,SideID,Nloc,iNeumannBCsides,NSideMin,NSideMax,NSide, iSide, CMBCBounds
 INTEGER           :: BCType,BCState
 REAL              :: D(0:Nmax,0:Nmax)
 INTEGER           :: nDirichletBCsidesGlobal
 #if USE_PETSC
 PetscErrorCode    :: ierr
-PetscInt          :: major,minor,subminor,release
+PetscInt          :: major,minor,patch,release
 IS                :: PETScISLocal, PETScISGlobal
 INTEGER           :: iUniqueFPCBC
 INTEGER             :: iLocalPETScDOF,iDOF
 INTEGER             :: OffsetCounter
-INTEGER,ALLOCATABLE :: localToGlobalPETScDOF(:)
+INTEGER,ALLOCATABLE :: LocalToGlobalPETScDOF(:)
+CHARACTER(100)    :: hilf,hilf2
 #if USE_MPI
 INTEGER             :: iProc,PETScDOFOffsetsMPI(nProcessors)
-#endif
-#endif
+#endif /*USE_MPI*/
+#if !defined(PARTICLES)
+LOGICAL,PARAMETER :: UseCircuitModel=.FALSE. ! This flag can only be set with PARTICLES=ON
+#endif /*!defined(PARTICLES*/
+#endif /*USE_PETSC*/
 INTEGER           :: locSide,nMortars
 INTEGER           :: MortarSideID,iMortar
 REAL              :: StartT,EndT
-#if USE_PETSC
-CHARACTER(100)    :: hilf
-#endif /*USE_PETSC*/
 REAL              :: SurfArea
 INTEGER           :: p,q
 !===================================================================================================================================
@@ -203,7 +212,10 @@ END IF
 
 ! Read in CG parameters (also used for PETSc)
 #if USE_PETSC
-PetscCallA(PetscGetVersionNumber(major,minor,subminor,release,ierr))
+#if USE_DEBUG
+PETScDisplayDiagnostics = GETLOGICAL('PETScDisplayDiagnostics') ! Increase MUMPS diagnostics level: Errors, warnings, main statistics
+#endif /*USE_DEBUG*/
+PetscCallA(PetscGetVersionNumber(major,minor,patch,release,ierr))
 #ifdef PETSC_HAVE_HYPRE
 hilf = '(built with Hypre and'
 #else
@@ -214,7 +226,11 @@ hilf = TRIM(hilf)//' with Mumps)'
 #else
 hilf = TRIM(hilf)//' without Mumps)'
 #endif /*PETSC_HAVE_MUMPS*/
-LBWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') ' | Method for HDG solver: PETSc ',major,'.',minor,'.',subminor,' '//TRIM(hilf)
+! Output the cmake configuration info PETSC_VERSION_MAJOR, PETSC_VERSION_MINOR, PETSC_VERSION_PATCH to make sure they are passed
+! correctly and not empty (see where in the code these variables are used for pre-processor descision). The following line fails to
+! compile if the variable are not set appropriately
+WRITE(hilf2,'(A,I0,A,I0,A,I0,A)') " (cmake determined version ",PETSC_VERSION_MAJOR,".",PETSC_VERSION_MINOR,".",PETSC_VERSION_PATCH,")"
+LBWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)')' | Method for HDG solver: PETSc ',major,'.',minor,'.',patch,' '//TRIM(hilf)//TRIM(hilf2)
 PrecondType          = GETINT('PrecondType','1')
 #else /*without PETSC*/
 LBWRITE(UNIT_stdOut,'(A)') ' | Method for HDG solver: CG '
@@ -376,19 +392,25 @@ END IF !mortarMesh
 
 ! 6. BCs, the first
 !boundary conditions
-nDirichletBCsides=0
+nDirichletBCSides=0
 nNeumannBCsides  =0
 nConductorBCsides=0
+nDistriCapBCsides=0
+nCircuitModelBCsides=0
 DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
   CASE(HDGDIRICHLETBCSIDEIDS) ! Dirichlet
-    nDirichletBCsides=nDirichletBCsides+1
+    nDirichletBCSides=nDirichletBCSides+1
   CASE(10,11,12) ! Neumann
     nNeumannBCsides=nNeumannBCsides+1
   CASE(20) ! Conductor: Floating Boundary Condition (FPC)
     nConductorBCsides=nConductorBCsides+1
+  CASE(30) ! Distributed Capacitance
+    nDistriCapBCsides=nDistriCapBCsides+1
+  CASE(40) ! Cicuit Model
+    nCircuitModelBCsides=nCircuitModelBCsides+1
   CASE DEFAULT ! unknown BCType
     CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
   END SELECT ! BCType
@@ -407,37 +429,48 @@ CALL InitEPC()
 ! BCType: 51,X for bias voltage + cos(wt) function boundary condition
 ! BCType: 52,X for bias voltage + cos(wt) function + coupled power adjustment (for AC and not DC in this case)
 CALL InitBV()
+
+#if USE_PETSC
+! Circuit Model BC: Initialize containers and sub-communicator
+CALL InitCMBC()
+#else
+IF(nCircuitModelBCsides.GT.0) CALL CollectiveStop(__STAMP__,'Circuit model boundary condition (CMBC) requires LIBS_USE_PETSC=ON')
+#endif /*USE_PETSC*/
 #endif /*defined(PARTICLES)*/
 
 ! 8. BCs the second...
 ! Get the global number of Dirichlet boundaries. If there are none, the potential of a single DOF must be set.
 #if USE_MPI
-  CALL MPI_ALLREDUCE(nDirichletBCsides , nDirichletBCsidesGlobal , 1 , MPI_INTEGER , MPI_MAX , MPI_COMM_PICLAS , IERROR)
+  CALL MPI_ALLREDUCE(nDirichletBCSides , nDirichletBCsidesGlobal , 1 , MPI_INTEGER , MPI_MAX , MPI_COMM_PICLAS , IERROR)
 #else
-  nDirichletBCsidesGlobal = nDirichletBCsides
+  nDirichletBCsidesGlobal = nDirichletBCSides
 #endif /*USE_MPI*/
 
 ZeroPotentialSide = -1
 IF(mpiRoot.AND.nDirichletBCsidesGlobal==0) ZeroPotentialSide = ElemToSide(E2S_SIDE_ID,1,1)
 
-IF(nDirichletBCsides.GT.0)ALLOCATE(DirichletBC(nDirichletBCsides))
+IF(nDirichletBCSides.GT.0)ALLOCATE(DirichletBC(nDirichletBCSides))
 IF(nNeumannBCsides  .GT.0)THEN
   ALLOCATE(NeumannBC(nNeumannBCsides))
 END IF
 IF(nConductorBCsides.GT.0)ALLOCATE(ConductorBC(nConductorBCsides))
+IF(nDistriCapBCsides.GT.0)ALLOCATE(DistriCapBC(nDistriCapBCsides))
+IF(nCircuitModelBCsides.GT.0)ALLOCATE(CircuitModelBC(nCircuitModelBCsides))
 #if (PP_nVar!=1)
-  IF(nDirichletBCsides.GT.0)ALLOCATE(qn_face_MagStat(PP_nVar, nGP_face(PP_N),nDirichletBCsides))
+  IF(nDirichletBCSides.GT.0)ALLOCATE(qn_face_MagStat(PP_nVar, nGP_face(PP_N),nDirichletBCSides))
 #endif
-nDirichletBCsides=0
+nDirichletBCSides=0
 nNeumannBCsides  =0
 nConductorBCsides=0
+nDistriCapBCsides=0
+nCircuitModelBCsides=0
 DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
   CASE(HDGDIRICHLETBCSIDEIDS) ! Dirichlet
-    nDirichletBCsides=nDirichletBCsides+1
-    DirichletBC(nDirichletBCsides)=SideID
+    nDirichletBCSides=nDirichletBCSides+1
+    DirichletBC(nDirichletBCSides)=SideID
     MaskedSide(SideID)=1
   CASE(10,11,12) !Neumann,
     nNeumannBCsides=nNeumannBCsides+1
@@ -445,6 +478,13 @@ DO SideID=1,nBCSides
   CASE(20) ! Conductor: Floating Boundary Condition (FPC)
     nConductorBCsides=nConductorBCsides+1
     ConductorBC(nConductorBCsides)=SideID
+    MaskedSide(SideID)=2
+  CASE(30) ! Distributed Capacitance
+    nDistriCapBCsides=nDistriCapBCsides+1
+    DistriCapBC(nDistriCapBCsides)=SideID
+  CASE(40) ! Circuit Model
+    nCircuitModelBCsides=nCircuitModelBCsides+1
+    CircuitModelBC(nCircuitModelBCsides)=SideID
     MaskedSide(SideID)=2
   CASE DEFAULT ! unknown BCType
     CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
@@ -528,7 +568,7 @@ DO iElem=1,PP_nElems
   END IF
 END DO !iElem
 
-CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
+CALL Elem_Mat(0_i8) ! takes iter=0 (kind=8)
 
 ! 10. Allocate and zero missing HDG_VOL_N and HDG_Surf_N stuff
 DO iElem = 1, PP_nElems
@@ -604,6 +644,7 @@ DO iProc=1, myrank
 END DO
 #endif
 ALLOCATE(OffsetGlobalPETScDOF(nSides))
+OffsetGlobalPETScDOF = 0
 DO SideID=1,nSides-nMPISides_YOUR
   IF(MaskedSide(SideID).NE.0) CYCLE ! Skip Dirichlet + Small mortar sides
   OffsetGlobalPETScDOF(SideID) = OffsetCounter
@@ -651,9 +692,11 @@ DO SideID=nSides-nMPISides_YOUR+1,nSides
 END DO
 #endif
 
-! 3.1.5) Create localToGlobalPETScDOF(iLocalPETScDOF) mapping
+! 3.1.5) Create LocalToGlobalPETScDOF(iLocalPETScDOF) mapping
 ! The mapping is used to create the PETSc Scatter context to extract the local solution from the global solution vector
-ALLOCATE(localToGlobalPETScDOF(nLocalPETScDOFs+FPC%nUniqueFPCBounds))
+CMBCBounds = MERGE(1,0,UseCircuitModel)
+ALLOCATE(LocalToGlobalPETScDOF(nLocalPETScDOFs+FPC%nUniqueFPCBounds+CMBCBounds))
+LocalToGlobalPETScDOF = 0
 iLocalPETScDOF = 0
 DO SideID=1,nSides
   IF(MaskedSide(SideID).GT.0) CYCLE
@@ -665,11 +708,20 @@ END DO
 
 ! 3.1.6) Add each FPC to the DOFs
 IF(UseFPC)THEN
+  IF(UseCircuitModel) CALL CollectiveStop(__STAMP__,'UseCircuitModel and UseFPC cannot both be true')
   DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
     LocalToGlobalPETScDOF(nLocalPETScDOFs+iUniqueFPCBC) = nGlobalPETScDOFs + iUniqueFPCBC - 1
   END DO
   nLocalPETScDOFs = nLocalPETScDOFs + FPC%nUniqueFPCBounds
   nGlobalPETScDOFs = nGlobalPETScDOFs + FPC%nUniqueFPCBounds
+END IF
+
+! 3.1.7) Add each CMBC to the DOFs
+IF(UseCircuitModel)THEN
+  IF(UseFPC) CALL CollectiveStop(__STAMP__,'UseCircuitModel and UseFPC cannot both be true')
+  LocalToGlobalPETScDOF(nLocalPETScDOFs+1) = nGlobalPETScDOFs
+  nLocalPETScDOFs = nLocalPETScDOFs + 1
+  nGlobalPETScDOFs = nGlobalPETScDOFs + 1
 END IF
 
 ! ------------------------------------------------------
@@ -708,12 +760,12 @@ PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nLocalPETScDOFs,PETScSolutionLocal,ierr)
 ! Create a PETSc Vector 0:(nLocalPETScDOFs-1)
 PetscCallA(ISCreateStride(PETSC_COMM_SELF,nLocalPETScDOFs,0,1,PETScISLocal,ierr))
 ! Create a PETSc Vector of the Global DOF IDs
-PetscCallA(ISCreateGeneral(PETSC_COMM_WORLD,nLocalPETScDOFs,localToGlobalPETScDOF,PETSC_COPY_VALUES,PETScISGlobal,ierr))
+PetscCallA(ISCreateGeneral(PETSC_COMM_WORLD,nLocalPETScDOFs,LocalToGlobalPETScDOF,PETSC_COPY_VALUES,PETScISGlobal,ierr))
 ! Create a scatter context to extract the local dofs
 PetscCallA(VecScatterCreate(PETScSolution,PETScISGlobal,PETScSolutionLocal,PETScISLocal,PETScScatter,ierr))
 
 ! (Delete local allocated vectors)
-DEALLOCATE(localToGlobalPETScDOF)
+DEALLOCATE(LocalToGlobalPETScDOF)
 ! Clean-up local PETSc objects
 PetscCallA(ISDestroy(PETScISLocal,ierr))
 PetscCallA(ISDestroy(PETScISGlobal,ierr))
@@ -764,7 +816,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)             :: t !time
-INTEGER(KIND=8),INTENT(IN)  :: iter
+INTEGER(KIND=i8),INTENT(IN)  :: iter
 #if defined(PARTICLES)
 LOGICAL,INTENT(IN),OPTIONAL :: ForceCGSolverIteration_opt ! set converged=F in first step (only required for BR electron fluid)
 #endif /*defined(PARTICLES)*/
@@ -900,7 +952,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
-INTEGER(KIND=8),INTENT(IN)  :: iter
+INTEGER(KIND=i8),INTENT(IN)  :: iter
 INTEGER,INTENT(IN) :: mode !< 1: store E^n at the beginning of the time step
                            !< 2: store E^n+1 at the end of the time step and subtract E^n to calculate the difference
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -976,7 +1028,7 @@ LOGICAL          :: UpdatePhiF
 !     interpolate the vector field E = (/Ex, Ey, Ez/) to the boundary face
 DO SideID=1,nBCSides
   ! Get the local element index
-    ElemID    = SideToElem(S2E_ELEM_ID,SideID)
+  ElemID    = SideToElem(S2E_ELEM_ID,SideID)
   ! Get local polynomial degree of the element
   Nloc   = N_DG_Mapping(2,ElemID+offSetElem)
   ! Get particle boundary index
@@ -1154,7 +1206,7 @@ PetscCallA(VecDestroy(PETScRHS,ierr))
 PetscCallA(PetscFinalize(ierr))
 SDEALLOCATE(SmallMortarType)
 SDEALLOCATE(OffsetGlobalPETScDOF)
-#endif
+#endif /*USE_PETSC*/
 !SDEALLOCATE(NonlinVolumeFac)
 SDEALLOCATE(DirichletBC)
 SDEALLOCATE(NeumannBC)
@@ -1199,6 +1251,8 @@ SDEALLOCATE(FPC%Group)
 SDEALLOCATE(FPC%BCState)
 SDEALLOCATE(FPC%VoltageProc)
 SDEALLOCATE(FPC%ChargeProc)
+SDEALLOCATE(DistriCapBC)
+SDEALLOCATE(CircuitModelBC)
 #if USE_MPI
 DO iBC = 1, FPC%nUniqueFPCBounds
   IF(FPC%COMM(iBC)%UNICATOR.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(FPC%COMM(iBC)%UNICATOR,iERROR)
@@ -1233,6 +1287,10 @@ SDEALLOCATE(EPC%COMM)
 #if defined(PARTICLES)
 IF(BiasVoltage%COMM%UNICATOR.NE.MPI_COMM_NULL)  CALL MPI_COMM_FREE(BiasVoltage%COMM%UNICATOR,iERROR)
 IF(CPPCOMM%UNICATOR.NE.MPI_COMM_NULL)           CALL MPI_COMM_FREE(CPPCOMM%UNICATOR,iERROR)
+#if USE_PETSC
+! Circuit model boundary condition
+IF(CMBC%COMM%UNICATOR.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(CMBC%COMM%UNICATOR,iERROR)
+#endif /*USE_PETSC*/
 #endif /*defined(PARTICLES)*/
 #endif /*USE_MPI*/
 
@@ -1242,19 +1300,18 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   ASSOCIATE( firstSide => ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1) + 1       ,&
              lastSide  => ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElem    + nElems) )
     ALLOCATE(lambdaLB(PP_nVar,nGP_face(NMax)+1,firstSide:lastSide)) ! +1 comes from the NSideMin info that is sent additionally
-    ! TODO NSideMin - What?
     lambdaLB=0.
   END ASSOCIATE
-  IF(nProcessors.GT.1) CALL GetMasteriLocSides()
+  IF(nProcessors.GT.1) CALL GetMasteriLocSides() ! Builds iLocSides, which is required in LambdaSideToMaster()
   DO iSide = 1, nSides
     NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,iSide)
 
-    CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSide)
+    CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSide) ! Requires iLocSides array
     ! Check if the same global unique side is encountered twice and store both global non-unique side IDs in the array
     ! SideToNonUniqueGlobalSide(1:2,iSide)
     IF(SideToNonUniqueGlobalSide(2,iSide).NE.-1)THEN
       NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(2,iSide)
-      CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSide)
+      CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSide) ! Requires iLocSides array
     END IF ! SideToNonUniqueGlobalSide(1,iSide).NE.-1
 
   END DO ! iSide = 1, nSides

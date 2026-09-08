@@ -71,13 +71,17 @@ REAL,ALLOCATABLE    :: Tau(:)                 !< Stabilization parameter, per el
 REAL,ALLOCATABLE    :: lambdaLB(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
 INTEGER,ALLOCATABLE :: iLocSides(:,:)         !< iLocSides, ((PP_N+1)^2,nSides) - used for I/O and ALLGATHERV of lambda
 REAL,ALLOCATABLE    :: qn_face_MagStat(:,:,:) !< for Neumann BC
-INTEGER             :: nDirichletBCsides
+INTEGER             :: nDirichletBCSides
 INTEGER             :: nNeumannBCsides
 INTEGER             :: nConductorBCsides      !< Number of processor-local sides that are conductors (FPC) in [1:nBCSides]
+INTEGER             :: nDistriCapBCsides      !< Number of processor-local sides that are distributed capacitance (DC) in [1:nBCSides]
+INTEGER             :: nCircuitModelBCsides   !< Number of processor-local sides that are circuit model (CM) in [1:nBCSides]
 INTEGER             :: ZeroPotentialSide      !< (local) SideID of the side where the potential of one DOF is set to zero
 INTEGER,ALLOCATABLE :: ConductorBC(:)
 INTEGER,ALLOCATABLE :: DirichletBC(:)
 INTEGER,ALLOCATABLE :: NeumannBC(:)
+INTEGER,ALLOCATABLE :: DistriCapBC(:)
+INTEGER,ALLOCATABLE :: CircuitModelBC(:)
 LOGICAL             :: HDGnonlinear           !< Use non-linear sources for HDG? (e.g. Boltzmann electrons)
 LOGICAL             :: NewtonExactSourceDeriv
 LOGICAL             :: NewtonAdaptStartValue
@@ -152,7 +156,7 @@ TYPE tMPIGROUP
   INTEGER                     :: nProcs                 !< number of MPI processes part of the FPC group
   INTEGER                     :: nProcsWithSides        !< number of MPI processes part of the FPC group and actual FPC sides
   INTEGER                     :: MyRank                 !< MyRank within communicator
-END TYPE
+END TYPE tMPIGROUP
 #endif /*USE_MPI*/
 
 !===================================================================================================================================
@@ -162,8 +166,10 @@ END TYPE
 LOGICAL                       :: UseFPC             !< Automatic flag when FPCs are active
 
 TYPE tFPC
-  REAL,ALLOCATABLE            :: Voltage(:)         !< Electric potential on floating boundary condition for each (required) BC index over all processors. This is the value that is reduced to the MPI root process
-  REAL,ALLOCATABLE            :: VoltageProc(:)     !< Electric potential on floating boundary condition for each (required) BC index for a single processor. This value is non-zero only when the processor has an actual FPC side
+  REAL,ALLOCATABLE            :: Voltage(:)         !< Electric potential on floating boundary condition for each (required) BC index over all processors.
+!                                                   !< This is the value that is reduced to the MPI root process
+  REAL,ALLOCATABLE            :: VoltageProc(:)     !< Electric potential on floating boundary condition for each (required) BC index for a single processor.
+!                                                   !< This value is non-zero only when the processor has an actual FPC side
   REAL,ALLOCATABLE            :: Charge(:)          !< Accumulated charge on floating boundary condition for each (required) BC index over all processors
   REAL,ALLOCATABLE            :: ChargeProc(:)      !< Accumulated charge on floating boundary condition for each (required) BC index for a single processor
 #if USE_MPI
@@ -182,7 +188,7 @@ TYPE tFPC
                                                     !<   3: number of BCSides for each FPC group
   INTEGER,ALLOCATABLE         :: GroupGlobal(:)     !< Sum of nSides associated with each i-th FPC boundary
   LOGICAL,ALLOCATABLE         :: BConProc(:)        !< True, if iUniqueFPCBC is on current process
-END TYPE
+END TYPE tFPC
 
 TYPE(tFPC)   :: FPC
 !===================================================================================================================================
@@ -192,8 +198,10 @@ TYPE(tFPC)   :: FPC
 LOGICAL                       :: UseEPC             !< Automatic flag when EPCs are active
 
 TYPE tEPC
-  REAL,ALLOCATABLE            :: Voltage(:)         !< Electric potential on floating boundary condition for each (required) BC index over all processors. This is the value that is reduced to the MPI root process
-  REAL,ALLOCATABLE            :: VoltageProc(:)     !< Electric potential on floating boundary condition for each (required) BC index for a single processor. This value is non-zero only when the processor has an actual EPC side
+  REAL,ALLOCATABLE            :: Voltage(:)         !< Electric potential on floating boundary condition for each (required) BC index over all processors.
+!                                                   !< This is the value that is reduced to the MPI root process
+  REAL,ALLOCATABLE            :: VoltageProc(:)     !< Electric potential on floating boundary condition for each (required) BC index for a single processor.
+!                                                   !< This value is non-zero only when the processor has an actual EPC side
   REAL,ALLOCATABLE            :: Charge(:)          !< Accumulated charge on floating boundary condition for each (required) BC index over all processors
   REAL,ALLOCATABLE            :: ChargeProc(:)      !< Accumulated charge on floating boundary condition for each (required) BC index for a single processor
   REAL,ALLOCATABLE            :: Resistance(:)      !< Vector (length corresponds to the number of EPC boundaries) with the resistance for each EPC in Ohm
@@ -212,9 +220,10 @@ TYPE tEPC
                                                     !<   2: iUniqueEPC (i-th EPC group ID)
                                                     !<   3: number of BCSides for each EPC group
   INTEGER,ALLOCATABLE         :: GroupGlobal(:)     !< Sum of nSides associated with each i-th EPC boundary
-END TYPE
+END TYPE tEPC
 
 TYPE(tEPC)   :: EPC
+
 #if defined(PARTICLES)
 !===================================================================================================================================
 !-- Coupled Power Potential (CPP)
@@ -252,12 +261,36 @@ TYPE tBV
   REAL                :: BVData(BVDataLength) !< 1: bias voltage
 !                                             !< 2: Ion excess
 !                                             !< 3: sim. time when next adjustment happens
-END TYPE
+END TYPE tBV
 
 TYPE(tBV)   :: BiasVoltage
-#endif /*defined(PARTICLES)*/
+
+#if USE_PETSC
+!===================================================================================================================================
+!-- Citcuit Model Bounday Condition
 !===================================================================================================================================
 
+LOGICAL           :: UseCircuitModel          !< Automatic flag when the circuit model is to be used
+INTEGER,PARAMETER :: CMBCDataLength = 2       !< Number of variables in CMBCData: Voltage, Charge
+
+TYPE tCMBC
+#if USE_MPI
+  TYPE(tMPIGROUP) :: COMM                     !< communicator and ID for parallel execution
+#endif /*USE_MPI*/
+  INTEGER         :: RefState                 !< BC state for CMBC
+  REAL            :: Capacitance              !< Capacitance of the capacitor that is connected to the AC power supply
+  REAL            :: VoltageRF(1:1)           !< Power supply voltage (from RefState)
+  REAL            :: Voltage                  !< Anode voltage on the electrode that is connected to the capacitor and the AC power supply
+  REAL            :: Charge                   !< Accumulated charge on Circuit Model boundary condition over all processors
+  REAL            :: ChargeProc               !< Accumulated charge on Circuit Model boundary condition for a single processor
+  ! REAL            :: CMBCData(CMBCDataLength) !< 1: Anode voltage
+!                                             !< 2: Integral value of the surface current from plasma to electrode (anode): Charge Q
+END TYPE tCMBC
+
+TYPE(tCMBC) :: CMBC
+#endif /*USE_PETSC*/
+#endif /*defined(PARTICLES)*/
+!===================================================================================================================================
 
 #endif /*USE_HDG*/
 END MODULE MOD_HDG_Vars

@@ -13,7 +13,6 @@
 #include "piclas.h"
 
 MODULE MOD_FillMortar
-#if !(USE_FV) || (USE_HDG)
 !===================================================================================================================================
 ! Add comments please!
 !===================================================================================================================================
@@ -21,6 +20,7 @@ MODULE MOD_FillMortar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
+#if !(USE_FV) || (USE_HDG)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -30,9 +30,7 @@ INTERFACE U_Mortar
   MODULE PROCEDURE U_Mortar
 END INTERFACE
 
-#if !(USE_HDG) || (USE_FV)
 PUBLIC:: Flux_Mortar
-#endif /*USE_HDG*/
 
 PUBLIC::U_Mortar
 
@@ -235,7 +233,7 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
 END DO !MortarSideID
 END SUBROUTINE U_Mortar
 
-#if !(USE_HDG) || (USE_FV)
+
 SUBROUTINE Flux_Mortar(doMPISides)
 !===================================================================================================================================
 ! fills master side from small non-conforming sides, Using 1D projection operators M_1_0,M_2_0
@@ -370,7 +368,6 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
   END SELECT ! mortarType(MortarSideID)
 END DO !MortarSideID
 END SUBROUTINE Flux_Mortar
-#endif !(USE_HDG) || (USE_FV)
 
 #endif /*!(USE_FV) || (USE_HDG)*/
 END MODULE MOD_FillMortar

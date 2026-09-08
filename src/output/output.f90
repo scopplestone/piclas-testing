@@ -19,6 +19,7 @@ MODULE MOD_Output
 ! MODULES
 USE ISO_C_BINDING
 ! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -33,7 +34,8 @@ END INTERFACE
 INTERFACE
   FUNCTION get_inifile_size(filename) BIND(C)
       USE ISO_C_BINDING, ONLY: C_CHAR,C_INT
-      CHARACTER(KIND=C_CHAR) :: filename(*)
+     ! allow(C071)
+      CHARACTER(KIND=C_CHAR),INTENT(IN) :: filename(*)
       INTEGER(KIND=C_INT)    :: get_inifile_size
   END FUNCTION get_inifile_size
 END INTERFACE
@@ -41,9 +43,12 @@ END INTERFACE
 INTERFACE
   SUBROUTINE insert_userblock(filename,filename2,inifilename) BIND(C)
       USE ISO_C_BINDING, ONLY: C_CHAR
-      CHARACTER(KIND=C_CHAR) :: filename(*)
-      CHARACTER(KIND=C_CHAR) :: filename2(*)
-      CHARACTER(KIND=C_CHAR) :: inifilename(*)
+     ! allow(C071)
+      CHARACTER(KIND=C_CHAR),INTENT(IN) :: filename(*)
+     ! allow(C071)
+      CHARACTER(KIND=C_CHAR),INTENT(IN) :: filename2(*)
+     ! allow(C071)
+      CHARACTER(KIND=C_CHAR),INTENT(IN) :: inifilename(*)
   END SUBROUTINE insert_userblock
 END INTERFACE
 
@@ -241,6 +246,7 @@ SUBROUTINE PrintStatusLineRadiation(t,tStart,tEnd,Phot,outputrank)
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_PreProc
+USE MOD_Output_Vars   ,ONLY: doPrintStatusLine
 USE MOD_TimeDisc_Vars ,ONLY: tWallRemaining
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
@@ -257,6 +263,8 @@ INTEGER, INTENT(IN),OPTIONAL :: outputrank
 REAL    :: percent,time_remaining,mins,secs,hours,days
 INTEGER :: visRank
 !==================================================================================================================================
+IF(.NOT.doPrintStatusLine) RETURN
+
 IF (PRESENT(outputrank)) THEN
   visRank = outputrank
 ELSE

@@ -75,8 +75,9 @@ USE MOD_Particle_Tracking_Vars ,ONLY: CountNbrOfLostParts,TotalNbrOfMissingParti
 USE MOD_Particle_Analyze_Vars  ,ONLY: nSpecAnalyze
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcNumPartsOfSpec
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+USE MOD_Particle_Boundary_Vars ,ONLY: Do2DSurfaceCharge
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_HDF5_Output_Particles_PIC  ,ONLY: WriteNodeSourceExtToHDF5
+USE MOD_HDF5_Output_Particles_PIC  ,ONLY: WriteNodeSourceExtToHDF5,WriteSurfNodeSourceToHDF5
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteClonesToHDF5,WriteVibProbInfoToHDF5,WriteAdaptiveWallTempToHDF5
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteAdaptiveInfoToHDF5,WriteParticleToHDF5,WriteBoundaryParticleToHDF5
@@ -91,18 +92,22 @@ USE MOD_Prolong_FV             ,ONLY: ProlongToOutput
 USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution
 USE MOD_TimeDisc_Vars          ,ONLY: dt,time,dt_Min
 USE MOD_Equation_Vars_FV       ,ONLY: DVMnSpecies, DVMnMacro, DVMnInnerE, DVMColl, DVMnSpecTot
-#endif
+#endif /*discrete_velocity*/
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: UseFPC,FPC,UseEPC,EPC
 #if PP_nVar==1
 #elif PP_nVar==3
 USE MOD_Equation_Vars          ,ONLY: B
-#else
+#else /*not PP_nVar==1*/
 USE MOD_Equation_Vars          ,ONLY: E,B
 #endif /*PP_nVar*/
 USE MOD_Analyze_Vars           ,ONLY: CalcElectricTimeDerivative
 #ifdef PARTICLES
 USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,BiasVoltage,BVDataLength
+#if USE_PETSC
+USE MOD_HDG_Vars               ,ONLY: UseCircuitModel,CMBC,CMBCDataLength
+USE MOD_HDG_Readin             ,ONLY: UpdateChargeOnCMBC
+#endif /*USE_PETSC*/
 USE MOD_PICInterpolation_Vars  ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
 USE MOD_Analyze_Vars           ,ONLY: AverageElectricPotential
 USE MOD_Mesh_Vars              ,ONLY: N_VolMesh
@@ -113,7 +118,7 @@ USE MOD_Particle_Analyze_Tools ,ONLY: CalculateElectronIonDensityCell,CalculateE
 USE MOD_HDF5_Output_Particles_HDG  ,ONLY: AddBRElectronFluidToPartSource
 USE MOD_HDG_Vars               ,ONLY: CoupledPowerPotential,UseCoupledPowerPotential,CPPDataLength
 #endif /*PARTICLES*/
-#else
+#else /*not USE_HDG*/
 #endif /*USE_HDG*/
 #if !(PP_TimeDiscMethod==700)
 USE MOD_DG_vars                ,ONLY: N_DG_Mapping,nDofsMapping
@@ -182,6 +187,7 @@ REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:)
 INTEGER                        :: nVarFPC,nVarEPC
 #if defined(PARTICLES)
 REAL,ALLOCATABLE               :: BVDataHDF5(:,:)
+REAL,ALLOCATABLE               :: CMBCDataHDF5(:,:)
 REAL,ALLOCATABLE               :: CPPDataHDF5(:,:)
 #endif /*defined(PARTICLES)*/
 #endif /*USE_HDG*/
@@ -668,6 +674,24 @@ IF(UseBiasVoltage.AND.MPIRoot)THEN
   CALL CloseDataFile()
   DEALLOCATE(BVDataHDF5)
 END IF ! CalcBulkElectronTempi.AND.MPIRoot
+
+#if USE_PETSC
+! Circuit model boundary condition (CMBC)
+IF(UseCircuitModel) CALL UpdateChargeOnCMBC()
+! MPIRoot outputs data to .h5
+IF(UseCircuitModel.AND.MPIRoot)THEN
+  ALLOCATE(CMBCDataHDF5(1:CMBCDataLength,1))
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  CMBCDataHDF5(1:CMBCDataLength,1) = (/CMBC%Voltage, CMBC%Charge/)
+  CALL WriteArrayToHDF5( DataSetName = 'CMBC' , rank = 2   , &
+                         nValGlobal  = (/1_IK , INT(CMBCDataLength,IK)/), &
+                         nVal        = (/1_IK , INT(CMBCDataLength,IK)/), &
+                         offset      = (/0_IK , 0_IK/)                        , &
+                         collective  = .FALSE., RealArray = CMBCDataHDF5(1:CMBCDataLength,1))
+  CALL CloseDataFile()
+  DEALLOCATE(CMBCDataHDF5)
+END IF ! UseCircuitModel.AND.MPIRoot
+#endif /*USE_PETSC*/
 #endif /*USE_HDG*/
 #endif /*PARTICLES*/
 
@@ -761,12 +785,17 @@ CALL WritePMLDataToHDF5(FileName)
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*(PP_nVar==8)*/
 
+#ifdef PARTICLES
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 ! ---------------------------------------------------------
 ! Write NodeSourceExt (external charge density) field to HDF5 file
 ! ---------------------------------------------------------
-#ifdef PARTICLES
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
+IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(FileName,OutputTime_loc)
+
+! ---------------------------------------------------------
+! Write SurfNodeSource (surface charge density) field to HDF5 file
+! ---------------------------------------------------------
+IF(Do2DSurfaceCharge) CALL WriteSurfNodeSourceToHDF5(FileName)
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 ! ---------------------------------------------------------
 ! Output particle emission data to be read during subsequent restarts

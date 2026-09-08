@@ -15,6 +15,7 @@ MODULE MOD_SurfaceModel_Analyze_Vars
 ! Contains global variables used by the Analyze modules.
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -24,12 +25,12 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                       :: SurfModelAnalyzeInitIsDone = .FALSE.
 REAL                          :: SurfModelAnalyzeSampleTime  !< Accumulated simulation time between two outputs to SurfaceAnalyze.csv
-INTEGER(KIND=8)               :: SurfaceAnalyzeStep       ! Analyze of surface is performed each Nth time step
+INTEGER(KIND=i8)              :: SurfaceAnalyzeStep       ! Analyze of surface is performed each Nth time step
 ! Output flags
 LOGICAL                       :: CalcSurfCollCounter      ! Calculate the number of surface collision and number of
                                                           ! adsorbed particles per species
 LOGICAL                       :: CalcPorousBCInfo         ! Calculate output for porous BCs (averaged over whole BC)
-LOGICAL                       :: CalcSurfOutputPerGroup   ! Calculate torque and heatflux per defiened group of surfaces
+LOGICAL                       :: CalcSurfOutputPerGroup   ! Calculate torque and heatflux per defined group of surfaces
 
 ! Output variables
 INTEGER,ALLOCATABLE           :: SurfAnalyzeCount(:)      ! Counter of surface collisions
@@ -63,21 +64,21 @@ TYPE tBoundaryParticleOutput
   INTEGER,ALLOCATABLE           :: SpecIDToBPOSpecID(:)     !< Mapping SpecID to BPOSpecID (1:BpoNSpecies)
 
   LOGICAL                       :: OutputTotalElectricCurrent !< calculate the sum of all charged particle currents and SEE
-END TYPE
+END TYPE tBoundaryParticleOutput
 
 TYPE(tBoundaryParticleOutput)   :: BPO
 
 TYPE tSurfaceGroup
-  INTEGER                       :: nGroups                    !< Total number of groups defiened by user
+  INTEGER                       :: nGroups                    !< Total number of groups defined by user
   REAL,ALLOCATABLE              :: SampState(:,:)             ! Sampling array for Group (1:4, 1:nGroups)
                                                               ! 1-3: torque (M_x, M_y, M_z)
                                                               ! 4  : heat flux
   INTEGER,ALLOCATABLE           :: SurfSide2GroupID(:)        ! Mapping from SurfSideID to GroupID
   REAL,ALLOCATABLE              :: SymmetryFactor(:)
   REAL,ALLOCATABLE              :: Area(:)
-  REAL,ALLOCATABLE              :: VarTimeStep(:)             ! Sum timestep weigthing factor for variable time step
-  INTEGER,ALLOCATABLE           :: Counter(:)                 ! Total number of wall interactions per group
-END TYPE
+  INTEGER,ALLOCATABLE           :: Counter(:)                 ! Number of wall interactions per group (to detect groups
+                                                              ! without any impact during the sampling interval)
+END TYPE tSurfaceGroup
 
 TYPE(tSurfaceGroup)   :: SurfaceGroup
 
@@ -97,7 +98,7 @@ TYPE tSEE
   INTEGER             :: NPartBoundaries    !< Total number of boundaries where the particles are counted
   INTEGER,ALLOCATABLE :: PartBoundaries(:)  !< Part-boundary number on which the particles are counted
   INTEGER,ALLOCATABLE :: BCIDToSEEBCID(:)   !< Mapping BCID to iSEE (1:nPartBound)
-END TYPE
+END TYPE tSEE
 
 TYPE(tSEE)   :: SEE
 

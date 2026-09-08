@@ -19,6 +19,7 @@ MODULE MOD_IO_HDF5
 #if USE_MPI
 USE mpi_f08
 #endif /*USE_MPI*/
+USE MOD_Globals_Vars, ONLY: i8
 USE HDF5
 USE MOD_Globals,ONLY: iError
 IMPLICIT NONE
@@ -53,7 +54,7 @@ TYPE tElementOut
   REAL,POINTER                          :: RealArray(:) => NULL()
   REAL,POINTER                          :: RealScalar   => NULL()
   INTEGER,POINTER                       :: IntArray(:)  => NULL()
-  INTEGER(KIND=8),POINTER               :: LongIntArray(:) => NULL()
+  INTEGER(KIND=i8),POINTER               :: LongIntArray(:) => NULL()
   INTEGER,POINTER                       :: IntScalar    => NULL()
   LOGICAL,POINTER                       :: LogArray(:)  => NULL()
   PROCEDURE(EvalElemInt),POINTER,NOPASS :: eval         => NULL()
@@ -88,17 +89,13 @@ INTERFACE FinalizeElemData
   MODULE PROCEDURE FinalizeElemData
 END INTERFACE
 
-INTERFACE GetDatasetNamesInGroup
-  MODULE PROCEDURE GetDatasetNamesInGroup
-END INTERFACE
-
-PUBLIC::DefineParametersIO
-PUBLIC::InitIOHDF5
-PUBLIC::InitMPIInfo
-PUBLIC::OpenDataFile
-PUBLIC::CloseDataFile
-PUBLIC::AddToElemData
-PUBLIC::GetDatasetNamesInGroup
+PUBLIC :: DefineParametersIO
+PUBLIC :: InitIOHDF5
+PUBLIC :: InitMPIInfo
+PUBLIC :: OpenDataFile
+PUBLIC :: CloseDataFile
+PUBLIC :: AddToElemData
+PUBLIC :: GetDatasetNamesInGroup
 
 !===================================================================================================================================
 
@@ -264,8 +261,7 @@ IF(create)THEN
   END IF
   CALL H5FCREATE_F(TRIM(FileString), H5F_ACC_TRUNC_F, File_ID, iError, creation_prp = Plist_File_ID)
 ELSE !read-only ! and write (added later)
-  IF(.NOT.FILEEXISTS(FileString)) CALL abort(__STAMP__,&
-    'ERROR: Specified file '//TRIM(FileString)//' does not exist.')
+  IF(.NOT.FILEEXISTS(FileString)) CALL abort(__STAMP__,'ERROR: Specified file '//TRIM(FileString)//' does not exist.')
   IF (readOnly) THEN
     CALL H5FOPEN_F(  TRIM(FileString), H5F_ACC_RDONLY_F,  File_ID, iError, access_prp = Plist_File_ID)
   ELSE
@@ -326,7 +322,7 @@ REAL,INTENT(IN),TARGET,OPTIONAL            :: RealArray(nElems)    !< Data is an
 REAL,INTENT(IN),TARGET,OPTIONAL            :: RealScalar           !< Data is a real scalar
 INTEGER,INTENT(IN),TARGET,OPTIONAL         :: IntArray(nElems)     !< Data is an array containing integers
 INTEGER,INTENT(IN),TARGET,OPTIONAL         :: IntScalar            !< Data is a integer scalar
-INTEGER(KIND=8),INTENT(IN),TARGET,OPTIONAL :: LongIntArray(nElems) !< Data is a integer scalar
+INTEGER(KIND=i8),INTENT(IN),TARGET,OPTIONAL :: LongIntArray(nElems) !< Data is a integer scalar
 LOGICAL,INTENT(IN),TARGET,OPTIONAL         :: LogArray(nElems)     !< Data is a logical scalar
 PROCEDURE(EvalElemInt),POINTER,OPTIONAL    :: Eval                 !< Data is evaluated using a function pointer
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -430,8 +426,8 @@ END SUBROUTINE FinalizeElemData
 SUBROUTINE GetDatasetNamesInGroup(group,names)
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-CHARACTER(LEN=*)               :: group    !< name of group
-CHARACTER(LEN=255),ALLOCATABLE :: names(:) !< names of datasets
+CHARACTER(LEN=*),INTENT(IN)                :: group    !< name of group
+CHARACTER(LEN=255),INTENT(OUT),ALLOCATABLE :: names(:) !< names of datasets
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: nMembers,i,type

@@ -296,6 +296,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCyclotronFrequency
 #if USE_MPI
 USE MOD_Globals
 USE MOD_Particle_Analyze_Vars ,ONLY: PPDCellResolved,PICTimeCellResolved,PICValidPlasmaCellSum,NbrOfElemsWithElectrons
+USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementSmallerOne
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -306,7 +307,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if USE_MPI
-INTEGER, PARAMETER :: lenArray=8
+INTEGER, PARAMETER :: lenArray=12
 INTEGER :: tmpArray(1:lenArray)
 #endif /*USE_MPI*/
 !===================================================================================================================================
@@ -363,9 +364,9 @@ IF(CalcPICCFLCondition) CALL CalculatePICCFL()
 ! MaxPartDisplacement = max(v_iPart)*dT/L_cell <  1.0
 IF(CalcMaxPartDisplacement) CALL CalculateMaxPartDisplacement()
 
-! Communicate data
+! Communicate data of all properties in a single message
 #if USE_MPI
-IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep.OR.CalcElectronEnergy)THEN
+IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep.OR.CalcElectronEnergy.OR.CalcMaxPartDisplacement)THEN
   tmpArray = 0
   IF(CalcPointsPerDebyeLength)THEN
     tmpArray(1) = PPDCellResolved(1)
@@ -374,9 +375,17 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep.OR.CalcElectronEnergy)THEN
     tmpArray(4) = PPDCellResolved(4)
   END IF ! CalcPointsPerDebyeLength
   IF(CalcPICTimeStep) tmpArray(5) = PICTimeCellResolved
-  tmpArray(6) = PICValidPlasmaCellSum
-  tmpArray(7) = NbrOfElemsWithElectrons(1)
-  tmpArray(8) = NbrOfElemsWithElectrons(2)
+  IF (CalcPointsPerDebyeLength.OR.CalcPICTimeStep.OR.CalcElectronEnergy) THEN
+    tmpArray(6) = PICValidPlasmaCellSum
+    tmpArray(7) = NbrOfElemsWithElectrons(1)
+    tmpArray(8) = NbrOfElemsWithElectrons(2)
+  END IF ! CalcPointsPerDebyeLength.OR.CalcPICTimeStep.OR.CalcElectronEnergy
+  IF (CalcMaxPartDisplacement) THEN
+    tmpArray(9)  = MaxPartDisplacementSmallerOne(1)
+    tmpArray(10) = MaxPartDisplacementSmallerOne(2)
+    tmpArray(11) = MaxPartDisplacementSmallerOne(3)
+    tmpArray(12) = MaxPartDisplacementSmallerOne(4)
+  END IF ! CalcMaxPartDisplacement
 
   ! Collect sum on MPIRoot
   IF(MPIRoot)THEN
@@ -388,14 +397,21 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep.OR.CalcElectronEnergy)THEN
        PPDCellResolved(4) = tmpArray(4)
     END IF ! CalcPointsPerDebyeLength
     IF(CalcPICTimeStep) PICTimeCellResolved = tmpArray(5)
-    PICValidPlasmaCellSum = tmpArray(6)
-    NbrOfElemsWithElectrons(1) = tmpArray(7)
-    NbrOfElemsWithElectrons(2) = tmpArray(8)
+    IF (CalcPointsPerDebyeLength.OR.CalcPICTimeStep.OR.CalcElectronEnergy) THEN
+      PICValidPlasmaCellSum = tmpArray(6)
+      NbrOfElemsWithElectrons(1) = tmpArray(7)
+      NbrOfElemsWithElectrons(2) = tmpArray(8)
+    END IF ! CalcPointsPerDebyeLength.OR.CalcPICTimeStep.OR.CalcElectronEnergy
+  IF (CalcMaxPartDisplacement) THEN
+    MaxPartDisplacementSmallerOne(1)  = tmpArray(9)
+    MaxPartDisplacementSmallerOne(2) = tmpArray(10)
+    MaxPartDisplacementSmallerOne(3) = tmpArray(11)
+    MaxPartDisplacementSmallerOne(4) = tmpArray(12)
+  END IF ! CalcMaxPartDisplacement
   ELSE
     CALL MPI_REDUCE(tmpArray     , 0        , lenArray , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
   END IF ! MPIRoot
 END IF ! CalcPointsPerDebyeLength.OR.CalcPICTimeStep
-
 #endif /*USE_MPI*/
 
 END SUBROUTINE CalculatePartElemData
@@ -738,7 +754,7 @@ REAL,INTENT(OUT)                :: Ekin(nSpecAnalyze)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: i,ElemID,CNElemID
-REAL(KIND=8)                    :: partV2, GammaFac
+REAL(KIND=dp)                   :: partV2, GammaFac
 REAL                            :: Ekin_loc
 !===================================================================================================================================
 Ekin    = 0.!d0
@@ -896,7 +912,7 @@ REAL,INTENT(OUT)                :: EkinMax(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: i,ElemID,CNElemID
-REAL(KIND=8)                    :: partV2, GammaFac
+REAL(KIND=dp)                   :: partV2, GammaFac
 REAL                            :: Ekin_loc
 !===================================================================================================================================
 ! default values
@@ -2769,7 +2785,7 @@ SUBROUTINE ReacRates(NumSpec, RRate)
 USE MOD_Globals
 USE MOD_Particle_Analyze_Vars ,ONLY: ParticleAnalyzeSampleTime
 USE MOD_DSMC_Vars             ,ONLY: ChemReac, DSMC
-USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, VarTimeStep, usevMPF
 USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume
 USE MOD_Particle_TimeStep     ,ONLY: GetSpeciesTimeStep
 ! IMPLICIT VARIABLE HANDLING
@@ -2782,8 +2798,8 @@ REAL,INTENT(IN)                 :: NumSpec(:)
 REAL,INTENT(OUT)                :: RRate(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iReac, iCase
-REAL                            :: dtVar
+INTEGER                         :: iReac, iCase, iSpec, iSpec2
+REAL                            :: dtVar, MPF
 #if USE_MPI
 REAL                            :: RD(1:ChemReac%NumOfReact)
 #endif /*USE_MPI*/
@@ -2800,42 +2816,38 @@ END IF
 IF(MPIRoot)THEN
   DO iReac=1, ChemReac%NumOfReact
     iCase = ChemReac%ReactCase(iReac)
+    iSpec = ChemReac%Reactants(iReac,1)
+    iSpec2 = ChemReac%Reactants(iReac,2)
     ! Species-specific time step
     IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
       dtVar = ParticleAnalyzeSampleTime * GetSpeciesTimeStep(iCase)
     ELSE
       dtVar = ParticleAnalyzeSampleTime
     END IF
-    IF ((NumSpec(ChemReac%Reactants(iReac,1)).GT.0).AND.(NumSpec(ChemReac%Reactants(iReac,2)).GT.0)) THEN
+    IF ((NumSpec(iSpec).GT.0).AND.(NumSpec(iSpec2).GT.0)) THEN
+      IF(usevMPF) THEN
+        MPF = 1.
+      ELSE
+        MPF = Species(iSpec)%MacroParticleFactor
+      END IF
       IF(ChemReac%Reactants(iReac,3).NE.0) THEN
         ! Recombination reactions with 3 reactants
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
-          RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%Products(iReac,1))%MacroParticleFactor &
-                     * MeshVolume**2 / (dtVar &
-                     * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor * NumSpec(ChemReac%Reactants(iReac,1)) &
-                     * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor * NumSpec(ChemReac%Reactants(iReac,2)) &
-                     * Species(ChemReac%Reactants(iReac,3))%MacroParticleFactor * NumSpec(nSpecies+1))
+          RRate(iReac) = ChemReac%NumReac(iReac) * MPF * MeshVolume**2 &
+                       / (dtVar * MPF * NumSpec(iSpec) * MPF * NumSpec(iSpec2) * MPF * NumSpec(nSpecies+1))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
-          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iCase) * MeshVolume**2 &
-               * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor / (dtVar * ChemReac%ReacCount(iReac)             &
-               * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,1))     &
-               * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,2))    &
-               * Species(ChemReac%Reactants(iReac,3))%MacroParticleFactor*NumSpec(nSpecies+1))
+          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iCase) * MeshVolume**2 * MPF &
+                       / (dtVar * ChemReac%ReacCount(iReac) * MPF*NumSpec(iSpec) * MPF*NumSpec(iSpec2) * MPF*NumSpec(nSpecies+1))
         END IF
       ELSE
         ! Regular reactions with 2 reactants (dissociation, ionization, exchange)
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
-          RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%Products(iReac,1))%MacroParticleFactor &
-                       * MeshVolume / (dtVar &
-                       * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,1)) &
-                       * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,2)))
+          RRate(iReac) = ChemReac%NumReac(iReac) * MPF * MeshVolume / (dtVar * MPF*NumSpec(iSpec) * MPF*NumSpec(iSpec2))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
-          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iCase) &
-               * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor* MeshVolume / (dtVar * ChemReac%ReacCount(iReac) &
-               * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,1))         &
-               * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,2)))
+          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iCase) * MPF* MeshVolume &
+                       / (dtVar * ChemReac%ReacCount(iReac) * MPF*NumSpec(iSpec) * MPF*NumSpec(iSpec2))
         END IF
       END IF
     END IF
@@ -3356,7 +3368,7 @@ USE MOD_Globals               ,ONLY: VECNORM3D
 USE MOD_Preproc
 USE MOD_Mesh_Vars             ,ONLY: nElems, offSetElem
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
-USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementCell
+USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementCell,MaxPartDisplacementSmallerOne
 USE MOD_Particle_Analyze_Vars ,ONLY: MaxPartDisplacementCellX,MaxPartDisplacementCellY,MaxPartDisplacementCellZ
 USE MOD_Particle_Vars         ,ONLY: PDM,PEM,PartState
 USE MOD_TimeDisc_Vars         ,ONLY: dt
@@ -3375,6 +3387,7 @@ REAL                 :: MaxVeloAbs(1:nElems,1:3) ! fastest particle in 3D
 !===================================================================================================================================
 MaxVelo(1:nElems,1:3) = 0.0
 MaxVeloAbs(1:nElems,1:3) = 0.0
+MaxPartDisplacementSmallerOne = 0
 ! loop over all particles
 DO iPart = 1, PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart)) THEN
@@ -3404,6 +3417,10 @@ DO iElem=1,PP_nElems
     MaxPartDisplacementCellX(iElem) = a*vX  /ElemCharLengthX_Shared(CNElemID)  ! determined from average distance in X
     MaxPartDisplacementCellY(iElem) = a*vY  /ElemCharLengthY_Shared(CNElemID)  ! determined from average distance in Y
     MaxPartDisplacementCellZ(iElem) = a*vZ  /ElemCharLengthZ_Shared(CNElemID)  ! determined from average distance in Z
+    IF(MaxPartDisplacementCell(iElem) .LT.1.0) MaxPartDisplacementSmallerOne(1) = MaxPartDisplacementSmallerOne(1) + 1
+    IF(MaxPartDisplacementCellX(iElem).LT.1.0) MaxPartDisplacementSmallerOne(2) = MaxPartDisplacementSmallerOne(2) + 1
+    IF(MaxPartDisplacementCellY(iElem).LT.1.0) MaxPartDisplacementSmallerOne(3) = MaxPartDisplacementSmallerOne(3) + 1
+    IF(MaxPartDisplacementCellZ(iElem).LT.1.0) MaxPartDisplacementSmallerOne(4) = MaxPartDisplacementSmallerOne(4) + 1
   END ASSOCIATE
 END DO ! iElem=1,PP_nElems
 

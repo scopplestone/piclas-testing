@@ -189,6 +189,9 @@ USE MOD_Mesh_Vars                 ,ONLY: BoundaryName
 USE MOD_Globals                   ,ONLY: abort
 USE MOD_HDG_Vars                  ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars                 ,ONLY: BoundaryType
+#if USE_PETSC
+USE MOD_HDG_Vars                  ,ONLY: UseCircuitModel,CMBC
+#endif /*USE_PETSC*/
 #endif /*USE_HDG*/
 USE MOD_Particle_Vars             ,ONLY: PartState
 USE MOD_StringTools               ,ONLY: STRICMP
@@ -202,7 +205,7 @@ LOGICAL, INTENT(OUT),OPTIONAL :: crossedBC               !< optional flag is nee
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec, iSF
-REAL                          :: MPF!,RandVal(2)
+REAL                          :: MPF
 #if USE_HDG
 INTEGER                       :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
 #endif /*USE_HDG*/
@@ -278,7 +281,7 @@ IF(PRESENT(BCID)) THEN
       ! Add +1 for electrons and -X for ions: This is opposite to the summation in CountNeutralizationParticles() where the surplus
       ! of ions is calculated and compensated with an equal amount of electrons to force quasi-neutrality in the neutralization
       ! elements.
-      NeutralizationBalance = NeutralizationBalance - NINT(Species(iSpec)%ChargeIC/ElementaryCharge)
+      NeutralizationBalance = NeutralizationBalance - Species(iSpec)%ChargeIC/ElementaryCharge*MPF
     END IF
   END IF ! UseNeutralization
 
@@ -314,6 +317,17 @@ IF(PRESENT(BCID)) THEN
       EPC%ChargeProc(iUniqueEPCBC) = EPC%ChargeProc(iUniqueEPCBC) + Species(iSpec)%ChargeIC * MPF
     END IF ! BCType.EQ.8
   END IF ! UseEPC
+
+#if USE_PETSC
+  ! Check if circuit model boundary condition (CMBC) is used
+  IF(UseCircuitModel)THEN
+    iBC = PartBound%MapToFieldBC(BCID)
+    IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(BCID) must be >0',IntInfoOpt=iBC)
+    IF(BoundaryType(iBC,BC_TYPE).EQ.40)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
+      CMBC%ChargeProc = CMBC%ChargeProc + Species(iSpec)%ChargeIC * MPF
+    END IF ! BCType.EQ.8
+  END IF ! UseEPC
+#endif /*USE_PETSC*/
 #endif /*USE_HDG*/
 END IF ! PRESENT(BCID)
 

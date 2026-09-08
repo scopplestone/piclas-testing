@@ -654,8 +654,7 @@ IF(CalcRelaxProb.AND.(Collismode.LE.1)) CALL abort(__STAMP__,&
 IF(BGGas%UseDistribution.AND.(CalcNumDens.OR.DSMC%CalcQualityFactors.OR.CalcReacRates)) CALL CalcNumberDensityBGGasDistri()
 
 IF(CalcReacRates) THEN
-  IF(usevMPF.OR.UseVarTimeStep) CALL abort(__STAMP__,&
-      'ERROR: CalcReacRates is not supported with variable weighting or variable time step yet!')
+  IF(UseVarTimeStep) CALL abort(__STAMP__,'ERROR: CalcReacRates is not supported with variable time step yet!')
 END IF
 
 IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcSurfFluxInfo.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
@@ -887,6 +886,7 @@ USE MOD_Particle_Vars          ,ONLY: usevMPF
 #if USE_MPI
 USE MOD_Particle_Vars          ,ONLY: ForceAverage
 #endif /*USE_MPI*/
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -907,7 +907,7 @@ REAL                :: EkinMax(nSpecies)
 REAL                :: ETotal
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
 REAL                :: MaxCollProb, MeanCollProb, MeanFreePath, MaxMCSoverMFP, ResolvedCellPercentage, ResolvedTimestep
-REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2)
+REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2), MPF
 INTEGER             :: bgSpec
 #endif
 #if (PP_TimeDiscMethod==4)
@@ -1391,6 +1391,19 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
             END DO
           END IF
         END IF ! CalcEnergyScalingRatioVMPF
+        ! Percentage (a value of 1.0 is 100%) of elements where the max. particle displacement is the characteristic length of the
+        ! element. Ideally, when the particle is only allowed to travel the length of an element in each time step, this value
+        ! should be 1.0 over the whole simulation
+        IF(CalcMaxPartDisplacement)THEN
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentMaxPartDisplacement3D'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentMaxPartDisplacementDirX'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentMaxPartDisplacementDirY'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentMaxPartDisplacementDirZ'
+          OutputCounter = OutputCounter + 1
+        END IF ! CalcMaxPartDisplacement
         ! Finish the line with new line character
         WRITE(unit_index,'(A)') ''
       END IF
@@ -1465,10 +1478,15 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
       DO iSpec = 1, nSpecies
         IF(BGGas%BackgroundSpecies(iSpec)) THEN
           bgSpec = BGGas%MapSpecToBGSpec(iSpec)
-          IF(BGGas%UseDistribution) THEN
-            NumSpecTmp(iSpec) = BGGas%DistributionNumDens(bgSpec)*MeshVolume/Species(iSpec)%MacroParticleFactor
+          IF(usevMPF) THEN
+            MPF = 1.
           ELSE
-            NumSpecTmp(iSpec) = BGGas%NumberDensity(bgSpec)*MeshVolume/Species(iSpec)%MacroParticleFactor
+            MPF = Species(iSpec)%MacroParticleFactor
+          END IF
+          IF(BGGas%UseDistribution) THEN
+            NumSpecTmp(iSpec) = BGGas%DistributionNumDens(bgSpec)*MeshVolume/MPF
+          ELSE
+            NumSpecTmp(iSpec) = BGGas%NumberDensity(bgSpec)*MeshVolume/MPF
           END IF
           IF(nSpecAnalyze.GT.1) THEN
             NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze) + NumSpecTmp(iSpec)
@@ -1982,6 +2000,15 @@ IF (MPIRoot) THEN
       EnergyScalingRatioVMPF = 0.
     END IF
   END IF ! CalcEnergyScalingRatioVMPF
+  ! Percentage (a value of 1.0 is 100%) of elements where the max. particle displacement is the characteristic length of the
+  ! element. Ideally, when the particle is only allowed to travel the length of an element in each time step, this value
+  ! should be 1.0 over the whole simulation
+  IF(CalcMaxPartDisplacement)THEN
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(MaxPartDisplacementSmallerOne(1)) / REAL(nGlobalElems)
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(MaxPartDisplacementSmallerOne(2)) / REAL(nGlobalElems)
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(MaxPartDisplacementSmallerOne(3)) / REAL(nGlobalElems)
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(MaxPartDisplacementSmallerOne(4)) / REAL(nGlobalElems)
+  END IF ! CalcMaxPartDisplacement
   ! Finish the line with new line character
   WRITE(unit_index,'(A)') ''
 #if USE_MPI

@@ -40,9 +40,9 @@ jobs:
       run: |
         git config --global --add safe.directory '*'
         git status
-        curl -L -O https://github.com/Kitware/CMake/releases/download/v3.16.4/cmake-3.16.4-Linux-x86_64.sh
-        chmod +x cmake-3.16.4-Linux-x86_64.sh
-        ./cmake-3.16.4-Linux-x86_64.sh --skip-license --prefix=/usr/local
+        curl -L -O https://github.com/Kitware/CMake/releases/download/v3.19.7/cmake-3.19.7-Linux-x86_64.sh
+        chmod +x cmake-3.19.7-Linux-x86_64.sh
+        ./cmake-3.19.7-Linux-x86_64.sh --skip-license --prefix=/usr/local
         curl -L -O https://www.mirrorservice.org/sites/dl.fedoraproject.org/pub/epel/8/Everything/x86_64/Packages/p/p7zip-16.02-31.el8.x86_64.rpm
         curl -L -O https://www.mirrorservice.org/sites/dl.fedoraproject.org/pub/epel/8/Everything/x86_64/Packages/p/p7zip-plugins-16.02-31.el8.x86_64.rpm
         rpm -U --quiet p7zip-16.02-31.el8.x86_64.rpm
@@ -182,7 +182,7 @@ jobs:
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: |
         source ~/.bashrc
-        cmake -G Ninja -B build_single -DPICLAS_INSTRUCTION=-mtune=generic -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+        cmake -G Ninja -B build_single -DPICLAS_INSTRUCTION=-mtune=generic -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=OFF -DLIBS_BUILD_HDF5=ON -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
     - name: Build PICLas Single-core
       shell: bash
@@ -418,7 +418,7 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: piclas-binaries-v4.1.0
+        name: piclas-binaries-v4.2.0
         path: artifacts
 
     - name: Upload release asset

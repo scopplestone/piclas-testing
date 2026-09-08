@@ -80,7 +80,7 @@ Before setting up a simulation, the code must be compiled with the desired param
     * DSMC: Direct Simulation Monte Carlo, Section {ref}`sec:DSMC`
     * FP-Flow: Fokker-Planck-based collision operator, Section {ref}`sec:FP-Flow`
     * BGK-Flow: Bhatnagar-Gross-Krook collision operator, Section {ref}`sec:BGK-Flow`
-    * Radiation: Radiation and radiation transport solver, Section {ref}`sec:Radiation`
+    * Radiation: Radiation and radiation transport solver, Section {ref}`sec:radiation`
 * ``PICLAS_EQNSYSNAME``: Equation system to be solved
     * maxwell: Solution of the full Maxwell's equations for an electromagnetic simulation
     * poisson: Solution of the Poisson's equation for an electrostatic simulation

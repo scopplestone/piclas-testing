@@ -45,6 +45,7 @@ USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,MeasureTrackTime
 USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Boundary_Sampling, ONLY: ExchangeChemSurfData
@@ -102,7 +103,7 @@ DO iPart=1,PDM%ParticleVecLength
     PartState(2,iPart) = PartState(2,iPart) + PartState(5,iPart) * dtVar
     PartState(3,iPart) = PartState(3,iPart) + PartState(6,iPart) * dtVar
     ! Axisymmetric treatment of particles: rotation of the position and velocity vector
-    CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
+    IF (.NOT.Symmetry%AxisymmetricExact) CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
   END IF
 END DO
 

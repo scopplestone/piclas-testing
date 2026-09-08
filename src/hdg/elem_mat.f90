@@ -21,6 +21,7 @@
 !===================================================================================================================================
 MODULE MOD_Elem_Mat
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
@@ -63,11 +64,15 @@ USE MOD_Basis              ,ONLY: getSPDInverse
 USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #endif /*defined(PARTICLES)*/
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
+USE MOD_Mesh_Vars          ,ONLY: BoundaryType,BC
+#if defined(PARTICLES)
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+#endif /*defined(PARTICLES)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER(KIND=8),INTENT(IN)  :: td_iter
+INTEGER(KIND=i8),INTENT(IN)  :: td_iter
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -81,8 +86,8 @@ REAL                 :: TauS(2,3),Fdiag_i
 REAL                 :: Dhat(nGP_vol(Nmax),nGP_vol(Nmax))
 REAL                 :: Ktilde(3,3)
 REAL                 :: Stmp1(nGP_vol(Nmax),nGP_face(Nmax)), Stmp2(nGP_face(Nmax),nGP_face(Nmax))
-INTEGER              :: idx(3),jdx(3),gdx(3)
-REAL                 :: time0, time
+INTEGER              :: idx(3),jdx(3),gdx(3),BCType
+REAL                 :: time0, time, fac
 REAL                 :: SurfElemLoc(0:Nmax,0:Nmax,6), Ja_tmp(3,0:NMax,0:NMax), Ja_vol(3,0:NMax,0:NMax,0:NMax)
 !===================================================================================================================================
 
@@ -282,6 +287,17 @@ DO iElem=1,PP_nElems
 #endif /*VDM_ANALYTICAL*/
   ! Compute for each side pair  Ehat Dhat^{-1} Ehat^T
   DO jLocSide=1,6
+    fac = Tau(ielem)
+    ! DCBC
+#if defined(PARTICLES)
+    iSide = SideID(jLocSide)
+    IF (BC(iSide).GT.0)THEN
+      BCType = BoundaryType(BC(iSide),BC_TYPE)
+      IF (BCType.EQ.30) THEN ! Distributed Capacitance
+        fac = fac + PartBound%DCPermittivity(PartBound%MapToPartBC(BC(iSide))) / PartBound%DCThickness(PartBound%MapToPartBC(BC(iSide)))
+      END IF
+    END IF
+#endif /*defined(PARTICLES)*/
     !Stmp1 = TRANSPOSE( MATMUL( Ehat(:,:,jLocSide,iElem) , InvDhat(:,:,iElem) ) )
     CALL DSYMM('L','U',nGP_vol(Nloc),nGP_face(Nloc),1., &
                 HDG_Vol_N(iElem)%InvDhat(:,:),nGP_vol(Nloc), &
@@ -298,7 +314,7 @@ DO iElem=1,PP_nElems
     ! then combined with to Smat  = Smat - F
     DO q=0,Nloc; DO p=0,Nloc
       i=q*(Nloc+1)+p+1
-      Fdiag_i = - Tau(ielem)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*SurfElemLoc(p,q,jLocSide)
+      Fdiag_i = - fac*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*SurfElemLoc(p,q,jLocSide)
       HDG_Vol_N(iElem)%Smat(i,i,jLocSide,jLocSide) = HDG_Vol_N(iElem)%Smat(i,i,jLocSide,jLocSide) -Fdiag_i
     END DO; END DO !p,q
 
@@ -355,7 +371,6 @@ SUBROUTINE PETScFillSystemMatrix()
 ! Use Smat to fill the PETSc System matrix
 !===================================================================================================================================
 ! MODULES
-! USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_HDG_Vars_PETSc
@@ -370,6 +385,8 @@ USE MOD_Interpolation_Vars ,ONLY: N_Inter
 USE MOD_Mesh_Vars          ,ONLY: offSetElem
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: nGlobalMortarSides
+USE MOD_Globals_Vars       ,ONLY: eps0
+USE MOD_Globals            ,ONLY: MPIRoot
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -503,6 +520,55 @@ DO BCsideID=1,nConductorBCsides
     END IF
   END DO
 END DO
+
+#if defined(PARTICLES)
+! Set circuit model matrix
+! The CMBC is at the end, so we need to fill the last columns of the global matrix.
+DO BCsideID=1,nCircuitModelBCsides
+  jSideID=CircuitModelBC(BCsideID)
+  jLocSide=SideToElem(S2E_LOC_SIDE_ID,jSideID)
+  jNloc=N_SurfMesh(jSideID)%NSide
+
+  iElem=SideToElem(S2E_ELEM_ID,jSideID)
+  NElem=N_DG_Mapping(2,iElem+offsetElem)
+
+  jIndices(1:1) = nGlobalPETScDOFs-1
+
+  DO iLocSide=1,6
+    iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+
+    ! Summing up columns since all DOFs are one circuit model DOF
+    DO i=1,nGP_face(NElem)
+      Smatloc(i,1) = SUM(HDG_Vol_N(iElem)%Smat(i,:,iLocSide,jLocSide))
+    END DO
+
+    IF(MaskedSide(iSideID).EQ.2) THEN
+      ! From CMBC to CMBC: 1x1 matrix
+      Smatloc(1,1) = SUM(Smatloc(:,1))
+
+      iIndices(1:1) = nGlobalPETScDOFs-1
+      ! Fortran API: non-array values, v, passed to PETSc routines expecting arrays must be cast with [v] in the calling sequence
+      PetscCallA(MatSetValues(PETScSystemMatrix,1,[iIndices(1:1)],1,[jIndices(1:1)],[Smatloc(1,1)],ADD_VALUES,ierr))
+    ELSEIF(MaskedSide(iSideID).GT.0) THEN
+      CYCLE
+    ELSE
+      ! From CMBC to normal side: iNdof x 1 matrix
+      iNloc=N_SurfMesh(iSideID)%NSide
+      iNdof=nGP_face(iNloc)
+      CALL ChangeBasis2D(1, NElem, iNloc, TRANSPOSE(PREF_VDM(iNloc,NElem)%Vdm), Smatloc(1:nGP_face(NElem),1), Smatloc(1:iNdof,1))
+
+      iIndices(1:iNdof) = (/ (OffsetGlobalPETScDOF(iSideID) + i - 1, i=1,iNdof) /)
+      PetscCallA(MatSetValues(PETScSystemMatrix,iNdof,iIndices(1:iNdof),1,jIndices(1:1),Smatloc(1:iNdof,1),ADD_VALUES,ierr))
+    END IF
+  END DO
+END DO
+
+! Add diagonal contribution of C/eps0
+IF(MPIRoot.AND.UseCircuitModel)THEN
+  iIndices(1) = nGlobalPETScDOFs - 1
+  PetscCallA(MatSetValues(PETScSystemMatrix,1,[iIndices(1:1)],1,[iIndices(1:1)],[CMBC%Capacitance/eps0],ADD_VALUES,ierr))
+END IF
+#endif /*defined(PARTICLES)*/
 
 PetscCallA(MatAssemblyBegin(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))
 PetscCallA(MatAssemblyEnd(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))

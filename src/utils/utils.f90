@@ -17,6 +17,7 @@ MODULE MOD_Utils
 ! Contains utils required by xy- modules
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i4,i8,dp
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
@@ -25,8 +26,9 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTERFACE InsertionSort
-  MODULE PROCEDURE InsertionSort
-END INTERFACE
+  MODULE PROCEDURE InsertionSortInt
+  MODULE PROCEDURE InsertionSortReal
+END INTERFACE InsertionSort
 
 INTERFACE QSort1Doubleint1Pint
   MODULE PROCEDURE QSort1DoubleInt1Pint
@@ -49,7 +51,59 @@ PUBLIC:: SortArray,QuickSortTwoArrays
 
 CONTAINS
 
-PPURE SUBROUTINE InsertionSort(a,id,len)
+PPURE SUBROUTINE InsertionSortInt(a,id,len)
+!===================================================================================================================================
+! Insertion sort
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                :: len
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,INTENT(INOUT)             :: a(1:len)
+INTEGER,INTENT(INOUT),OPTIONAL    :: id(1:len)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: tmpR
+INTEGER                           :: i, j, tmpI
+!===================================================================================================================================
+
+IF(PRESENT(ID))THEN
+  DO i=2,len
+    j=i-1
+    tmpR=a(i)
+    tmpI=ID(i)
+    DO WHILE (j.GE.1) !(j.GE.1 .AND. a(j).GT.tmpR)
+      IF (a(j).LE.tmpR) EXIT
+      a (j+1) = a(j)
+      ID(j+1) = ID(j)
+      j=j-1
+    END DO
+    a (j+1) =tmpR
+    ID(j+1) =tmpI
+  END DO ! i
+ELSE
+  DO i=2,len
+    j=i-1
+    tmpR=a(i)
+    DO WHILE (j.GE.1) !(j.GE.1 .AND. a(j).GT.tmpR)
+      IF (a(j).LE.tmpR) EXIT
+      a (j+1) = a(j)
+      j=j-1
+    END DO
+    a (j+1) =tmpR
+  END DO ! i
+END IF
+
+END SUBROUTINE InsertionSortInt
+
+
+PPURE SUBROUTINE InsertionSortReal(a,id,len)
 !===================================================================================================================================
 ! Insertion sort
 !===================================================================================================================================
@@ -98,7 +152,7 @@ ELSE
   END DO ! i
 END IF
 
-END SUBROUTINE InsertionSort
+END SUBROUTINE InsertionSortReal
 
 
 RECURSIVE SUBROUTINE Qsort1DoubleInt1PInt(A,P)
@@ -111,7 +165,7 @@ RECURSIVE SUBROUTINE Qsort1DoubleInt1PInt(A,P)
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/ OUTPUT VARIABLES
-   INTEGER(KIND=8),INTENT(INOUT)    :: A(:) ! active array, will be sorted
+   INTEGER(KIND=i8),INTENT(INOUT)    :: A(:) ! active array, will be sorted
    INTEGER,INTENT(INOUT)            :: P(:) ! passive array, is sorted like A
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -138,7 +192,7 @@ SUBROUTINE Partition1DoubleInt1PInt(A,P,marker)
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/ OUTPUT VARIABLES
-   INTEGER(KIND=8),INTENT(INOUT)    :: A(:) ! active array, will be sorted
+   INTEGER(KIND=i8),INTENT(INOUT)    :: A(:) ! active array, will be sorted
    INTEGER,INTENT(INOUT)            :: P(:) ! passive array, is sorted like A
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -146,7 +200,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
    INTEGER                          :: i,j  ! ?
-   INTEGER(KIND=8)                  :: temp,x  ! ?
+   INTEGER(KIND=i8)                 :: temp,x  ! ?
    INTEGER                          :: ptemp  ! ?
 !===================================================================================================================================
    x = A(1)
@@ -243,28 +297,28 @@ SUBROUTINE RootsOfBesselFunctions( targetN, targetM, p, zo )
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER(KIND=4),INTENT(IN) ::  p ! select TE-0 or TM-1 mode
-INTEGER(KIND=4),INTENT(IN) ::  targetN
-INTEGER(KIND=4),INTENT(IN) ::  targetM
+INTEGER(KIND=i4),INTENT(IN) ::  p ! select TE-0 or TM-1 mode
+INTEGER(KIND=i4),INTENT(IN) ::  targetN
+INTEGER(KIND=i4),INTENT(IN) ::  targetM
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL(KIND=8),INTENT(OUT)   ::  zo(1:targetM)
+REAL(KIND=dp),INTENT(OUT)   ::  zo(1:targetM)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER(KIND= 4)  :: j
-INTEGER(KIND= 4)  :: k
-INTEGER(KIND= 4)  :: l
-INTEGER(KIND= 4)  :: l0
-INTEGER(KIND= 4)  :: l1
-INTEGER(KIND= 4)  :: l2
-REAL ( KIND = 8)  :: x
-REAL ( KIND = 8)  :: x0
-REAL ( KIND = 8)  :: x1
-REAL ( KIND = 8)  :: x2
-REAL ( KIND = 8)  :: zoc(1:targetM)
-REAL ( KIND = 8)  :: dbessel
-REAL ( KIND = 8)  :: d2bessel
-REAL ( KIND = 8)  :: bessel
+INTEGER(KIND=i4)  :: j
+INTEGER(KIND=i4)  :: k
+INTEGER(KIND=i4)  :: l
+INTEGER(KIND=i4)  :: l0
+INTEGER(KIND=i4)  :: l1
+INTEGER(KIND=i4)  :: l2
+REAL ( KIND =i8)  :: x
+REAL ( KIND =i8)  :: x0
+REAL ( KIND =i8)  :: x1
+REAL ( KIND =i8)  :: x2
+REAL ( KIND =i8)  :: zoc(1:targetM)
+REAL ( KIND =i8)  :: dbessel
+REAL ( KIND =i8)  :: d2bessel
+REAL ( KIND =i8)  :: bessel
 !===================================================================================================================================
 
   l0 = 0
@@ -473,7 +527,7 @@ PPURE SUBROUTINE SortArray(EndID,ArrayA,ArrayB)
 ! In the following example sorting from iSide = nBCSides+1 to nSides is performed
 !
 ! BEFORE:
-!  
+!
 !      iSide         SideIDToSurfID(iSide)      GlobalUniqueSideID(iSide)
 !        10                   -1                           3
 !        11               --- 10 <--                      10
@@ -482,9 +536,9 @@ PPURE SUBROUTINE SortArray(EndID,ArrayA,ArrayB)
 !        14               |   -1   |                      15
 !        15               --> 11 ---                       4
 !        16                   -1                           6
-!    
+!
 ! AFTER:
-!    
+!
 !      iSide         SideIDToSurfID(iSide)      GlobalUniqueSideID(iSide)
 !        10                   -1                           3
 !        11                   11                          10
@@ -499,7 +553,7 @@ PPURE SUBROUTINE SortArray(EndID,ArrayA,ArrayB)
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)    :: EndID
 INTEGER,INTENT(INOUT) :: ArrayA(EndID)
 INTEGER,INTENT(IN)    :: ArrayB(EndID)
@@ -537,7 +591,7 @@ PPURE RECURSIVE SUBROUTINE QuickSortTwoArrays(StartID,EndID,ArrayA,ArrayB)
 ! In the following example sorting from iSide = nBCSides+1 to nSides is performed
 !
 ! BEFORE:
-!  
+!
 !      iSide         GlobalUniqueSideID(iSide)      SortedUniqueSides(iSide)
 !        11                   10                          11
 !        12                    5                          12
@@ -545,9 +599,9 @@ PPURE RECURSIVE SUBROUTINE QuickSortTwoArrays(StartID,EndID,ArrayA,ArrayB)
 !        14                    1                          14
 !        15                   11                          15
 !        16                    2                          16
-!    
+!
 ! AFTER:
-!    
+!
 !      iSide         SideIDToSurfID(iSide)      GlobalUniqueSideID(iSide)
 !        14                    1                          14
 !        16                    2                          16
@@ -562,10 +616,10 @@ PPURE RECURSIVE SUBROUTINE QuickSortTwoArrays(StartID,EndID,ArrayA,ArrayB)
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
-INTEGER,INTENT(IN)    :: StartID,EndID
-INTEGER,INTENT(INOUT) :: ArrayA(*)
-INTEGER,INTENT(INOUT) :: ArrayB(*)
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN)                 :: StartID,EndID
+INTEGER,DIMENSION(:),INTENT(INOUT) :: ArrayA
+INTEGER,DIMENSION(:),INTENT(INOUT) :: ArrayB
 ! insert IO variables here
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES

@@ -1,17 +1,15 @@
-import numpy as np
+import re
+
 import h5py
 import lxcat_data_parser as ldp
 
 # Input database
-# database_input = "Database_Phelps.txt"
-database_input = "turner_benchmark_he_electron_table.dat"
+database_input = "Example.txt"
 # Output database
-# database_output = "LXCat_Database_Phelps_Electron_Scattering_EFFECTIVE.h5"
-database_output = "XSec_Database_He_Plasma.h5"
+database_output = "Example.h5"
 # Species list to be included in the output database
-species_list = ["He"]
+species_list = ["Xe","Ar"]
 # Reference of the utilized database
-# reference = "Phelps database, www.lxcat.net, retrieved on February 18, 2020. LXCat is an open-access website with databases contributed by members of the scientific community."
 reference = "Biagi-v7.1 database, www.lxcat.net, retrieved on April 04, 2022. LXCat is an open-access website with databases contributed by members of the scientific community."
 
 # Output of the HDF5 database
@@ -23,7 +21,7 @@ def sort_by_threshold(elem):
 
 # Read-in of data and output of the species containers
 for current_species in species_list:
-    print(current_species)
+    print(f'\nCurrent species: {current_species}')
     grp_spec = hdf.create_group(current_species + "-electron")
     data_spec = ldp.CrossSectionSet(database_input,imposed_species=current_species)
     result_rot = 0
@@ -31,24 +29,16 @@ for current_species in species_list:
     result_elec = 0
     total = 0
     for cross_section in data_spec.cross_sections:
-        if cross_section.type == ldp.CrossSectionTypes.EXCITATION:
+        if cross_section.type == ldp.CrossSectionTypes.EXCITATION: #and cross_section.type != ldp.CrossSectionTypes.IONIZATION:
             # Electronic levels: Look for a star in the process description or scan the info for electronic
-            if cross_section.info.get('PROCESS').find('*') != -1:
-                result_elec += 1
-            elif str(cross_section.info).casefold().find('electronic') != -1:
+            if cross_section.info.get('PROCESS').find('*') != -1 or re.search(r'[A-Za-z]+\(([0-9]+[SPDF][0-9]*!*|HIGH)\)', cross_section.info.get('PROCESS')) !=1 or str(cross_section.info).casefold().find('electronic') != -1:
                 result_elec += 1
             # Rotational excitation: Look for a j or rot in the process description or scan the info for rotation
-            if cross_section.info.get('PROCESS').casefold().find('j') != -1:
-                result_rot += 1
-            elif cross_section.info.get('PROCESS').casefold().find('rot') != -1:
-                result_rot += 1
-            elif str(cross_section.info).casefold().find('rotation') != -1:
+            if cross_section.info.get('PROCESS').casefold().find('j') != -1 or cross_section.info.get('PROCESS').casefold().find('rot') != -1 or str(cross_section.info).casefold().find('rotation') != -1:
                 result_rot += 1
             # Vibrational excitation: Look for v (but check that its not the v from eV) or scan the info for vibration
             if cross_section.info.get('PROCESS').casefold().find('v') != -1:
-                if cross_section.info.get('PROCESS').casefold().find('v')-1 != cross_section.info.get('PROCESS').casefold().find('ev'):
-                    result_vib += 1
-                elif str(cross_section.info).casefold().find('vibration') != -1:
+                if cross_section.info.get('PROCESS').casefold().find('v')-1 != cross_section.info.get('PROCESS').casefold().find('ev') or str(cross_section.info).casefold().find('vibration') != -1:
                     result_vib += 1
             elif str(cross_section.info).casefold().find('vibration') != -1:
                 result_vib += 1
@@ -103,28 +93,16 @@ for current_species in species_list:
         ## Write cross-section dataset of the current species in the HDF5 database
         test = 0
         # Electronic levels: Look for a star in the process description or scan the info for electronic
-        if cross_section.info.get('PROCESS').find('*') != -1:
-            dataset = grp_elec.create_dataset(str(cross_section.threshold), data=cross_section.data)
-            test += 1
-        elif str(cross_section.info).casefold().find('electronic') != -1:
+        if cross_section.info.get('PROCESS').find('*') != -1 or re.search(r'[A-Za-z]+\(([0-9]+[SPDF][0-9]*!*|HIGH)\)', cross_section.info.get('PROCESS')) !=1 or str(cross_section.info).casefold().find('electronic') != -1:
             dataset = grp_elec.create_dataset(str(cross_section.threshold), data=cross_section.data)
             test += 1
         # Rotational excitation: Look for a j or rot in the process description or scan the info for rotation
-        if cross_section.info.get('PROCESS').casefold().find('j') != -1:
-            dataset = grp_rot.create_dataset(str(cross_section.threshold), data=cross_section.data)
-            test += 1
-        elif cross_section.info.get('PROCESS').casefold().find('rot') != -1:
-            dataset = grp_rot.create_dataset(str(cross_section.threshold), data=cross_section.data)
-            test += 1
-        elif str(cross_section.info).casefold().find('rotation') != -1:
+        if cross_section.info.get('PROCESS').casefold().find('j') != -1 or cross_section.info.get('PROCESS').casefold().find('rot') != -1 or str(cross_section.info).casefold().find('rotation') != -1:
             dataset = grp_rot.create_dataset(str(cross_section.threshold), data=cross_section.data)
             test += 1
         # Vibrational excitation: Look for v (but check that its not the v from eV) or scan the info for vibration
         if cross_section.info.get('PROCESS').casefold().find('v') != -1:
-            if cross_section.info.get('PROCESS').casefold().find('v')-1 != cross_section.info.get('PROCESS').casefold().find('ev'):
-                dataset = grp_vib.create_dataset(str(cross_section.threshold), data=cross_section.data)
-                test += 1
-            elif str(cross_section.info).casefold().find('vibration') != -1:
+            if cross_section.info.get('PROCESS').casefold().find('v')-1 != cross_section.info.get('PROCESS').casefold().find('ev') or str(cross_section.info).casefold().find('vibration') != -1:
                 dataset = grp_vib.create_dataset(str(cross_section.threshold), data=cross_section.data)
                 test += 1
         elif str(cross_section.info).casefold().find('vibration') != -1:
@@ -144,7 +122,29 @@ for current_species in species_list:
     for cross_section in sorted([cross_section for cross_section in data_spec.cross_sections if cross_section.type == ldp.CrossSectionTypes.IONIZATION],key=sort_by_threshold):
         ## Write cross-section dataset of the current species in the HDF5 database
         grp_reaction = grp_spec.create_group("REACTION")
-        dataset = grp_reaction.create_dataset(str(cross_section.threshold), data=cross_section.data)
+        # split ionization into educts and products
+        products = cross_section.info.get('PROCESS').split('->')[1]
+        # cut off description at the end
+        products = products.split(',')[0]
+        # replace + sign (with space to avoid removing + from charge) with due to expected format
+        products = products.replace(' + ','-')
+        # replace single E with electron due to expected format
+        products = re.sub(r'\bE\b', 'electron', products)
+        if '+' in products:
+            # search for digits in products to find charge of particle
+            Ion_Number = re.search(r'\d+$', products)
+            if Ion_Number is None:
+                products = re.sub(r'\+','Ion1',products)
+            else:
+                Ion_Number = int(re.search(r'\d+$', products).group())
+                products = re.sub(r'\+\d+$',f'Ion{Ion_Number}',products)
+        # reorder the products to place each electron at the end
+        product_parts = [p.strip() for p in products.split('-')]
+        non_electrons = [p for p in product_parts if p != 'electron']
+        electrons = [p for p in product_parts if p == 'electron']
+        products = '-'.join(non_electrons + electrons)
+
+        dataset = grp_reaction.create_dataset(str(products), data=cross_section.data)
         ## Get the string of the cross section type (ELASTIC = 0, EFFECTIVE = 1, EXCITATION = 2, ATTACHMENT = 3, IONIZATION = 4)
         type_spec = ldp.CrossSectionTypes(cross_section.type).name
         ## Save the type of cross-section
@@ -152,5 +152,6 @@ for current_species in species_list:
         ## Save the additional information
         dataset.attrs['Info'] = str(cross_section.info)
         dataset.attrs['Threshold [eV]'] = cross_section.threshold
+        print('Found IONIZATION cross-section.')
 
 hdf.close()

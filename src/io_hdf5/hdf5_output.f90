@@ -17,6 +17,7 @@ MODULE MOD_HDF5_Output
 ! Add comments please!
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars, ONLY: i4
 USE MOD_io_HDF5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -27,9 +28,11 @@ PRIVATE
 
 INTERFACE
   SUBROUTINE copy_userblock(outfilename,infilename) BIND(C)
-      USE ISO_C_BINDING, ONLY: C_CHAR
-      CHARACTER(KIND=C_CHAR) :: outfilename(*)
-      CHARACTER(KIND=C_CHAR) :: infilename(*)
+     USE ISO_C_BINDING, ONLY: C_CHAR
+     ! allow(C071)
+     CHARACTER(KIND=C_CHAR),INTENT(IN) :: outfilename(*)
+     ! allow(C071)
+     CHARACTER(KIND=C_CHAR),INTENT(IN) :: infilename(*)
   END SUBROUTINE copy_userblock
 END INTERFACE
 
@@ -71,12 +74,12 @@ CHARACTER(LEN=*),INTENT(IN)          :: TypeString
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: FileNameIn
 INTEGER,INTENT(IN)                   :: nVar
 INTEGER,INTENT(IN),OPTIONAL          :: NIn
-CHARACTER(LEN=255)                   :: StrVarNames(nVar)
+CHARACTER(LEN=255),INTENT(IN)        :: StrVarNames(nVar)
 CHARACTER(LEN=*),INTENT(IN)          :: MeshFileName
 REAL,INTENT(IN)                      :: OutputTime
 LOGICAL,INTENT(IN),OPTIONAL          :: WriteUserblockIn
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: NodeType_in        !< Type of 1D points
-CHARACTER(LEN=*),INTENT(OUT),OPTIONAL:: FileNameOut
+CHARACTER(LEN=255),INTENT(OUT),OPTIONAL :: FileNameOut
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -98,7 +101,7 @@ ELSE
   FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
 END IF ! PRESENT(FileNameIn)
 IF(.NOT.MPIRoot) THEN
-  IF(PRESENT(FileNameOut)) FileNameOut = FileName
+  IF(PRESENT(FileNameOut)) FileNameOut = TRIM(FileName)
   RETURN
 END IF
 
@@ -405,7 +408,7 @@ INTEGER(SIZE_T)                :: SizeSet=255
 LOGICAL                        :: chunky
 TYPE(C_PTR)                    :: buf
 #if !defined(INTKIND8)
-INTEGER(KIND=8)                :: Nbr8
+INTEGER(KIND=i8)               :: Nbr8
 INTEGER                        :: irank
 #endif /*!defined(INTKIND8)*/
 ! Sanity check
@@ -425,10 +428,10 @@ IF(MPIRoot)THEN
   DO irank = 1, rank
     Nbr8 = Nbr8 * INT(nValGlobal(irank),8)
   END DO ! i = 1, rank
-  IF(Nbr8.GT.INT(HUGE(1_4),8))THEN
+  IF(Nbr8.GT.INT(HUGE(1_i4),8))THEN
     WRITE (UNIT_stdOut,'(A,I0,A,I0,A1)',ADVANCE='NO') "WARNING: Number of entries in "//TRIM(DataSetName)//" ",Nbr8,&
-        " is larger than ",HUGE(1_4)," "
-  END IF ! Nbr8.GT.INT(HUGE(1_4),9)
+        " is larger than ",HUGE(1_i4)," "
+  END IF ! Nbr8.GT.INT(HUGE(1_i4),9)
 END IF ! MPIRoot
 #endif /*!defined(INTKIND8)*/
 

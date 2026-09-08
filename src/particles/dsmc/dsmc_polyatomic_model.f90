@@ -32,7 +32,7 @@ ABSTRACT INTERFACE
   SUBROUTINE RotRelaxPolyRoutine(iPair,iPart,FakXi)
     INTEGER,INTENT(IN)          :: iPair, iPart               ! index of collision pair
     REAL,INTENT(IN)             :: FakXi
-  END SUBROUTINE
+  END SUBROUTINE RotRelaxPolyRoutine
 END INTERFACE
 
 PROCEDURE(RotRelaxPolyRoutine),POINTER :: RotRelaxPolyRoutineFuncPTR !< pointer defining the function called for rotational relaxation
@@ -431,8 +431,8 @@ INTEGER                         :: ElemID
 ! Set vibrational and rotational energies for molecules
 !-----------------------------------------------------------------------------------------------------------------------------------
 IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
-  IF (.NOT.ALLOCATED(PartIntEn(iPart)%EVib)) ALLOCATE(PartIntEn(iPart)%EVib(1)) 
-  IF (.NOT.ALLOCATED(PartIntEn(iPart)%ERot)) ALLOCATE(PartIntEn(iPart)%ERot(1)) 
+  IF (.NOT.ALLOCATED(PartIntEn(iPart)%EVib)) ALLOCATE(PartIntEn(iPart)%EVib(1))
+  IF (.NOT.ALLOCATED(PartIntEn(iPart)%ERot)) ALLOCATE(PartIntEn(iPart)%ERot(1))
   ElemID = PEM%LocalElemID(iPart)
   SELECT CASE (init_or_sf)
   CASE(1) !iInit
@@ -480,7 +480,7 @@ IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
   END IF
 ! For granular species E vib is used as value for bulk temperatur
 ELSE IF (Species(iSpec)%InterID.EQ.100) THEN
-  IF (.NOT.ALLOCATED(PartIntEn(iPart)%TSolid)) ALLOCATE(PartIntEn(iPart)%TSolid(1)) 
+  IF (.NOT.ALLOCATED(PartIntEn(iPart)%TSolid)) ALLOCATE(PartIntEn(iPart)%TSolid(1))
   SELECT CASE (init_or_sf)
   CASE(1) !iInit
     PartIntEn(iPart)%TSolid = Species(iSpec)%Init(iInit)%MWTemperatureIC
@@ -501,7 +501,7 @@ END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 IF (DSMC%ElectronicModel.GT.0) THEN
   IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
-    IF (.NOT.ALLOCATED(PartIntEn(iPart)%EElec)) ALLOCATE(PartIntEn(iPart)%EElec(1)) 
+    IF (.NOT.ALLOCATED(PartIntEn(iPart)%EElec)) ALLOCATE(PartIntEn(iPart)%EElec(1))
     CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
   ELSE
     SDEALLOCATE(PartIntEn(iPart)%EElec)
@@ -584,7 +584,7 @@ IF(BGGas%NumberOfSpecies.GT.0) THEN
 END IF
 
 IF (DSMC%ElectronicModel.GT.0) THEN
-  IF (.NOT.ALLOCATED(PartIntEn(iPart)%EElec)) ALLOCATE(PartIntEn(iPart)%EElec(1)) 
+  IF (.NOT.ALLOCATED(PartIntEn(iPart)%EElec)) ALLOCATE(PartIntEn(iPart)%EElec(1))
   CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
 ENDIF
 
@@ -654,7 +654,7 @@ SELECT CASE (init_or_sf)
 END SELECT
 
 IF (DSMC%ElectronicModel.GT.0) THEN
-  IF (.NOT.ALLOCATED(PartIntEn(iPart)%EElec)) ALLOCATE(PartIntEn(iPart)%EElec(1)) 
+  IF (.NOT.ALLOCATED(PartIntEn(iPart)%EElec)) ALLOCATE(PartIntEn(iPart)%EElec(1))
   CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
 ENDIF
 
@@ -742,7 +742,7 @@ ElemID = PEM%LocalElemID(iPart)
   END SELECT
 
   IF (DSMC%ElectronicModel.GT.0) THEN
-    IF (.NOT.ALLOCATED(PartIntEn(iPart)%EElec)) ALLOCATE(PartIntEn(iPart)%EElec(1)) 
+    IF (.NOT.ALLOCATED(PartIntEn(iPart)%EElec)) ALLOCATE(PartIntEn(iPart)%EElec(1))
     CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
   ENDIF
 
@@ -830,7 +830,7 @@ SELECT CASE (init_or_sf)
 END SELECT
 
 IF (DSMC%ElectronicModel.GT.0) THEN
-  IF (.NOT.ALLOCATED(PartIntEn(iPart)%EElec)) ALLOCATE(PartIntEn(iPart)%EElec(1)) 
+  IF (.NOT.ALLOCATED(PartIntEn(iPart)%EElec)) ALLOCATE(PartIntEn(iPart)%EElec(1))
   CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
 ENDIF
 

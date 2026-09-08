@@ -55,6 +55,7 @@ INTEGER,ALLOCATABLE :: ListDistance(:)             ! the corresponding element i
 TYPE tTrackingInfo
   INTEGER           :: CurrElem
   INTEGER           :: LastSide
+  INTEGER           :: LastIntersectCount
   REAL              :: xi
   REAL              :: eta
   REAL              :: alpha                  ! Distance travelled up to boundary interaction
@@ -62,7 +63,7 @@ TYPE tTrackingInfo
   REAL              :: LengthPartTrajectory   ! Length of the particle trajectory
   INTEGER           :: p=1
   INTEGER           :: q=1
-END TYPE
+END TYPE tTrackingInfo
 
 TYPE(tTrackingInfo) :: TrackInfo
 

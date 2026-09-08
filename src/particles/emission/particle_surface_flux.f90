@@ -12,10 +12,12 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_Particle_SurfFlux
 !===================================================================================================================================
 !> Module for particle insertion through the surface flux
 !===================================================================================================================================
+MODULE MOD_Particle_SurfFlux
+! Modules
+USE MOD_Globals_Vars, ONLY: i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
@@ -80,6 +82,14 @@ REAL                        :: tLBStart
 
 IF(ParticleWeighting%UseSubdivision) ParticleWeighting%PartInsSide = 0
 
+#if USE_MPI
+! Adaptive BC, Type=4 (Const. massflow): sum-up the global number of particles that exited through the BC in the previous time step.
+! A single collective over the whole array outside the species/surface-flux loop. The full communicator is required: particles can be
+! counted via halo tracking on procs that do not own the surface flux side.
+IF(ALLOCATED(AdaptBCPartNumOut)) CALL MPI_ALLREDUCE(MPI_IN_PLACE,AdaptBCPartNumOut,SIZE(AdaptBCPartNumOut),MPI_DOUBLE_PRECISION,&
+                                                    MPI_SUM,MPI_COMM_PICLAS,IERROR)
+#endif /*USE_MPI*/
+
 DO iSpec=1,nSpecies
   IF(useDSMC) THEN
     IF (DSMC%DoAmbipolarDiff) THEN
@@ -92,11 +102,8 @@ DO iSpec=1,nSpecies
     currentBC = SF%BC
     NbrOfParticle = 0 ! calculated within (sub)side-Loops!
     iPartTotal=0
-    ! Adaptive BC, Type = 4 (Const. massflow): Sum-up the global number of particles exiting through BC and calculate new weights
+    ! Adaptive BC, Type = 4 (Const. massflow): global number of particles exiting through BC is summed above the loop; calc. weights
     IF(SF%AdaptiveType.EQ.4) THEN
-#if USE_MPI
-      CALL MPI_ALLREDUCE(MPI_IN_PLACE,AdaptBCPartNumOut(iSpec,iSF),1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,IERROR)
-#endif
       IF(.NOT.ALMOSTEQUAL(SF%AdaptiveMassflow,0.)) CALL CalcConstMassflowWeight(iSpec,iSF)
     END IF
     ! Calc Particles for insertion in standard case
@@ -198,7 +205,11 @@ DO iSpec=1,nSpecies
 
             AcceptPos=.TRUE.
             IF (SF%CircularInflow) THEN !check rmax-rejection
-              IF (.NOT.InSideCircularInflow(iSpec, iSF, iSide, Particle_pos)) AcceptPos=.FALSE.
+              IF(Species(iSpec)%Surfaceflux(iSF)%racetrackLength.GT.0.0) THEN
+                IF (.NOT.InSideRaceTrackInflow(iSpec, iSF, iSide, Particle_pos)) AcceptPos=.FALSE.
+              ELSE
+                IF (.NOT.InSideCircularInflow(iSpec, iSF, iSide, Particle_pos)) AcceptPos=.FALSE.
+              END IF
             END IF ! CircularInflow
             !-- save position if accepted:
             IF (AcceptPos) THEN
@@ -352,7 +363,7 @@ INTEGER, INTENT(OUT), ALLOCATABLE   :: PartInsSubSides(:,:,:)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER(KIND=8)        :: inserted_Particle_iter,inserted_Particle_time,inserted_Particle_diff
+INTEGER(KIND=i8)       :: inserted_Particle_iter,inserted_Particle_time,inserted_Particle_diff
 INTEGER                :: currentBC, PartInsSF, IntSample
 REAL                   :: VFR_total, PartIns, RandVal1
 INTEGER, ALLOCATABLE   :: PartInsProc(:)
@@ -401,7 +412,7 @@ IF (.NOT.SF%ReduceNoise .OR. MPIroot) THEN !ReduceNoise: root only
   END IF
   !-- evaluate inserted_Particle_time and inserted_Particle_iter
   inserted_Particle_diff = inserted_Particle_time - SF%InsertedParticle - inserted_Particle_iter - SF%InsertedParticleSurplus
-  SF%InsertedParticleSurplus = ABS(MIN(inserted_Particle_iter + inserted_Particle_diff,0_8))
+  SF%InsertedParticleSurplus = ABS(MIN(inserted_Particle_iter + inserted_Particle_diff,0_i8))
   PartInsSF = MAX(INT(inserted_Particle_iter + inserted_Particle_diff,4),0)
   SF%InsertedParticle = SF%InsertedParticle + INT(PartInsSF,8)
   IF (SF%ReduceNoise) THEN
@@ -572,7 +583,7 @@ SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide))
 CASE(0) !- RejectType=0 : complete side is inside valid bounds
   InSideCircularInflow=.TRUE.
 CASE(1) !- RejectType=1 : complete side is outside of valid bounds
-  CALL abort(__STAMP__,'side outside of valid bounds was considered although nVFR=0...?!')
+  CALL abort(__STAMP__,'ERROR in InSideCircularInflow: Side should have been skipped before this call!')
 CASE(2) !- RejectType=2 : side is partly inside valid bounds
   point(1)=Particle_pos(Species(iSpec)%Surfaceflux(iSF)%dir(2))-origin(1)
   point(2)=Particle_pos(Species(iSpec)%Surfaceflux(iSF)%dir(3))-origin(2)
@@ -583,10 +594,69 @@ CASE(2) !- RejectType=2 : side is partly inside valid bounds
     InSideCircularInflow=.FALSE.
   END IF
 CASE DEFAULT
-  CALL abort(__STAMP__,'wrong SurfFluxSideRejectType!')
+  CALL abort(__STAMP__,'ERROR in InSideCircularInflow: Unknown SurfFluxSideRejectType!')
 END SELECT !SurfFluxSideRejectType
 
 END FUNCTION InSideCircularInflow
+
+
+!===================================================================================================================================
+!> Determines whether a particle position lies inside the race track (stadium) shaped inflow region.
+!> Uses the distance from the particle to the central line segment of the race track.
+!===================================================================================================================================
+FUNCTION InSideRaceTrackInflow(iSpec, iSF, iSide, Particle_pos)
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars           ,ONLY: Species
+USE MOD_Particle_Boundary_Tools ,ONLY: PointToSegmentDist2D
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: iSpec, iSF, iSide
+REAL, INTENT(IN)                :: Particle_pos(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! RESULT
+LOGICAL                         :: InSideRaceTrackInflow
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                            :: point(2), origin(2), dirVec(2), halfLength
+REAL                            :: segA(2), segB(2), dist
+!===================================================================================================================================
+InSideRaceTrackInflow = .FALSE.
+
+SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide))
+CASE(0) ! Complete side is inside valid bounds
+  InSideRaceTrackInflow = .TRUE.
+
+CASE(1) ! Complete side is outside of valid bounds
+  CALL abort(__STAMP__,'ERROR in InSideRaceTrackInflow: Side should have been skipped before this call!')
+
+CASE(2) ! Side is partly inside valid bounds
+  origin     = Species(iSpec)%Surfaceflux(iSF)%origin
+  dirVec     = Species(iSpec)%Surfaceflux(iSF)%racetrackDir
+  halfLength = Species(iSpec)%Surfaceflux(iSF)%racetrackLength
+
+  ! Particle position in origin-shifted 2D surface coordinates
+  point(1) = Particle_pos(Species(iSpec)%Surfaceflux(iSF)%dir(2)) - origin(1)
+  point(2) = Particle_pos(Species(iSpec)%Surfaceflux(iSF)%dir(3)) - origin(2)
+
+  ! Central segment endpoints
+  segA = -halfLength * dirVec
+  segB =  halfLength * dirVec
+
+  ! Distance to central segment
+  dist = PointToSegmentDist2D(point, segA, segB)
+
+  IF ((dist .LE. Species(iSpec)%Surfaceflux(iSF)%rmax) .AND. (dist .GE. Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
+    InSideRaceTrackInflow = .TRUE.
+  END IF
+
+CASE DEFAULT
+  CALL abort(__STAMP__,'ERROR in InSideRaceTrackInflow: Unknown SurfFluxSideRejectType!')
+END SELECT
+
+END FUNCTION InSideRaceTrackInflow
 
 
 !===================================================================================================================================
@@ -1319,7 +1389,7 @@ REAL,INTENT(IN),OPTIONAL         :: particle_xis(:)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: i,PositionNbr,envelope,currentBC,SampleElemID,iPart
+INTEGER                          :: i,PositionNbr,envelope,currentBC,SampleElemID,iPart,nARMTries
 REAL                             :: Vec3D(3), vec_nIn(1:3), vec_t1(1:3), vec_t2(1:3)
 REAL                             :: a,zstar,RandVal1,RandVal2(2),RandVal3(3),u,RandN,RandN_save,Velo1,Velo2,Velosq,T,beta,z
 LOGICAL                          :: RandN_in_Mem
@@ -1330,7 +1400,7 @@ REAL                             :: VeloIC
 REAL                             :: VeloVec(1:3)
 REAL                             :: VeloVecIC(1:3),v_thermal, pressure
 TYPE(tSurfaceflux), POINTER      :: SF => NULL()
-REAL                             :: Phi, Theta
+REAL                             :: Phi, Theta, gVal
 !===================================================================================================================================
 
 IF(PartIns.LT.1) RETURN
@@ -1615,9 +1685,9 @@ CASE('cosine')
     ! Equally-distributed angle Phi [0:2*PI] for tangential component
     CALL RANDOM_NUMBER(RandVal1)
     Phi = RandVal1 * 2.0 * PI
-    ! 2*sin(Theta)*cos(Theta) = sin(2*Theta) distribution of Theta [0:PI/2] for normal component using the inverse method according to Greenwood, J. (2002).
+    ! sin(Theta)*cos(Theta)**n distribution of Theta [0:PI/2] for normal component using the inverse method
     CALL RANDOM_NUMBER(RandVal1)
-    Theta = ASIN(SQRT(RandVal1))
+    Theta = ACOS((1.-RandVal1)**(1./(SF%CosineExponent+1.)))
 
     ! Normalized velocity vector in surface-local orientation
     Vec3D(1) = SIN(Theta) * COS(Phi)
@@ -1630,16 +1700,24 @@ CASE('cosine')
     ! Convert to global coordinate system
     PartState(4:6,PositionNbr) = vec_t1(1:3) * Vec3D(1) + vec_t2(1:3) * Vec3D(2) + vec_nIn(1:3) * Vec3D(3)
   END DO ! i = NbrOfParticle-PartIns+1,NbrOfParticle
-CASE('cosine2')
+CASE('cosine_double')
   DO i = NbrOfParticle-PartIns+1,NbrOfParticle
     PositionNbr = GetNextFreePosition(i)
     ! === Velocity vector
     ! Equally-distributed angle Phi [0:2*PI] for tangential component
     CALL RANDOM_NUMBER(RandVal1)
     Phi = RandVal1 * 2.0 * PI
-    ! 2*sin(Theta)*cos(Theta)**2 distribution of Theta [0:PI/2] for normal component using the inverse method according
-    CALL RANDOM_NUMBER(RandVal1)
-    Theta = ACOS((1-RandVal1)**(1./3.))
+
+    ! Polar angle Theta [0:PI/2] via acceptance-rejection, target g(theta) = sin(theta)*(A*cos^n(theta) - B*cos^m(theta))
+    nARMTries = 0
+    DO
+      CALL RANDOM_NUMBER(RandVal2)
+      Theta    = RandVal2(1) * 0.5 * PI
+      gVal     = SIN(Theta) * ( SF%CosineA * COS(Theta)**SF%CosineExponent - SF%CosineB * COS(Theta)**SF%CosineExponent2 )
+      IF (RandVal2(2) * SF%CosineDoubleMax .LE. gVal) EXIT
+      nARMTries = nARMTries + 1
+      IF (nARMTries .GT. 1000) CALL abort(__STAMP__, 'ERROR in SetSurfacefluxVelocities: cosine_double ARM did not converge after 1000 attempts.')
+    END DO
 
     ! Normalized velocity vector in surface-local orientation
     Vec3D(1) = SIN(Theta) * COS(Phi)
@@ -1650,8 +1728,8 @@ CASE('cosine2')
     Vec3D(1:3) = Vec3D(1:3) * VeloIC
 
     ! Convert to global coordinate system
-    PartState(4:6,PositionNbr) = vec_t1(1:3) * Vec3D(1) + vec_t2(1:3) * Vec3D(2) + vec_nIn(1:3) * Vec3D(3)
-  END DO ! i = NbrOfParticle-PartIns+1,NbrOfParticle
+    PartState(4:6,PositionNbr) = vec_t1(1:3)*Vec3D(1) + vec_t2(1:3)*Vec3D(2) + vec_nIn(1:3)*Vec3D(3)
+  END DO
 CASE DEFAULT
   CALL abort(__STAMP__,'ERROR in SetSurfacefluxVelocities: Wrong velocity distribution!')
 END SELECT

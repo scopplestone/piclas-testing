@@ -20,6 +20,7 @@ MODULE MOD_DSMC_Vars
 #if USE_MPI
 USE mpi_f08
 #endif /*USE_MPI*/
+USE MOD_Globals_Vars, ONLY: i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -27,18 +28,6 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-TYPE tTLU_Data
-  DOUBLE PRECISION                        :: Emin
-  DOUBLE PRECISION                        :: Emax
-  DOUBLE PRECISION                        :: deltaE
-  DOUBLE PRECISION , ALLOCATABLE          :: deltabj(:)
-  DOUBLE PRECISION , ALLOCATABLE          :: ChiTable(:,:)
-END TYPE
-
-TYPE(tTLU_Data)                           :: TLU_Data
-
-INTEGER                       :: DSMCSumOfFormedParticles   !number of formed particles per iteration in chemical reactions
-                                                            ! for counting the nextfreeparticleposition
 INTEGER                       :: CollisMode                 ! Mode of Collision:, ini_1
                                                             !    0: No Collisions (=free molecular flow with DSMC-Sampling-Routines)
                                                             !    1: Elastic Collision
@@ -64,7 +53,7 @@ TYPE tPartIntEn
   REAL, ALLOCATABLE           :: ElecVelo(:)                ! Electron velocity for ambipolar diffusion
 END TYPE tPartIntEn
 
-TYPE(tPartIntEn), ALLOCATABLE :: PartIntEn(:)        
+TYPE(tPartIntEn), ALLOCATABLE :: PartIntEn(:)
 
 LOGICAL                       :: useRelaxProbCorrFactor     ! Use the relaxation probability correction factor of Lumpkin
 
@@ -77,7 +66,7 @@ TYPE tVarVibRelaxProb
   REAL                        :: alpha                      ! Relaxation factor of ProbVib, VibRelaxProb = 2
 END TYPE tVarVibRelaxProb
 
-TYPE(tVarVibRelaxProb) VarVibRelaxProb
+TYPE(tVarVibRelaxProb) :: VarVibRelaxProb
 
 LOGICAL                       :: DoRadialWeighting          ! Enables radial weighting in DSMC
 LOGICAL                       :: DoLinearWeighting          ! Enables linear weighting in DSMC
@@ -567,8 +556,8 @@ INTEGER                         :: nElecRelaxChemParts
 LOGICAL, ALLOCATABLE            :: ElecRelaxPart(:)
 
 ! MacValout and MacroVolSample have to be separated due to autoinitialrestart
-INTEGER(KIND=8)                  :: iter_macvalout             ! iterations since last macro volume output
-INTEGER(KIND=8)                  :: iter_macsurfvalout         ! iterations since last macro surface output
+INTEGER(KIND=i8)                 :: iter_macvalout             ! iterations since last macro volume output
+INTEGER(KIND=i8)                 :: iter_macsurfvalout         ! iterations since last macro surface output
 LOGICAL                          :: SamplingActive             ! Identifier if DSMC Sampling is activated
 INTEGER                          :: ReactionProbGTUnityCounter ! Count the number of ReactionProb>1 (turn off the warning after
 !                                                              ! reaching 1000 outputs of said warning
