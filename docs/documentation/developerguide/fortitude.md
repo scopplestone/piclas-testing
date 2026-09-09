@@ -119,7 +119,7 @@ and when looking for the specific fix in the commits, there are two ways to fix 
        !--- A = vector from particle to node coords
 ```
 
-which solves the issue by adding the name of the lool to the `CYCLE` statement or
+which solves the issue by adding the name of the loop to the `CYCLE` statement or
 
 ```diff
    IF(PDM%ParticleInside(iPart)) THEN
