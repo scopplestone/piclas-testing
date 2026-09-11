@@ -97,8 +97,10 @@ fi
 # sudo apt-get install libgmp-dev libmpfr-dev libmpc-dev
 #GCCVERSION='13.2.0'
 
-GCCVERSION='14.2.0'
+# GCCVERSION='14.2.0'
 # GCCVERSION='15.2.0'
+
+GCCVERSION='16.1.0'
 
 # --------------------------------------------------------------------------------------------------
 # Check pre-requisites
