@@ -475,7 +475,6 @@ build_maxwell_only:
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
-    - cd ..
     - ./tools/strip-build-dir.sh --keep-coverage build_*
 
 build_poisson:
@@ -563,7 +562,6 @@ build_DSMC:
         cmake -B build_radiation -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ;
         cmake --build  build_radiation -j $NCORES -t all ;
       fi
-    - cd ..
     - ./tools/strip-build-dir.sh --keep-coverage build_*
 
 build_drift_diffusion:
@@ -578,7 +576,6 @@ build_drift_diffusion:
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
-    - cd ..
     - ./tools/strip-build-dir.sh --keep-coverage build_*
 
 build_DVM:
