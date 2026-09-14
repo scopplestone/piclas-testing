@@ -24,6 +24,7 @@ tools.md
 performance.md
 appimage.md
 fortitude.md
+ruff.md
 examples.md
 ```
 
@@ -49,5 +50,6 @@ the simulation code's features from a developer's point of view.
   computational performance
 * Chapter {ref}`developerguide/appimage:Building the AppImage Executable` describes how an AppImage executable of piclas is created.
 * Chapter {ref}`developerguide/fortitude:Fortitude` describes how the Fortran linter Fortitude works.
+* Chapter {ref}`developerguide/ruff:Ruff` describes how the Python linter and code formatter works
 * Chapter {ref}`developerguide/examples:Markdown Examples` gives a short overview of how to include code, equations, figures, tables
   etc. in the user and developer guides in Markdown.
