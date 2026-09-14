@@ -30,7 +30,7 @@ which lists any errors that are encountered with their corresponding violation I
     61 |     sys.exit(0)
        |
 
-Running two command with `--statistics` will list a summary with the number of hits for each violiation and with a short description
+Running two command with `--statistics` will list a summary with the number of hits for each violation and with a short description
 
     ruff check --extend-ignore=E201,E202,E203,E221,E222,E225,E231,E271,E272"$ADDIGNORE" --line-length=132 --preview docs tools --statistics
 
@@ -58,7 +58,7 @@ The Ruff Gitlab CI/CD stage `ruff:` is defined in `.gitlab-ci.yml`.
 TODO: The pre-commit hook for Ruff is configured in ...
 
 ## Fixing Ruff violations (of failing pipelines)
-When a pipeline failes in the `ruff` stage, an error is displayed showing the ID of the violation
+When a pipeline fails in the `ruff` stage, an error is displayed showing the ID of the violation
 
     FLY002 Consider f-string instead of string join
       --> tools/paraview/pdf/43/python_filter_generator.py:81:12
@@ -111,7 +111,7 @@ which returns
     ## References
     - [Python documentation: f-strings](https://docs.python.org/3/reference/lexical_analysis.html#f-strings)
 
-Ruff can automatically fix many violationsby adding the `--fix` flag
+Ruff can automatically fix many violations by adding the `--fix` flag
 
     cd ~/piclas
     ruff check --extend-ignore=E201,E202,E203,E221,E222,E225,E231,E271,E272"$ADDIGNORE" --line-length=132 --preview docs tools --fix
@@ -130,12 +130,12 @@ which shows a diff of how the violation would be fixed
 ```diff
 78 |         extent that your filter ask up stream for.</Documentation>
 79 |       </StringVectorProperty>''' % requestUpdateExtent
-80 | 
+80 |
    -     return '\n'.join([requestData, requestInformation, requestUpdateExtent])
 81 +     return f'{requestData}\n{requestInformation}\n{requestUpdateExtent}'
-82 | 
-83 | 
-84 | 
+82 |
+83 |
+84 |
 note: This is an unsafe fix and may change runtime behavior
 
 Found 1 error.
@@ -146,7 +146,7 @@ and can be applied by running the command with both flags `--fix --unsafe-fixes`
 
     ruff check --extend-ignore=E201,E202,E203,E221,E222,E225,E231,E271,E272"$ADDIGNORE" --line-length=132 --preview docs tools --fix --unsafe-fixes
 
-It is important to make sure that the code still behaves as itended when using an unsafe fix.
+It is important to make sure that the code still behaves as intended when using an unsafe fix.
 | Flag | Description |
 |------|-------------|
 | `--fix` | Automatically fix lint errors where possible. |
@@ -158,8 +158,8 @@ It is important to make sure that the code still behaves as itended when using a
 | `--diff` | Show a diff of changes Ruff would make (useful for CI/CD). |
 
 
-If the solution to solving this issue is not straightforward, there are two possibilities that might help by looing into ways how
-other developers have fixed it by searching for the violation ID.
+If the solution to solving this issue is not straightforward, there are two possibilities that might help by looking into ways how
+other developers have fixed it by searching for the violation ID in the git history or source code.
 
 ###  Search for the violation ID in the git history
 Navigate to the piclas directory and search the complete git history (commit messages and changes to the code) for the specific
@@ -182,16 +182,16 @@ and when looking for the specific fix in the commits, there are two ways to fix 
 @@ -78,7 +78,7 @@ def getScriptPropertiesXml(info):
          extent that your filter ask up stream for.</Documentation>
        </StringVectorProperty>''' % requestUpdateExtent
- 
+
 -    return '\n'.join([requestData, requestInformation, requestUpdateExtent])
 +    return f'{requestData}\n{requestInformation}\n{requestUpdateExtent}'
 ```
 
 which solves the issue by replacing the `str.join` call with an f-string.
-Alternatively, violations can simply be ignored by adding the flag and identifier of the rule `noqa: FLY002` and the exnd of the line as a comment.
+Alternatively, violations can simply be ignored by adding the flag and identifier of the rule `noqa: FLY002` and the end of the line as a comment.
 This is done in the file `extract_userblock.py` for example
 
-    except :  # noqa: S112  [▼ 1/2]     ■ Do not use bare `except`                                                                                                                        =
+    except :  # noqa: S112  [▼ 1/2]     ■ Do not use bare `except`
         continue
 
 ### Search for the violation ID in the source code itself

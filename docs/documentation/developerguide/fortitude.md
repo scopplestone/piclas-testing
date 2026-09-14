@@ -17,7 +17,7 @@ Fortitude is used by navigating to the piclas repository and running
     cd ~/piclas
     fortitude check --output-format=grouped src
 
-which lists any errors that are encountered with their corresponding violation ID
+which lists any errors that are encountered with their corresponding violation ID.
 
 ## Gitlab CI
 The Fortitude Gitlab CI/CD stage `fortitude:` is defined in `.gitlab-ci.yml` and the Fortitude settings are stored in `fpm.toml`.
@@ -26,7 +26,7 @@ The Fortitude Gitlab CI/CD stage `fortitude:` is defined in `.gitlab-ci.yml` and
 TODO: The pre-commit hook for Fortitude is configured in ...
 
 ## Fixing Fortitude violations (of failing pipelines)
-When a pipeline failes in the `fortitude` stage, an error is displayed showing the ID of the violation
+When a pipeline fails in the `fortitude` stage, an error is displayed showing the ID of the violation
 
     src/timedisc/timedisc_TimeStepECIM.f90:
     606:42 C141 'exit' statement in named 'do' loop missing label 'SUBROUTINE ExactPushSingleParticle(iPart, dt)
@@ -38,18 +38,18 @@ which in this case is "C141" and details on this violation can be found by runni
 which returns
 
     C141: missing-exit-or-cycle-label
-    
+
     Fix is sometimes available.
-    
+
     What does it do?
     When using exit or cycle in a named do loop, the exit/cycle statement
     should use the loop name
-    
+
     Example
-    name: do   
+    name: do
       exit name
     end do name
-    
+
     Using named loops is particularly useful for nested or complicated loops, as it
     helps the reader keep track of the flow of logic. It's also the only way to exit
     or cycle outer loops from within inner ones.
@@ -79,8 +79,8 @@ Note that there are two flags for auto-fixing `--fix` and `--unsafe-fixes`
 | `--output-format=<format>` | Specifies the output format (e.g., `grouped`, `json`, `sarif`).                            |
 
 Unsafe fixes may change program behavior or introduce new issues, so use with caution.
-If the solution to solving this issue is not straightforward, there are two possibilities that might help by looing into ways how
-other developers have fixed it by searching for the violation ID.
+If the solution to solving this issue is not straightforward, there are two possibilities that might help by looking into ways how
+other developers have fixed it by searching for the violation ID in the git history or source code.
 
 ### Search for the violation ID in the git history
 Navigate to the piclas directory and search the complete git history (commit messages and changes to the code) for the specific
@@ -109,7 +109,7 @@ and when looking for the specific fix in the commits, there are two ways to fix 
      ! Cycle over non-rotBC sides
 -    IF(BCType.NE.PartBound%RotPeriodicBC) CYCLE
 +    IF(BCType.NE.PartBound%RotPeriodicBC) CYCLE locSideLoop
- 
+
      locSideID = SideInfo_Shared(SIDE_LOCALID,newSideID)
      ! Side is not one of the 6 local sides
 -    IF (locSideID.LE.0) CYCLE
@@ -131,7 +131,7 @@ which solves the issue by adding the name of the loop to the `CYCLE` statement o
              E_au     => 5.1e11 ,& ! [V/m] atomic unit field strength
 ```
 
-which ignores the violation check completly by adding the flag `allow(C141)` to the line before the one with the trigger.
+which ignores the violation check completely by adding the flag `allow(C141)` to the line before the one with the trigger.
 Note that there are multiple occasions where a false-positive violation is reported, because Fortitude still has many shortcomings
 regarding macros or pre-processor statements.
 
