@@ -1280,7 +1280,7 @@ WEK_DSMC_Radiation:
     - MESHFILE=mesh_70degCone2D_Set1_noWake_mesh.h5
     - mkdir -p ../WEK_DSMC_Radiation_output
     - cp $(find output_dir -name ${OUTPUTSTATE} | head -n 1) ../WEK_DSMC_Radiation_output/${OUTPUTSTATE}
-    - cp ../regressioncheck/WEK_DSMC_Radiation/${MESHFILE} ../WEK_DSMC_Radiation_output/${MESHFILE}
+    - cp ../regressioncheck/WEK_DSMC_Radiation/Flow_N2-N_70degConeHot/${MESHFILE} ../WEK_DSMC_Radiation_output/${MESHFILE}
   artifacts:
     paths:
       - WEK_DSMC_Radiation_output
