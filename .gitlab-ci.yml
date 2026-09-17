@@ -1354,6 +1354,8 @@ code_coverage:
     # combine coverage reports of all builds and runs in xml file for displaying coverage in mr diff view
     - FIND=$(cd Coverage; ls *.json)
     - echo -e "Using files:\n$FIND\nfor gcovr execution"
+    - mkdir -p Coverage/cobertura
+    - mkdir -p Coverage/html
     - gcovr --root ${PWD}/src --add-tracefile "Coverage/*.json" --xml Coverage/cobertura/coverage.xml --print-summary --merge-mode-functions=merge-use-line-min
     # also in html format to check whole codebase by hand (easier to read compared to xml)
     - gcovr --root ${PWD}/src --add-tracefile "Coverage/*.json" --html-nested Coverage/html/coverage.html --merge-mode-functions=merge-use-line-min
