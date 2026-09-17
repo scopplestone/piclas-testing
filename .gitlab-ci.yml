@@ -225,16 +225,15 @@ default:
     #             - --exclude-lines-by-pattern exclude all lines that start with the regex pattern. Called multiple times for no and one or more (^\s+) leading whitespaces since reggie execution expands wildcards
     # CODE_COVERAGE signals reggie to produce coverage artifacts, PICLAS_CODE_COVERAGE does the same for the PICLas CMake toolchain
     - if [ "$[[ inputs.DO_CODE_COVERAGE ]]" == "true" ]; then
+        mkdir -p Coverage ;
         export CODE_COVERAGE=True;
-        if [ ! -d "Coverage" ]; then mkdir Coverage ; fi ;
         export PICLAS_CODE_COVERAGE=ON ;
         echo "PICLAS_CODE_COVERAGE=ON" ;
         export GCOVR_ARGS='--include-internal-functions --gcov-ignore-parse-errors all --exclude-lines-by-pattern (?i)^\s+CALL\s+collectivestop --exclude-lines-by-pattern (?i)^CALL\s+collectivestop --exclude-lines-by-pattern (?i)^\s+CALL\s+ABORT --exclude-lines-by-pattern (?i)^CALL\s+ABORT';
       fi
     - |
       if [ "$[[ inputs.DO_REGGIE_COVERAGE ]]" == "true" ]; then
-        if [ ! -d "Coverage" ]; then mkdir Coverage ; fi ;
-        if [ ! -d "Coverage/reggie" ]; then mkdir Coverage/reggie ; fi ;
+        mkdir -p Coverage/reggie ;
         echo "DO_REGGIE_COVERAGE activated. Creating Coverage/reggie to store coverage report.";
         COVERAGE_REGGIE_DIR="${PWD}/Coverage/reggie" ;
         reggie() {
@@ -341,38 +340,26 @@ stages:
     REGGIE_ARGS: ""
     # If specified, reggie will not perform a new build. Point to top-level build directory.
     USE_BUILD: ""
-  # TODO: We should ideally be using artifacts for coverage rather than the cache.
-  cache:
-    - key: "${CI_PIPELINE_ID}-coverage"
-      paths: [Coverage]
-      policy: pull-push
-  # These are currently unused, since we pull in Coverage artifacts via the cache.
   artifacts:
     paths: [Coverage]
     expire_in: 1 day
     when: always
   script:
+    # reggie writes tracefiles to $CI_PROJECT_DIR/../Coverage when CODE_COVERAGE is set. TODO: Change this
+    - rm -rf Coverage ../Coverage || true
     - |
       if [ -n "${USE_BUILD}" ]; then
         reggie ${REGGIE_ARGS} -e "${USE_BUILD}/bin/piclas" "regressioncheck/${REGGIE_CASE}"
       else
         reggie ${REGGIE_ARGS} "regressioncheck/${REGGIE_CASE}"
       fi
-  allow_failure: true
-
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage ".pre"
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-cleanup:
-  stage: .pre
-  script:
-    - if [ -d "Coverage" ]; then
-      rm -rf Coverage;
-      echo "Old coverage files deleted";
+      if [ "$[[ inputs.DO_CODE_COVERAGE ]]" == "true" ]; then
+        mkdir -p Coverage
+        for f in ../Coverage/combined_report_*.json; do
+          [ -e "$f" ] && cp "$f" "Coverage/${CI_JOB_NAME_SLUG}.json"
+        done
       fi
-  rules:
-    - if: $[[ inputs.DO_CODE_COVERAGE ]] == true
-    - if: $[[ inputs.DO_REGGIE_COVERAGE ]] == true
+  allow_failure: true
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "lint"
@@ -1364,17 +1351,6 @@ build_math_tools:
 code_coverage:
   stage: .post
   script:
-    - echo "Generating combined coverage report..."
-    # old coverage .json files are removed in the .pre stage (cleanup job), since it should only be done once
-    # (otherwise the new reports will be deleted in each job) and in the beginning
-    - if [ ! -d "Coverage/cobertura" ]; then mkdir Coverage/cobertura ; fi ;
-    # remove old html files, since file names can differ (where for xml format only one file is created and thus will be overwritten)
-    - if [ -d "Coverage/html" ]; then
-        rm -f Coverage/html/*.html || true ;
-        rm -f Coverage/html/*.css || true ;
-      else
-        mkdir Coverage/html ;
-      fi
     # combine coverage reports of all builds and runs in xml file for displaying coverage in mr diff view
     - FIND=$(cd Coverage; ls *.json)
     - echo -e "Using files:\n$FIND\nfor gcovr execution"
@@ -1383,16 +1359,9 @@ code_coverage:
     - gcovr --root ${PWD}/src --add-tracefile "Coverage/*.json" --html-nested Coverage/html/coverage.html --merge-mode-functions=merge-use-line-min
   # regex expression the retrieve coverage percentage
   coverage: '/lines:\s+([0-9]+(?:\.[0-9]+)?)%/'
-  cache:
-    - key: "${CI_PIPELINE_ID}-coverage"
-    - paths: [Coverage]
-    - policy: pull-push
   artifacts:
     paths:
-      # html for visual output
       - Coverage/html
-      # json files to check if all builds are read in for combined coverage report
-      - Coverage/*.json
       # xml file (for debugging in gitlab merge diff view)
       - Coverage/cobertura/*.xml
     expire_in: 1 month
@@ -1409,10 +1378,6 @@ reggie_coverage:
   script:
     - echo "Generating coverage report for reggie..."
     - coverage html --data-file=${COVERAGE_REGGIE_DIR}/.coverage -d ${COVERAGE_REGGIE_DIR} ;
-  cache:
-    - key: "${CI_PIPELINE_ID}-coverage"
-    - paths: [Coverage]
-    - policy: pull-push
   artifacts:
     paths:
       # reggie coverage files
