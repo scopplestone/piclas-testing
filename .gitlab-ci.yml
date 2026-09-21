@@ -1,28 +1,14 @@
 # define gitlab ci/cd inputs for pipeline, these values are set at pipeline creation and cannot be changed afterwards
 spec:
   inputs:
-    DO_CHECKIN:
-      type: boolean
-      description: "Run check-in regressiontests"
-      default: false
-
-    DO_NIGHTLY:
-      type: boolean
-      description: "Run nightly regressiontests"
-      default: false
-
-    DO_WEEKLY:
-      type: boolean
-      description: "Run weekly regressiontests"
-      default: false
+    SCHEDULE:
+      default: 'CHECKIN'
+      options: ['CHECKIN', 'NIGHTLY', 'WEEKLY']
+      description: "Run check-in (short), nightly (longer) or weekly (very long) regressiontests"
 
     SHARED_MEMORY:
-      type: string
-      options:
-        - PICLAS_COMM_TYPE_NODE
-        - OMPI_COMM_TYPE_CORE
-        - MPI_COMM_TYPE_SHARED
-      default: MPI_COMM_TYPE_SHARED
+      default: 'MPI_COMM_TYPE_SHARED'
+      options: ['MPI_COMM_TYPE_SHARED', 'PICLAS_COMM_TYPE_NODE', 'OMPI_COMM_TYPE_CORE']
       description: "OMPI_COMM_TYPE_CORE: core-level, PICLAS_COMM_TYPE_NODE: virtual node-level splitting with 2 core per node, MPI_COMM_TYPE_SHARED: physical node-level (default)"
 
     DO_NINJA:
@@ -30,20 +16,10 @@ spec:
       description: "Use Ninja generator for CMake"
       default: false
 
-    DO_OPENMPI:
-      type: boolean
-      description: "Load OpenMPI module"
-      default: false
-
-    DO_MPICH:
-      type: boolean
-      description: "Load MPICH module"
-      default: false
-
-    DO_MPICH_DEBUG:
-      type: boolean
-      description: "Load MPICH debug module"
-      default: false
+    MPI:
+      default: 'Alternate'
+      options: ['Alternate', 'OpenMPI', 'MPICH', 'MPICH Debug']
+      description: "MPI implementation to load. 'Alternate' uses OpenMPI on even days and MPICH on odd days."
 
     DO_CODE_COVERAGE:
       type: boolean
@@ -94,50 +70,35 @@ variables:
   # Use no compression for caches
   CACHE_COMPRESSION_LEVEL: "fastest"
 
+  MPI_FLAVOUR: $[[ inputs.MPI ]]
+
+  # --- label table for the pipeline name: one entry per input value, not per combination ---
+  L_SCHEDULE_CHECKIN: '[Checkin]'
+  L_SCHEDULE_NIGHTLY: '[Nightly]'
+  L_SCHEDULE_WEEKLY:  '[Weekly]'
+
+  L_MEM_MPI_COMM_TYPE_SHARED:  '🟢'
+  L_MEM_PICLAS_COMM_TYPE_NODE: '🔵 Node Splitting'
+  L_MEM_OMPI_COMM_TYPE_CORE:   '🟠 Core Splitting'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Set pipeline name to indicate whether default shared memory, node split or core split is used, and whether it is a checkin, nightly or weekly pipeline
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 workflow:
-  name: $PIPELINE_NAME
+  # Compose the pipeline name from the per-value labels defined in `variables` above
+  name: '${L_SCHEDULE_$[[ inputs.SCHEDULE ]]} ${CI_COMMIT_REF_NAME} (${MPI_FLAVOUR}, ${L_MEM_$[[ inputs.SHARED_MEMORY ]]})'
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    # These awful awful regexes determin whether it is an odd or even day. Since we want to show the MPI implementation we are using in
+    # the pipeline name, we are reliant on using non-shell methods.
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       when: never
-
-    # --- Nightly ---
-    - if: $[[ inputs.DO_NIGHTLY ]] && "$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"
+    - if: $CI_PIPELINE_CREATED_AT =~ /^\d{4}-\d{2}-\d[13579]T/ && $MPI_FLAVOUR == "Alternate"
       variables:
-        PIPELINE_NAME: '[Nightly] 🔵 Node Splitting ${CI_COMMIT_REF_NAME}'
-    - if: $[[ inputs.DO_NIGHTLY ]] && "$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"
+        MPI_FLAVOUR: "MPICH"
+    - if: $CI_PIPELINE_CREATED_AT =~ /^\d{4}-\d{2}-\d[02468]T/ && $MPI_FLAVOUR == "Alternate"
       variables:
-        PIPELINE_NAME: '[Nightly] 🟠 Core Splitting ${CI_COMMIT_REF_NAME}'
-    - if: $[[ inputs.DO_NIGHTLY ]] == true
-      variables:
-        PIPELINE_NAME: '[Nightly] 🟢 ${CI_COMMIT_REF_NAME}'
-
-    # --- Weekly ---
-    - if: $[[ inputs.DO_WEEKLY ]] && "$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"
-      variables:
-        PIPELINE_NAME: '[Weekly] 🔵 Node Splitting ${CI_COMMIT_REF_NAME}'
-    - if: $[[ inputs.DO_WEEKLY ]] && "$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"
-      variables:
-        PIPELINE_NAME: '[Weekly] 🟠 Core Splitting ${CI_COMMIT_REF_NAME}'
-    - if: $[[ inputs.DO_WEEKLY ]] == true
-      variables:
-        PIPELINE_NAME: '[Weekly] 🟢 ${CI_COMMIT_REF_NAME}'
-
-    # --- Checkin (DO_CHECKIN, push, or manual) ---
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
-      variables:
-        PIPELINE_NAME: '[Checkin] 🔵 Node Splitting ${CI_COMMIT_REF_NAME}'
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE"'
-      variables:
-        PIPELINE_NAME: '[Checkin] 🟠 Core Splitting ${CI_COMMIT_REF_NAME}'
-    - if: '"$[[ inputs.SHARED_MEMORY ]]" == "MPI_COMM_TYPE_SHARED"'
-      variables:
-        PIPELINE_NAME: '[Checkin] 🟢 ${CI_COMMIT_REF_NAME}'
-
-    - when: never
+        MPI_FLAVOUR: "OpenMPI"
+    - when: always
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Prepare execution environment
@@ -185,29 +146,15 @@ default:
         export CMAKE_GENERATOR=;
           export NCORES=;
       fi
-    - day=$(date -d "${CI_PIPELINE_CREATED_AT}" +%d)
-    - echo "Perform arithmetic with 0-prefixed numbers by telling bash to use base-10 by specifying 10#"
-    - if [ "$((10#$day % 2))" == "0" ]; then
-        echo "Even day number ($day). Loading OpenMPI";
+    - echo "Loading ${MPI_FLAVOUR}.";
+    - if [ "${MPI_FLAVOUR}" == "OpenMPI" ]; then
         module purge || true;
         module load  cmake/4.3.3  gcc/16.1.0  openmpi/5.0.9/gcc/16.1.0      hdf5/2.2.0/gcc/16.1.0/openmpi/5.0.9      petsc/3.25.1/gcc/16.1.0/openmpi/5.0.9 || true;
-      else
-        echo "Odd day number ($day). Loading MPICH";
+      elif [ "${MPI_FLAVOUR}" == "MPICH" ]; then
         module purge || true;
         module load  cmake/4.3.3  gcc/16.1.0  mpich/5.0.1/gcc/16.1.0        hdf5/2.2.0/gcc/16.1.0/mpich/5.0.1        petsc/3.25.1/gcc/16.1.0/mpich/5.0.1 || true;
-      fi
-    - if [ "$[[ inputs.DO_OPENMPI ]]" == "true" ]; then
-        echo "DO_OPENMPI activated. Loading OpenMPI.";
-        module purge || true;
-        module load  cmake/4.3.3  gcc/16.1.0  openmpi/5.0.9/gcc/16.1.0      hdf5/2.2.0/gcc/16.1.0/openmpi/5.0.9      petsc/3.25.1/gcc/16.1.0/openmpi/5.0.9 || true;
-      fi
-    - if [ "$[[ inputs.DO_MPICH ]]" == "true" ]; then
-        echo "DO_MPICH activated. Loading MPICH.";
-        module purge || true;
-        module load  cmake/4.3.3  gcc/16.1.0  mpich/5.0.1/gcc/16.1.0        hdf5/2.2.0/gcc/16.1.0/mpich/5.0.1        petsc/3.25.1/gcc/16.1.0/mpich/5.0.1 || true;
-      fi
-    - if [ "$[[ inputs.DO_MPICH_DEBUG ]]" == "true" ]; then
-        echo "DO_MPICH_DEBUG activated. Loading MPICH with --with-device=ch3:sock which allows over-subscription without performance loss but cannot be used for shared memory arrays safely!";
+      elif [ "${MPI_FLAVOUR}" == "MPICH Debug" ]; then
+        echo "Loading MPICH with --with-device=ch3:sock which allows over-subscription without performance loss but cannot be used for shared memory arrays safely!";
         module purge || true;
         module load  cmake/3.26.4  gcc/13.2.0  mpich-debug/4.1.2/gcc/13.2.0  hdf5/1.14.0/gcc/13.2.0/mpich-debug/4.1.2  hopr/master/gcc/13.2.0/mpich-debug/4.1.2/hdf5/1.14.0  petsc/3.21.6/gcc/13.2.0/mpich-debug/4.1.2;
       fi
@@ -283,18 +230,17 @@ stages:
 .rules_checkin:
   rules:
     - !reference [.rules_not_for_deployment, rules]
-    - if: $[[ inputs.DO_CHECKIN ]] == true
-    - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '"$[[ inputs.SCHEDULE ]]" == "CHECKIN"'
 
 .rules_nightly:
   rules:
     - !reference [.rules_not_for_deployment, rules]
-    - if: $[[ inputs.DO_NIGHTLY ]] == true
+    - if: '"$[[ inputs.SCHEDULE ]]" == "NIGHTLY"'
 
 .rules_weekly:
   rules:
     - !reference [.rules_not_for_deployment, rules]
-    - if: $[[ inputs.DO_WEEKLY ]] == true
+    - if: '"$[[ inputs.SCHEDULE ]]" == "WEEKLY"'
 
 # Some reggies only work with the default (physical node level) shared memory splitting, e.g. ray tracing
 .rules_nightly_single_node:
@@ -541,11 +487,11 @@ build_DSMC:
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
-    - if [ "$[[ inputs.DO_WEEKLY ]]" == "true" ] ; then
+    - if [ "$[[ inputs.SCHEDULE ]]" == "WEEKLY" ] ; then
         cmake -B build_DSMC_N1 -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ;
         cmake --build  build_DSMC_N1 -j $NCORES -t all ;
       fi
-    - if [ "$[[ inputs.DO_WEEKLY ]]" == "true" ] ; then
+    - if [ "$[[ inputs.SCHEDULE ]]" == "WEEKLY" ] ; then
         cmake -B build_radiation -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ;
         cmake --build  build_radiation -j $NCORES -t all ;
       fi
@@ -1149,7 +1095,7 @@ WEK_PIC_poisson_Leapfrog:
 #       when: never
 #     - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
 #       when: never
-#     - if: $[[ inputs.DO_WEEKLY ]] == true
+#     - if: '"$[[ inputs.SCHEDULE ]]" == "WEEKLY"'
 #
 # WEK_Photoionization_debug_RK3:
 #   extends: [.rules_weekly]
@@ -1162,7 +1108,7 @@ WEK_PIC_poisson_Leapfrog:
 #       when: never
 #     - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
 #       when: never
-#     - if: $[[ inputs.DO_WEEKLY ]] == true
+#     - if: '"$[[ inputs.SCHEDULE ]]" == "WEEKLY"'
 
 WEK_Photoionization_petsc_release_RK3:
   extends: [.rules_weekly_single_node, .reggie]
@@ -1183,7 +1129,7 @@ WEK_Photoionization_petsc_release_RK3:
 #       when: never
 #     - if: '"$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE"'
 #       when: never
-#     - if: $[[ inputs.DO_WEEKLY ]] == true
+#     - if: '"$[[ inputs.SCHEDULE ]]" == "WEEKLY"'
 
 WEK_Photoionization_release_Leapfrog:
   extends: [.rules_weekly_single_node, .reggie]
