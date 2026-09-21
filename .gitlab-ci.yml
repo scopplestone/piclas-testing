@@ -70,16 +70,14 @@ variables:
   # Use no compression for caches
   CACHE_COMPRESSION_LEVEL: "fastest"
 
-  MPI_FLAVOUR: $[[ inputs.MPI ]]
-
   # --- label table for the pipeline name: one entry per input value, not per combination ---
   L_SCHEDULE_CHECKIN: '[Checkin]'
   L_SCHEDULE_NIGHTLY: '[Nightly]'
   L_SCHEDULE_WEEKLY:  '[Weekly]'
 
-  L_MEM_MPI_COMM_TYPE_SHARED:  '🟢'
-  L_MEM_PICLAS_COMM_TYPE_NODE: '🔵 Node Splitting'
-  L_MEM_OMPI_COMM_TYPE_CORE:   '🟠 Core Splitting'
+  L_MEM_MPI_COMM_TYPE_SHARED:  'shared memory'
+  L_MEM_PICLAS_COMM_TYPE_NODE: 'node splitting'
+  L_MEM_OMPI_COMM_TYPE_CORE:   'core splitting'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Set pipeline name to indicate whether default shared memory, node split or core split is used, and whether it is a checkin, nightly or weekly pipeline
@@ -92,13 +90,15 @@ workflow:
     # the pipeline name, we are reliant on using non-shell methods.
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       when: never
-    - if: $CI_PIPELINE_CREATED_AT =~ /^\d{4}-\d{2}-\d[13579]T/ && $MPI_FLAVOUR == "Alternate"
+    - if: $CI_PIPELINE_CREATED_AT =~ /^\d{4}-\d{2}-\d[13579]T/ && "$[[ inputs.MPI ]]" == "Alternate"
       variables:
         MPI_FLAVOUR: "MPICH"
-    - if: $CI_PIPELINE_CREATED_AT =~ /^\d{4}-\d{2}-\d[02468]T/ && $MPI_FLAVOUR == "Alternate"
+    - if: $CI_PIPELINE_CREATED_AT =~ /^\d{4}-\d{2}-\d[02468]T/ && "$[[ inputs.MPI ]]" == "Alternate"
       variables:
         MPI_FLAVOUR: "OpenMPI"
     - when: always
+      variables:
+        MPI_FLAVOUR: $[[ inputs.MPI ]]
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Prepare execution environment
