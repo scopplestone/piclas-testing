@@ -1305,16 +1305,22 @@ code_coverage:
     - echo -e "Using files:\n$FIND\nfor gcovr execution"
     - mkdir -p Coverage/cobertura
     - mkdir -p Coverage/html
-    - gcovr --root ${PWD}/src --add-tracefile "Coverage/*.json" --xml Coverage/cobertura/coverage.xml --print-summary --merge-mode-functions=merge-use-line-min
+    - gcovr --root ${PWD}/src --add-tracefile "Coverage/*.json" --xml Coverage/cobertura/coverage.xml --print-summary --merge-mode-functions=merge-use-line-min | tee Coverage/summary.txt
     # also in html format to check whole codebase by hand (easier to read compared to xml)
     - gcovr --root ${PWD}/src --add-tracefile "Coverage/*.json" --html-nested Coverage/html/coverage.html --merge-mode-functions=merge-use-line-min
+    # Extract line coverage percentage from the summary (e.g. "lines: 85.3% (1234 out of 1446)")
+    - COVERAGE=$(sed -nE 's/^lines:[[:space:]]+([0-9]+(\.[0-9]+)?)%.*/\1/p' Coverage/summary.txt)
+    - if [ -z "$COVERAGE" ]; then echo "Could not extract coverage"; exit 1; fi
+    # Produce a badge to use on the main PICLas page.
+    - uvx anybadge --label=coverage --value="${COVERAGE}" --suffix="%" --file=coverage.svg 50=red 60=orange 80=yellow 90=green
   # regex expression the retrieve coverage percentage
-  coverage: '/lines:\s+([0-9]+(?:\.[0-9]+)?)%/'
+  coverage: '/lines:\s+\d+(?:\.\d+)?%/'
   artifacts:
     paths:
       - Coverage/html
       # xml file (for debugging in gitlab merge diff view)
       - Coverage/cobertura/*.xml
+      - coverage.svg
     expire_in: 1 month
     when: on_success
     reports:
