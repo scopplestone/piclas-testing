@@ -71,20 +71,24 @@ variables:
   CACHE_COMPRESSION_LEVEL: "fastest"
 
   # --- label table for the pipeline name
-  L_SCHEDULE_CHECKIN: '[Checkin]'
-  L_SCHEDULE_NIGHTLY: '[Nightly]'
-  L_SCHEDULE_WEEKLY:  '[Weekly]'
+  L_SCHEDULE_CHECKIN: '[CHE]'
+  L_SCHEDULE_NIGHTLY: '[NIG]'
+  L_SCHEDULE_WEEKLY:  '[WEK]'
 
   L_MEM_MPI_COMM_TYPE_SHARED:  'shared memory'
   L_MEM_PICLAS_COMM_TYPE_NODE: 'node splitting'
   L_MEM_OMPI_COMM_TYPE_CORE:   'core splitting'
+
+  L_MEM_MPI_COMM_TYPE_SHARED_COLOR:  '🟢'
+  L_MEM_PICLAS_COMM_TYPE_NODE_COLOR: '🔵'
+  L_MEM_OMPI_COMM_TYPE_CORE_COLOR:   '🟠'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Set pipeline name to indicate whether default shared memory, node split or core split is used, and whether it is a checkin, nightly or weekly pipeline
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 workflow:
   # Compose the pipeline name from the per-value labels defined in `variables` above
-  name: '${L_SCHEDULE_$[[ inputs.SCHEDULE ]]} ${CI_COMMIT_REF_NAME} (${MPI_FLAVOUR}, ${L_MEM_$[[ inputs.SHARED_MEMORY ]]})'
+  name: '${L_SCHEDULE_$[[ inputs.SCHEDULE ]]}${L_MEM_$[[ inputs.SHARED_MEMORY ]]_COLOR} ${CI_COMMIT_REF_NAME} (${MPI_FLAVOUR}, ${L_MEM_$[[ inputs.SHARED_MEMORY ]]})'
   rules:
     # These awful awful regexes determine whether it is an odd or even day. Since we want to show the MPI implementation we are using in
     # the pipeline name, we are reliant on using non-shell methods.
