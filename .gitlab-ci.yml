@@ -102,8 +102,6 @@ variables:
   SHARED_MEMORY: $[[ inputs.SHARED_MEMORY]]
   # fortitude
   FORTITUDE: "/var/lib/gitlab-runner/.local/bin/fortitude"
-  # ruff
-  RUFF: "/var/lib/gitlab-runner/.local/bin/ruff"
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Use pipeline name to indicate whether default shared memory, node split or core split is used, and whether it is a checkin, nightly or weekly pipeline
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -259,6 +257,7 @@ before_script:
 # Stages
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 stages:
+  - venv
   - lint
   - download
   - tools
@@ -650,6 +649,30 @@ cleanup:
     - if: $[[ inputs.DO_CODE_COVERAGE ]] == true
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "venv": Create venv
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+venv_create:
+  extends: .default_build_param
+  cache:
+    - key: "venv"
+      paths: [venv]
+      policy: pull-push
+  stage: venv
+  script:
+    - deactivate || true
+    - rm -rf venv
+    - python3 -m venv venv
+    - pwd
+    - pip --version || true
+    - source venv/bin/activate
+    - python3 -m ensurepip
+    - pip --version
+    - python3 -m pip install uv
+    - uv pip install --upgrade setuptools wheel
+    - uv pip install --upgrade pytest pytest-cov
+    - uv pip install ruff==0.16.7
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "lint": Run the linters
 # policy: allow failure without stopping pipeline only on feature branches
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -676,34 +699,16 @@ ruff:
   <<: *defaults_python
   stage: lint
   dependencies: []
+  cache:
+    - *venv_cache
   script:
-    - $RUFF --version
-    - $RUFF check --config pyproject.toml --preview
-    - $RUFF check --config pyproject.toml --preview --statistics
+    - ruff --version
+    - ruff check --config pyproject.toml --preview
+    - ruff check --config pyproject.toml --preview --statistics
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "Download": install python venv, pyhope and reggie
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-
-venv_create:
-  extends: .default_build_param
-  cache:
-    - key: "venv"
-      paths: [venv]
-      policy: pull-push
-  stage: download
-  script:
-    - deactivate || true
-    - rm -rf venv
-    - python3 -m venv venv
-    - pwd
-    - pip --version || true
-    - source venv/bin/activate
-    - python3 -m ensurepip
-    - pip --version
-    - python3 -m pip install uv
-    - uv pip install --upgrade setuptools wheel
-    - uv pip install --upgrade pytest pytest-cov
 
 pyhope_download:
   extends: .default_build_param
