@@ -100,8 +100,6 @@ spec:
 variables:
   # used for pipeline name in wek_radiation
   SHARED_MEMORY: $[[ inputs.SHARED_MEMORY]]
-  # fortitude
-  FORTITUDE: "/var/lib/gitlab-runner/.local/bin/fortitude"
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Use pipeline name to indicate whether default shared memory, node split or core split is used, and whether it is a checkin, nightly or weekly pipeline
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -671,6 +669,7 @@ venv_create:
     - uv pip install --upgrade setuptools wheel
     - uv pip install --upgrade pytest pytest-cov
     - uv pip install ruff==0.16.7
+    - uv pip install fortitude-lint==0.9.2
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "lint": Run the linters
@@ -680,10 +679,12 @@ fortitude:
   <<: *defaults_python
   stage: lint
   dependencies: []
+  cache:
+    - *venv_cache
   script:
-    - $FORTITUDE --version
-    - $FORTITUDE check --output-format=grouped src
-    - $FORTITUDE check src --statistics --quiet
+    - fortitude --version
+    - fortitude check --output-format=grouped src
+    - fortitude check src --statistics --quiet
   rules:
     # Skip running this job for merge requests targeting the default branch
   - if: '$CI_MERGE_REQUEST_ID && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH'
