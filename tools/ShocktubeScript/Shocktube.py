@@ -391,7 +391,7 @@ def Init(KeepOldData,RestartFolder):
   Iteration.TargetVelo = ReadinValues.GetValue("Shock-Target-Velo")
   Iteration.TargetDev = ReadinValues.GetValue("Shock-Target-dev")
   Iteration.CurrentVelo = ReadinValues.GetValue("Shock-Start-Velo")
-  if Iteration.CurrentVelo == 0.0:
+  if Iteration.CurrentVelo == 0.0:  # noqa: RUF069
     print("use 'Shock-Target-Velo' as 'Shock-Start-Velo'")
     Iteration.CurrentVelo = Iteration.TargetVelo
   Iteration.ResponseRatio = ReadinValues.GetValue("Shock-ResponseRatio")

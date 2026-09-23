@@ -2822,7 +2822,7 @@ class Theme:
         
         if self.skew < 0:
             raise ValueError("Skew must be greater than 0")
-        elif self.skew == 1.0:
+        elif self.skew == 1.0:  # noqa: RUF069
             h = hmin + weight*(hmax - hmin)
             s = smin + weight*(smax - smin)
             l = lmin + weight*(lmax - lmin)
