@@ -795,7 +795,7 @@ def convert_electronic_data(DATA):
     # dropping term column for nan filtering
     DATA = DATA.drop(columns=['Term'])
     # find rows containing nan
-    rows_with_nan = [index for index, row in DATA.iterrows() if row.isnull().any()]
+    rows_with_nan = [index for index, row in DATA.iterrows() if row.isnull().any()]  # noqa: PD003
     # remove rows with nan
     if len(rows_with_nan) == 1:
         max_level = rows_with_nan[0]
@@ -860,7 +860,7 @@ def convert_electronic_data(DATA):
 
 # function to print differences in datasets
 def print_diffs(new_data, ref_data, level_type='Electronic'):
-    '''Print the differneces in the two data sets onto terminal\n Inputs: new data array from url/custom data and data array from species database'''
+    r'''Print the differneces in the two data sets onto terminal\n Inputs: new data array from url/custom data and data array from species database'''
     try:
         diff_indices_degeneracy = np.where(~np.isclose(new_data[:,0], ref_data[:,0], rtol=1e-05, atol=0))
         diff_indices_levels = np.where(~np.isclose(new_data[:,1], ref_data[:,1], rtol=1e-05, atol=0))
