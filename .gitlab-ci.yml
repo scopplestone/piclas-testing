@@ -141,15 +141,14 @@ default:
         fi
       fi
     - if [ "$[[ inputs.DO_NINJA ]]" == "true" ]; then
-        echo " Setting CMAKE_GENERATOR=Ninja to use ninja generator";
-        export CMAKE_GENERATOR=Ninja;
-          export NCORES=0;
+        export CMAKE_GENERATOR="Ninja";
+        export FLAG_NCORES=""
       else
-        echo " Using default generator [Unix Makefiles] and [make] for compiling.";
-        export CMAKE_GENERATOR=;
-          export NCORES=;
+        export CMAKE_GENERATOR="Unix Makefiles";
+        export FLAG_NCORES="-j"
       fi
-    - echo "Loading ${MPI_FLAVOUR}.";
+    - echo " Setting CMAKE_GENERATOR=${CMAKE_GENERATOR}"
+    - echo "Loading ${MPI_FLAVOUR}."
     - if [ "${MPI_FLAVOUR}" == "OpenMPI" ]; then
         module purge || true;
         module load  cmake/4.3.3  gcc/16.1.0  openmpi/5.0.9/gcc/16.1.0      hdf5/2.2.0/gcc/16.1.0/openmpi/5.0.9      petsc/3.25.1/gcc/16.1.0/openmpi/5.0.9 || true;
@@ -396,7 +395,7 @@ build_default:
     paths: [build]
   script:
     - cmake -GNinja -B build -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON
-    - cmake --build build -j $NCORES -t all
+    - cmake --build build $FLAG_NCORES -t all
     - ./tools/strip-build-dir.sh --keep-coverage build
 
 build_maxwell_only:
@@ -406,7 +405,7 @@ build_maxwell_only:
     paths: [build_maxwell_only]
   script:
     - cmake -B build_maxwell_only  -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON
-    - cmake --build build_maxwell_only -j $NCORES -t all 2>&1 | tee compile_output.txt
+    - cmake --build build_maxwell_only $FLAG_NCORES -t all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
@@ -424,9 +423,9 @@ build_poisson:
       - build_poisson_debug_Leapfrog
   script:
     - cmake -B build_poisson_release_RK3 -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF
-    - cmake --build build_poisson_release_RK3 -j $NCORES -t all
+    - cmake --build build_poisson_release_RK3 $FLAG_NCORES -t all
     - cmake -B build_poisson_debug_RK3 -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF
-    - cmake --build build_poisson_debug_RK3 -j $NCORES -t all 2>&1 | tee compile_output.txt
+    - cmake --build build_poisson_debug_RK3 $FLAG_NCORES -t all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     # Check greater than 10, see https://regex101.com/ for details
     # - if [[ "$NWARN" =~ ^(1[1-9]|[2-9]+\d+|1\d\d+)$ ]]; then
@@ -435,9 +434,9 @@ build_poisson:
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
     - cmake -B build_poisson_release_Leapfrog -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF
-    - cmake --build build_poisson_release_Leapfrog -j $NCORES -t all
+    - cmake --build build_poisson_release_Leapfrog $FLAG_NCORES -t all
     - cmake -B build_poisson_debug_Leapfrog -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF
-    - cmake --build build_poisson_debug_Leapfrog -j $NCORES -t all 2>&1 | tee compile_output.txt
+    - cmake --build build_poisson_debug_Leapfrog $FLAG_NCORES -t all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [ -n "$WARN" ]; then echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; fi
     # Check greater than 10, see https://regex101.com/ for details
@@ -459,17 +458,17 @@ build_poisson_petsc:
       - build_poisson_petsc_debug_Leapfrog
   script:
     - cmake -B build_poisson_petsc_release_RK3 -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF
-    - cmake --build build_poisson_petsc_release_RK3 -j $NCORES -t all
+    - cmake --build build_poisson_petsc_release_RK3 $FLAG_NCORES -t all
     - cmake -B build_poisson_petsc_debug_RK3 -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF
-    - cmake --build build_poisson_petsc_debug_RK3  -j $NCORES -t all 2>&1 | tee compile_output.txt
+    - cmake --build build_poisson_petsc_debug_RK3  $FLAG_NCORES -t all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
     - cmake -B build_poisson_petsc_release_Leapfrog  -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF
-    - cmake --build build_poisson_petsc_release_Leapfrog -j $NCORES -t all
+    - cmake --build build_poisson_petsc_release_Leapfrog $FLAG_NCORES -t all
     - cmake -B build_poisson_petsc_debug_Leapfrog -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON
-    - cmake --build build_poisson_petsc_debug_Leapfrog -j $NCORES -t all
+    - cmake --build build_poisson_petsc_debug_Leapfrog $FLAG_NCORES -t all
     - ./tools/strip-build-dir.sh --keep-coverage build_*
 
 build_DSMC:
@@ -483,20 +482,20 @@ build_DSMC:
       - build_radiation
   script:
     - cmake -B build_DSMC_release  -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF
-    - cmake --build build_DSMC_release  -j $NCORES -t all
+    - cmake --build build_DSMC_release  $FLAG_NCORES -t all
     - cmake -B build_DSMC_debug  -DCMAKE_BUILD_TYPE=Debug -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF
-    - cmake --build build_DSMC_debug  -j $NCORES -t all 2>&1 | tee compile_output.txt
+    - cmake --build build_DSMC_debug  $FLAG_NCORES -t all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
     - if [ "$[[ inputs.SCHEDULE ]]" == "WEEKLY" ] ; then
         cmake -B build_DSMC_N1 -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ;
-        cmake --build  build_DSMC_N1 -j $NCORES -t all ;
+        cmake --build  build_DSMC_N1 $FLAG_NCORES -t all ;
       fi
     - if [ "$[[ inputs.SCHEDULE ]]" == "WEEKLY" ] ; then
         cmake -B build_radiation -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ;
-        cmake --build  build_radiation -j $NCORES -t all ;
+        cmake --build  build_radiation $FLAG_NCORES -t all ;
       fi
     - ./tools/strip-build-dir.sh --keep-coverage build_*
 
@@ -507,7 +506,7 @@ build_drift_diffusion:
     paths: [build_drift_diffusion]
   script:
     - cmake -B build_drift_diffusion -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -DLIBS_USE_PETSC=ON
-    - cmake --build build_drift_diffusion -j $NCORES -t all 2>&1 | tee compile_output.txt
+    - cmake --build build_drift_diffusion $FLAG_NCORES -t all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ "$[[ inputs.CHECK_WARNINGS ]]" == "true" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
@@ -521,7 +520,7 @@ build_DVM:
     paths: [build_DVM]
   script:
     - cmake -B build_DVM -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=ED-DVM -DPICLAS_PARTICLES=OFF
-    - cmake --build build_DVM -j $NCORES -t all
+    - cmake --build build_DVM $FLAG_NCORES -t all
     - ./tools/strip-build-dir.sh --keep-coverage build_*
 
 build_DVM_plasma:
@@ -531,7 +530,7 @@ build_DVM_plasma:
     paths: [build_DVM_plasma]
   script:
     - cmake -B build_DVM_plasma -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=PLOESMA -DPICLAS_PARTICLES=OFF -DLIBS_USE_PETSC=ON
-    - cmake --build build_DVM_plasma -j $NCORES -t all
+    - cmake --build build_DVM_plasma $FLAG_NCORES -t all
     - ./tools/strip-build-dir.sh --keep-coverage build_*
 
 build_no_git:
@@ -551,7 +550,7 @@ build_no_git:
     # is the assertion (a hard failure on a missing .git would fail the job).
     - if git rev-parse --show-toplevel 2>/dev/null ; then echo "ERROR - found a parent git repository, no-git test environment is not clean" ; exit 1 ; fi
     - cmake -B build_ -DLIBS_BUILD_HDF5=OFF
-    - cmake --build build_ -j $NCORES -t all
+    - cmake --build build_ $FLAG_NCORES -t all
     - rm -rf $NOGIT_DIR
 
 build_outside_repository:
@@ -562,7 +561,7 @@ build_outside_repository:
     - REPOPATH=$(echo `pwd`)
     - cd .. ;
     - cmake -B build-piclas-outside ${REPOPATH} -DLIBS_BUILD_HDF5=OFF
-    - cmake --build build-piclas-outside -j $NCORES -t all
+    - cmake --build build-piclas-outside $FLAG_NCORES -t all
     - rm -r build-piclas-outside
 
 build_no_git_libs:
@@ -574,7 +573,7 @@ build_no_git_libs:
     - rm -rf piclas-no-git-but-libs/.git* ; cd piclas-no-git-but-libs ; ls -la
     - cmake -B build_ -DLIBS_BUILD_HDF5=ON -DLIBS_BUILD_MATH_LIB=ON -DLIBS_BUILD_MATH_LIB_VENDOR=OpenBLAS
     - echo " Compiling with -DLIBS_BUILD_HDF5=ON -DLIBS_BUILD_MATH_LIB=ON -DLIBS_BUILD_MATH_LIB_VENDOR=OpenBLAS ..."
-    - cmake --build build_ -j $NCORES -t all &> output.txt
+    - cmake --build build_ $FLAG_NCORES -t all &> output.txt
     - tail -n 20 output.txt
     - rm output.txt
     - ls build_/bin/piclas
@@ -588,7 +587,7 @@ build_petsc_in_piclas:
   script:
     - cmake -B build_petsc_lib -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_CODE_ANALYZE=ON -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON
     - echo " Compiling with Poisson, RK3 and self-built PETSc (-DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON) ..."
-    - cmake --build build_petsc_lib -j $NCORES -t all
+    - cmake --build build_petsc_lib $FLAG_NCORES -t all
     - ./tools/strip-build-dir.sh --keep-coverage build_*
 
 build_Leapfrog_PGO:
@@ -600,11 +599,11 @@ build_Leapfrog_PGO:
   script:
     - cmake -B build_Leapfrog_PGO -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Profile
     - echo " Preparing PGO profiling run by compiling with -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Profile"
-    - cmake --build build_Leapfrog_PGO -j $NCORES -t all
+    - cmake --build build_Leapfrog_PGO $FLAG_NCORES -t all
     - cd build_Leapfrog_PGO && reggie -e ./bin/piclas ../regressioncheck/WEK_poisson_PETSC/floating_boundary_condition_p-convergence && cd ..
     - echo " Using PGO profiling results for re-compiling with -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Release"
     - cmake -B build_Leapfrog_PGO -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Release
-    - cmake --build build_Leapfrog_PGO -j $NCORES -t all
+    - cmake --build build_Leapfrog_PGO $FLAG_NCORES -t all
     - ./tools/strip-build-dir.sh --keep-coverage build_*
 
 build_documentation:
