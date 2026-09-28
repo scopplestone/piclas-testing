@@ -703,6 +703,7 @@ ruff:
   cache:
     - *venv_cache
   script:
+    - pwd
     - ruff --version
     - ruff check --config pyproject.toml --preview
     - ruff check --config pyproject.toml --preview --statistics
@@ -1136,9 +1137,9 @@ build_no_git_libs:
     - rm -rf piclas-no-git-but-libs/.git* ; cd piclas-no-git-but-libs ; ls -la
     - cmake -B build_ -DLIBS_BUILD_HDF5=ON -DLIBS_BUILD_MATH_LIB=ON -DLIBS_BUILD_MATH_LIB_VENDOR=OpenBLAS
     - echo " Compiling with -DLIBS_BUILD_HDF5=ON -DLIBS_BUILD_MATH_LIB=ON -DLIBS_BUILD_MATH_LIB_VENDOR=OpenBLAS ..."
-    - cmake --build build_ -j $NCORES -t all &> output.txt
-    - tail -n 20 output.txt
-    - rm output.txt
+    - cmake --build build_ -j $NCORES -t all > cmake-build-output.txt 2>&1 || true
+    - tail -n 100 cmake-build-output.txt
+    - rm cmake-build-output.txt
     - ls build_/bin/piclas
   rules:
     - if: $[[ inputs.DO_WEEKLY ]] == true
@@ -1760,6 +1761,7 @@ build_all:
   <<: *defaults_weekly
   stage: build_weekly
   script:
+    - rm -rf share/*/HDF5  # Delete the HDF5 directory as it might have been built in a previous run with a different MPI lib (MPICH or OpenMPI), which can lead to linking errors
     - cd build ;  reggie ../regressioncheck/run_basic
 
 build_sanitize:
