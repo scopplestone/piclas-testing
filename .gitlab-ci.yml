@@ -142,10 +142,10 @@ default:
       fi
     - if [ "$[[ inputs.DO_NINJA ]]" == "true" ]; then
         export CMAKE_GENERATOR="Ninja";
-        export FLAG_NCORES=""
+        export FLAG_NCORES="";
       else
         export CMAKE_GENERATOR="Unix Makefiles";
-        export FLAG_NCORES="-j"
+        export FLAG_NCORES="-j";
       fi
     - echo " Setting CMAKE_GENERATOR=${CMAKE_GENERATOR}"
     - echo "Loading ${MPI_FLAVOUR}."
