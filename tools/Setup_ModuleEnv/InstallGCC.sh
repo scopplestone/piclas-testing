@@ -110,6 +110,9 @@ if [[ ${GCCVERSION} == '9.3.0' ]] || [[ ${GCCVERSION} == '10.1.0' ]] || [[ ${GCC
   echo -e "${GREEN}Installing libmpfr-dev and libmpc-dev for this version of GCC${NC}"
   sudo apt-get install libmpfr-dev -y
   sudo apt-get install libmpc-dev -y
+elif [[ ${GCCVERSION} == '16.1.0' ]]; then
+  echo -e "${GREEN}Installing [libgmp-dev, libmpfr-dev, libmpc-dev] for this version of GCC${NC}"
+  sudo apt install libgmp-dev libmpfr-dev libmpc-dev
 fi
 
 # --------------------------------------------------------------------------------------------------
