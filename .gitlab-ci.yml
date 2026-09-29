@@ -57,6 +57,9 @@ spec:
       default: false
 ---
 variables:
+  # Use a fresh clone every time. This costs a few seconds, but greatly improves reproducability
+  # It is especially helpful after tests where we remove the .git directory.
+  GIT_STRATEGY: clone
   # The project directory will be cleaned up at the end of the build
   FF_ENABLE_JOB_CLEANUP: true
   # The trace force send interval for logs is dynamically adjusted based on the trace update interval
@@ -104,6 +107,12 @@ workflow:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 default:
   tags: [withmodules-concurrent-new]
+  # Cache self-built HDF5 (LIBS_BUILD_HDF5=ON).
+  # HDF5 is built against the MPI flavour chosen for this pipeline, so reusing it across pipelines is unsafe.
+  cache:
+    key: "hdf5-${CI_PIPELINE_ID}"
+    paths:
+      - share/*/HDF5
   before_script:
     - export MESHESDIR=True
     - export REGGIE_GITLAB_CI=1
@@ -556,6 +565,7 @@ build_no_git_libs:
   # No artifacts. We won't need this binary
   script:
     - rm -rf .git*
+    - if git rev-parse --show-toplevel 2>/dev/null ; then echo "ERROR - found a parent git repository, no-git test environment is not clean" ; exit 1 ; fi
     - cmake -B build -DLIBS_BUILD_HDF5=ON -DLIBS_BUILD_MATH_LIB=ON -DLIBS_BUILD_MATH_LIB_VENDOR=OpenBLAS
     - cmake --build build $FLAG_NCORES -t all > cmake-build-output.txt 2>&1
     - tail -n 100 cmake-build-output.txt
