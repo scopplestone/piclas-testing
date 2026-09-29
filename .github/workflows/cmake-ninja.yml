@@ -11,7 +11,7 @@ jobs:
     # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
     # You can convert this to a matrix build if you need cross-platform coverage.
     # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     # Use centos8
     container:
@@ -40,9 +40,11 @@ jobs:
       run: |
         git config --global --add safe.directory '*'
         git status
-        curl -L -O https://github.com/Kitware/CMake/releases/download/v3.19.7/cmake-3.19.7-Linux-x86_64.sh
-        chmod +x cmake-3.19.7-Linux-x86_64.sh
-        ./cmake-3.19.7-Linux-x86_64.sh --skip-license --prefix=/usr/local
+        CMAKESCRIPTVERSION=v4.3.3
+        CMAKEINSTALLSCRIPT=cmake-${CMAKESCRIPTVERSION#v}-Linux-x86_64.sh
+        curl -L -O https://github.com/Kitware/CMake/releases/download/${CMAKESCRIPTVERSION}/${CMAKEINSTALLSCRIPT}
+        chmod +x ${CMAKEINSTALLSCRIPT}
+        ./${CMAKEINSTALLSCRIPT} --skip-license --prefix=/usr/local
         curl -L -O https://www.mirrorservice.org/sites/dl.fedoraproject.org/pub/epel/8/Everything/x86_64/Packages/p/p7zip-16.02-31.el8.x86_64.rpm
         curl -L -O https://www.mirrorservice.org/sites/dl.fedoraproject.org/pub/epel/8/Everything/x86_64/Packages/p/p7zip-plugins-16.02-31.el8.x86_64.rpm
         rpm -U --quiet p7zip-16.02-31.el8.x86_64.rpm
