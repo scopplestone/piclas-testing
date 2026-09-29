@@ -290,7 +290,7 @@ stages:
     when: always
   script:
     # reggie writes tracefiles to $CI_PROJECT_DIR/../Coverage when CODE_COVERAGE is set. TODO: Change this
-    - rm -rf Coverage ../Coverage || true
+    - rm -rf Coverage ../Coverage
     - |
       if [ -n "${USE_BUILD}" ]; then
         reggie ${REGGIE_ARGS} -e "${USE_BUILD}/bin/piclas" "regressioncheck/${REGGIE_CASE}"
@@ -553,16 +553,12 @@ build_outside_repository:
 build_no_git_libs:
   extends: [.build_defaults, .rules_weekly]
   stage: build_weekly
+  # No artifacts. We won't need this binary
   script:
-    - echo " Installing branch $CI_COMMIT_REF_NAME without git but with external libs"
-    - git clone --depth=1 --branch=$CI_COMMIT_REF_NAME git@piclas.boltzplatz.eu:piclas/piclas.git piclas-no-git-but-libs
-    - rm -rf piclas-no-git-but-libs/.git* ; cd piclas-no-git-but-libs ; ls -la
-    - cmake -B build_ -DLIBS_BUILD_HDF5=ON -DLIBS_BUILD_MATH_LIB=ON -DLIBS_BUILD_MATH_LIB_VENDOR=OpenBLAS
-    - echo " Compiling with -DLIBS_BUILD_HDF5=ON -DLIBS_BUILD_MATH_LIB=ON -DLIBS_BUILD_MATH_LIB_VENDOR=OpenBLAS ..."
-    - cmake --build build_ $FLAG_NCORES -t all > cmake-build-output.txt 2>&1 || true
+    - rm -rf .git*
+    - cmake -B build -DLIBS_BUILD_HDF5=ON -DLIBS_BUILD_MATH_LIB=ON -DLIBS_BUILD_MATH_LIB_VENDOR=OpenBLAS
+    - cmake --build build $FLAG_NCORES -t all > cmake-build-output.txt 2>&1
     - tail -n 100 cmake-build-output.txt
-    - rm cmake-build-output.txt
-    - ls build_/bin/piclas
 
 build_petsc_in_piclas:
   extends: [.build_defaults, .rules_weekly]
