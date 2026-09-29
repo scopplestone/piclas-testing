@@ -103,7 +103,7 @@ workflow:
 # Prepare execution environment
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 default:
-  tags: [withmodules-concurrent]
+  tags: [withmodules-concurrent-new]
   before_script:
     - export MESHESDIR=True
     - export REGGIE_GITLAB_CI=1
