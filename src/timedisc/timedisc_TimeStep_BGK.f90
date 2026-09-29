@@ -92,8 +92,6 @@ IF (DoChemSurface) THEN
   END IF
 END IF
 
-PRINT *, "Wello, Horld!"
-
 DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
     ! Variable time step: getting the right time step for the particle (can be constant across an element)
