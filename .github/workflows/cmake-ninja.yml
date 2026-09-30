@@ -141,6 +141,8 @@ jobs:
         echo "======================================================================="
 
     - name: Install PETSc 3.21.6
+      env:
+        CMAKE_POLICY_VERSION_MINIMUM: "3.5"
       run: |
         PETSCVERSION='3.21.6'
         source ~/.bashrc
@@ -164,8 +166,11 @@ jobs:
           --download-hypre \
           --download-mumps \
           --download-scalapack \
+          --download-scalapack-cmake-arguments="-DCMAKE_POLICY_VERSION_MINIMUM=3.5" \
           --download-metis \
-          --download-parmetis
+          --download-metis-cmake-arguments="-DCMAKE_POLICY_VERSION_MINIMUM=3.5" \
+          --download-parmetis \
+          --download-parmetis-cmake-arguments="-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
         make -j && make install
         echo "======================================================================="
         PETSC_DIR='/opt/petsc/'${PETSCVERSION}
