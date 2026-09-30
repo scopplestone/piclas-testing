@@ -217,28 +217,6 @@ IF(NOT LIBS_BUILD_HDF5)
     GET_PROPERTY(HDF5_C_LIBRARY_hdf5_c TARGET hdf5::hdf5 PROPERTY LOCATION)
   ENDIF()
 
-  IF(NOT "${HDF5_C_LIBRARY_hdf5_c}" STREQUAL "")
-    IF(APPLE)
-      EXECUTE_PROCESS(COMMAND nm -gU      ${HDF5_C_LIBRARY_hdf5_c} COMMAND grep inflate OUTPUT_VARIABLE HDF5_USES_ZLIB RESULT_VARIABLE GREP_RESULT OUTPUT_STRIP_TRAILING_WHITESPACE)
-    ELSE()
-      EXECUTE_PROCESS(COMMAND readelf -Ws ${HDF5_C_LIBRARY_hdf5_c} COMMAND grep inflate OUTPUT_VARIABLE HDF5_USES_ZLIB RESULT_VARIABLE GREP_RESULT OUTPUT_STRIP_TRAILING_WHITESPACE)
-    ENDIF()
-  ELSE()
-    SET(GREP_RESULT 1)
-  ENDIF()
-
-  IF(GREP_RESULT EQUAL 0)
-    # HDF5 is linked against zlib, find it here
-    SET(ZLIB_USE_STATIC_LIBS "ON")
-    FIND_PACKAGE(ZLIB QUIET)
-
-    # Could not find the static version, look for the shared library
-    IF(NOT ZLIB_FOUND)
-      UNSET(ZLIB_USE_STATIC_LIBS)
-      FIND_PACKAGE(ZLIB REQUIRED)
-    ENDIF()
-  ENDIF()
-
   # Set build status to system
   SET(HDF5_BUILD_STATUS "system")
 ELSE()
@@ -309,13 +287,10 @@ ELSE()
     INCLUDE(ProcessorCount)
     PROCESSORCOUNT(N)
 
-    # Find zlib
-    SET(ZLIB_USE_STATIC_LIBS ON)
-    FIND_PACKAGE(ZLIB QUIET)
-    IF(NOT ZLIB_FOUND)
-      UNSET(ZLIB_USE_STATIC_LIBS)
-      FIND_PACKAGE(ZLIB REQUIRED)
-    ENDIF()
+    # Find zlib. We require the dynamically linked version, since on some systems
+    # (e.g. Ubuntu 26.04) zlib is built without PIC.
+    # ZLIB_USE_STATIC_LIBS = OFF by default
+    FIND_PACKAGE(ZLIB REQUIRED)
 
     # Let CMake take care of download, configure and build
     EXTERNALPROJECT_ADD(HDF5
