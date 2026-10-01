@@ -873,6 +873,8 @@ CASE(800,801,900,901,1000,1100) ! Dielectric slab on electrode (left) with plasm
       END ASSOCIATE
     END ASSOCIATE
   END ASSOCIATE
+CASE(9000)
+  resu = 0.
 CASE(10001)
 #if !(USE_PETSC) || !defined(PARTICLES) || !defined(CODE_ANALYZE)
   CALL CollectiveStop(__STAMP__,'ExactFunc=10001 requires LIBS_USE_PETSC=ON and PARTICLES=ON and PICLAS_CODE_ANALYZE=ON')
@@ -1023,6 +1025,8 @@ CASE(801,901) ! plasma between electrodes + particles: Linear source
   IF((x.GT.0.0).AND.(x.LT.dx))THEN
     PS_N(iElem)%PartSource(4,i,j,k) = PS_N(iElem)%PartSource(4,i,j,k) - 1e-4*(1.0 - N_VolMesh(iElem)%Elem_xGP(2,i,j,k)/1e-3)
   END IF ! x.GT.0.0
+CASE(9000) ! Uniform ion background source
+  PS_N(iElem)%PartSource(4,i,j,k) = PS_N(iElem)%PartSource(4,i,j,k) + 1.
 END SELECT
 #endif /*defined(CODE_ANALYZE)*/
 
