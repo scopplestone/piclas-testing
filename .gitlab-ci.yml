@@ -686,6 +686,12 @@ fortitude:
     - fortitude check --output-format=grouped src
     - fortitude check src --statistics --quiet
   rules:
+    # If the pipeline is for an appimage test run, the job is not added to the pipeline.
+  - if: '"$[[ inputs.DO_TEST_APPIMAGE ]]" != ""'
+    when: never
+    # If the pipeline is for an appimage build run, the job is not added to the pipeline.
+  - if: $[[ inputs.DO_CREATE_APPIMAGE ]] == true
+    when: never
     # Skip running this job for merge requests targeting the default branch
   - if: '$CI_MERGE_REQUEST_ID && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH'
     when: never
@@ -1110,6 +1116,8 @@ build_no_git:
     - cmake -B build_ -DLIBS_BUILD_HDF5=OFF
     - cmake --build build_ -j $NCORES -t all
     - rm -rf $NOGIT_DIR
+  rules:
+    - if: $[[ inputs.DO_WEEKLY ]] == true
 
 build_outside_repository:
   tags: [withmodules-concurrent]
