@@ -188,14 +188,6 @@ jobs:
         source ~/.bashrc
         cmake -G Ninja -B build_single -DPICLAS_INSTRUCTION=-mtune=generic -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=OFF -DLIBS_BUILD_HDF5=ON -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
-    - name: Debug HDF5 build
-      if: failure()
-      shell: bash
-      run: |
-        ls -la share/GNU/HDF5/ share/GNU/HDF5/lib* 2>&1 | head -50
-        find build_single -path "*HDF5*" -name "*.log" | head -20
-        grep -n -i -m5 "error" $(find build_single -path "*HDF5*" -name "*.log") 2>/dev/null
-
     - name: Build PICLas Single-core
       shell: bash
       run: |
