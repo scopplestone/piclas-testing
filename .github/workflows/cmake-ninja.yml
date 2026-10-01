@@ -62,9 +62,12 @@ jobs:
         curl -L -O https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
         chmod +x linuxdeploy-x86_64.AppImage
 
-    - name: Install GNU GCC 8
+    - name: Install GNU GCC 12
       shell: bash
       run: |
+        yum install -y gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ gcc-toolset-12-gcc-gfortran
+        GCC_DIR='/opt/rh/gcc-toolset-12/root/usr'
+        echo 'export PATH="'${GCC_DIR}'/bin:$PATH"' >> ~/.bashrc
         #yum install -y centos-release-scl
         #yum install -y devtoolset-8-gcc*
         #source /opt/rh/devtoolset-8/enable
@@ -73,7 +76,7 @@ jobs:
         #echo 'source /opt/rh/devtoolset-8/enable' >> ~/.bashrc
         #echo 'scl enable devtoolset-8 bash' >> ~/.bashrc
         #GCC_DIR='/opt/rh/devtoolset-8/root/usr'
-        GCC_DIR=$(dirname $(dirname $(which gcc)))
+        # GCC_DIR=$(dirname $(dirname $(which gcc)))
         echo 'export PATH="'${GCC_DIR}'/bin:$PATH"' >> ~/.bashrc
         echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
         echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib64:$LD_LIBRARY_PATH"' >> ~/.bashrc
