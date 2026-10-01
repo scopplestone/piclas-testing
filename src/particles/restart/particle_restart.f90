@@ -1041,8 +1041,8 @@ IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
       ! Initial surface coverage
         ChemWallProp(iSpec,:,:,iSurfSide) = tempSurfData(iSpec,:,:,iSide)
       END DO
-      ! Heat flux on the surface element
-      !ChemWallProp(nSpecies+1,:,:,iSurfSide) = tempSurfData(nSpecies+1,:,:,iSide)
+      ! Heat flux on the surface element (not re-used only for output, since sampling is not continued after a restart)
+      ChemWallProp(nSpecies+1,:,:,iSurfSide) = 0.
     END DO
   ELSE
     SWRITE(*,*) 'No catalytic data found. The coverage and heat flux values will be reset.'
