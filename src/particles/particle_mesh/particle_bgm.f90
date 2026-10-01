@@ -92,7 +92,6 @@ USE MOD_CalcTimeStep           ,ONLY: CalcTimeStep
 USE MOD_Globals_Vars           ,ONLY: c
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
-USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 USE MOD_PICDepo_Vars           ,ONLY: SFAdaptiveSmoothing,dim_sf,dimFactorSF,r_sf,dim_sf_dir
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2, halo_eps_woshape
@@ -156,12 +155,6 @@ LOGICAL                        :: ElemInsideHalo
 INTEGER                        :: firstHaloElem,lastHaloElem
 ! Halo calculation
 LOGICAL,ALLOCATABLE            :: MPISideElem(:)
-LOGICAL                        :: MPIProcHalo(1:nProcessors)
-LOGICAL                        :: MPINodeHalo(0:nLeaderGroupProcs-1)
-LOGICAL                        :: NodeHasExchangeElem
-INTEGER                        :: iNode,nMPINodeHalo,firstNodeHalo,lastNodeHalo
-INTEGER                        :: NodeFirstRank(0:nLeaderGroupProcs-1),NodeLastRank(0:nLeaderGroupProcs-1)
-INTEGER                        :: GlobalElemRank
 INTEGER                        :: nBorderElems,offsetBorderElems,nComputeNodeBorderElems
 INTEGER                        :: sendint,recvint
 ! FIBGMToProc
@@ -912,8 +905,6 @@ ELSE
   ! do refined check: (refined halo region reduction)
   ! check the bounding box of each element in compute-nodes' halo domain
   ! against the bounding boxes of the elements of the MPI-surface (inter compute-node MPI sides)
-  MPIProcHalo = .FALSE.
-
   DO iHaloElem = firstHaloElem, lastHaloElem
     ElemID = offsetCNHalo2GlobalElem(iHaloElem)
     ElemInsideHalo = .FALSE.
@@ -966,17 +957,9 @@ ELSE
       EXIT
     END DO ! iElem = 1, ComputeNodeBorderElems
 
-    IF (.NOT.ElemInsideHalo) THEN
-      ElemInfo_Shared(ELEM_HALOFLAG,ElemID) = 0
-    ELSE
-      ! Flag the proc as halo proc
-      GlobalElemRank = ElemInfo_Shared(ELEM_RANK,ElemID)
-      MPIProcHalo(GlobalElemRank+1) = .TRUE.
-
-      ! The element is added to the BGM only after ALL halo flag modifications are complete, see the counting loops
-      ! before the local element counting further down. Adding it here would leave stale entries in FIBGM_nElems if
-      ! the halo flag is removed again afterwards (e.g. by the unreachable compute-node check)
-    END IF
+    ! The element is added to the BGM only after ALL halo flag modifications are complete, see the counting loops
+    ! before the local element counting further down
+    IF (.NOT.ElemInsideHalo) ElemInfo_Shared(ELEM_HALOFLAG,ElemID) = 0
   END DO ! iHaloElem = firstHaloElem, lastHaloElem
 
   ! De-allocate FLAG array
@@ -1000,95 +983,6 @@ ELSE
     CALL CheckInterPlaneSides()
     CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
   END IF
-  ! Remove elements if the halo compute-node contains only internal elements, i.e. we cannot possibly reach the halo element
-  !
-  !   CN1     CN2    > If a compute-node contains large changes in element size, internal elements might intersect with
-  !  _ _ _    _ _ _  > the MPI sides. Since a processor checks all potential halo elements against only its own exchange
-  ! |_|_|_|  |_|_|_| > sides, the large elements will only take effect for the proc not containing it. However, if the
-  ! |_|_|_|  |_| | | > compute-node flags only large internal elements without flagging a single exchange element, there
-  ! |_|_|_|  |_|_|_| > is no way for a particle to actually reach.
-  ! |_|_|_|  |_| | |
-  ! |_|_|_|  |_|_|_| > This routine therefore checks for the presence of node-to-node exchange sides among the flagged
-  !                  > elements of each compute-node and unflags the whole node if none is found.
-  !
-  ! The check is performed per compute-node and NOT per processor: procs in the interior of another node have no
-  ! node-to-node interface themselves, but their flagged elements are reachable through the flagged elements of the
-  ! procs at that node's boundary. Only the non-periodic halo flag (2) is removed since elements flagged by the
-  ! rotational periodic/intermediate plane checks (3) are reachable through runtime mappings invisible to a side-based check.
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,MPIProcHalo,nProcessors,MPI_LOGICAL,MPI_LOR,MPI_COMM_SHARED,iError)
-
-  ! Aggregate the halo procs to their compute-nodes
-  MPINodeHalo = .FALSE.
-  DO iProc = 1,nProcessors
-    IF (MPIProcHalo(iProc)) MPINodeHalo(GlobalRankToNodeRank(iProc-1)) = .TRUE.
-  END DO
-
-  ! First and last global rank on each compute-node (compute-nodes span contiguous rank ranges, cf. ElementOnNode)
-  NodeFirstRank = HUGE(1)
-  NodeLastRank  = -1
-  DO iProc = 0,nProcessors-1
-    iNode = GlobalRankToNodeRank(iProc)
-    NodeFirstRank(iNode) = MIN(NodeFirstRank(iNode),iProc)
-    NodeLastRank( iNode) = MAX(NodeLastRank( iNode),iProc)
-  END DO
-
-  ! Distribute nMPINodeHalo evenly on compute-node procs
-  nMPINodeHalo = COUNT(MPINodeHalo)
-
-  IF (nMPINodeHalo.GT.nComputeNodeProcessors) THEN
-    firstNodeHalo = INT(REAL( myComputeNodeRank   )*REAL(nMPINodeHalo)/REAL(nComputeNodeProcessors))+1
-    lastNodeHalo  = INT(REAL((myComputeNodeRank+1))*REAL(nMPINodeHalo)/REAL(nComputeNodeProcessors))
-  ELSE
-    firstNodeHalo = myComputeNodeRank + 1
-    IF (myComputeNodeRank.LT.nMPINodeHalo) THEN
-      lastNodeHalo = myComputeNodeRank + 1
-    ELSE
-      lastNodeHalo = 0
-    END IF
-  END IF
-
-  nMPINodeHalo = 0
-
-  ! Check if the processor should check at least one halo compute-node
-  IF (lastNodeHalo.GT.0) THEN
-    NodeLoop: DO iNode = 0,nLeaderGroupProcs-1
-      ! Ignore my own compute-node
-      IF (iNode.EQ.myLeaderGroupRank) CYCLE NodeLoop
-
-      ! Ignore compute-nodes with no halo elements
-      IF (.NOT.MPINodeHalo(iNode)) CYCLE NodeLoop
-
-      nMPINodeHalo        = nMPINodeHalo + 1
-      NodeHasExchangeElem = .FALSE.
-
-      ! Ignore compute-nodes before firstNodeHalo, exit after lastNodeHalo
-      IF (nMPINodeHalo.LT.firstNodeHalo) CYCLE NodeLoop
-      IF (nMPINodeHalo.GT.lastNodeHalo)  EXIT NodeLoop
-
-      ! Use a named loop so the entire element can be cycled
-      ElemLoop: DO iElem = offsetElemMPI(NodeFirstRank(iNode))+1,offsetElemMPI(NodeLastRank(iNode)+1)
-        ! Ignore elements other than halo elements
-        IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LT.2) CYCLE ElemLoop
-
-        DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iElem)
-          ! SIDE_NBELEMTYPE is only valid for sides of node-local elements, use the node-aware check instead
-          IF (SideIsNodeExchangeSide(iSide,iNode)) THEN
-            NodeHasExchangeElem = .TRUE.
-            EXIT ElemLoop
-          END IF
-        END DO
-      END DO ElemLoop
-
-      ! Compute-node has halo elements but none with a node-to-node interface, remove the non-periodic halo elements
-      IF (.NOT.NodeHasExchangeElem) THEN
-        DO iElem = offsetElemMPI(NodeFirstRank(iNode))+1,offsetElemMPI(NodeLastRank(iNode)+1)
-          IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.2) ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 0
-        END DO
-      END IF
-    END DO NodeLoop ! iNode = 0,nLeaderGroupProcs-1
-  END IF
-  ! The code above changes ElemInfo_Shared, the mortar check below reads the halo flags
-  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
   IF(readFEMconnectivity)THEN
     ElemInfoSizeLoc = ALLELEMINFOSIZE
@@ -2345,7 +2239,6 @@ USE MOD_Particle_MPI_Vars       ,ONLY: halo_eps
 USE MOD_MPI_Vars                ,ONLY: offsetElemMPI
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,nPartBound
 USE MOD_part_tools              ,ONLY: RotateVectorAroundAxis
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -2453,7 +2346,6 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nCompu
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -2614,67 +2506,6 @@ IF (NbElemID.LT.0) THEN ! Mortar side (from particle_tracing.f90)
 END IF ! NbElemID.LT.0
 
 END FUNCTION SideIsExchangeSide
-
-
-LOGICAL FUNCTION SideIsNodeExchangeSide(SideID,NodeRank)
-!===================================================================================================================================
-!> checks if the side is a node-to-node interface of the compute-node with (leader group) rank NodeRank
-!> In contrast to SideIsExchangeSide, this check is valid for sides of elements on ANY compute-node: it only relies on globally
-!> valid mesh information (SIDE_NBELEMID, SIDE_NBSIDEID, SIDE_ELEMID, ELEM_RANK). SIDE_NBELEMTYPE CANNOT be used here since it is
-!> only written for sides of node-local elements and remains zero everywhere else
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals                ,ONLY: Abort
-USE MOD_Mesh_Vars              ,ONLY: ELEM_RANK
-USE MOD_MPI_Shared_Vars        ,ONLY: GlobalRankToNodeRank
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT VARIABLES
-INTEGER,INTENT(IN)             :: SideID
-INTEGER,INTENT(IN)             :: NodeRank
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                        :: NbElemID,nMortarElems
-INTEGER                        :: NbSideID
-INTEGER                        :: iMortar
-!===================================================================================================================================
-SideIsNodeExchangeSide = .FALSE.
-
-NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
-
-! Regular connection (also holds for small mortar sides, which store the big neighbour element)
-IF (NbElemID.GT.0) THEN
-  IF (GlobalRankToNodeRank(ElemInfo_Shared(ELEM_RANK,NbElemID)).NE.NodeRank) SideIsNodeExchangeSide = .TRUE.
-! Big mortar side, check the small neighbour elements
-ELSE IF (NbElemID.LT.0) THEN
-  nMortarElems = MERGE(4,2,NbElemID.EQ.-1)
-
-  DO iMortar = 1,nMortarElems
-    NbSideID = SideInfo_Shared(SIDE_NBSIDEID,SideID + iMortar)
-
-    ! If small mortar side not defined, abort. Every available information on the compute-node is kept in shared memory, so
-    ! no way to recover it during runtime
-    IF (NbSideID.LT.1) CALL ABORT(__STAMP__,'Small mortar side not defined! SideID + iMortar=',SideID + iMortar)
-
-    NbElemID = SideInfo_Shared(SIDE_ELEMID,NbSideID)
-    ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
-    ! no way to recover it during runtime
-    IF (NbElemID.LT.1) CALL ABORT(__STAMP__,'Small mortar element not defined! SideID=',SideID)
-
-    IF (GlobalRankToNodeRank(ElemInfo_Shared(ELEM_RANK,NbElemID)).NE.NodeRank) THEN
-      SideIsNodeExchangeSide = .TRUE.
-      RETURN
-    END IF
-  END DO ! iMortar = 1,nMortarElems
-END IF ! NbElemID
-! NbElemID.EQ.0: BC side, never a node-to-node interface
-
-END FUNCTION SideIsNodeExchangeSide
 #endif /*USE_MPI*/
 
 END MODULE MOD_Particle_BGM

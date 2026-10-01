@@ -235,10 +235,6 @@ END IF
 CALL MPI_BCAST(myLeaderGroupRank,1,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
 CALL MPI_BCAST(nLeaderGroupProcs,1,MPI_INTEGER,0,MPI_COMM_SHARED,IERROR)
 
-! Build the mapping of each global rank to the compute-node (leader group) rank it belongs to
-SDEALLOCATE(GlobalRankToNodeRank)
-ALLOCATE(GlobalRankToNodeRank(0:nProcessors_Global-1))
-CALL MPI_ALLGATHER(myLeaderGroupRank,1,MPI_INTEGER,GlobalRankToNodeRank,1,MPI_INTEGER,MPI_COMM_PICLAS,IERROR)
 ! Create MPI_Info for shared memory windows
 CALL MPI_INFO_CREATE(MPI_INFO_SHARED_LOOSE,IERROR)
 CALL MPI_INFO_SET(   MPI_INFO_SHARED_LOOSE,'accumulate_ordering','none',IERROR)
@@ -1489,7 +1485,6 @@ IMPLICIT NONE
 
 ! Free MPI_INFO objects
 CALL MPI_INFO_FREE(MPI_INFO_SHARED_LOOSE,IERROR)
-SDEALLOCATE(GlobalRankToNodeRank)
 
 ! Free the shared communicator
 IF(MPI_COMM_SHARED        .NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_SHARED        ,IERROR)
