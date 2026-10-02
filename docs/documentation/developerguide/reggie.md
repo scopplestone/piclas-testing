@@ -120,7 +120,7 @@ developed code, the [reggie](https://github.com/reggie-framework/reggie) tool ca
    for analysis files, which use a reference file with which the output of a run is compared.
    Here, the flag `-i` is used to create the reference file with a single-core run, which is suggested as a best practice as the
    actual run might be performed with multiple cores and the output should ideally be the same.
-   An example is given under [regressioncheck/WEK_DSMC/ChannelFlow_SurfChem_AdsorpDesorp_CO_O2](https://github.com/piclas-framework/piclas/blob/master/regressioncheck/WEK_DSMC/ChannelFlow_SurfChem_AdsorpDesorp_CO_O2/analyze.ini)
+   An example is given under [regressioncheck/WEK_DSMC/SurfChem_AdsorpDesorp_CO](https://github.com/piclas-framework/piclas/blob/master/regressioncheck/WEK_DSMC/SurfChem_AdsorpDesorp_CO/analyze.ini)
    where *.h5* files are compared.
 
 ## Compression of HDF5 reference files

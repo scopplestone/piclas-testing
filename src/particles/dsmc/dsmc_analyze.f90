@@ -461,11 +461,17 @@ IF (SamplePressTensHeatflux) THEN
   END DO
   DO iElem = 1, nElems
     ! Pressure tensor
-    DSMC_SolutionPressTens(1:3,iElem) = DSMC_SolutionPressTens(1:3,iElem) + presstens(1:3,iElem) * totalWeight(iElem) &
-      / (totalWeight(iElem) - totalWeight2(iElem)/totalWeight(iElem))
-    ! Heatflux
-    DSMC_SolutionPressTens(4:6,iElem) = DSMC_SolutionPressTens(4:6,iElem) + heatflux(1:3,iElem) * totalWeight(iElem) &
-      * totalWeight(iElem)**2 / (totalWeight(iElem)**3 - 3.*totalWeight(iElem) * totalWeight2(iElem) + 2.*totalWeight3(iElem))
+    IF (totalWeight(iElem).GT.0.) THEN
+      IF (totalWeight(iElem) - totalWeight2(iElem)/totalWeight(iElem).GT.0.) THEN
+        DSMC_SolutionPressTens(1:3,iElem) = DSMC_SolutionPressTens(1:3,iElem) + presstens(1:3,iElem) * totalWeight(iElem) &
+          / (totalWeight(iElem) - totalWeight2(iElem)/totalWeight(iElem))
+      END IF
+      IF ((totalWeight(iElem)**3 - 3.*totalWeight(iElem) * totalWeight2(iElem) + 2.*totalWeight3(iElem)).GT.0.) THEN
+        ! Heatflux
+        DSMC_SolutionPressTens(4:6,iElem) = DSMC_SolutionPressTens(4:6,iElem) + heatflux(1:3,iElem) * totalWeight(iElem) &
+          * totalWeight(iElem)**2 / (totalWeight(iElem)**3 - 3.*totalWeight(iElem) * totalWeight2(iElem) + 2.*totalWeight3(iElem))
+      END IF
+    END IF
   END DO
   ! Deallocate temporary arrays
   DEALLOCATE(TotalMass)
