@@ -279,7 +279,7 @@ for key in ReacName_dict:
   ReactionName = hdf_reac
 
   # Bring the reaction equation in the correct order
-  ReactionNameSplit = re.split('_', ReactionName)
+  ReactionNameSplit = ReactionName.split('_')
   checkeduct_list = re.split(r'\+', ReactionNameSplit[0])
   checkeduct_list_sorted = custom_sort_reactants(checkeduct_list)
   checkproduct_list = re.split(r'\+',ReactionNameSplit[1])

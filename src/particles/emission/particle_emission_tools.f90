@@ -1330,7 +1330,7 @@ x_step = xlen/Species(FractNbr)%Init(iInit)%maxParticleNumberX
 y_step = ylen/Species(FractNbr)%Init(iInit)%maxParticleNumberY
 z_step = zlen/Species(FractNbr)%Init(iInit)%maxParticleNumberZ
 a = Species(FractNbr)%Init(iInit)%Amplitude
-w = Species(FractNbr)%Init(iInit)%WaveNumber
+w = Species(FractNbr)%Init(iInit)%WaveNumber * 2.0 * Pi / xlen
 iPart = 1
 DO i=1,Species(FractNbr)%Init(iInit)%maxParticleNumberX
   ! calculate x position by calculating the inverse cumulative distribution function

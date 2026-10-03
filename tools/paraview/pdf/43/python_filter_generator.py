@@ -78,7 +78,7 @@ def getScriptPropertiesXml(info):
         extent that your filter ask up stream for.</Documentation>
       </StringVectorProperty>''' % requestUpdateExtent
 
-    return '\n'.join([requestData, requestInformation, requestUpdateExtent])
+    return f'{requestData}\n{requestInformation}\n{requestUpdateExtent}'
 
 
 

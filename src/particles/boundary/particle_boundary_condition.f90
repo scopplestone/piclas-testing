@@ -69,6 +69,7 @@ USE MOD_Particle_Mesh_Vars       ,ONLY: ElemBaryNGeo_Shared
 #if USE_HDG
 USE MOD_Particle_Boundary_Vars   ,ONLY: DoVirtualDielectricLayer
 USE MOD_Particle_Vars            ,ONLY: IsVDLSpecID,SpeciesOffsetVDL
+USE MOD_Particle_Boundary_Vars   ,ONLY: DoVirtualDielectricLayer
 #endif/*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
