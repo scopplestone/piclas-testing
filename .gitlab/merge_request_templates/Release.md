@@ -8,6 +8,7 @@
   in the top level directory. Adjust the version number argument to the current. Check if the following two files have been correctly changed/updated:
   * [ ] Check that `./src/globals/globals_vars.f90` (`MajorVersion`, `MinorVersion` and `PatchVersion`) is updated.
   * [ ] Check that `.github/workflows/cmake-ninja.yml` (`piclas-binaries-vX.X.X`) is updated.
+  * [ ] Check that `fpm.toml` (`version = "X.X.X"`) is updated.
 
 ## 2. Prerequisites
 * [ ] Update the prerequisite table for compiling piclas under [Required Libraries](https://piclas.readthedocs.io/en/latest/userguide/installation.html#required-libraries) (`docs/documentation/userguide/installation.md`) by checking the versions that are currently used by the reggie server (see gitlab CI/CD) for mpich and OpenMPI.
