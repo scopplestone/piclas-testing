@@ -64,7 +64,6 @@ jobs:
         yum install -y gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ gcc-toolset-12-gcc-gfortran
         GCC_DIR='/opt/rh/gcc-toolset-12/root/usr'
         echo 'export PATH="'${GCC_DIR}'/bin:$PATH"' >> ~/.bashrc
-        echo 'export PATH="'${GCC_DIR}'/bin:$PATH"' >> ~/.bashrc
         echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
         echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib64:$LD_LIBRARY_PATH"' >> ~/.bashrc
         echo 'export CC="'${GCC_DIR}'/bin/gcc"' >> ~/.bashrc
@@ -163,11 +162,11 @@ jobs:
           --download-hypre \
           --download-mumps \
           --download-scalapack \
-          --download-scalapack-cmake-arguments="-DCMAKE_POLICY_VERSION_MINIMUM=3.5" \
+          --download-scalapack-cmake-arguments="-DCMAKE_POLICY_VERSION_MINIMUM=${CMAKE_POLICY_VERSION_MINIMUM}" \
           --download-metis \
-          --download-metis-cmake-arguments="-DCMAKE_POLICY_VERSION_MINIMUM=3.5" \
+          --download-metis-cmake-arguments="-DCMAKE_POLICY_VERSION_MINIMUM=${CMAKE_POLICY_VERSION_MINIMUM}" \
           --download-parmetis \
-          --download-parmetis-cmake-arguments="-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+          --download-parmetis-cmake-arguments="-DCMAKE_POLICY_VERSION_MINIMUM=${CMAKE_POLICY_VERSION_MINIMUM}"
         make -j && make install
         echo "======================================================================="
         PETSC_DIR='/opt/petsc/'${PETSCVERSION}
