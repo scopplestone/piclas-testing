@@ -665,7 +665,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
         ! Add the heat flux due to catalytic reactions on the surface
         IF(DoChemSurface) THEN
           MacroSurfaceVal(4,p,q,OutputCounter) = MacroSurfaceVal(4,p,q,OutputCounter) + ChemWallProp(nSpecies+1,p, q, iSurfSide)&
-          / (SurfSideArea(p,q,iSurfSide)*ActualTime)
+            / (SurfSideArea(p,q,iSurfSide)*TimeSample)
         END IF
       END IF
 
@@ -707,7 +707,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       ! Output of the heat flux due to catalytic reactions
       IF (DoChemSurface) THEN
         nVarCount = nVarCount + 1
-        MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = ChemWallProp(nSpecies+1,p, q, iSurfSide)/ (SurfSideArea(p,q,iSurfSide)*ActualTime)
+        MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = ChemWallProp(nSpecies+1,p, q, iSurfSide)/ (SurfSideArea(p,q,iSurfSide)*TimeSample)
       END IF
       ! Output of torque calculation
       IF (CalcTorque) THEN

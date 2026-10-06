@@ -1388,7 +1388,7 @@ END SUBROUTINE ALLOCATE_SHARED_REAL_6
 
 
 !==================================================================================================================================
-!> Unlock and free shared memory array
+!> Synchronize the shared memory window: make local writes visible to all ranks via sync-barrier-sync
 !==================================================================================================================================
 SUBROUTINE BARRIER_AND_SYNC(SharedWindow,Communicator) !,Barrier_Opt)
 ! MODULES
