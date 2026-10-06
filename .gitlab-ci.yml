@@ -134,11 +134,11 @@ default:
     - which pyhope
     # Configure modules
     - if [ "$[[ inputs.SHARED_MEMORY ]]" == "OMPI_COMM_TYPE_CORE" ]; then
-        echo " PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE. Splitting shared memory domains on processor level (\"core splitting\")";
+        echo "PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE. Splitting shared memory domains on processor level (\"core splitting\")";
         export PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE;
       else
         if [ "$[[ inputs.SHARED_MEMORY ]]" == "PICLAS_COMM_TYPE_NODE" ]; then
-          echo " PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE. Splitting shared memory domains on sub-node level with 2 cores per node (\"node splitting\")!";
+          echo "PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE. Splitting shared memory domains on sub-node level with 2 cores per node (\"node splitting\")!";
           export PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE;
         else
           echo "PICLAS_SHARED_MEMORY=MPI_COMM_TYPE_SHARED. Splitting shared memory domains on physical node level (default)!";
@@ -152,7 +152,7 @@ default:
         export CMAKE_GENERATOR="Unix Makefiles";
         export FLAG_NCORES="-j";
       fi
-    - echo " Setting CMAKE_GENERATOR=${CMAKE_GENERATOR}"
+    - echo "Setting CMAKE_GENERATOR=${CMAKE_GENERATOR}"
     - echo "Loading ${MPI_FLAVOUR}."
     - if [ "${MPI_FLAVOUR}" == "OpenMPI" ]; then
         module purge || true;
@@ -589,6 +589,8 @@ build_Leapfrog_PGO:
     paths:
       - build_Leapfrog_PGO
   script:
+    # The --coverage option is not compatible with the PGO -fprofile-use option. Both attempt to put their results into the same .gcda file, however this is undesirable.
+    - unset CODE_COVERAGE PICLAS_CODE_COVERAGE
     - cmake -B build_Leapfrog_PGO -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Profile
     - echo " Preparing PGO profiling run by compiling with -DPICLAS_PERFORMANCE=ON -DUSE_PGO=ON -DCMAKE_BUILD_TYPE=Profile"
     - cmake --build build_Leapfrog_PGO $FLAG_NCORES -t all
@@ -1048,6 +1050,7 @@ WEK_poisson_PETSC_internal:
 WEK_poisson_PETSC_PGO:
   extends: [.rules_weekly, .reggie]
   stage: reggie_weekly
+  # build_Leapfrog_PGO cannot be compiled with coverage support, so this test will not contribute to coverage.
   needs: [build_Leapfrog_PGO]
   variables:
     USE_BUILD: build_Leapfrog_PGO
