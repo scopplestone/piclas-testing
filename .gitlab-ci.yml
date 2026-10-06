@@ -293,6 +293,8 @@ stages:
     REGGIE_ARGS: ""
     # If specified, reggie will not perform a new build. Point to top-level build directory.
     USE_BUILD: ""
+    # If set to true, coverage will be skipped for this job, irregardless of DO_CODE_COVERAGE.
+    SKIP_COVERAGE: "false"
   artifacts:
     paths: [Coverage]
     expire_in: 1 day
@@ -301,6 +303,10 @@ stages:
     # reggie writes tracefiles to $CI_PROJECT_DIR/../Coverage when CODE_COVERAGE is set. TODO: Change this
     - rm -rf Coverage ../Coverage
     - |
+      if [ "${SKIP_COVERAGE}" == "true" ]; then
+        echo "SKIP_COVERAGE is set, disabling code coverage for this job."
+        unset CODE_COVERAGE PICLAS_CODE_COVERAGE
+      fi
       if [ -n "${USE_BUILD}" ]; then
         reggie ${REGGIE_ARGS} -e "${USE_BUILD}/bin/piclas" "regressioncheck/${REGGIE_CASE}"
       else
@@ -1055,6 +1061,7 @@ WEK_poisson_PETSC_PGO:
   variables:
     USE_BUILD: build_Leapfrog_PGO
     REGGIE_CASE: WEK_poisson_PETSC/floating_boundary_condition_p-convergence
+    SKIP_COVERAGE: "true"
 
 WEK_PIC_poisson_Leapfrog_Debug: # This uses the same reggie as NIG_PIC_poisson_Leapfrog but compile everything with CMAKE_BUILD_TYPE = Debug
   extends: [.rules_weekly_single_node, .reggie]
