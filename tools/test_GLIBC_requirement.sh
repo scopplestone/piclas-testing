@@ -14,11 +14,11 @@ NC='\033[0m'  # No Color
 # Settings
 # ----------------------------------------------------------------------------
 # Script for checking the GLIBC versions required by the AppImage container
-APPIAMGE=./piclasLeapfrogHDG
+APPIMAGE=./piclasLeapfrogHDG
 
 # check that the appimage is present
-if ! [ -f ${APPIAMGE} ]; then
-  echo -e "Could not find '${APPIAMGE}', which is required for running this script. Exit."
+if ! [ -f ${APPIMAGE} ]; then
+  echo -e "Could not find '${APPIMAGE}', which is required for running this script. Exit."
   exit
 fi
 
