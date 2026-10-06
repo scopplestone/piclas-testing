@@ -217,28 +217,6 @@ IF(NOT LIBS_BUILD_HDF5)
     GET_PROPERTY(HDF5_C_LIBRARY_hdf5_c TARGET hdf5::hdf5 PROPERTY LOCATION)
   ENDIF()
 
-  IF(NOT "${HDF5_C_LIBRARY_hdf5_c}" STREQUAL "")
-    IF(APPLE)
-      EXECUTE_PROCESS(COMMAND nm -gU      ${HDF5_C_LIBRARY_hdf5_c} COMMAND grep inflate OUTPUT_VARIABLE HDF5_USES_ZLIB RESULT_VARIABLE GREP_RESULT OUTPUT_STRIP_TRAILING_WHITESPACE)
-    ELSE()
-      EXECUTE_PROCESS(COMMAND readelf -Ws ${HDF5_C_LIBRARY_hdf5_c} COMMAND grep inflate OUTPUT_VARIABLE HDF5_USES_ZLIB RESULT_VARIABLE GREP_RESULT OUTPUT_STRIP_TRAILING_WHITESPACE)
-    ENDIF()
-  ELSE()
-    SET(GREP_RESULT 1)
-  ENDIF()
-
-  IF(GREP_RESULT EQUAL 0)
-    # HDF5 is linked against zlib, find it here
-    SET(ZLIB_USE_STATIC_LIBS "ON")
-    FIND_PACKAGE(ZLIB QUIET)
-
-    # Could not find the static version, look for the shared library
-    IF(NOT ZLIB_FOUND)
-      UNSET(ZLIB_USE_STATIC_LIBS)
-      FIND_PACKAGE(ZLIB REQUIRED)
-    ENDIF()
-  ENDIF()
-
   # Set build status to system
   SET(HDF5_BUILD_STATUS "system")
 ELSE()
@@ -309,6 +287,11 @@ ELSE()
     INCLUDE(ProcessorCount)
     PROCESSORCOUNT(N)
 
+    # Find zlib. We require the dynamically linked version, since on some systems
+    # (e.g. Ubuntu 26.04) zlib is built without PIC.
+    # ZLIB_USE_STATIC_LIBS = OFF by default
+    FIND_PACKAGE(ZLIB REQUIRED)
+
     # Let CMake take care of download, configure and build
     EXTERNALPROJECT_ADD(HDF5
       GIT_REPOSITORY     ${HDF5_DOWNLOAD}
@@ -321,7 +304,7 @@ ELSE()
       CMAKE_GENERATOR    "Unix Makefiles"
       BUILD_COMMAND      make -j${N}
       # Set the CMake arguments for HDF5
-      CMAKE_ARGS         -DCMAKE_BUILD_TYPE=None -DCMAKE_INSTALL_PREFIX=${LIBS_HDF5_DIR} -DHDF5_INSTALL_CMAKE_DIR=lib/cmake/hdf5 -DCMAKE_POLICY_DEFAULT_CMP0175=OLD -DBUILD_STATIC_LIBS=ON -DBUILD_SHARED_LIBS=OFF -DHDF5_BUILD_FORTRAN=ON -DHDF5_ENABLE_ZLIB_SUPPORT=ON -DHDF5_ENABLE_SZIP_SUPPORT=OFF -DHDF5_ENABLE_PARALLEL=${LIBS_USE_MPI}
+      CMAKE_ARGS         -DCMAKE_BUILD_TYPE=None -DCMAKE_INSTALL_PREFIX=${LIBS_HDF5_DIR} -DCMAKE_INSTALL_LIBDIR=lib -DHDF5_INSTALL_LIB_DIR=lib -DHDF5_INSTALL_CMAKE_DIR=lib/cmake/hdf5 -DCMAKE_POLICY_DEFAULT_CMP0175=OLD -DBUILD_STATIC_LIBS=ON -DBUILD_SHARED_LIBS=OFF -DHDF5_BUILD_FORTRAN=ON -DHDF5_ENABLE_ZLIB_SUPPORT=ON -DZLIB_INCLUDE_DIR=${ZLIB_INCLUDE_DIRS} -DZLIB_LIBRARY=${ZLIB_LIBRARIES} -DHDF5_ENABLE_SZIP_SUPPORT=OFF -DHDF5_ENABLE_PARALLEL=${LIBS_USE_MPI}
       # Set the build byproducts
       # WARNING: The order of the following libraries matters! They need to be listed from the most dependent to the least dependent.
       BUILD_BYPRODUCTS ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.a ${LIBS_HDF5_DIR}/lib/libhdf5_f90cstub.a ${LIBS_HDF5_DIR}/lib/libhdf5_hl_fortran.a ${LIBS_HDF5_DIR}/lib/libhdf5_hl_f90cstub.a ${LIBS_HDF5_DIR}/lib/libhdf5_hl.a ${LIBS_HDF5_DIR}/lib/libhdf5.a ${LIBS_HDF5_DIR}/lib/libhdf5_tools.a ${LIBS_HDF5_DIR}/bin/h5diff
@@ -355,7 +338,7 @@ ENDIF()
 # Actually add the HDF5 paths (system/self-built) to the linking paths, including the library containing dlopen/dlclose (usually -ldl on UNIX machines)
 # > INFO: We could also use the HDF5::HDF5/hdf5::hdf5/hdf5::hdf5_fortran targets here but they are not set before compiling self-built HDF5
 INCLUDE_DIRECTORIES(BEFORE ${HDF5_INCLUDE_DIR})
-LIST(PREPEND linkedlibs ${HDF5_Fortran_LIBRARIES} ${CMAKE_DL_LIBS})
+LIST(PREPEND linkedlibs ${HDF5_Fortran_LIBRARIES} ${ZLIB_LIBRARIES} ${CMAKE_DL_LIBS})
 IF(${HDF5_IS_PARALLEL})
   MESSAGE(STATUS "Compiling with ${HDF5_BUILD_STATUS} [HDF5] (${BoldBlue}v${HDF5_VERSION}${ColourReset}) with parallel support ${HDF5_MPI_VERSION}")
 ELSE()

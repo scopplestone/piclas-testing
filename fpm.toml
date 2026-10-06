@@ -1,6 +1,6 @@
 # General information
 name        = "piclas"
-version     = "4.1.0"
+version     = "4.3.0"
 licence     = "GPL-3.0"
 description = "PICLas is a parallel, three-dimensional PIC-DSMC solver"
 homepage    = "https://piclas.readthedocs.io/en/latest/"
