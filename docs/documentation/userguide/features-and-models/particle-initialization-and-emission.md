@@ -1,32 +1,51 @@
 (sec:particle-initialization-and-emission)=
 # Particle Initialization & Emission
 
-The RAM to store the particle information is dynamically allocated. However, it is possible to restrict the number of particles per MPI process by setting
-
-    Part-MaxParticleNumber=1000000
-
-which results in a program abort, if one of the processes reaches this limit.
-New memory is allocated in separate chunks because allocating memory for the particle data and copying it to the new memory area is expensive. The chunksize is relative to the particles used and can be set with
-
-    Part-MaxPartNumIncrease=0.1
-
-A higher value increases the amount of unnecessary RAM allocated to particles, while a lower value increases the number of memory adjustment operations. The optimal trade-off depends on the simulation and the machine, but it only affects the performance of the simulations, not the quality of the results.
-
 The following section gives an overview of the available options regarding the definition of species and particle initialization
 and emission. Simulation particles can be inserted initially within the computational domain and/or emitted at every time step.
 First of all, the number of species is defined by
 
-    Part-nSpecies=1
+    Part-nSpecies = 1
 
 Regardless whether a standalone PIC, DSMC, or a coupled simulation is performed, the atomic mass [kg], the charge [C] and the
 weighting factor $w$ [-], sometimes referred to as macro-particle factor (MPF), are required for each species.
 
-    Part-Species1-MassIC=5.31352E-26
-    Part-Species1-ChargeIC=0.0
-    Part-Species1-MacroParticleFactor=5E2
+    Part-Species1-MassIC                = 5.31352E-26
+    Part-Species1-ChargeIC              = 0.0
+    Part-Species1-MacroParticleFactor   = 5E2
 
 Species that are not part of the initialization or emission but might occur as a result of e.g. chemical reactions should also be
-defined with these parameters.
+defined with these parameters. The RAM to store the particle information is dynamically allocated. However, it is possible to restrict the number of particles per MPI process by setting (optional)
+
+    Part-MaxParticleNumber = 1000000
+
+which results in a program abort, if one of the processes reaches this limit.
+New memory is allocated in separate chunks because allocating memory for the particle data and copying it to the new memory area is expensive. The chunksize is relative to the particles used and can be set with
+
+    Part-MaxPartNumIncrease = 0.1
+
+A higher value increases the amount of unnecessary RAM allocated to particles, while a lower value increases the number of memory adjustment operations. The optimal trade-off depends on the simulation and the machine, but it only affects the performance of the simulations, not the quality of the results.
+
+(sec:particle-species-interactionid)=
+### Species Type (InteractionID)
+
+The type of a species is set by its `InteractionID`
+
+    Part-Species1-InteractionID = 1
+
+|   ID | Type                                                   |
+| ---: | ------------------------------------------------------ |
+|    1 | Atom                                                   |
+|    2 | Molecule (diatomic and polyatomic)                     |
+|    4 | Electron                                               |
+|   10 | Atomic Ion                                             |
+|   20 | Molecular Ion                                          |
+|  100 | Solid particle (see Section {ref}`sec:granular-flows`) |
+
+Electrons are identified solely by `InteractionID = 4`, e.g., for the Boltzmann relation electron fluid model, the bulk electron
+temperature, the initial ionization and the ambipolar diffusion. If the `InteractionID` is not set (default: 0) and a species has
+a negative charge and the electron mass, the `InteractionID` is set to 4 automatically. A species with an explicitly set
+`InteractionID` other than 4 will not be treated as an electron. When reading the species parameters from the database (see Section {ref}`sec:unified-species-database`), the `InteractionID` is read from the database.
 
 ## Velocity Distribution Functions
 

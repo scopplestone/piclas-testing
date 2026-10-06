@@ -734,7 +734,6 @@ END SUBROUTINE InitParticleAnalyze
 SUBROUTINE InitBulkElectronTemp()
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
 USE MOD_Particle_Vars         ,ONLY: nSpecies,Species
 USE MOD_Particle_Vars         ,ONLY: CalcBulkElectronTemp,BulkElectronTemp,BulkElectronTempSpecID
 USE MOD_HDF5_Input            ,ONLY: DatasetExists,ReadArray
@@ -782,8 +781,7 @@ IF(CalcBulkElectronTemp)THEN
   ! Loop over all species and find the index corresponding to the electron species: take the first electron species that is
   ! encountered
   DO iSpec = 1, nSpecies
-    IF (Species(iSpec)%ChargeIC.GE.0.0) CYCLE
-    IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1)THEN
+    IF(SPECIESISELECTRON(iSpec))THEN
       BulkElectronTempSpecID = iSpec
       EXIT
     END IF

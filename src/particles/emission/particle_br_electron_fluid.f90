@@ -994,9 +994,8 @@ SWRITE(UNIT_stdOut,'(A,ES25.14E3,A)')' CreateElectronsFromBRFluid(): Reconstruct
 ! encountered
 ElecSpecIndx = -1 ! Initialize the species index for the electron species with -1
 DO iSpec = 1, nSpecies
-  IF (Species(iSpec)%ChargeIC.GE.0.0) CYCLE
-    IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1)THEN
-      ElecSpecIndx = iSpec
+  IF(SPECIESISELECTRON(iSpec))THEN
+    ElecSpecIndx = iSpec
     EXIT
   END IF
 END DO

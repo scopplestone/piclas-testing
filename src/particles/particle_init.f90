@@ -71,7 +71,10 @@ CALL prms%CreateIntOption(      'Part-Species[$]-InteractionID' , 'ID for identi
                                                                  '  2: Molecule\n'//&
                                                                  '  4: Electron\n'//&
                                                                  ' 10: Atomic Ion\n'//&
-                                                                 ' 20: Molecular Ion', '0', numberedmulti=.TRUE.)
+                                                                 ' 20: Molecular Ion\n'//&
+                                                                 '100: Solid particle\n'//&
+                                                                 'Electrons are identified only by ID 4. If not set (0), species with '//&
+                                                                 'charge -e and electron mass are set to 4.', '0', numberedmulti=.TRUE.)
 ! Ionization
 CALL prms%CreateLogicalOption(  'Part-DoInitialIonization'    , 'When restarting from a state, ionize the species to a '//&
                                                                 'specific degree', '.FALSE.')
@@ -1151,9 +1154,8 @@ ElecSpecIndx = -1
 ! Loop over all species and find the index corresponding to the electron species: take the first electron species that is
 ! encountered
 DO iSpec = 1, nSpecies
-  IF (Species(iSpec)%ChargeIC.GE.0.0) CYCLE
-    IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1)THEN
-      ElecSpecIndx = iSpec
+  IF(SPECIESISELECTRON(iSpec))THEN
+    ElecSpecIndx = iSpec
     EXIT
   END IF
 END DO
@@ -1502,6 +1504,15 @@ DO iSpec = 1, nSpecies
     Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf)//'-ChargeIC')
     Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf)//'-MassIC')
     Species(iSpec)%InterID               = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID')
+    ! Set InterID for the electron for PARTISELECTRON AND SPECIESISELECTRON check
+    IF (Species(iSpec)%InterID.EQ.0) THEN
+      ! Relative tolerance of 1% covers rounded input values (e.g. MassIC = 9.1E-31 deviates by 0.1%) and avoids the integer
+      ! overflow of NINT for dummy values (e.g. MassIC = 9)
+      IF(ALMOSTEQUALRELATIVE(Species(iSpec)%ChargeIC,-ElementaryCharge,1e-2).AND. &
+         ALMOSTEQUALRELATIVE(Species(iSpec)%MassIC  , ElectronMass    ,1e-2)) THEN
+        Species(iSpec)%InterID = 4
+      END IF
+    END IF
   END IF
 END DO ! iSpec
 
