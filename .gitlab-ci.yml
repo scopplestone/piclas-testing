@@ -1286,7 +1286,7 @@ build_documentation:
   before_script:
     - echo "Skipping module loading in texlive Docker image."
   script:
-    - python3 -m pip install sphinxcontrib-bibtex
+    - python3 -m pip install sphinxcontrib-bibtex sphinx_rtd_size
     - python3 -m sphinx -T -E -b html  -D language=en docs/documentation html
     - python3 -m sphinx -T -E -b latex -D language=en docs/documentation latex
     - cd latex
