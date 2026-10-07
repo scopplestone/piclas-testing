@@ -127,7 +127,7 @@ default:
     - source venv/bin/activate
     - python -m pip install uv
     - uv pip install setuptools wheel pytest pytest-cov
-    - uv pip install git+https://github.com/lte678/reggie.git@fix.executecmd-race-condition-13
+    - uv pip install git+https://github.com/lte678/reggie.git@fix.docker-corecount
     - uv pip install https://github.com/hopr-framework/PyHOPE/releases/latest/download/gmsh-4.15.2.post1-py3-none-linux_x86_64.whl
     - uv pip install git+https://github.com/hopr-framework/PyHOPE.git@main
     - which reggie
