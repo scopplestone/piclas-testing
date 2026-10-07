@@ -116,6 +116,7 @@ default:
   before_script:
     - export MESHESDIR=True
     - export REGGIE_GITLAB_CI=1
+    - nproc
     - ulimit -s unlimited
     # Output diagnostics to log
     # - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
@@ -1279,29 +1280,23 @@ build_math_tools:
 # Stage ".post": Collect documentation and coverage data
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 build_documentation:
-  image: texlive/texlive:latest
+  image: sphinxdoc/sphinx-latexpdf:latest
   stage: .post
   dependencies: []
   before_script:
     - echo "Skipping module loading in texlive Docker image."
   script:
-    - deactivate || true
-    - cd docs/documentation
-    - python3 -m pip install --exists-action=w --no-cache-dir -r requirements.txt --break-system-packages
-    - python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
-    - ls -l _build/html
-    - python3 -m sphinx -b latex -D language=en -d _build/doctrees . _build/latex
-    - ls -l _build/latex
-    - cd _build/latex
-    - latexmk -r latexmkrc -pdf -f -dvi- -ps- -jobname=piclas -interaction=nonstopmode || true
-    - ls -l
-    - ls -l piclas.pdf
+    - python3 -m sphinx -T -E -b html  -D language=en docs/documentation html
+    - python3 -m sphinx -T -E -b latex -D language=en docs/documentation latex
+    - cd latex
+    - latexmk -r latexmkrc -pdf -f -dvi- -ps- -jobname=piclas -interaction=nonstopmode
   rules:
     - !reference [.rules_not_for_deployment, rules]
     - when: on_success
   artifacts:
     paths:
-      - docs/documentation
+      - html/
+      - latex/piclas.pdf
 
 code_coverage:
   stage: .post
