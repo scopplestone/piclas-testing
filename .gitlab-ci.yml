@@ -117,7 +117,7 @@ default:
     - export MESHESDIR=True
     - export REGGIE_GITLAB_CI=1
     - nproc
-    - ulimit -s unlimited
+    - ulimit -s 32768
     # Output diagnostics to log
     # - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
     - python  -V || true
