@@ -1285,12 +1285,6 @@ IF (nRelax.GT.0) THEN
         END IF
         ! Generate random normals for the sampling of new velocities of all relaxing particles
         CALL BGK_BuildTransGaussNums(nRelax, iRanPart)
-      ELSE IF (ESBGKModel.EQ.3) THEN
-        ! Metropolis-Hastings
-        A(2,1)=A(1,2)
-        A(3,1)=A(1,3)
-        A(3,2)=A(2,3)
-        CALL MetropolisES(nRelax, iRanPart, A*MassIC_Mixture, CellTempRel)
       END IF
     END IF
 
@@ -1316,9 +1310,6 @@ IF (nRelax.GT.0) THEN
     ELSE IF ((BGKCollModel.EQ.1).AND.(ESBGKModel.EQ.2)) THEN
       tempVelo(1:3) = SQRT(MassIC_Mixture/Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
       PartState(4:6,iPart) = vBulkAll(1:3) + MATMUL(SMat,tempVelo)
-    ELSE IF ((BGKCollModel.EQ.1).AND.(ESBGKModel.EQ.3)) THEN
-      ! New thermal velocity (in x,y,z) of particle with mass scaling multiplied by normal distributed random vector
-      PartState(4:6,iPart) = vBulkAll(1:3) + SQRT(1./Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
     ELSE
       ! New thermal velocity (in x,y,z) of particle is sqrt(k_B*T/m) multiplied by normal distributed random vector
       PartState(4:6,iPart) = vBulkAll(1:3) + SQRT(BoltzmannConst*CellTempRel/Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
@@ -1484,89 +1475,6 @@ IF(BGKDoVibRelaxation) THEN
 END IF ! BGKDoVibRelaxation
 
 END SUBROUTINE EnergyConsVib
-
-
-SUBROUTINE MetropolisES(nPart, iRanPart, A, CellTempRel)
-!===================================================================================================================================
-!> Sampling from ESBGK target distribution function by using a Metropolis-Hastings method
-!===================================================================================================================================
-! MODULES
-USE Ziggurat
-USE MOD_Basis                 ,ONLY: INV33
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: nPart
-REAL, INTENT(IN)              :: A(3,3), CellTempRel
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)             :: iRanPart(:,:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                           :: iRanPartTemp(3), V2, iRan, NewProb, OldProb, NormProb, prefacor
-INTEGER                        :: iLoop, iPart, iRun
-LOGICAL                        :: Changed
-REAL                           :: AC(3), AInvers(3,3), detA
-!===================================================================================================================================
-! Generate normal distributed random vector as start vector for the thermal velocity
-prefacor = SQRT(BoltzmannConst*CellTempRel)
-iRanPart(1,1) = rnor()*prefacor
-iRanPart(2,1) = rnor()*prefacor
-iRanPart(3,1) = rnor()*prefacor
-! Inverse matrix of A
-CALL INV33(A, AInvers, detA)
-AC(1:3) = MATMUL(AInvers, iRanPart(1:3,1))
-V2 = iRanPart(1,1)*AC(1) + iRanPart(2,1)*AC(2) + iRanPart(3,1)*AC(3)
-OldProb = EXP(-0.5*V2)
-! Burn-in phase, 35 initial steps
-DO iLoop = 1, 35
-  ! Generate normal distributed random vector for the thermal velocity
-  iRanPartTemp(1) = rnor()*prefacor
-  iRanPartTemp(2) = rnor()*prefacor
-  iRanPartTemp(3) = rnor()*prefacor
-  AC(1:3) = MATMUL(AInvers, iRanPartTemp(1:3))
-  V2 = iRanPartTemp(1)*AC(1) + iRanPartTemp(2)*AC(2) + iRanPartTemp(3)*AC(3)
-  NewProb = EXP(-0.5*V2)
-  NormProb = MIN(1.,NewProb/OldProb)
-  CALL RANDOM_NUMBER(iRan)
-  ! Acceptance of new sample with probability NormProb
-  IF (NormProb.GT.iRan) THEN
-    iRanPart(1:3,1) = iRanPartTemp(1:3)
-    OldProb = NewProb
-  END IF
-END DO
-! Main phase, for all following particles
-DO iPart = 2, nPart
-  ! Normal distributed random vector from previous particle
-  iRanPart(1,iPart) = iRanPart(1,iPart-1)
-  iRanPart(2,iPart) = iRanPart(2,iPart-1)
-  iRanPart(3,iPart) = iRanPart(3,iPart-1)
-  iRun = 0
-  Changed = .FALSE.
-  ! For acception: velocity should be changed at least once and at least ten steps in the Markov chain should be taken
-  DO WHILE ((iRun.LT.10).OR.(.NOT.Changed))
-    iRun = iRun + 1
-    ! Generate normal distributed random vector for the thermal velocity
-    iRanPartTemp(1) = rnor()*prefacor
-    iRanPartTemp(2) = rnor()*prefacor
-    iRanPartTemp(3) = rnor()*prefacor
-    AC(1:3) = MATMUL(AInvers, iRanPartTemp(1:3))
-    V2 = iRanPartTemp(1)*AC(1) + iRanPartTemp(2)*AC(2) + iRanPartTemp(3)*AC(3)
-    NewProb = EXP(-0.5*V2)
-    NormProb = MIN(1.,NewProb/OldProb)
-    CALL RANDOM_NUMBER(iRan)
-    ! Acceptance of new sample with probability NormProb, velocity is changed
-    IF (NormProb.GT.iRan) THEN
-      Changed = .TRUE.
-      iRanPart(1:3,iPart) = iRanPartTemp(1:3)
-      OldProb = NewProb
-    END IF
-  END DO
-END DO
-
-END SUBROUTINE MetropolisES
 
 
 SUBROUTINE ARShakhov(nPart, iRanPart, Vtherm, HeatVec, Prandtl)

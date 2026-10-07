@@ -56,8 +56,7 @@ CALL prms%CreateIntOption(    'Particles-BGK-CollModel',            'Select the 
 CALL prms%CreateIntOption(    'Particles-ESBGK-Model',              'Select sampling method for the ESBGK target distribution '//&
                                                                     'function:\n'//&
                                                                     '1: Approximative\n'//&
-                                                                    '2: Exact\n'//&
-                                                                    '3: Metropolis-Hastings', '1')
+                                                                    '2: Exact', '1')
 CALL prms%CreateIntOption(    'Particles-BGK-MixtureModel',         'Select model for mixture transport properties:\n'//&
                                                                     '1: Wilke\n'//&
                                                                     '2: Collision Integrals Kestin', '1')
