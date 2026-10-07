@@ -606,26 +606,6 @@ build_Leapfrog_PGO:
     - cmake --build build_Leapfrog_PGO $FLAG_NCORES -t all
     - ./tools/strip-build-dir.sh --keep-coverage build_*
 
-build_documentation:
-  extends: [.build_defaults]
-  stage: build
-  script:
-    - deactivate || true
-    - cd docs/documentation
-    - python3 -m pip install --exists-action=w --no-cache-dir -r requirements.txt --break-system-packages
-    - python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
-    - ls -l _build/html
-    - python3 -m sphinx -b latex -D language=en -d _build/doctrees . _build/latex
-    - ls -l _build/latex
-    - cd _build/latex
-    - latexmk -r latexmkrc -pdf -f -dvi- -ps- -jobname=piclas -interaction=nonstopmode || true
-    - ls -l
-    - ls -l piclas.pdf
-  artifacts:
-    paths:
-      - docs/documentation
-
-
 # REGGIES
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1296,8 +1276,33 @@ build_math_tools:
     REGGIE_CASE: NIG_math_libs
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage ".post": Collect coverage data
+# Stage ".post": Collect documentation and coverage data
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+build_documentation:
+  image: texlive/texlive:latest
+  stage: .post
+  dependencies: []
+  before_script:
+    - echo "Skipping module loading in texlive Docker image."
+  script:
+    - deactivate || true
+    - cd docs/documentation
+    - python3 -m pip install --exists-action=w --no-cache-dir -r requirements.txt --break-system-packages
+    - python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
+    - ls -l _build/html
+    - python3 -m sphinx -b latex -D language=en -d _build/doctrees . _build/latex
+    - ls -l _build/latex
+    - cd _build/latex
+    - latexmk -r latexmkrc -pdf -f -dvi- -ps- -jobname=piclas -interaction=nonstopmode || true
+    - ls -l
+    - ls -l piclas.pdf
+  rules:
+    - !reference [.rules_not_for_deployment, rules]
+    - when: on_success
+  artifacts:
+    paths:
+      - docs/documentation
+
 code_coverage:
   stage: .post
   script:
