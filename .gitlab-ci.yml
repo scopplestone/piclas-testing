@@ -1290,7 +1290,9 @@ build_documentation:
     - python3 -m sphinx -T -E -b html  -D language=en docs/documentation html
     - python3 -m sphinx -T -E -b latex -D language=en docs/documentation latex
     - cd latex
-    - latexmk -r latexmkrc -pdf -f -dvi- -ps- -jobname=piclas -interaction=nonstopmode
+    # latexmk will return non-zero exit codes even if the PDF was produced with warnings.
+    - latexmk -r latexmkrc -pdf -f -dvi- -ps- -jobname=piclas -interaction=nonstopmode || true
+    - test -s piclas.pdf
   rules:
     - !reference [.rules_not_for_deployment, rules]
     - when: on_success
