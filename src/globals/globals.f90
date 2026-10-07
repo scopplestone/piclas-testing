@@ -461,7 +461,8 @@ CALL MPI_FINALIZE(iError)
 #if USE_DEBUG
 IF (MPIRoot) ERROR STOP 1
 #endif /*USE_DEBUG*/
-STOP 1, QUIET=.TRUE.
+! This does not print anything to the console. STOP QUIET is only availabe in semi-recent fortran versions.
+CALL EXIT(1)
 END SUBROUTINE CollectiveStop
 
 
