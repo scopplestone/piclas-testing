@@ -653,7 +653,7 @@ A **temperature window** restricts the reaction to a range of the wall temperatu
 Defaults are `0.` and `10000.`, so an enabled dependence without further input has no effect. This is intended
 for rate expressions that were fitted over a limited temperature range and should not be extrapolated.
 
-#### Adsorption
+#### Adsorption reactions
 
 Two models are available for the adsorption of a gas particle: the Langmuir model with a linear dependence of
 the adsorption probability on the coverage, and the precursor-based Kisliuk model:
@@ -709,7 +709,7 @@ Up to three species can be given for each. Every contribution enters normalised 
 species. Since the free-site fraction is clamped to $[0,1]$, a strong promotion cannot push the sticking
 coefficient above $S_0$.
 
-#### Desorption
+#### Desorption reactions
 
 Desorption into the gas phase is modelled by the Polanyi-Wigner equation:
 

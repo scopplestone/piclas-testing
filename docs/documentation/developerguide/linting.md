@@ -1,4 +1,94 @@
-# Ruff
+# Linting
+
+Two linters check the code in the GitLab CI pipeline:
+[Fortitude](https://github.com/PlasmaFAIR/fortitude) for the Fortran sources in `src` and
+[Ruff](https://docs.astral.sh/ruff/) for the Python scripts in `docs` and `tools`.
+A pipeline fails when the `fortitude:` or `ruff:` stage reports a violation.
+
+## Fortitude (Fortran)
+
+[Fortitude is a Fortran linter](https://github.com/PlasmaFAIR/fortitude) that can be installed from PYPI via
+
+    # With uv:
+    uv tool install fortitude-lint@latest
+
+    # With pip:
+    pip install fortitude-lint
+
+After installing, check the version
+
+    fortitude --version
+
+Fortitude is used by navigating to the piclas repository and running
+
+    cd ~/piclas
+    fortitude check --output-format=grouped src
+
+which lists any errors that are encountered with their corresponding violation ID.
+
+The Fortitude GitLab CI/CD stage `fortitude:` is defined in `.gitlab-ci.yml` and the Fortitude settings are stored in `fpm.toml`.
+
+### Fortitude pre-commit hook
+TODO: The pre-commit hook for Fortitude is configured in ...
+
+### Fixing Fortitude violations
+
+When a pipeline fails in the `fortitude` stage, an error is displayed showing the ID of the violation
+
+    src/timedisc/timedisc_TimeStepECIM.f90:
+    606:42 C141 'exit' statement in named 'do' loop missing label 'SUBROUTINE ExactPushSingleParticle(iPart, dt)
+
+which in this case is "C141" and details on this violation can be found by running
+
+    fortitude explain C141
+
+which returns
+
+    C141: missing-exit-or-cycle-label
+
+    Fix is sometimes available.
+
+    What does it do?
+    When using exit or cycle in a named do loop, the exit/cycle statement
+    should use the loop name
+
+    Example
+    name: do
+      exit name
+    end do name
+
+    Using named loops is particularly useful for nested or complicated loops, as it
+    helps the reader keep track of the flow of logic. It's also the only way to exit
+    or cycle outer loops from within inner ones.
+
+Fortitude can automatically fix many linter warnings and errors. Simply navigate to the piclas repository and use the `--fix` flag
+for Fortitude
+
+    cd ~/piclas
+    fortitude check --output-format=grouped src --fix
+
+or
+
+    cd ~/piclas
+    fortitude check --output-format=grouped src/particles/pic/models/pic_models.f90 --select C141 --fix
+
+to only fix specific violation IDs in specific .f90 files.
+
+Note that there are two flags for auto-fixing `--fix` and `--unsafe-fixes`
+| Flag                       | Description                                                                                |
+| :------------------------- | :----------------------------------------------------------------------------------------- |
+| `check`                    | Only checks for issues without applying any fixes.                                         |
+| `--fix`                    | Applies **safe** automatic fixes (e.g., style-based rules).                                |
+| `--unsafe-fixes`           | Applies **both safe and unsafe** automatic fixes (use with caution).                       |
+| `--diff`                   | Shows the changes that would be made by `--fix` or `--unsafe-fixes` without applying them. |
+| `--help`                   | Displays help information about Fortitude commands and flags.                              |
+| `--version`                | Shows the installed version of Fortitude.                                                  |
+| `--output-format=<format>` | Specifies the output format (e.g., `grouped`, `json`, `sarif`).                            |
+
+Unsafe fixes may change program behavior or introduce new issues, so use with caution.
+
+## Ruff (Python)
+
 [Ruff is a Python linter and code formatter](https://docs.astral.sh/ruff/) that can be installed from PYPI via
 
     # With uv:
@@ -51,13 +141,13 @@ which gives, for example, the following
       5     EXE001  shebang-not-executable
       5     S110    try-except-pass
 
-## Gitlab CI
-The Ruff Gitlab CI/CD stage `ruff:` is defined in `.gitlab-ci.yml`.
+The Ruff GitLab CI/CD stage `ruff:` is defined in `.gitlab-ci.yml`.
 
-## Pre-commit hook
+### Ruff pre-commit hook
 TODO: The pre-commit hook for Ruff is configured in ...
 
-## Fixing Ruff violations (of failing pipelines)
+### Fixing Ruff violations
+
 When a pipeline fails in the `ruff` stage, an error is displayed showing the ID of the violation
 
     FLY002 Consider f-string instead of string join
@@ -157,59 +247,38 @@ It is important to make sure that the code still behaves as intended when using 
 | `--statistics` | Show statistics about the linting process. |
 | `--diff` | Show a diff of changes Ruff would make (useful for CI/CD). |
 
+## Finding earlier fixes
 
-If the solution to solving this issue is not straightforward, there are two possibilities that might help by looking into ways how
-other developers have fixed it by searching for the violation ID in the git history or source code.
-
-###  Search for the violation ID in the git history
-Navigate to the piclas directory and search the complete git history (commit messages and changes to the code) for the specific
-violation ID via
+If the fix is not straightforward, look at how other developers fixed the same violation ID.
+Search the complete git history (commit messages and changes to the code) via
 
     cd ~/piclas
-    git log --all --grep="FLY002" -p
+    git log --all --grep="C141" -p
 
-which gives
+and search the source code for places where the violation is suppressed via
 
-    commit 101eb2848fb454739761c572f6a4e41ee51babb4 (HEAD -> update.dev.docu)
-    Author: Stephen Copplestone
-    Date:   Wed Sep 9 18:50:31 2026 +0200
+    grep -rin --include=*.f90 C141 src
+    grep -rin --include=*.py S112 docs tools
 
-        Fixed ruff violation FLY002: f-strings are more readable and generally preferred over `str.join` calls.
+A violation is either fixed in the code or, for false positives, suppressed with a comment:
 
-and when looking for the specific fix in the commits, there are two ways to fix the violation, where
+- **Fortitude**: add `! allow(C141)` in the line before the one with the trigger.
+  False positives are common, because Fortitude still has shortcomings regarding macros and pre-processor statements.
 
-```diff
-@@ -78,7 +78,7 @@ def getScriptPropertiesXml(info):
-         extent that your filter ask up stream for.</Documentation>
-       </StringVectorProperty>''' % requestUpdateExtent
+  ```diff
+     IF(PDM%ParticleInside(iPart)) THEN
+       ASSOCIATE ( oldSpec => PartSpecies(iPart) ,&
+             newSpec => SpecDSMC(PartSpecies(iPart))%NextIonizationSpecies )
+  +      ! allow(C141) because of false-positive Fortitude check
+         IF(newSpec.EQ.0) CYCLE
+  ```
 
--    return '\n'.join([requestData, requestInformation, requestUpdateExtent])
-+    return f'{requestData}\n{requestInformation}\n{requestUpdateExtent}'
-```
+- **Ruff**: add `# noqa: S112` at the end of the line with the trigger.
 
-which solves the issue by replacing the `str.join` call with an f-string.
-Alternatively, violations can simply be ignored by adding the flag and identifier of the rule `noqa: FLY002` and the end of the line as a comment.
-This is done in the file `extract_userblock.py` for example
+      except :  # noqa: S112
+          continue
 
-    except :  # noqa: S112  [▼ 1/2]     ■ Do not use bare `except`
-        continue
+## Separate commits
 
-### Search for the violation ID in the source code itself
-Navigate to the piclas source directory and search all Python files for the specific ID
-
-    cd ~/piclas/src
-    grep -rin --include=*.py S112
-
-which returns
-
-    tools/userblock/extract_userblock.py:87:        except :  # noqa: S112
-    tools/userblock/extract_userblock.py:106:        except :  # noqa: S112
-
-and shows that, as mentioned in the previous section, the error can simply be ignored in special cases with the flag
-`# noqa: S112` added to the end of the line triggering the error.
-
-
-### Create separate commit
-When specifically fixing Ruff violations, make a separate commit noting the violation IDs (e.g. S112) in the commit message
-so that other developers can find it when they are tackling the same issue.
-When violations are simply ignored, their ID is added to the source code automatically with the flag+ID combination, e.g., `# noqa: S112`.
+Fix linter violations in a separate commit and name the violation IDs (e.g. C141 or FLY002) in the commit message,
+so that other developers find the fix with `git log --grep` when they tackle the same issue.
