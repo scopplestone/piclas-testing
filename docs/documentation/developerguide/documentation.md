@@ -1,4 +1,4 @@
-# Documentation
+# Writing Documentation
 
 ## Building documentation
 
@@ -87,7 +87,7 @@ and open the resulting pdf file
 
     open _build/latex/piclas.pdf
 
-## Writing documentation
+## Writing guidelines
 
 ### Figures
 
