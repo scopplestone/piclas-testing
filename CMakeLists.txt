@@ -167,6 +167,12 @@ SET(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include)
 SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 
+# Use relative ($ORIGIN) entries instead of absolute build-tree paths in the
+# build RPATH, e.g. so that executables in bin/ find libpiclas.so in ../lib even
+# if the build folder is moved (e.g. in a CI pipeline)
+# Available since CMake 3.14, but harmless (ignored) on older versions.
+SET(CMAKE_BUILD_RPATH_USE_ORIGIN ON)
+
 # Set custom install dir (needs to be done after project has been defined!)
 IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   SET(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "Prefix prepended to install directories" FORCE)
