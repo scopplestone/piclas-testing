@@ -27,7 +27,7 @@ New memory is allocated in separate chunks because allocating memory for the par
 A higher value increases the amount of unnecessary RAM allocated to particles, while a lower value increases the number of memory adjustment operations. The optimal trade-off depends on the simulation and the machine, but it only affects the performance of the simulations, not the quality of the results.
 
 (sec:particle-species-interactionid)=
-### Species Type (InteractionID)
+## Species Type (InteractionID)
 
 The type of a species is set by its `InteractionID`
 
