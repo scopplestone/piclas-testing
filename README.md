@@ -1,48 +1,38 @@
-<img src="docs/logo.png" width="582" height="287">
+# PICLas
 
-# Welcome to PICLas
+PICLas is a parallel, three-dimensional particle-based kinetic simulation framework combining the Particle-in-Cell (PIC), Direct Simulation Monte Carlo (DSMC), Bhatnagar-Gross-Krook (BGK), and Fokker-Planck methods for the simulation of plasma dynamics and rarefied gas flows. Some notable features are:
 
-PICLas is a parallel, three-dimensional particle-based kinetic simulation framework combining the Particle-in-Cell (PIC), Direct Simulation Monte Carlo (DSMC), BGK, and Fokker-Planck methods for the simulation of plasma dynamics and rarefied gas flows.
-
-The code is developed cooperatively by the [Institute of Space Systems (IRS)](https://www.irs.uni-stuttgart.de/en/research/space-transport-technology/numerical-modeling-and-simulations/) and the spin-off company [boltzplatz](https://boltzplatz.eu/).
-PICLas is designed to be a flexible, modular particle simulation suite, supporting unstructured meshes, MPI parallelism, and dynamic load balancing for high-performance computing environments.
-
-<table align="center">
-  <tr>
-    <td width="33%"><img src="docs/examples/Laser_pulse.jpg" width="100%" alt="Laser pulse"/></td>
-    <td width="33%"><img src="docs/examples/Gyrotron.jpg" width="100%" alt="Gyrotron"/></td>
-    <td width="33%"><img src="docs/examples/electric_propulsion_new.jpg" width="100%" alt="Electric propulsion"/></td>
-  </tr>
-  <tr>
-    <td><img src="docs/examples/Streamer.jpg" width="100%" alt="Streamer"/></td>
-    <td><img src="docs/examples/NozzleExpansion.jpg" width="100%" alt="Nozzle Expansion"/></td>
-    <td><img src="docs/examples/Titan_Aerocapture.jpg" width="100%" alt="Titan aerocapture"/></td>
-  </tr>
-  <tr>
-    <td><img src="docs/examples/Magnetron.jpg" width="100%" alt="Magnetron"/></td>
-    <td><img src="docs/examples/VacuumPump.jpg" width="100%" alt="Vacuum Pump"/></td>
-    <!-- <td><img src="docs/examples/Titan_Aerocapture.jpg" width="100%" alt="Titan aerocapture"/></td> -->
-  </tr>
-</table>
-
-## Features
 - **Particle-in-Cell (PIC)** solver for self-consistent electromagnetic and electrostatic plasma simulations
 - **Direct Simulation Monte Carlo (DSMC)** for rarefied, non-equilibrium gas flows
 - **Coupled PIC-DSMC** for reactive plasma flow simulation
-- **BGK** and **Fokker-Planck** collision operators as computationally efficient alternatives to DSMC in near-continuum regimes
-- Support for **unstructured, high-order meshes**
-- **MPI parallelization** with dynamic load balancing for large-scale HPC simulations
+- **Bhatnagar-Gross-Krook (BGK)** and **Fokker-Planck** collision operators as computationally efficient alternatives to DSMC in near-continuum regimes
+- Support for hexahedral **unstructured, high-order meshes**
+- **MPI parallelization** using domain decomposition and shared memory approach with dynamic load balancing for large-scale HPC simulations
 - **Variable particle weighting** (including radial/cell-local weighting for 2D/axisymmetric cases)
 - **Surface interaction models**: data-driven scattering, surface chemistry, and charging
 
-## Documentation and Installation
-Full documentation, including the installation procedure, is available in the PICLas [User Guide](https://piclas.readthedocs.io/).
-Installation instructions specifically can be found in [Chapter 2](https://piclas.readthedocs.io/en/latest/userguide/installation.html).
+The code is developed cooperatively by the [Institute of Space Systems (IRS)](https://www.irs.uni-stuttgart.de/en/research/space-transport-technology/numerical-modeling-and-simulations/) and the spin-off company [boltzplatz](https://boltzplatz.eu/).
 
-Pre-compiled executables (that only require pre-installed MPI for parallel execution) for Linux can directly be downloaded as
+<p align="center">
+  <img src="docs/examples/Laser_pulse.jpg" width="32%" alt="Laser pulse"/>
+  <img src="docs/examples/Gyrotron.jpg" width="32%" alt="Gyrotron"/>
+  <img src="docs/examples/electric_propulsion_new.jpg" width="32%" alt="Electric propulsion"/>
+  <br/>
+  <img src="docs/examples/Streamer.jpg" width="32%" alt="Streamer"/>
+  <img src="docs/logo.jpg" width="32%" alt="PICLas"/>
+  <img src="docs/examples/NozzleExpansion.jpg" width="32%" alt="Nozzle Expansion"/>
+  <br/>
+  <img src="docs/examples/Titan_Aerocapture.jpg" width="32%" alt="Titan aerocapture"/>
+  <img src="docs/examples/Magnetron.jpg" width="32%" alt="Magnetron"/>
+  <img src="docs/examples/VacuumPump.jpg" width="32%" alt="Vacuum Pump"/>
+</p>
+
+# Documentation & Installation
+Full documentation is available in the PICLas [User Guide](https://piclas.readthedocs.io/).
+Installation instructions specifically can be found in the [User Guide: Installation](https://piclas.readthedocs.io/en/latest/userguide/installation.html) chapter. Pre-compiled executables (that only require pre-installed MPI for parallel execution) for Linux can directly be downloaded as
 AppImage containers from the [PICLas release tag assets](https://github.com/piclas-framework/piclas/releases).
 
-### Building from source
+## Building from source
 
 PICLas is built using CMake. A typical build looks like:
 ```bash
@@ -54,7 +44,7 @@ make -j
 ```
 See the User Guide for detailed configuration options, compiler requirements, and dependency setup.
 
-### Dependencies
+## Dependencies
 
 PICLas uses several external libraries as well as auxiliary functions from open source projects, including:
 
@@ -65,15 +55,13 @@ PICLas uses several external libraries as well as auxiliary functions from open 
 * [HDF5](https://www.hdfgroup.org/)
 * [PETSc](https://petsc.org/)
 
-## Tutorials
+# Tutorials & Regression Testing
 
 A set of tutorials covering common use cases (PIC, DSMC, and coupled simulations) is included in the [`tutorials`](tutorials) directory and documented in the [User Guide: Tutorials](https://piclas.readthedocs.io/en/latest/userguide/tutorials/index.html).
 
-## Regression Testing
+An overview of the regression tests used for continuous integration is given in [REGGIE.md](REGGIE.md). The test cases are located in the [`regressioncheck`](regressioncheck) directory.
 
-An overview of the regression tests used for continuous integration is given in [REGGIE.md](REGGIE.md).
-
-## Citing PICLas
+# Citing PICLas
 
 PICLas is a scientific project.
 If you use PICLas for publications or presentations in science, please support the project by citing following paper and the repository.
@@ -98,7 +86,7 @@ For general citation cite the repository and the general publication about PICLa
 }
 ```
 
-## Contributing & Getting Help
+# Contributing & Getting Help
 
 We welcome contributions of all kinds - from bug fixes and documentation improvements to new features.
 Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
@@ -110,7 +98,7 @@ You can also reach the team through:
 
 A list of current contributors is maintained in [CONTRIBUTORS.md](CONTRIBUTORS.md).
 
-## License
+# License
 
 The PICLas code is licensed under the [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.html).
 The license can be found in [LICENSE.md](LICENSE.md) and the list of contributors in [CONTRIBUTORS.md](CONTRIBUTORS.md).

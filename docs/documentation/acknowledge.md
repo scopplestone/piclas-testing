@@ -2,13 +2,9 @@
 
 Please acknowledge the role that PICLas played in your research.
 
-## In presentations
-
-For your presentations, you can find a PICLas acknowledgment slide [here](piclas_presentation.png). Feel free to use it to acknowledge PICLas in your presentations.
-
 ## Acknowledge Sentence
 
-Please add the following acknowledgment sentence to your publications.
+Please add the following acknowledgment sentence to your publications and presentations. Feel free to use the [PICLas logo](../logo.jpg) if convenient. For your presentations, you can find a PICLas acknowledgment slide [here](piclas_presentation.png).
 
 `````{tab-set}
 ````{tab-item} Plain text
