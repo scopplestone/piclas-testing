@@ -475,9 +475,10 @@ DO iPartBound=1,nPartBound
     ! Adaptive wall temperature model
     PartBound%UseAdaptedWallTemp(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseAdaptedWallTemp')
     ! Activate wall temperature output in the DSMCSurfState, required for the initialization of the array as well
-    IF(PartBound%UseAdaptedWallTemp(iPartBound)) PartBound%OutputWallTemp = .TRUE.
-    PartBound%RadiativeEmissivity(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RadiativeEmissivity')
-
+    IF(PartBound%UseAdaptedWallTemp(iPartBound)) THEN
+      PartBound%OutputWallTemp = .TRUE.
+      PartBound%RadiativeEmissivity(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RadiativeEmissivity')
+    END IF
     ! Wall temperature gradient model
     PartBound%WallTemp2(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp2')
     IF(PartBound%WallTemp2(iPartBound).GT.0.) THEN

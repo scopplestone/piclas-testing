@@ -160,14 +160,6 @@ INTERFACE TransformVectorFromSphericalCoordinates
 END INTERFACE
 
 #if defined(PARTICLES)
-INTERFACE PARTISELECTRON
-  MODULE PROCEDURE PARTISELECTRON
-END INTERFACE
-
-INTERFACE SPECIESISELECTRON
-  MODULE PROCEDURE SPECIESISELECTRON
-END INTERFACE
-
 INTERFACE DisplayNumberOfParticles
   MODULE PROCEDURE DisplayNumberOfParticles
 END INTERFACE
@@ -1310,13 +1302,30 @@ END IF ! SubStringLength.GT.0.AND.MainStringLength.GT.0
 END FUNCTION StringBeginsWith
 
 #if defined(PARTICLES)
-PPURE FUNCTION PARTISELECTRON(PartID)
 !===================================================================================================================================
-! check if particle is an electron (species-charge = -1.609)
+!> Check if species is an electron (Species(SpecID)%InterID=4)
 !===================================================================================================================================
+PPURE FUNCTION SPECIESISELECTRON(SpecID)
 ! MODULES
-USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
-USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies
+USE MOD_Particle_Vars          ,ONLY: Species
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: SpecID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL            :: SPECIESISELECTRON
+!===================================================================================================================================
+SPECIESISELECTRON = (Species(SpecID)%InterID.EQ.4)
+END FUNCTION SPECIESISELECTRON
+
+!===================================================================================================================================
+!> Check if particle is an electron (Species(PartSpecies(PartID))%InterID=4)
+!===================================================================================================================================
+PPURE FUNCTION PARTISELECTRON(PartID)
+! MODULES
+USE MOD_Particle_Vars          ,ONLY: PartSpecies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1324,46 +1333,16 @@ IMPLICIT NONE
 INTEGER,INTENT(IN) :: PartID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-LOGICAL            :: PARTISELECTRON  !
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER            :: SpeciesID
+LOGICAL            :: PARTISELECTRON
 !===================================================================================================================================
-PARTISELECTRON=.FALSE.
-SpeciesID = PartSpecies(PartID)
-IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
-IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) PARTISELECTRON=.TRUE.
+PARTISELECTRON = SPECIESISELECTRON(PartSpecies(PartID))
 END FUNCTION PARTISELECTRON
-
-
-PPURE FUNCTION SPECIESISELECTRON(SpeciesID)
-!===================================================================================================================================
-! check if species is an electron (species-charge = -1.609)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
-USE MOD_Particle_Vars          ,ONLY: Species
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: SpeciesID
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL            :: SPECIESISELECTRON  !
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-SPECIESISELECTRON=.FALSE.
-IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
-IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) SPECIESISELECTRON=.TRUE.
-END FUNCTION SPECIESISELECTRON
 #endif /*defined(PARTICLES)*/
 
 
 RECURSIVE FUNCTION LOG_RAN() RESULT(X)
 !===================================================================================================================================
-! check if species is an electron (species-charge = -1.609)
+! Return LOG of a uniform random number in (0,1), redrawing if the random number is zero
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING

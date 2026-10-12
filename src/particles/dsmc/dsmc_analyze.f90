@@ -272,7 +272,10 @@ SumSpecPartNum = 0.
 ! Setting temperature to zero
 DSMC%InstantTransTemp = 0.
 totalweight2 = 0.; totalweight = 0.
-IF (PRESENT(vBulk)) vBulk(1:3) = 0.; TotalMass =0.0
+IF (PRESENT(vBulk)) THEN
+  vBulk(1:3) = 0.0
+  TotalMass  = 0.0
+END IF ! PRESENT(vBulk)
 DO iPart=1,PartNum
   PartID = iPartIndx(iPart)
   SpecID = PartSpecies(PartID)
@@ -461,11 +464,17 @@ IF (SamplePressTensHeatflux) THEN
   END DO
   DO iElem = 1, nElems
     ! Pressure tensor
-    DSMC_SolutionPressTens(1:3,iElem) = DSMC_SolutionPressTens(1:3,iElem) + presstens(1:3,iElem) * totalWeight(iElem) &
-      / (totalWeight(iElem) - totalWeight2(iElem)/totalWeight(iElem))
-    ! Heatflux
-    DSMC_SolutionPressTens(4:6,iElem) = DSMC_SolutionPressTens(4:6,iElem) + heatflux(1:3,iElem) * totalWeight(iElem) &
-      * totalWeight(iElem)**2 / (totalWeight(iElem)**3 - 3.*totalWeight(iElem) * totalWeight2(iElem) + 2.*totalWeight3(iElem))
+    IF (totalWeight(iElem).GT.0.) THEN
+      IF (totalWeight(iElem) - totalWeight2(iElem)/totalWeight(iElem).GT.0.) THEN
+        DSMC_SolutionPressTens(1:3,iElem) = DSMC_SolutionPressTens(1:3,iElem) + presstens(1:3,iElem) * totalWeight(iElem) &
+          / (totalWeight(iElem) - totalWeight2(iElem)/totalWeight(iElem))
+      END IF
+      IF ((totalWeight(iElem)**3 - 3.*totalWeight(iElem) * totalWeight2(iElem) + 2.*totalWeight3(iElem)).GT.0.) THEN
+        ! Heatflux
+        DSMC_SolutionPressTens(4:6,iElem) = DSMC_SolutionPressTens(4:6,iElem) + heatflux(1:3,iElem) * totalWeight(iElem) &
+          * totalWeight(iElem)**2 / (totalWeight(iElem)**3 - 3.*totalWeight(iElem) * totalWeight2(iElem) + 2.*totalWeight3(iElem))
+      END IF
+    END IF
   END DO
   ! Deallocate temporary arrays
   DEALLOCATE(TotalMass)

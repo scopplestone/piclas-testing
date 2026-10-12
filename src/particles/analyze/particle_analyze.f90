@@ -395,12 +395,12 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)TH
   ! CharLength is only build for local DG elements. Therefore, array is only filled for elements on the same compute node
   offsetElemCNProc = offsetElem - offsetComputeNodeElem
 #else
-  ALLOCATE(ElemCharLengthX_Shared(nElems), &
-           ElemCharLengthY_Shared(nElems), &
-           ElemCharLengthZ_Shared(nElems), &
-           STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) &
-    CALL abort(__STAMP__,'ERROR in Particle Analyze: Cannot allocate ElemCharLength in X, Y or Z!')
+  ALLOCATE(ElemCharLengthX_Shared(nElems), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in Particle Analyze: Cannot allocate ElemCharLength in X')
+  ALLOCATE(ElemCharLengthY_Shared(nElems), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in Particle Analyze: Cannot allocate ElemCharLength in Y')
+  ALLOCATE(ElemCharLengthZ_Shared(nElems), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in Particle Analyze: Cannot allocate ElemCharLength in Z')
   offsetElemCNProc = 0
 #endif  /*USE_MPI*/
   DO iElem = 1, nElems
@@ -734,7 +734,6 @@ END SUBROUTINE InitParticleAnalyze
 SUBROUTINE InitBulkElectronTemp()
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
 USE MOD_Particle_Vars         ,ONLY: nSpecies,Species
 USE MOD_Particle_Vars         ,ONLY: CalcBulkElectronTemp,BulkElectronTemp,BulkElectronTempSpecID
 USE MOD_HDF5_Input            ,ONLY: DatasetExists,ReadArray
@@ -782,8 +781,7 @@ IF(CalcBulkElectronTemp)THEN
   ! Loop over all species and find the index corresponding to the electron species: take the first electron species that is
   ! encountered
   DO iSpec = 1, nSpecies
-    IF (Species(iSpec)%ChargeIC.GE.0.0) CYCLE
-    IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1)THEN
+    IF(SPECIESISELECTRON(iSpec))THEN
       BulkElectronTempSpecID = iSpec
       EXIT
     END IF

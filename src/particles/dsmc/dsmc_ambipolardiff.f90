@@ -37,8 +37,7 @@ SUBROUTINE InitializeVariablesAmbipolarDiff()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Globals_Vars        ,ONLY: ElementaryCharge
-USE MOD_Particle_Vars       ,ONLY: nSpecies,Species
+USE MOD_Particle_Vars       ,ONLY: nSpecies
 USE MOD_DSMC_Vars           ,ONLY: useDSMC, DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -55,8 +54,7 @@ IF(useDSMC) THEN
   IF (DSMC%DoAmbipolarDiff) THEN
     DSMC%AmbiDiffElecSpec = 0
     DO iSpec = 1, nSpecies
-      IF (Species(iSpec)%ChargeIC.GT.0.0) CYCLE
-      IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1) DSMC%AmbiDiffElecSpec=iSpec
+      IF(SPECIESISELECTRON(iSpec)) DSMC%AmbiDiffElecSpec=iSpec
     END DO
     IF(DSMC%AmbiDiffElecSpec.EQ.0) THEN
       CALL abort(__STAMP__,'ERROR: No electron species found for ambipolar diffusion: ',IntInfoOpt=DSMC%AmbiDiffElecSpec)
