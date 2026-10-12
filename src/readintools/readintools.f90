@@ -927,8 +927,7 @@ DO WHILE (associated(current))
       IF (current%opt%isSet) THEN
         IF (.NOT.(current%opt%multiple)) THEN
           ! option already set, but is not a multiple option
-          SWRITE(UNIT_StdOut,*) 'Option "', TRIM(name), '" is already set, but is not a multiple option!'
-          STOP 1
+          CALL CollectiveStop(__STAMP__, 'Option "'//TRIM(name)//'" is already set, but is not a multiple option!')
         END IF
         ! create new instance of multiple option
         ALLOCATE(newopt, source=current%opt)
