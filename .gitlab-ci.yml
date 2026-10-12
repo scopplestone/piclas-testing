@@ -69,6 +69,11 @@ variables:
   # Use no compression for caches
   CACHE_COMPRESSION_LEVEL: "fastest"
 
+  UV_CACHE_DIR: /uv-cache
+  # If you need faster package installation, use symlink, however note that this
+  # can cause the environment to become corrupted if the cache is cleared during the job.
+  UV_LINK_MODE: copy
+
   # --- label table for the pipeline name
   L_SCHEDULE_CHECKIN: '[CHE]'
   L_SCHEDULE_NIGHTLY: '[NIG]'
