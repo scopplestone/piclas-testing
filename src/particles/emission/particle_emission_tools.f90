@@ -2455,9 +2455,9 @@ DO i=1,chunkSize
   CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
   IF(PartAccepted) THEN
     chunkSize2=chunkSize2+1
-    particle_positions(i*3-2) = Particle_pos(1)
-    particle_positions(i*3-1) = Particle_pos(2)
-    particle_positions(i*3  ) = Particle_pos(3)
+    particle_positions(chunkSize2*3-2) = Particle_pos(1)
+    particle_positions(chunkSize2*3-1) = Particle_pos(2)
+    particle_positions(chunkSize2*3  ) = Particle_pos(3)
   END IF ! PartAccepted
 END DO ! chunkSize
 chunkSize = chunkSize2
