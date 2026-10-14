@@ -1,5 +1,5 @@
 !==================================================================================================================================
-! Copyright (c) 2018 - 2019 Marcel Pfeiffer
+! Copyright (c) 2018 PICLas Developers, see CONTRIBUTORS.md
 !
 ! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
@@ -20,15 +20,6 @@ MODULE MOD_BGK_Init
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
-
-INTERFACE InitBGK
-  MODULE PROCEDURE InitBGK
-END INTERFACE
-
-INTERFACE FinalizeBGK
-  MODULE PROCEDURE FinalizeBGK
-END INTERFACE
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -56,8 +47,7 @@ CALL prms%CreateIntOption(    'Particles-BGK-CollModel',            'Select the 
 CALL prms%CreateIntOption(    'Particles-ESBGK-Model',              'Select sampling method for the ESBGK target distribution '//&
                                                                     'function:\n'//&
                                                                     '1: Approximative\n'//&
-                                                                    '2: Exact\n'//&
-                                                                    '3: Metropolis-Hastings', '1')
+                                                                    '2: Exact', '1')
 CALL prms%CreateIntOption(    'Particles-BGK-MixtureModel',         'Select model for mixture transport properties:\n'//&
                                                                     '1: Wilke\n'//&
                                                                     '2: Collision Integrals Kestin', '1')
@@ -131,12 +121,22 @@ DO iSpec=1, nSpecies
 END DO
 
 BGKCollModel = GETINT('Particles-BGK-CollModel')
+IF ((BGKCollModel.LT.1).OR.(BGKCollModel.GT.3)) THEN
+  CALL abort(__STAMP__,'ERROR Particles-BGK-CollModel must be 1 (ESBGK), 2 (SBGK) or 3 (BGK)!')
+END IF
 IF ((nSpecies.GT.1).AND.(BGKCollModel.GT.1)) THEN
   CALL abort(__STAMP__,'ERROR Multispec only with ESBGK model!')
 END IF
+! Species mixture models
 BGKMixtureModel = GETINT('Particles-BGK-MixtureModel')
-! ESBGK options for sampling: 1: Approximative, 2: Exact, 3: MetropolisHastings
+IF ((BGKMixtureModel.LT.1).OR.(BGKMixtureModel.GT.2)) THEN
+  CALL abort(__STAMP__,'ERROR Particles-BGK-MixtureModel must be 1 (Wilke) or 2 (Collision integrals)!')
+END IF
+! ESBGK options for sampling: 1: Approximative, 2: Exact
 ESBGKModel = GETINT('Particles-ESBGK-Model')
+IF ((ESBGKModel.LT.1).OR.(ESBGKModel.GT.2)) THEN
+  CALL abort(__STAMP__,'ERROR Particles-ESBGK-Model must be 1 (Approximative) or 2 (Exact)!')
+END IF
 
 ! Coupled BGK with DSMC, use a number density as limit above which BGK is used, and below which DSMC is used
 CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')

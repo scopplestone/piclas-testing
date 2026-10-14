@@ -1,5 +1,5 @@
 !==================================================================================================================================
-! Copyright (c) 2018 - 2019 Marcel Pfeiffer
+! Copyright (c) 2018 PICLas Developers, see CONTRIBUTORS.md
 !
 ! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
@@ -307,7 +307,7 @@ END IF
 ! 9.) Rotation: Scale the new rotational state of the molecules to ensure energy conservation
 DO iSpec = 1, nSpecies
   ! Calculate scaling factor alpha per species, see F. Hild, M. Pfeiffer, "Multi-species modeling in the particle-based ellipsoidal
-  ! statistical Bhatnagar-Gross-Krook method including internal degrees of freedom", subitted to Phys. Fluids, August 2023
+  ! statistical Bhatnagar-Gross-Krook method including internal degrees of freedom", J. Comput. Phys. 514, 113226 (2024)
   IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     IF (NewEnRot(iSpec).GT.0.0) THEN
       alphaRot(iSpec) = OldEn/NewEnRot(iSpec)*(Xi_RotSpec(iSpec)*RotRelaxWeightSpec(iSpec)/(Xi_RotTotal+3.*(totalWeight-totalWeight2/totalWeight)))
@@ -690,8 +690,8 @@ IF (nSpecies.GT.1) THEN ! gas mixture
   DO iSpec = 1, nSpecies
     IF (nSpec(iSpec).EQ.0) CYCLE
     ! Correction of Pr for calculation of relaxation frequency, see alpha - F. Hild, M. Pfeiffer, "Multi-species modeling in the
-    ! particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method including internal degrees of freedom", submitted to Phys.
-    ! Fluids, August 2023
+    ! particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method including internal degrees of freedom", J. Comput.
+    ! Phys. 514, 113226 (2024)
     PrandtlCorrection = PrandtlCorrection + DOFFraction(iSpec)*MassIC_Mixture/Species(iSpec)%MassIC/TotalDOFWeight
     C_P = C_P + ((5. + (Xi_VibSpec(iSpec)+Xi_RotSpec(iSpec)))/2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec)
   END DO
@@ -700,7 +700,7 @@ IF (nSpecies.GT.1) THEN ! gas mixture
   ! Both cases are described in Pfeiffer et. al., Physics of Fluids 33, 036106 (2021),
   ! "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method for monatomic gas species"
   ! Extension to polyatomic mixtures according to F. Hild, M. Pfeiffer, "Multi-species modeling in the particle-based ellipsoidal
-  ! statistical Bhatnagar-Gross-Krook method including internal degrees of freedom", submitted to Phys. Fluids, August 2023
+  ! statistical Bhatnagar-Gross-Krook method including internal degrees of freedom", J. Comput. Phys. 514, 113226 (2024)
 
   CASE (1)  ! Wilke's mixing rules
     DO iSpec = 1, nSpecies
@@ -824,7 +824,7 @@ REAL                          :: eps_prec=1.0E-0
 ! According to J. Mathiaud et. al., "An ES-BGK model for diatomic gases with correct relaxation rates for internal energies",
 ! European Journal of Mechanics - B/Fluids, 96, pp. 65-77, 2022
 ! For implentation, see F. Hild, M. Pfeiffer, "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-
-! Krook method including internal degrees of freedom", subitted to Phys. Fluids, August 2023
+! Krook method including internal degrees of freedom", J. Comput. Phys. 514, 113226 (2024)
 
 RotFracSpec=0.0; VibFracSpec=0.0; Xi_vib_DOF=0.0; Xi_VibSpecNew=0.0; betaR=1.0; betaV=1.0
 ERotSpecMean=0.0; ERotTtransSpecMean=0.0; EVibSpecMean=0.0; EVibTtransSpecMean=0.0; ETransRelMean=0.0; CellTempRel=0.0
@@ -1067,7 +1067,7 @@ VibRelaxWeightSpec=0.0; RotRelaxWeightSpec=0.0; nRelax=0; nNotRelax=0; vBulk=0.0
 ProbAddPartTrans = 1.-EXP(-relaxfreq*dtCell)
 ! Calculate probabilities of relaxation of a particle in the rotation and vibration
 ! See F. Hild, M. Pfeiffer, "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method
-! including internal degrees of freedom", subitted to Phys. Fluids, August 2023
+! including internal degrees of freedom", J. Comput. Phys. 514, 113226 (2024)
 ProbAddPartRot(:) = ProbAddPartTrans * rotrelaxfreqSpec(:)/relaxfreq*betaR(:)
 ProbAddPartVib(:) = ProbAddPartTrans * vibrelaxfreqSpec(:)/relaxfreq*betaV(:)
 
@@ -1220,7 +1220,7 @@ REAL                          :: iRanPart(3, nRelax), A(3,3), KronDelta, SMat(3,
 ! According to M. Pfeiffer, "Particle-based fluid dynamics: Comparison of different Bhatnagar-Gross-Krook models and the direct
 ! simulation Monte Carlo method for hypersonic flows", Phys. Fluids 30, 106106 (2018) and F. Hild, M. Pfeiffer, "Multi-species
 ! modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method including internal degrees of freedom",
-! subitted to Phys. Fluids, August 2023
+! J. Comput. Phys. 514, 113226 (2024)
 IF (nRelax.GT.0) THEN
   SELECT CASE(BGKCollModel)
   CASE (1)  ! Ellipsoidal Statistical BGK
@@ -1285,12 +1285,6 @@ IF (nRelax.GT.0) THEN
         END IF
         ! Generate random normals for the sampling of new velocities of all relaxing particles
         CALL BGK_BuildTransGaussNums(nRelax, iRanPart)
-      ELSE IF (ESBGKModel.EQ.3) THEN
-        ! Metropolis-Hastings
-        A(2,1)=A(1,2)
-        A(3,1)=A(1,3)
-        A(3,2)=A(2,3)
-        CALL MetropolisES(nRelax, iRanPart, A*MassIC_Mixture, CellTempRel)
       END IF
     END IF
 
@@ -1316,9 +1310,6 @@ IF (nRelax.GT.0) THEN
     ELSE IF ((BGKCollModel.EQ.1).AND.(ESBGKModel.EQ.2)) THEN
       tempVelo(1:3) = SQRT(MassIC_Mixture/Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
       PartState(4:6,iPart) = vBulkAll(1:3) + MATMUL(SMat,tempVelo)
-    ELSE IF ((BGKCollModel.EQ.1).AND.(ESBGKModel.EQ.3)) THEN
-      ! New thermal velocity (in x,y,z) of particle with mass scaling multiplied by normal distributed random vector
-      PartState(4:6,iPart) = vBulkAll(1:3) + SQRT(1./Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
     ELSE
       ! New thermal velocity (in x,y,z) of particle is sqrt(k_B*T/m) multiplied by normal distributed random vector
       PartState(4:6,iPart) = vBulkAll(1:3) + SQRT(BoltzmannConst*CellTempRel/Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
@@ -1362,7 +1353,7 @@ INTEGER                       :: iPart, iLoop, iDOF, iSpec, iQuant, iQuaMax, iPo
 REAL                          :: Xi_VibTotal, alpha(nSpecies), partWeight, betaV, iRan, MaxColQua
 !===================================================================================================================================
 ! According to F. Hild, M. Pfeiffer, "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook
-! method including internal degrees of freedom", subitted to Phys. Fluids, August 2023
+! method including internal degrees of freedom", J. Comput. Phys. 514, 113226 (2024)
 IF(BGKDoVibRelaxation) THEN
   ! Vibrational energy is positive for at least one species + there are vibrational relaxations
   IF (ANY(NewEnVib.GT.0.0).AND.(nVibRelax.GT.0)) THEN
@@ -1484,89 +1475,6 @@ IF(BGKDoVibRelaxation) THEN
 END IF ! BGKDoVibRelaxation
 
 END SUBROUTINE EnergyConsVib
-
-
-SUBROUTINE MetropolisES(nPart, iRanPart, A, CellTempRel)
-!===================================================================================================================================
-!> Sampling from ESBGK target distribution function by using a Metropolis-Hastings method
-!===================================================================================================================================
-! MODULES
-USE Ziggurat
-USE MOD_Basis                 ,ONLY: INV33
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: nPart
-REAL, INTENT(IN)              :: A(3,3), CellTempRel
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)             :: iRanPart(:,:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                           :: iRanPartTemp(3), V2, iRan, NewProb, OldProb, NormProb, prefacor
-INTEGER                        :: iLoop, iPart, iRun
-LOGICAL                        :: Changed
-REAL                           :: AC(3), AInvers(3,3), detA
-!===================================================================================================================================
-! Generate normal distributed random vector as start vector for the thermal velocity
-prefacor = SQRT(BoltzmannConst*CellTempRel)
-iRanPart(1,1) = rnor()*prefacor
-iRanPart(2,1) = rnor()*prefacor
-iRanPart(3,1) = rnor()*prefacor
-! Inverse matrix of A
-CALL INV33(A, AInvers, detA)
-AC(1:3) = MATMUL(AInvers, iRanPart(1:3,1))
-V2 = iRanPart(1,1)*AC(1) + iRanPart(2,1)*AC(2) + iRanPart(3,1)*AC(3)
-OldProb = EXP(-0.5*V2)
-! Burn-in phase, 35 initial steps
-DO iLoop = 1, 35
-  ! Generate normal distributed random vector for the thermal velocity
-  iRanPartTemp(1) = rnor()*prefacor
-  iRanPartTemp(2) = rnor()*prefacor
-  iRanPartTemp(3) = rnor()*prefacor
-  AC(1:3) = MATMUL(AInvers, iRanPartTemp(1:3))
-  V2 = iRanPartTemp(1)*AC(1) + iRanPartTemp(2)*AC(2) + iRanPartTemp(3)*AC(3)
-  NewProb = EXP(-0.5*V2)
-  NormProb = MIN(1.,NewProb/OldProb)
-  CALL RANDOM_NUMBER(iRan)
-  ! Acceptance of new sample with probability NormProb
-  IF (NormProb.GT.iRan) THEN
-    iRanPart(1:3,1) = iRanPartTemp(1:3)
-    OldProb = NewProb
-  END IF
-END DO
-! Main phase, for all following particles
-DO iPart = 2, nPart
-  ! Normal distributed random vector from previous particle
-  iRanPart(1,iPart) = iRanPart(1,iPart-1)
-  iRanPart(2,iPart) = iRanPart(2,iPart-1)
-  iRanPart(3,iPart) = iRanPart(3,iPart-1)
-  iRun = 0
-  Changed = .FALSE.
-  ! For acception: velocity should be changed at least once and at least ten steps in the Markov chain should be taken
-  DO WHILE ((iRun.LT.10).OR.(.NOT.Changed))
-    iRun = iRun + 1
-    ! Generate normal distributed random vector for the thermal velocity
-    iRanPartTemp(1) = rnor()*prefacor
-    iRanPartTemp(2) = rnor()*prefacor
-    iRanPartTemp(3) = rnor()*prefacor
-    AC(1:3) = MATMUL(AInvers, iRanPartTemp(1:3))
-    V2 = iRanPartTemp(1)*AC(1) + iRanPartTemp(2)*AC(2) + iRanPartTemp(3)*AC(3)
-    NewProb = EXP(-0.5*V2)
-    NormProb = MIN(1.,NewProb/OldProb)
-    CALL RANDOM_NUMBER(iRan)
-    ! Acceptance of new sample with probability NormProb, velocity is changed
-    IF (NormProb.GT.iRan) THEN
-      Changed = .TRUE.
-      iRanPart(1:3,iPart) = iRanPartTemp(1:3)
-      OldProb = NewProb
-    END IF
-  END DO
-END DO
-
-END SUBROUTINE MetropolisES
 
 
 SUBROUTINE ARShakhov(nPart, iRanPart, Vtherm, HeatVec, Prandtl)
@@ -1735,7 +1643,7 @@ DO iSpec = 1, nSpecies
     ! Calculation of thermal conductivity of rotation and vibration for each molecular species
     ! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 254f
     ! F. Hild, M. Pfeiffer, "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method
-    ! including internal degrees of freedom", subitted to Phys. Fluids, August 2023
+    ! including internal degrees of freedom", J. Comput. Phys. 514, 113226 (2024)
     Xi_Dij_tot = SUM(Xj_Dij(iSpec,:))
     rhoSpec = dens * Species(iSpec)%MassIC * Xi(iSpec)
     ThermalCondSpec_Rot(iSpec) = (rhoSpec*cv_rot/Xi_Dij_tot)

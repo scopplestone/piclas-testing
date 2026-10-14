@@ -1,5 +1,5 @@
 !==================================================================================================================================
-! Copyright (c) 2018 - 2019 Marcel Pfeiffer
+! Copyright (c) 2018 PICLas Developers, see CONTRIBUTORS.md
 !
 ! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
@@ -24,15 +24,15 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                                        :: BGKInitDone = .FALSE.
 
-TYPE tSpeciesBGK                                                              ! ESBK Species Param
+TYPE tSpeciesBGK                                                                ! ESBGK Species Param
   REAL, ALLOCATABLE                            :: CollFreqPreFactor(:)
 END TYPE tSpeciesBGK
 
-TYPE(tSpeciesBGK), ALLOCATABLE                 :: SpecBGK(:)                  ! Species DSMC params (nSpec)
+TYPE(tSpeciesBGK), ALLOCATABLE                 :: SpecBGK(:)                    ! Species BGK params (nSpec)
 LOGICAL                                        :: DoBGKCellAdaptation
 INTEGER                                        :: BGKCollModel                  ! 1 ES-BGK; 2 S-BGK; 3 BGK
-INTEGER                                        :: ESBGKModel                    ! 1 Approx; 2 Exact Solution A; 3 Metropolis
-INTEGER                                        :: BGKMixtureModel                    ! 1 Approx; 2 Exact Solution A; 3 Metropolis
+INTEGER                                        :: ESBGKModel                    ! 1 Approx; 2 Exact Solution
+INTEGER                                        :: BGKMixtureModel               ! 1 Wilke; 2 Collision integrals
 INTEGER                                        :: BGKMinPartPerCell
 LOGICAL                                        :: BGKMovingAverage
 REAL                                           :: BGKMovingAverageFac
