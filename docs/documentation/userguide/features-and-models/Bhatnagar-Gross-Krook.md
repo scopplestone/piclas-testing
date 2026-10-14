@@ -26,7 +26,7 @@ Relevant publications of the developers:
 - Extension to polyatomic molecules, simulation of the carbon dioxide hypersonic flow around a flat-faced cylinder, comparison of ESBGK, SBGK and DSMC regarding the shock structure and heat flux {cite}`Pfeiffer2019c`
 - Implemention of Brull's multi-species modeling for monatomic gas mixtures using Wilke's mixture rules and collision integrals for the calculation of transport coefficients {cite}`Pfeiffer2021`
 - Extension of the implementation of Brull's ESBGK multi-species model to diatomic gas mixtures using Wilke's mixture rules (under review)
-- Extension of the ESBGK method to multi-species modeling of polyatomic molecules, based on the ESBGK models of Mathiaud, Mieussens, Pfeiffer, and Brull, and including internal energies with multiple vibrational degrees of freedom, using Wilke's mixture rules and collision integrals in comparison (under review)
+- Extension of the ESBGK method to multi-species modeling of polyatomic molecules, based on the ESBGK models of Mathiaud, Mieussens, Pfeiffer, and Brull, and including internal energies with multiple vibrational degrees of freedom, using Wilke's mixture rules and collision integrals in comparison {cite}`hild_multi-species_2024`
 
 To enable the simulation with the BGK module, the respective compiler setting has to be activated:
 
