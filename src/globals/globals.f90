@@ -101,10 +101,6 @@ INTERFACE GETFREEUNIT
   MODULE PROCEDURE GETFREEUNIT
 END INTERFACE GETFREEUNIT
 
-INTERFACE CreateErrFile
-  MODULE PROCEDURE CreateErrFile
-END INTERFACE CreateErrFile
-
 INTERFACE CROSS
   MODULE PROCEDURE CROSS
 END INTERFACE CROSS
@@ -308,15 +304,16 @@ END SUBROUTINE ReOpenLogFile
 !
 ! END FUNCTION AlmostZero
 
-SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt&
-#if USE_MPI
-                    ,SingleOpt&
-#endif
-                    )
+SUBROUTINE AbortProg(SourceFile, SourceLine, CompDate, CompTime, ErrorMessage, IntInfoOpt, RealInfoOpt, ErrorCode)
 !===================================================================================================================================
 ! Terminate program correctly if an error has occurred (important in MPI mode!).
+! Typical usage: `CALL AbortProg(__STAMP__, "Something terrible has happened!")`
+! `__STAMP__` is a macro pointing to things like the current source file and line number.
 !===================================================================================================================================
 ! MODULES
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
+USE IFCORE, ONLY: TRACEBACKQQ
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -328,9 +325,7 @@ CHARACTER(LEN=*),INTENT(IN)                  :: CompTime        ! Compilation ti
 CHARACTER(LEN=*),INTENT(IN)                  :: ErrorMessage    ! Error message
 INTEGER,INTENT(IN),OPTIONAL                  :: IntInfoOpt      ! Error info (integer)
 REAL,INTENT(IN),OPTIONAL                     :: RealInfoOpt     ! Error info (real)
-#if USE_MPI
-LOGICAL,INTENT(IN),OPTIONAL                  :: SingleOpt       ! Only MPI-Root performs check
-#endif
+INTEGER,INTENT(IN),OPTIONAL                  :: ErrorCode       ! Error code to return to the OS
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !   There is no way back!
@@ -338,39 +333,34 @@ LOGICAL,INTENT(IN),OPTIONAL                  :: SingleOpt       ! Only MPI-Root 
 ! LOCAL VARIABLES
 INTEGER                           :: IntInfo         ! Error info (integer)
 REAL                              :: RealInfo        ! Error info (real)
-#if USE_MPI
-INTEGER                           :: errOut          ! Output of MPI_ABORT
-INTEGER                           :: signalout       ! Output errorcode
-#endif /*USE_MPI*/
 REAL                              :: Time
-!===================================================================================================================================
-IF(logging) CLOSE(UNIT_logOut)
+INTEGER                           :: ActualErrorCode
 #if USE_MPI
-IF(PRESENT(SingleOpt))THEN
-  IF(SingleOpt.AND.(.NOT.MPIRoot)) RETURN
-END IF
-#endif
-IF(PRESENT(IntInfoOpt))THEN
-  IntInfo=IntInfoOpt
+INTEGER                           :: MpiErr          ! Output of MPI_ABORT
+#endif /*USE_MPI*/
+!===================================================================================================================================
+IF(PRESENT(ErrorCode)) THEN
+  ActualErrorCode = ErrorCode
 ELSE
-  IntInfo=999
+  ActualErrorCode = 1
 END IF
-IF(PRESENT(RealInfoOpt))THEN
-  RealInfo=RealInfoOpt
-ELSE
-  RealInfo=999.
+
+IF(logging) CLOSE(UNIT_logOut)
+
+WRITE(UNIT_stdOut,'(A)') ''
+WRITE(UNIT_stdOut,'(A)') '##############################################################################################'
+WRITE(UNIT_stdOut,'(A,I0,A,A,A,I0)') 'Program abort caused on processor rank ',myRank,' in file ', TRIM(SourceFile), ', line ', SourceLine
+WRITE(UNIT_stdOut,'(A,A,A,A)') 'This file was compiled at ', TRIM(CompDate), ' ', TRIM(CompTime)
+WRITE(UNIT_stdOut,'(A,A)', ADVANCE='NO') "Error: ", ErrorMessage
+IF(PRESENT(IntInfoOpt))  WRITE(UNIT_stdOut,'(I0)'       ,ADVANCE='NO') IntInfo
+IF(PRESENT(RealInfoOpt)) WRITE(UNIT_stdOut,'(ES25.14E3)',ADVANCE='NO') RealInfo
+WRITE(UNIT_stdOut,*) "\n"
+IF(UNIT_errOut .NE. UNIT_stdOut) THEN
+  WRITE(UNIT_stdOut,'(A,A,A)')'See ', TRIM(ErrorFileName), ' for more details'
+  WRITE(UNIT_stdOut,*)
 END IF
-WRITE(UNIT_stdOut,*)
-WRITE(UNIT_stdOut,*)'_____________________________________________________________________________'
-WRITE(UNIT_stdOut,*)'Program abort caused on Proc ',myRank,' in File : ',TRIM(SourceFile),' Line ',SourceLine
-WRITE(UNIT_stdOut,*)'This file was compiled at ',TRIM(CompDate),'  ',TRIM(CompTime)
-WRITE(UNIT_stdOut,'(A10,A)',ADVANCE='NO')'Message: ',TRIM(ErrorMessage)
-IF(PRESENT(IntInfoOpt)) WRITE(UNIT_stdOut,'(I0)',ADVANCE='NO')IntInfo
-IF(PRESENT(RealInfoOpt)) WRITE(UNIT_stdOut,'(ES25.14E3)')RealInfo
-WRITE(UNIT_stdOut,*)
-WRITE(UNIT_stdOut,'(A,A,A)')'See ',TRIM(ErrorFileName),' for more details'
-WRITE(UNIT_stdOut,*)
-!CALL delete()
+CALL FLUSH(UNIT_stdOut)
+
 ! Can't use PICLASTIME() here because it requires MPI_WAIT
 #if USE_MPI
 Time=MPI_WTIME()
@@ -378,12 +368,24 @@ Time=MPI_WTIME()
 CALL CPU_TIME(Time)
 #endif
 CALL DisplaySimulationTime(Time, StartTime, 'ABORTED')
-#if USE_MPI
-signalout=2 ! MPI_ABORT requires an output error-code /=0
-errOut = 1
-CALL MPI_ABORT(MPI_COMM_PICLAS,signalout,errOut)
+
+! Print backtrace if a subroutine is available
+#if USE_DEBUG
+#if defined(__GFORTRAN__)
+CALL BACKTRACE()
+#elif defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
+CALL TRACEBACKQQ(STRING='AbortProg called', USER_EXIT_CODE=-1)
 #endif
-STOP 2
+FLUSH(0)
+#endif
+
+#if USE_MPI
+CALL MPI_ABORT(MPI_COMM_PICLAS, ActualErrorCode, MpiErr)
+! Execution does not typically continue past this point
+#endif
+
+CALL EXIT(ActualErrorCode)
+
 END SUBROUTINE AbortProg
 
 
@@ -464,33 +466,6 @@ IF (MPIRoot) ERROR STOP 1
 ! This does not print anything to the console. STOP QUIET is only availabe in semi-recent fortran versions.
 CALL EXIT(1)
 END SUBROUTINE CollectiveStop
-
-
-SUBROUTINE CreateErrFile()
-!===================================================================================================================================
-! Open file for error output
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                        :: OpenStat
-LOGICAL                        :: isOpen
-!===================================================================================================================================
-INQUIRE(UNIT=UNIT_errOut,OPENED=isOpen)
-IF(.NOT.isOpen)THEN
-  OPEN(UNIT=UNIT_errOut,  &
-       FILE=ErrorFileName,&
-       STATUS='REPLACE',  &
-       ACTION='WRITE',    &
-       IOSTAT=OpenStat)
-END IF
-END SUBROUTINE CreateErrFile
 
 
 !==================================================================================================================================
