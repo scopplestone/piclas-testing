@@ -361,14 +361,6 @@ IF(UNIT_errOut .NE. UNIT_stdOut) THEN
 END IF
 CALL FLUSH(UNIT_stdOut)
 
-! Can't use PICLASTIME() here because it requires MPI_WAIT
-#if USE_MPI
-Time=MPI_WTIME()
-#else
-CALL CPU_TIME(Time)
-#endif
-CALL DisplaySimulationTime(Time, StartTime, 'ABORTED')
-
 ! Print backtrace if a subroutine is available
 #if USE_DEBUG
 #if defined(__GFORTRAN__)
@@ -376,8 +368,17 @@ CALL BACKTRACE()
 #elif defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
 CALL TRACEBACKQQ(STRING='AbortProg called', USER_EXIT_CODE=-1)
 #endif
-FLUSH(0)
+WRITE(UNIT_stdOut,*)
+CALL FLUSH(0)
 #endif
+
+! Can't use PICLASTIME() here because it requires MPI_WAIT
+#if USE_MPI
+Time=MPI_WTIME()
+#else
+CALL CPU_TIME(Time)
+#endif
+CALL DisplaySimulationTime(Time, StartTime, 'ABORTED')
 
 #if USE_MPI
 CALL MPI_ABORT(MPI_COMM_PICLAS, ActualErrorCode, MpiErr)
