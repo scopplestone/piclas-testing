@@ -28,77 +28,55 @@ jobs:
       shell: bash
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: |
-        source ~/.bashrc
-        cmake -G Ninja -B build_single -DPICLAS_INSTRUCTION=-mtune=generic -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=OFF -DLIBS_BUILD_HDF5=ON -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+      run: cmake -G Ninja -B build_single -DPICLAS_INSTRUCTION=-mtune=generic -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=OFF -DLIBS_BUILD_HDF5=ON -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
     - name: Build PICLas Single-core
       shell: bash
-      run: |
-        source ~/.bashrc
-        cmake --build build_single
+      run: cmake --build build_single
 
     - name: Configure CMake PICLas DSMC
       shell: bash
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: |
-        source ~/.bashrc
-        cmake -G Ninja -B build_DSMC -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 -DPICLAS_TIMEDISCMETHOD=DSMC -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+      run: cmake -G Ninja -B build_DSMC -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 -DPICLAS_TIMEDISCMETHOD=DSMC -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
     - name: Build PICLas DSMC
       shell: bash
-      run: |
-        source ~/.bashrc
-        cmake --build build_DSMC
+      run: cmake --build build_DSMC
 
     - name: Configure CMake PICLas BGK
       shell: bash
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: |
-        source ~/.bashrc
-        cmake -G Ninja -B build_BGK -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 -DPICLAS_TIMEDISCMETHOD=BGK-Flow -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+      run: cmake -G Ninja -B build_BGK -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 -DPICLAS_TIMEDISCMETHOD=BGK-Flow -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
     - name: Build PICLas BGK
       shell: bash
-      run: |
-        source ~/.bashrc
-        cmake --build build_BGK
+      run: cmake --build build_BGK
 
     - name: Configure CMake PICLas FP
       shell: bash
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: |
-        source ~/.bashrc
-        cmake -G Ninja -B build_FP -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 -DPICLAS_TIMEDISCMETHOD=FP-Flow -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+      run: cmake -G Ninja -B build_FP -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 -DPICLAS_TIMEDISCMETHOD=FP-Flow -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
     - name: Build PICLas FP
       shell: bash
-      run: |
-        source ~/.bashrc
-        cmake --build build_FP
+      run: cmake --build build_FP
 
     - name: Configure CMake PICLas Poisson Leapfrog
       shell: bash
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: |
-        source ~/.bashrc
-        cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+      run: cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
     - name: Build PICLas Poisson Leapfrog
       shell: bash
-      run: |
-        source ~/.bashrc
-        cmake --build build_poisson_leapfrog
+      run: cmake --build build_poisson_leapfrog
 
     - name: Create AppImages
       shell: bash
       run: |
-        source ~/.bashrc
-
         echo "======================================================================="
         ls -la build_single/bin
         echo "======================================================================="
@@ -120,7 +98,7 @@ jobs:
           sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
           sed -i -e "s/Exec=.*/Exec=${PROG}/" ${PROG}.desktop
           sed -i -e "s/Icon=.*/Icon=${PROG}/" ${PROG}.desktop
-          ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
+          linuxdeploy --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
         done
 
         # Check folder contents
@@ -149,7 +127,7 @@ jobs:
           sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
           sed -i -e "s/Exec=.*/Exec=${PROG}/" ${PROG}.desktop
           sed -i -e "s/Icon=.*/Icon=${PROG}/" ${PROG}.desktop
-          ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
+          linuxdeploy --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
         done
 
         # Check folder contents
@@ -177,7 +155,7 @@ jobs:
           sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
           sed -i -e "s/Exec=.*/Exec=${PROG}/" ${PROG}.desktop
           sed -i -e "s/Icon=.*/Icon=${PROG}/" ${PROG}.desktop
-          ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
+          linuxdeploy --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
         done
 
         # Check folder contents
@@ -205,7 +183,7 @@ jobs:
           sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
           sed -i -e "s/Exec=.*/Exec=${PROG}/" ${PROG}.desktop
           sed -i -e "s/Icon=.*/Icon=${PROG}/" ${PROG}.desktop
-          ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
+          linuxdeploy --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
         done
 
         # Check folder contents
@@ -233,7 +211,7 @@ jobs:
           sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
           sed -i -e "s/Exec=.*/Exec=${PROG}/" ${PROG}.desktop
           sed -i -e "s/Icon=.*/Icon=${PROG}/" ${PROG}.desktop
-          ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
+          linuxdeploy --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
         done
 
         # Check folder contents
